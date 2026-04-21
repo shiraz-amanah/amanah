@@ -272,19 +272,19 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Sticky header */}
       <header className={`sticky top-0 z-40 transition-all duration-300 ${scrolled ? "bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm" : "bg-transparent"}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 md:gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md">
               <ShieldCheck className="text-emerald-50" size={18} />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+              <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
             <button onClick={() => onSignIn("mosque")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">For Mosques</button>
             <button onClick={() => onSignIn("imam")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">Become a Scholar</button>
-            <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">Sign in</button>
+            <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
           </div>
         </div>
       </header>
@@ -357,41 +357,41 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
         <div className="absolute inset-0 bg-gradient-to-t from-stone-950/60 via-transparent to-transparent pointer-events-none"></div>
         <div className="absolute inset-0 bg-radial-vignette pointer-events-none"></div>
 
-        <div className="relative max-w-7xl mx-auto px-6 pt-12 pb-20 md:pt-20 md:pb-28 text-white">
+        <div className="relative max-w-7xl mx-auto px-5 md:px-6 pt-10 pb-16 md:pt-20 md:pb-28 text-white">
           <div className="max-w-3xl" style={{ animation: "fadeInUp 0.6s ease-out" }}>
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-xs uppercase tracking-wider mb-6">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-[11px] md:text-xs uppercase tracking-wider mb-5 md:mb-6">
               <span className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-pulse"></span>
-              <ShieldCheck size={13} /> Every scholar DBS-checked & verified
+              <ShieldCheck size={13} /> <span className="hidden sm:inline">Every scholar DBS-checked & verified</span><span className="sm:hidden">DBS-checked & verified</span>
             </div>
-            <h2 className="text-4xl md:text-6xl lg:text-7xl font-semibold tracking-tight mb-6 leading-[1.05]" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+            <h2 className="text-[2.4rem] leading-[1.05] md:text-6xl lg:text-7xl font-semibold tracking-tight mb-5 md:mb-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
               Find a scholar<br />
               <span className="italic text-emerald-200">you can trust.</span>
             </h2>
-            <p className="text-lg md:text-xl text-emerald-100/90 mb-8 max-w-2xl leading-relaxed">
+            <p className="text-base md:text-xl text-emerald-100/90 mb-6 md:mb-8 max-w-2xl leading-relaxed">
               Qur'an tutors for your kids. Arabic teachers for you. Imams for your nikah. All vetted, all one click away.
             </p>
 
             {/* Search bar */}
-            <div className="bg-white rounded-2xl p-2 flex items-center gap-2 max-w-2xl shadow-2xl ring-1 ring-white/20">
-              <Search size={18} className="text-stone-400 ml-3" />
+            <div className="bg-white rounded-2xl p-1.5 md:p-2 flex items-center gap-1 md:gap-2 max-w-2xl shadow-2xl ring-1 ring-white/20">
+              <Search size={18} className="text-stone-400 ml-2 md:ml-3 flex-shrink-0" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Try 'Qur'an teacher for my son' or 'nikah in Manchester'"
-                className="flex-1 px-2 py-3 text-sm text-stone-900 outline-none placeholder:text-stone-400"
+                placeholder="Try 'Qur'an teacher' or 'nikah imam'"
+                className="flex-1 min-w-0 px-2 py-2.5 md:py-3 text-sm text-stone-900 outline-none placeholder:text-stone-400"
               />
-              <button className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95">Search</button>
+              <button className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0">Search</button>
             </div>
 
             {/* Live stats */}
-            <div className="flex flex-wrap items-center gap-6 mt-8 text-sm text-emerald-100/80">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 md:mt-8 text-xs md:text-sm text-emerald-100/80">
               <span className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-emerald-300 rounded-full animate-pulse"></span>
-                <Counter end={127} /> scholars online
+                <Counter end={127} /> online
               </span>
-              <span className="flex items-center gap-2"><Users size={14} /> <Counter end={2340} />+ happy students</span>
-              <span className="flex items-center gap-2"><Star size={14} fill="currentColor" /> 4.9 avg rating</span>
+              <span className="flex items-center gap-2"><Users size={14} /> <Counter end={2340} />+ students</span>
+              <span className="flex items-center gap-2"><Star size={14} fill="currentColor" /> 4.9 rating</span>
             </div>
           </div>
         </div>
@@ -405,11 +405,11 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
       </section>
 
       {/* Categories */}
-      <section className="max-w-7xl mx-auto px-6 py-12 md:py-16">
-        <div className="flex items-end justify-between mb-8">
+      <section className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
+        <div className="flex items-end justify-between mb-6 md:mb-8">
           <div>
-            <h3 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>What do you need?</h3>
-            <p className="text-stone-600 mt-1">Browse by service</p>
+            <h3 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>What do you need?</h3>
+            <p className="text-stone-600 mt-1 text-sm md:text-base">Browse by service</p>
           </div>
           <button className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
             View all <ArrowRight size={14} />
@@ -740,6 +740,28 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
         .bg-radial-vignette {
           background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.4) 100%);
         }
+
+        /* Mobile-specific optimisations */
+        @media (max-width: 640px) {
+          /* Smaller hero orbs on mobile */
+          .orb-1 { width: 300px; height: 300px; }
+          .orb-2 { width: 280px; height: 280px; }
+          .orb-3 { width: 220px; height: 220px; }
+          .orb-4 { width: 200px; height: 200px; }
+
+          /* Shrink rotating pattern on mobile */
+          .pattern-layer svg { width: 60vh !important; height: 60vh !important; }
+        }
+
+        /* Ensure inputs don't cause zoom on iOS */
+        @media (max-width: 640px) {
+          input, textarea, select { font-size: 16px !important; }
+        }
+
+        /* Safe area for iPhone notch/home indicator */
+        @supports (padding: max(0px)) {
+          body { padding-bottom: env(safe-area-inset-bottom); }
+        }
       `}</style>
     </div>
   );
@@ -862,15 +884,15 @@ const PublicScholarDetail = ({ scholar, onBack, onBook, onMessage }) => {
       {/* Scholar hero banner */}
       <section className={`relative overflow-hidden bg-gradient-to-br ${scholar.avatarGradient}`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
-        <div className="relative max-w-6xl mx-auto px-6 py-10 text-white">
-          <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/80 hover:text-white mb-6">
+        <div className="relative max-w-6xl mx-auto px-5 md:px-6 py-8 md:py-10 text-white">
+          <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/80 hover:text-white mb-5 md:mb-6">
             <ArrowLeft size={14} /> Back
           </button>
-          <div className="flex items-start gap-5 flex-wrap">
+          <div className="flex items-start gap-4 md:gap-5 flex-wrap">
             <Avatar scholar={scholar} size="lg" />
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-2">
-                <h2 className="text-3xl md:text-4xl font-semibold tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholar.name}</h2>
+                <h2 className="text-2xl md:text-4xl font-semibold tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholar.name}</h2>
                 {scholar.verified && (
                   <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full font-medium">
                     <ShieldCheck size={12} /> Verified
@@ -882,10 +904,10 @@ const PublicScholarDetail = ({ scholar, onBack, onBook, onMessage }) => {
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/90">
+              <div className="flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-1 text-xs md:text-sm text-white/90">
                 <span className="flex items-center gap-1"><MapPin size={13} /> {scholar.city}</span>
                 <span className="flex items-center gap-1"><Star size={13} fill="currentColor" /> {scholar.rating} · {scholar.reviewCount} reviews</span>
-                <span className="flex items-center gap-1"><Clock size={13} /> Responds {scholar.responseTime}</span>
+                <span className="hidden md:flex items-center gap-1"><Clock size={13} /> Responds {scholar.responseTime}</span>
                 <span className="flex items-center gap-1"><Users size={13} /> {scholar.students} students</span>
               </div>
             </div>
@@ -893,8 +915,8 @@ const PublicScholarDetail = ({ scholar, onBack, onBook, onMessage }) => {
         </div>
       </section>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="grid md:grid-cols-3 gap-6">
+      <main className="max-w-6xl mx-auto px-5 md:px-6 py-6 md:py-8 pb-24 md:pb-8">
+        <div className="grid md:grid-cols-3 gap-5 md:gap-6">
           {/* Left */}
           <div className="md:col-span-2 space-y-6">
             <div className="bg-white border border-stone-200 rounded-2xl p-6">
