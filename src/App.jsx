@@ -824,33 +824,33 @@ const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-3 group">
+        <div className="max-w-7xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+          <button onClick={onBack} className="flex items-center gap-2.5 md:gap-3 group">
             <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
           </button>
-          <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2 rounded-lg">Sign in</button>
+          <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg">Sign in</button>
         </div>
       </header>
       <section className={`bg-gradient-to-br ${category?.tint} border-b border-stone-200`}>
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6">
+        <div className="max-w-7xl mx-auto px-5 md:px-6 py-8 md:py-12">
+          <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6">
             <ArrowLeft size={14} /> All categories
           </button>
-          <div className="flex items-start gap-5">
-            <div className={`w-16 h-16 rounded-2xl ${category?.iconBg} flex items-center justify-center shadow-lg flex-shrink-0`}>
-              <Icon className="text-white" size={30} />
+          <div className="flex items-start gap-4 md:gap-5">
+            <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl ${category?.iconBg} flex items-center justify-center shadow-lg flex-shrink-0`}>
+              <Icon className="text-white" size={24} />
             </div>
             <div>
-              <h2 className="text-4xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{category?.name}</h2>
-              <p className="text-stone-700">{category?.desc} · {scholars.length} verified scholars</p>
+              <h2 className="text-2xl md:text-4xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{category?.name}</h2>
+              <p className="text-sm md:text-base text-stone-700">{category?.desc} · {scholars.length} verified scholars</p>
             </div>
           </div>
         </div>
       </section>
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-5 md:px-6 py-6 md:py-8">
         {scholars.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {scholars.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
                 <ScholarCard scholar={s} onClick={() => onScholar(s)} />
@@ -1022,11 +1022,25 @@ const PublicScholarDetail = ({ scholar, onBack, onBook, onMessage }) => {
           </div>
         </div>
       </main>
+
+      {/* Mobile sticky bottom action bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-30 px-5 py-3" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-stone-500">{selectedPkg.name} package</p>
+            <p className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{selectedPkg.price}</p>
+          </div>
+          <button onClick={onMessage} className="border border-stone-300 text-stone-700 p-3 rounded-xl flex-shrink-0">
+            <MessageCircle size={18} />
+          </button>
+          <button onClick={() => onBook(scholar, selectedPkg)} className="bg-emerald-900 text-white px-5 py-3 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 flex-shrink-0">
+            Book <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
-
-// ==================== BOOKING ====================
 const BookingConfirm = ({ scholar, pkg, onBack, onDone }) => {
   const [step, setStep] = useState(1);
   const [date, setDate] = useState("");
@@ -1043,14 +1057,14 @@ const BookingConfirm = ({ scholar, pkg, onBack, onDone }) => {
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6">
+      <main className="max-w-3xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6">
           <ArrowLeft size={14} /> Back
         </button>
 
@@ -1090,22 +1104,20 @@ const BookingConfirm = ({ scholar, pkg, onBack, onDone }) => {
             {step === 2 && (
               <div>
                 <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>When works for you?</h2>
-                <p className="text-sm text-stone-500 mb-5">{scholar.name} will confirm or suggest alternatives within {scholar.responseTime}.</p>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Date</label>
-                      <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Time</label>
-                      <input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Notes (optional)</label>
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="e.g. My son is 7, starting Qur'an for the first time. He's a bit shy." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
-                  </div>
+                <p className="text-sm text-stone-500 mb-5">Only showing times {scholar.name.split(" ")[0]} is actually available.</p>
+
+                <DateTimePicker
+                  availability={DEFAULT_AVAILABILITY}
+                  bookings={DEFAULT_BOOKINGS}
+                  selectedDate={date}
+                  selectedTime={time}
+                  onDateChange={setDate}
+                  onTimeChange={setTime}
+                />
+
+                <div className="mt-5">
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Notes (optional)</label>
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="e.g. My son is 7, starting Qur'an for the first time. He's a bit shy." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
                 </div>
               </div>
             )}
@@ -1312,18 +1324,18 @@ const MosqueRegister = ({ onComplete, onBack }) => {
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back</button>
+      <main className="max-w-3xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back</button>
 
         <div className="mb-2">
-          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Register your mosque</h1>
-          <p className="text-stone-600 mt-1">Join the UK's only safeguarded mosque register. 100% free.</p>
+          <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Register your mosque</h1>
+          <p className="text-stone-600 mt-1 text-sm md:text-base">Join the UK's only safeguarded mosque register. 100% free.</p>
         </div>
 
         <div className="mt-8 mb-6">
@@ -1498,18 +1510,18 @@ const ImamRegister = ({ onComplete, onBack }) => {
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back</button>
+      <main className="max-w-3xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back</button>
 
         <div className="mb-2">
-          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Create your scholar profile</h1>
-          <p className="text-stone-600 mt-1">Get found by mosques and students. Free to list.</p>
+          <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Create your scholar profile</h1>
+          <p className="text-stone-600 mt-1 text-sm md:text-base">Get found by mosques and students. Free to list.</p>
         </div>
 
         <div className="mt-8 mb-6">
@@ -2066,7 +2078,7 @@ const OrderCheck = ({ onBack, onComplete }) => {
 };
 
 // ==================== IMAM DASHBOARD ====================
-const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages, onOpenJobs }) => {
+const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages, onOpenJobs, onOpenSchedule }) => {
   const [tab, setTab] = useState("overview");
   const myProfile = {
     id: 101, name: "Yusuf Al-Rahman", initials: "YR", city: "Birmingham",
@@ -2093,17 +2105,20 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
           </button>
           <button onClick={onLogout} className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900"><LogOut size={15} /> Sign out</button>
         </div>
-        <div className="max-w-5xl mx-auto px-6 flex gap-1 border-t border-stone-100">
-          <button onClick={() => setTab("overview")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "overview" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+        <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
+          <button onClick={() => setTab("overview")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "overview" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><LayoutDashboard size={14} /> Overview</span>
           </button>
-          <button onClick={onOpenJobs} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors">
+          <button onClick={onOpenSchedule} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors whitespace-nowrap">
+            <span className="flex items-center gap-1.5"><Calendar size={14} /> Schedule <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{DEFAULT_BOOKINGS.length}</span></span>
+          </button>
+          <button onClick={onOpenJobs} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors whitespace-nowrap">
             <span className="flex items-center gap-1.5"><Briefcase size={14} /> Jobs <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">{MOCK_JOBS.length}</span></span>
           </button>
-          <button onClick={() => setTab("messages")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "messages" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          <button onClick={() => setTab("messages")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "messages" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><MessageCircle size={14} /> Messages <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">2</span></span>
           </button>
-          <button onClick={() => setTab("reviews")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "reviews" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          <button onClick={() => setTab("reviews")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "reviews" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><Star size={14} /> Reviews {myReviews.length > 0 && <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{myReviews.length}</span>}</span>
           </button>
         </div>
@@ -2363,18 +2378,18 @@ const CampaignDetail = ({ campaign, onBack, onDonate }) => {
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
-          <button onClick={onBack} className="flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
+          <button onClick={onBack} className="flex items-center gap-2.5 md:gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
           </button>
         </div>
       </header>
 
       <section className={`relative overflow-hidden bg-gradient-to-br ${campaign.gradient}`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
-        <div className="relative max-w-6xl mx-auto px-6 py-12 text-white">
-          <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/80 hover:text-white mb-6"><ArrowLeft size={14} /> Back to campaigns</button>
+        <div className="relative max-w-6xl mx-auto px-5 md:px-6 py-8 md:py-12 text-white">
+          <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/80 hover:text-white mb-5 md:mb-6"><ArrowLeft size={14} /> Back to campaigns</button>
           <div className="flex items-start gap-3 flex-wrap mb-4">
             {campaign.trending && (
               <span className="inline-flex items-center gap-1 bg-amber-400 text-amber-950 text-[10px] px-2 py-1 rounded-full font-semibold uppercase tracking-wider">
@@ -3768,8 +3783,8 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
       )}
 
       {/* Input */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-10" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="max-w-3xl mx-auto px-4 md:px-6 py-3 md:py-4">
           <div className="flex items-center gap-2">
             <button className="text-stone-500 hover:text-stone-900 p-2 flex-shrink-0"><Paperclip size={18} /></button>
             <button className="text-stone-500 hover:text-stone-900 p-2 flex-shrink-0" title="Send package offer"><Gift size={18} /></button>
@@ -3779,13 +3794,13 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSend()}
               placeholder="Type a message..."
-              className="flex-1 px-4 py-2.5 rounded-full border border-stone-300 bg-stone-50 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+              className="flex-1 min-w-0 px-4 py-2.5 rounded-full border border-stone-300 bg-stone-50 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
             />
             <button onClick={handleSend} disabled={!input.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white p-2.5 rounded-full transition-all hover:scale-[1.05] active:scale-95 flex-shrink-0">
               <Send size={16} />
             </button>
           </div>
-          <p className="text-[10px] text-stone-400 text-center mt-2">End-to-end encrypted · Contact info automatically hidden</p>
+          <p className="text-[10px] text-stone-400 text-center mt-2 hidden md:block">End-to-end encrypted · Contact info automatically hidden</p>
         </div>
       </div>
     </div>
@@ -4482,6 +4497,499 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
   );
 };
 
+// ==================== SCHEDULING ====================
+
+// Scholar's weekly availability pattern (by day of week, 0=Sun, 1=Mon...)
+const DEFAULT_AVAILABILITY = {
+  0: [],
+  1: [{ start: "17:00", end: "21:00" }],
+  2: [{ start: "17:00", end: "21:00" }],
+  3: [],
+  4: [{ start: "18:00", end: "21:00" }],
+  5: [],
+  6: [{ start: "10:00", end: "14:00" }]
+};
+
+// Booked slots — date string (YYYY-MM-DD) + time (HH:MM)
+const DEFAULT_BOOKINGS = [
+  { date: "2026-04-23", time: "18:00", duration: 30, studentName: "Ahmad K.", package: "Standard", type: "Qur'an · Tajweed" },
+  { date: "2026-04-23", time: "18:30", duration: 30, studentName: "Sara B.", package: "Standard", type: "Qur'an · Reading" },
+  { date: "2026-04-25", time: "10:00", duration: 30, studentName: "Yusuf H.", package: "Premium", type: "Hifz" },
+  { date: "2026-04-25", time: "10:30", duration: 30, studentName: "Mariam I.", package: "Standard", type: "Qur'an · Reading" },
+  { date: "2026-04-28", time: "17:00", duration: 30, studentName: "Khalid R.", package: "Basic", type: "Arabic" },
+  { date: "2026-04-30", time: "18:00", duration: 45, studentName: "Hassan M.", package: "Premium", type: "Hifz" }
+];
+
+const DAYS_OF_WEEK = [
+  { id: 0, short: "Sun", long: "Sunday" },
+  { id: 1, short: "Mon", long: "Monday" },
+  { id: 2, short: "Tue", long: "Tuesday" },
+  { id: 3, short: "Wed", long: "Wednesday" },
+  { id: 4, short: "Thu", long: "Thursday" },
+  { id: 5, short: "Fri", long: "Friday" },
+  { id: 6, short: "Sat", long: "Saturday" }
+];
+
+// Helper: format a date as YYYY-MM-DD
+const toDateKey = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+// Helper: is date today?
+const isToday = (date) => toDateKey(date) === toDateKey(new Date());
+
+// Helper: generate 30-minute time slots for a range
+const generateSlots = (start, end, intervalMin = 30) => {
+  const [sH, sM] = start.split(":").map(Number);
+  const [eH, eM] = end.split(":").map(Number);
+  const startMin = sH * 60 + sM;
+  const endMin = eH * 60 + eM;
+  const slots = [];
+  for (let m = startMin; m < endMin; m += intervalMin) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    slots.push(`${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+  }
+  return slots;
+};
+
+// Helper: get available slots for a specific date
+const getSlotsForDate = (date, availability, bookings) => {
+  const dayOfWeek = date.getDay();
+  const pattern = availability[dayOfWeek] || [];
+  if (pattern.length === 0) return [];
+
+  const dateKey = toDateKey(date);
+  const bookedTimes = bookings.filter(b => b.date === dateKey).map(b => b.time);
+
+  const allSlots = [];
+  pattern.forEach(window => {
+    const slots = generateSlots(window.start, window.end, 30);
+    slots.forEach(time => {
+      allSlots.push({
+        time,
+        booked: bookedTimes.includes(time)
+      });
+    });
+  });
+  return allSlots;
+};
+
+// Helper: total weekly hours from pattern
+const calculateWeeklyHours = (availability) => {
+  let total = 0;
+  Object.values(availability).forEach(windows => {
+    windows.forEach(w => {
+      const [sH, sM] = w.start.split(":").map(Number);
+      const [eH, eM] = w.end.split(":").map(Number);
+      total += (eH * 60 + eM - sH * 60 - sM) / 60;
+    });
+  });
+  return total;
+};
+
+// ==================== AVAILABILITY EDITOR (SCHOLAR) ====================
+const AvailabilityEditor = ({ availability, onChange, onBack }) => {
+  const [localAvail, setLocalAvail] = useState(availability);
+  const [editingDay, setEditingDay] = useState(null);
+  const [tempStart, setTempStart] = useState("09:00");
+  const [tempEnd, setTempEnd] = useState("17:00");
+
+  const addWindow = (dayId) => {
+    const updated = { ...localAvail };
+    updated[dayId] = [...(updated[dayId] || []), { start: tempStart, end: tempEnd }];
+    setLocalAvail(updated);
+    setEditingDay(null);
+  };
+
+  const removeWindow = (dayId, idx) => {
+    const updated = { ...localAvail };
+    updated[dayId] = updated[dayId].filter((_, i) => i !== idx);
+    setLocalAvail(updated);
+  };
+
+  const copyFromDay = (sourceDayId, targetDayIds) => {
+    const updated = { ...localAvail };
+    targetDayIds.forEach(id => {
+      updated[id] = [...(localAvail[sourceDayId] || [])];
+    });
+    setLocalAvail(updated);
+  };
+
+  const weeklyHours = calculateWeeklyHours(localAvail);
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back</button>
+
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My availability</h1>
+            <p className="text-stone-600 text-sm md:text-base">Set your weekly teaching hours. Students can only book during these times.</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+            <p className="text-xs text-emerald-700 uppercase tracking-wider font-medium">Weekly hours</p>
+            <p className="text-xl font-semibold text-emerald-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{weeklyHours}h</p>
+          </div>
+        </div>
+
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          {DAYS_OF_WEEK.map((day, i) => {
+            const windows = localAvail[day.id] || [];
+            const isEditing = editingDay === day.id;
+
+            return (
+              <div key={day.id} className={`p-4 md:p-5 ${i < 6 ? "border-b border-stone-100" : ""}`}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-xs uppercase ${windows.length > 0 ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-400"}`}>
+                      {day.short}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-stone-900">{day.long}</p>
+                      <p className="text-xs text-stone-500">
+                        {windows.length === 0 ? "Unavailable" : `${windows.length} time block${windows.length > 1 ? "s" : ""}`}
+                      </p>
+                    </div>
+                  </div>
+                  {!isEditing && (
+                    <button onClick={() => setEditingDay(day.id)} className="text-xs text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                      <Plus size={12} /> Add hours
+                    </button>
+                  )}
+                </div>
+
+                {windows.length > 0 && (
+                  <div className="flex flex-wrap gap-2 ml-13">
+                    {windows.map((w, idx) => (
+                      <div key={idx} className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+                        <Clock size={12} className="text-emerald-700" />
+                        <span className="text-sm text-emerald-900 font-medium">{w.start} – {w.end}</span>
+                        <button onClick={() => removeWindow(day.id, idx)} className="text-emerald-600 hover:text-rose-600 ml-1"><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {isEditing && (
+                  <div className="mt-3 pt-3 border-t border-stone-100 bg-stone-50 -mx-4 md:-mx-5 px-4 md:px-5 pb-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-stone-600">From</span>
+                      <input type="time" value={tempStart} onChange={e => setTempStart(e.target.value)} className="px-3 py-1.5 rounded-lg border border-stone-300 text-sm bg-white" />
+                      <span className="text-xs text-stone-600">to</span>
+                      <input type="time" value={tempEnd} onChange={e => setTempEnd(e.target.value)} className="px-3 py-1.5 rounded-lg border border-stone-300 text-sm bg-white" />
+                      <button onClick={() => addWindow(day.id)} className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium">Add</button>
+                      <button onClick={() => setEditingDay(null)} className="text-sm text-stone-500 hover:text-stone-900 px-2">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onBack} className="px-4 py-2.5 text-sm text-stone-600 hover:text-stone-900">Cancel</button>
+          <button onClick={() => onChange(localAvail)} className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-emerald-900/20 inline-flex items-center gap-2">
+            <CheckCircle2 size={14} /> Save availability
+          </button>
+        </div>
+
+        <div className="mt-6 bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
+          <Info className="text-sky-800 flex-shrink-0 mt-0.5" size={16} />
+          <p className="text-xs text-sky-900 leading-relaxed">Tip: set recurring availability for the whole week, and block specific dates (holidays, Ramadan) from the "My schedule" view.</p>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// ==================== SCHEDULE VIEW (SCHOLAR'S UPCOMING BOOKINGS) ====================
+const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Generate days for the current month
+  const getMonthDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const days = [];
+
+    // Padding days at start
+    const startPadding = firstDay.getDay();
+    for (let i = 0; i < startPadding; i++) {
+      days.push(null);
+    }
+
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, month, d));
+    }
+
+    return days;
+  };
+
+  const monthDays = getMonthDays();
+  const monthLabel = currentMonth.toLocaleString("en-GB", { month: "long", year: "numeric" });
+
+  const selectedDateBookings = bookings.filter(b => b.date === toDateKey(selectedDate));
+  const selectedDateSlots = getSlotsForDate(selectedDate, availability, bookings);
+
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back</button>
+
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My schedule</h1>
+            <p className="text-stone-600 text-sm md:text-base">Your upcoming sessions & availability</p>
+          </div>
+          <button onClick={onEditAvailability} className="bg-white border border-stone-300 hover:border-emerald-500 text-stone-700 px-4 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2">
+            <Settings size={14} /> Edit availability
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-5">
+          {/* Calendar */}
+          <div className="md:col-span-2 bg-white border border-stone-200 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={prevMonth} className="p-2 hover:bg-stone-100 rounded-lg"><ArrowLeft size={16} /></button>
+              <h3 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{monthLabel}</h3>
+              <button onClick={nextMonth} className="p-2 hover:bg-stone-100 rounded-lg"><ArrowRight size={16} /></button>
+            </div>
+
+            {/* Day of week headers */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {DAYS_OF_WEEK.map(d => (
+                <div key={d.id} className="text-center text-[10px] uppercase tracking-wider text-stone-500 font-medium py-1">
+                  {d.short}
+                </div>
+              ))}
+            </div>
+
+            {/* Days grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {monthDays.map((date, i) => {
+                if (!date) return <div key={i}></div>;
+                const dateKey = toDateKey(date);
+                const dayBookings = bookings.filter(b => b.date === dateKey);
+                const hasSlots = (availability[date.getDay()] || []).length > 0;
+                const isSelected = toDateKey(selectedDate) === dateKey;
+                const isCurrentDay = isToday(date);
+
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDate(date)}
+                    className={`aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-all relative ${
+                      isSelected ? "bg-emerald-900 text-white" :
+                      isCurrentDay ? "bg-emerald-50 text-emerald-900 font-semibold" :
+                      hasSlots ? "hover:bg-stone-100 text-stone-900" :
+                      "text-stone-400 hover:bg-stone-50"
+                    }`}
+                  >
+                    <span>{date.getDate()}</span>
+                    {dayBookings.length > 0 && (
+                      <div className={`absolute bottom-1 flex gap-0.5`}>
+                        {dayBookings.slice(0, 3).map((_, bi) => (
+                          <span key={bi} className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-amber-500"}`}></span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-stone-100 flex flex-wrap gap-4 text-xs text-stone-600">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Has bookings</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Today</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-stone-300"></span> No availability</span>
+            </div>
+          </div>
+
+          {/* Selected day details */}
+          <div className="bg-white border border-stone-200 rounded-2xl p-5">
+            <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-1">Selected day</p>
+            <h3 className="text-base font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              {selectedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+            </h3>
+
+            {selectedDateSlots.length === 0 ? (
+              <div className="mt-5 text-center py-8">
+                <Clock className="mx-auto mb-2 text-stone-300" size={24} />
+                <p className="text-sm text-stone-500">You're not available on this day</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-stone-500 mb-3">
+                  {selectedDateBookings.length} booking{selectedDateBookings.length !== 1 ? "s" : ""} · {selectedDateSlots.filter(s => !s.booked).length} free slots
+                </p>
+
+                {selectedDateBookings.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Bookings</p>
+                    <div className="space-y-2">
+                      {selectedDateBookings.map((b, i) => (
+                        <div key={i} className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-sm font-semibold text-stone-900">{b.time}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-white text-stone-700 rounded font-medium uppercase tracking-wider">{b.package}</span>
+                          </div>
+                          <p className="text-xs text-stone-700">{b.studentName}</p>
+                          <p className="text-[11px] text-stone-500">{b.type} · {b.duration} min</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">All slots</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {selectedDateSlots.map(slot => (
+                      <div key={slot.time} className={`text-center py-2 rounded-lg text-xs font-medium ${
+                        slot.booked ? "bg-stone-200 text-stone-500 line-through" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      }`}>
+                        {slot.time}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// ==================== DATE/TIME PICKER (FOR BOOKING FLOW) ====================
+const DateTimePicker = ({ availability, bookings, selectedDate, selectedTime, onDateChange, onTimeChange }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const getMonthDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const days = [];
+
+    const startPadding = firstDay.getDay();
+    for (let i = 0; i < startPadding; i++) days.push(null);
+
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, month, d));
+    }
+    return days;
+  };
+
+  const monthDays = getMonthDays();
+  const monthLabel = currentMonth.toLocaleString("en-GB", { month: "long", year: "numeric" });
+
+  const selectedDateObj = selectedDate ? new Date(selectedDate) : null;
+  const slots = selectedDateObj ? getSlotsForDate(selectedDateObj, availability, bookings) : [];
+  const availableSlots = slots.filter(s => !s.booked);
+
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return (
+    <div>
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={prevMonth} className="p-2 hover:bg-white rounded-lg"><ArrowLeft size={14} /></button>
+          <h4 className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{monthLabel}</h4>
+          <button onClick={nextMonth} className="p-2 hover:bg-white rounded-lg"><ArrowRight size={14} /></button>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {DAYS_OF_WEEK.map(d => (
+            <div key={d.id} className="text-center text-[9px] uppercase tracking-wider text-stone-500 font-medium py-1">{d.short}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {monthDays.map((date, i) => {
+            if (!date) return <div key={i}></div>;
+            const dateKey = toDateKey(date);
+            const isInPast = date < today;
+            const daySlots = getSlotsForDate(date, availability, bookings);
+            const hasAvailable = daySlots.some(s => !s.booked);
+            const isSelected = selectedDate === dateKey;
+
+            return (
+              <button
+                key={i}
+                onClick={() => !isInPast && hasAvailable && onDateChange(dateKey)}
+                disabled={isInPast || !hasAvailable}
+                className={`aspect-square flex items-center justify-center rounded-lg text-xs md:text-sm transition-all ${
+                  isSelected ? "bg-emerald-900 text-white font-semibold" :
+                  isInPast || !hasAvailable ? "text-stone-300 cursor-not-allowed" :
+                  "hover:bg-emerald-100 text-stone-900 cursor-pointer"
+                }`}
+              >
+                {date.getDate()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedDate && (
+        <div>
+          <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-2">
+            Available times for {selectedDateObj.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+          </p>
+          {availableSlots.length > 0 ? (
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+              {availableSlots.map(slot => (
+                <button
+                  key={slot.time}
+                  onClick={() => onTimeChange(slot.time)}
+                  className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    selectedTime === slot.time ? "bg-emerald-900 text-white border-2 border-emerald-900" : "bg-white border border-stone-300 text-stone-700 hover:border-emerald-500"
+                  }`}
+                >
+                  {slot.time}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500 text-center py-6">No slots available on this day</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ==================== ADMIN PANEL ====================
 const ADMIN_MOSQUE_APPS = [
   { id: "mosque-app-1", name: "Masjid Ar-Rahma", city: "Sheffield", postcode: "S2 4AA", charityNumber: "1193847", submittedDate: "2026-04-18", contactName: "Ismail Khan", contactRole: "Chairperson", contactPhone: "+44 7700 900301", safeguardingLead: "Aisha Begum", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "match", notes: "" },
@@ -5099,6 +5607,7 @@ export default function App() {
   const [submittedApplication, setSubmittedApplication] = useState(null);
   const [registeredProfile, setRegisteredProfile] = useState(null);
   const [registrationType, setRegistrationType] = useState(null);
+  const [scholarAvailability, setScholarAvailability] = useState(DEFAULT_AVAILABILITY);
 
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
@@ -5121,6 +5630,8 @@ export default function App() {
   if (view === "messagesInbox") return <MessagesInbox conversations={MOCK_CONVERSATIONS} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : "imamDashboard")} />;
   if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
+  if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
+  if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => setView("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
   if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => setView("jobsBoard")} onApply={(j) => { setSelectedJob(j); setView("applyJob"); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
   if (view === "applyJob") return <ApplyToJob job={selectedJob} onBack={() => setView("jobDetail")} onSubmit={(app) => {
     const newApp = { id: `app-${Date.now()}`, jobId: app.job.id, status: "submitted", appliedDate: "just now", message: app.message };
@@ -5166,6 +5677,7 @@ export default function App() {
     onStartCampaign={() => { setCampaignCreatorType("scholar"); setView("createCampaign"); }}
     onOpenMessages={() => { setRole("imam"); setView("messagesInbox"); }}
     onOpenJobs={() => setView("jobsBoard")}
+    onOpenSchedule={() => setView("schedule")}
   />;
   if (view === "createCampaign") return <CreateCampaign
     creatorType={campaignCreatorType}
