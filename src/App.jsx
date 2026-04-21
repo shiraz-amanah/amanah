@@ -1186,7 +1186,7 @@ const RolePicker = ({ onPick, onPublic }) => (
   </div>
 );
 
-const LoginScreen = ({ role, onLogin, onBack }) => (
+const LoginScreen = ({ role, onLogin, onBack, onGoRegister }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
     <div className="w-full max-w-md">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}><ArrowLeft size={14} /> Back</button>
@@ -1199,8 +1199,445 @@ const LoginScreen = ({ role, onLogin, onBack }) => (
           <input type="password" placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
           <button onClick={onLogin} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]">Sign In</button>
         </div>
+        {role !== "admin" && (
+          <div className="mt-6 pt-6 border-t border-stone-100 text-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <p className="text-sm text-stone-600 mb-2">
+              {role === "mosque" ? "Not registered yet?" : "New to Amanah?"}
+            </p>
+            <button onClick={onGoRegister} className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+              {role === "mosque" ? "Register your masjid" : "Create a scholar profile"} <ArrowRight size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
+  </div>
+);
+
+// ==================== FORM HELPERS FOR REGISTRATION ====================
+const RegField = ({ label, value, onChange, placeholder, type = "text", hint }) => (
+  <div>
+    <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">{label}</label>
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+    {hint && <p className="text-xs text-stone-500 mt-1">{hint}</p>}
+  </div>
+);
+
+const RegTagInput = ({ label, placeholder, tags, onAdd, onRemove, input, setInput, hint }) => (
+  <div>
+    <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">{label}</label>
+    <div className="flex gap-2">
+      <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && (e.preventDefault(), onAdd(input))} placeholder={placeholder} className="flex-1 px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+      <button type="button" onClick={() => onAdd(input)} className="px-3 bg-stone-100 hover:bg-stone-200 rounded-xl"><Plus size={16} /></button>
+    </div>
+    {hint && <p className="text-xs text-stone-500 mt-1">{hint}</p>}
+    {tags.length > 0 && (
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        {tags.map(t => (
+          <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 bg-stone-100 text-stone-700 text-xs rounded-md">
+            {t}
+            <button onClick={() => onRemove(t)} className="hover:text-rose-600"><X size={11} /></button>
+          </span>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+const RegUploadRow = ({ label, sublabel, uploaded, onToggle }) => (
+  <button onClick={onToggle} className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-colors ${uploaded ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200 hover:border-stone-300"}`}>
+    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${uploaded ? "bg-emerald-100" : "bg-white border border-stone-200"}`}>
+      {uploaded ? <CheckCircle2 className="text-emerald-700" size={18} /> : <Upload className="text-stone-500" size={18} />}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-medium text-stone-900">{label}</p>
+      <p className="text-xs text-stone-500">{sublabel}</p>
+    </div>
+    <span className="text-xs text-stone-500 flex-shrink-0">{uploaded ? "Uploaded ✓" : "Tap to upload"}</span>
+  </button>
+);
+
+// ==================== MOSQUE REGISTRATION ====================
+const MosqueRegister = ({ onComplete, onBack }) => {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    mosqueName: "", charityNumber: "", addressLine: "", city: "", postcode: "", website: "",
+    denomination: "", primaryLanguages: [], establishedYear: "", congregationSize: "",
+    contactName: "", contactRole: "", contactEmail: "", contactPhone: "",
+    safeguardingLeadName: "", safeguardingLeadEmail: "", safeguardingPolicy: false,
+    proofOfAddressUploaded: false, trusteeConfirmationUploaded: false
+  });
+  const [langInput, setLangInput] = useState("");
+
+  const addLanguage = (v) => {
+    if (v.trim() && !form.primaryLanguages.includes(v.trim())) {
+      setForm({ ...form, primaryLanguages: [...form.primaryLanguages, v.trim()] });
+      setLangInput("");
+    }
+  };
+  const removeLanguage = (v) => setForm({ ...form, primaryLanguages: form.primaryLanguages.filter(l => l !== v) });
+
+  const canProceed = {
+    1: form.mosqueName && form.charityNumber && form.addressLine && form.city && form.postcode,
+    2: form.denomination && form.primaryLanguages.length > 0 && form.establishedYear && form.congregationSize,
+    3: form.contactName && form.contactRole && form.contactEmail && form.contactPhone,
+    4: form.safeguardingLeadName && form.safeguardingLeadEmail && form.safeguardingPolicy,
+    5: form.proofOfAddressUploaded && form.trusteeConfirmationUploaded
+  }[step];
+
+  const stepTitles = ["Mosque details", "About your community", "Primary contact", "Safeguarding", "Verification"];
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back</button>
+
+        <div className="mb-2">
+          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Register your mosque</h1>
+          <p className="text-stone-600 mt-1">Join the UK's only safeguarded mosque register. 100% free.</p>
+        </div>
+
+        <div className="mt-8 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-stone-500">Step {step} of 5 · {stepTitles[step - 1]}</span>
+            <span className="text-xs text-stone-500">{Math.round((step / 5) * 100)}%</span>
+          </div>
+          <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-900 transition-all duration-500" style={{ width: `${(step / 5) * 100}%` }} />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8">
+          {step === 1 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque details</h2>
+              <p className="text-sm text-stone-500 mb-6">Help us verify you're a legitimate Islamic institution.</p>
+              <div className="space-y-4">
+                <RegField label="Mosque name" value={form.mosqueName} onChange={v => setForm({...form, mosqueName: v})} placeholder="e.g. Masjid Al-Noor" />
+                <RegField label="Charity Commission number" value={form.charityNumber} onChange={v => setForm({...form, charityNumber: v})} placeholder="e.g. 1123456" hint="We verify this against the UK Charity Commission register. Don't have one yet? We can still register you — add '0000000' and note it in verification." />
+                <RegField label="Address" value={form.addressLine} onChange={v => setForm({...form, addressLine: v})} placeholder="e.g. 42 Park Road" />
+                <div className="grid grid-cols-2 gap-3">
+                  <RegField label="City" value={form.city} onChange={v => setForm({...form, city: v})} placeholder="e.g. Birmingham" />
+                  <RegField label="Postcode" value={form.postcode} onChange={v => setForm({...form, postcode: v})} placeholder="e.g. B12 9AA" />
+                </div>
+                <RegField label="Website (optional)" value={form.website} onChange={v => setForm({...form, website: v})} placeholder="https://..." />
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>About your community</h2>
+              <p className="text-sm text-stone-500 mb-6">This helps us match you with imams who suit your congregation.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Denomination / tradition</label>
+                  <select value={form.denomination} onChange={e => setForm({...form, denomination: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white">
+                    <option value="">Select...</option>
+                    <option>Sunni – Hanafi</option>
+                    <option>Sunni – Shafi'i</option>
+                    <option>Sunni – Maliki</option>
+                    <option>Sunni – Hanbali</option>
+                    <option>Shia</option>
+                    <option>Sufi tariqah</option>
+                    <option>Non-denominational</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <RegTagInput label="Primary languages of khutbah" placeholder="e.g. English, Urdu, Arabic" tags={form.primaryLanguages} onAdd={addLanguage} onRemove={removeLanguage} input={langInput} setInput={setLangInput} hint="Press Enter after each language" />
+                <div className="grid grid-cols-2 gap-3">
+                  <RegField label="Year established" type="number" value={form.establishedYear} onChange={v => setForm({...form, establishedYear: v})} placeholder="e.g. 1998" />
+                  <div>
+                    <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Jumu'ah congregation</label>
+                    <select value={form.congregationSize} onChange={e => setForm({...form, congregationSize: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white">
+                      <option value="">Select...</option>
+                      <option>Under 100</option>
+                      <option>100–300</option>
+                      <option>300–600</option>
+                      <option>600–1000</option>
+                      <option>1000+</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Primary contact</h2>
+              <p className="text-sm text-stone-500 mb-6">Must be a named trustee, chairperson, or management committee member.</p>
+              <div className="space-y-4">
+                <RegField label="Full name" value={form.contactName} onChange={v => setForm({...form, contactName: v})} placeholder="e.g. Muhammad Khan" />
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Role at the mosque</label>
+                  <select value={form.contactRole} onChange={e => setForm({...form, contactRole: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white">
+                    <option value="">Select...</option>
+                    <option>Chairperson</option>
+                    <option>Trustee</option>
+                    <option>Secretary</option>
+                    <option>Treasurer</option>
+                    <option>Management Committee Member</option>
+                    <option>Senior Imam</option>
+                  </select>
+                </div>
+                <RegField label="Email" type="email" value={form.contactEmail} onChange={v => setForm({...form, contactEmail: v})} placeholder="you@masjid.org" hint="We'll send a verification email to this address." />
+                <RegField label="Phone" value={form.contactPhone} onChange={v => setForm({...form, contactPhone: v})} placeholder="+44 7700 900000" />
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Safeguarding</h2>
+              <p className="text-sm text-stone-500 mb-6">Every mosque on Amanah must have a designated safeguarding lead.</p>
+              <div className="space-y-4">
+                <RegField label="Safeguarding lead — name" value={form.safeguardingLeadName} onChange={v => setForm({...form, safeguardingLeadName: v})} placeholder="e.g. Aisha Rahman" />
+                <RegField label="Safeguarding lead — email" type="email" value={form.safeguardingLeadEmail} onChange={v => setForm({...form, safeguardingLeadEmail: v})} placeholder="safeguarding@masjid.org" />
+                <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.safeguardingPolicy ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200 hover:border-stone-300"}`}>
+                  <input type="checkbox" checked={form.safeguardingPolicy} onChange={e => setForm({...form, safeguardingPolicy: e.target.checked})} className="mt-0.5 accent-emerald-800" />
+                  <div>
+                    <p className="text-sm font-medium text-stone-900">We have a written safeguarding policy</p>
+                    <p className="text-xs text-stone-600 mt-0.5">Our policy covers children, vulnerable adults, and staff conduct, and is reviewed annually.</p>
+                  </div>
+                </label>
+              </div>
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                <AlertCircle className="text-amber-800 flex-shrink-0 mt-0.5" size={16} />
+                <p className="text-xs text-amber-900 leading-relaxed">Don't have a written safeguarding policy yet? We'll share a template during verification. You won't be listed until one is in place — this is non-negotiable for child safety.</p>
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verification documents</h2>
+              <p className="text-sm text-stone-500 mb-6">We verify within 3 working days.</p>
+              <div className="space-y-3">
+                <RegUploadRow label="Proof of address" sublabel="Utility bill, council letter, or bank statement from the last 3 months" uploaded={form.proofOfAddressUploaded} onToggle={() => setForm({...form, proofOfAddressUploaded: !form.proofOfAddressUploaded})} />
+                <RegUploadRow label="Trustee confirmation letter" sublabel="Signed by two trustees confirming you're authorised to act on the mosque's behalf" uploaded={form.trusteeConfirmationUploaded} onToggle={() => setForm({...form, trusteeConfirmationUploaded: !form.trusteeConfirmationUploaded})} />
+              </div>
+              <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
+                <ShieldCheck className="text-emerald-800 flex-shrink-0 mt-0.5" size={18} />
+                <p className="text-xs text-emerald-900 leading-relaxed">We cross-check your Charity Commission number, verify documents, and call a listed trustee before approving. This keeps imams safe from fake listings.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
+            <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">{step > 1 ? "Back" : "Cancel"}</button>
+            <button onClick={() => step < 5 ? setStep(step + 1) : onComplete(form)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] disabled:hover:scale-100 inline-flex items-center gap-2">
+              {step < 5 ? <>Continue <ArrowRight size={14} /></> : <><Send size={14} /> Submit for verification</>}
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// ==================== SCHOLAR REGISTRATION ====================
+const ImamRegister = ({ onComplete, onBack }) => {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    name: "", email: "", phone: "", city: "",
+    madhhab: "", experience: "", bio: "",
+    specialties: [], languages: [],
+    availability: "substitute", rate: "",
+    dbsUploaded: false, rtwUploaded: false, ijazahUploaded: false
+  });
+  const [specialtyInput, setSpecialtyInput] = useState("");
+  const [languageInput, setLanguageInput] = useState("");
+
+  const addTag = (field, value, setter) => {
+    if (value.trim() && !form[field].includes(value.trim())) {
+      setForm({ ...form, [field]: [...form[field], value.trim()] });
+      setter("");
+    }
+  };
+  const removeTag = (field, value) => setForm({ ...form, [field]: form[field].filter(v => v !== value) });
+
+  const canProceed = {
+    1: form.name && form.email && form.phone && form.city,
+    2: form.madhhab && form.experience && form.bio && form.specialties.length > 0 && form.languages.length > 0,
+    3: form.availability && form.rate,
+    4: form.dbsUploaded && form.rtwUploaded
+  }[step];
+
+  const stepTitles = ["Personal details", "Qualifications", "Availability", "Verification"];
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back</button>
+
+        <div className="mb-2">
+          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Create your scholar profile</h1>
+          <p className="text-stone-600 mt-1">Get found by mosques and students. Free to list.</p>
+        </div>
+
+        <div className="mt-8 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-stone-500">Step {step} of 4 · {stepTitles[step - 1]}</span>
+            <span className="text-xs text-stone-500">{Math.round((step / 4) * 100)}%</span>
+          </div>
+          <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-900 transition-all duration-500" style={{ width: `${(step / 4) * 100}%` }} />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8">
+          {step === 1 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Personal details</h2>
+              <p className="text-sm text-stone-500 mb-6">Tell us who you are and where to reach you.</p>
+              <div className="space-y-4">
+                <RegField label="Full name" value={form.name} onChange={v => setForm({...form, name: v})} placeholder="e.g. Yusuf Al-Rahman" />
+                <RegField label="Email" type="email" value={form.email} onChange={v => setForm({...form, email: v})} placeholder="you@example.com" />
+                <RegField label="Phone" value={form.phone} onChange={v => setForm({...form, phone: v})} placeholder="+44 7700 900123" />
+                <RegField label="City (or 'Online' if remote only)" value={form.city} onChange={v => setForm({...form, city: v})} placeholder="e.g. Birmingham" />
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Qualifications & experience</h2>
+              <p className="text-sm text-stone-500 mb-6">Your Islamic training and specialties.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Madhhab</label>
+                  <select value={form.madhhab} onChange={e => setForm({...form, madhhab: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white">
+                    <option value="">Select...</option>
+                    <option>Hanafi</option><option>Shafi'i</option><option>Maliki</option><option>Hanbali</option><option>Other</option>
+                  </select>
+                </div>
+                <RegField label="Years of experience" type="number" value={form.experience} onChange={v => setForm({...form, experience: v})} placeholder="e.g. 8" />
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Short bio</label>
+                  <textarea value={form.bio} onChange={e => setForm({...form, bio: e.target.value})} rows={4} placeholder="A brief description of your training, approach, and who you love teaching..." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed" />
+                  <p className="text-xs text-stone-500 mt-1">{form.bio.length} characters · aim for 100–200</p>
+                </div>
+                <RegTagInput label="Specialties" placeholder="e.g. Jumu'ah Khutbah, Hifz, Tajweed" tags={form.specialties} onAdd={v => addTag("specialties", v, setSpecialtyInput)} onRemove={v => removeTag("specialties", v)} input={specialtyInput} setInput={setSpecialtyInput} hint="Press Enter to add each specialty" />
+                <RegTagInput label="Languages" placeholder="e.g. Arabic, English, Urdu" tags={form.languages} onAdd={v => addTag("languages", v, setLanguageInput)} onRemove={v => removeTag("languages", v)} input={languageInput} setInput={setLanguageInput} hint="Languages you can teach or preach in" />
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Availability & rate</h2>
+              <p className="text-sm text-stone-500 mb-6">What kind of work are you open to?</p>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">I'm available for</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[{v:"substitute",l:"Substitute cover"},{v:"permanent",l:"Permanent role"},{v:"both",l:"Both"}].map(opt => (
+                      <button key={opt.v} onClick={() => setForm({...form, availability: opt.v})} className={`py-3 rounded-xl border text-sm font-medium transition-colors ${form.availability === opt.v ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                        {opt.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <RegField label="Rate or preference" value={form.rate} onChange={v => setForm({...form, rate: v})} placeholder="e.g. £180/day · or 'Seeking full-time'" hint="You can always update this later." />
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verification documents</h2>
+              <p className="text-sm text-stone-500 mb-6">We verify within 48 hours so mosques can trust you.</p>
+              <div className="space-y-3">
+                <RegUploadRow label="Enhanced DBS Certificate" sublabel="Required · Must be Enhanced level (not Basic or Standard)" uploaded={form.dbsUploaded} onToggle={() => setForm({...form, dbsUploaded: !form.dbsUploaded})} />
+                <RegUploadRow label="Right to Work Document" sublabel="Required · Passport, visa, or share code from gov.uk" uploaded={form.rtwUploaded} onToggle={() => setForm({...form, rtwUploaded: !form.rtwUploaded})} />
+                <RegUploadRow label="Ijazah or Qualification Certificate" sublabel="Optional · Strengthens your profile and reviews" uploaded={form.ijazahUploaded} onToggle={() => setForm({...form, ijazahUploaded: !form.ijazahUploaded})} />
+              </div>
+              <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
+                <ShieldCheck className="text-emerald-800 flex-shrink-0 mt-0.5" size={18} />
+                <p className="text-xs text-emerald-900 leading-relaxed">Your documents are encrypted and only seen by Amanah's verification team. We never share copies with mosques — they only see your verification status.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
+            <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">{step > 1 ? "Back" : "Cancel"}</button>
+            <button onClick={() => step < 4 ? setStep(step + 1) : onComplete(form)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] disabled:hover:scale-100 inline-flex items-center gap-2">
+              {step < 4 ? <>Continue <ArrowRight size={14} /></> : <><Send size={14} /> Submit for verification</>}
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// ==================== REGISTRATION SUCCESS (PENDING VERIFICATION) ====================
+const RegistrationPending = ({ type, form, onHome }) => (
+  <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8" style={{ animation: "bounceIn 0.6s ease-out" }}>
+      <div className="text-center mb-6">
+        <div className="relative inline-block mb-5">
+          <div className="absolute inset-0 bg-amber-300 rounded-full blur-xl opacity-40"></div>
+          <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg">
+            <Clock className="text-white" size={30} strokeWidth={2} />
+          </div>
+        </div>
+        <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Submitted for verification</h2>
+        <p className="text-stone-700 leading-relaxed">
+          {type === "mosque"
+            ? `Your registration for ${form.mosqueName} is in our queue. We'll verify within 3 working days.`
+            : `Welcome to Amanah, ${form.name?.split(" ")[0]}. We'll review your documents within 48 hours.`}
+        </p>
+      </div>
+
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-5">
+        <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-3">What happens next</p>
+        <ol className="space-y-2 text-sm text-stone-700">
+          {type === "mosque" ? (
+            <>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We cross-check your Charity Commission number against the public register</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>We verify your documents and safeguarding policy</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>We call one of your listed trustees to confirm</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">4</span><span>You get access to the full platform — hire imams, post jobs, run DBS checks</span></li>
+            </>
+          ) : (
+            <>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We verify your DBS certificate with the issuing body</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>We check your Right to Work documents</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>If you provided an ijazah, we verify with the institution</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">4</span><span>Your profile goes live and mosques can contact you</span></li>
+            </>
+          )}
+        </ol>
+      </div>
+
+      <div className="bg-stone-50 rounded-xl p-3 text-sm mb-5 flex items-center justify-between">
+        <span className="text-stone-500 text-xs uppercase tracking-wider font-medium">Application ID</span>
+        <span className="text-stone-900 font-mono text-xs">AMN-{type === "mosque" ? "M" : "S"}-{Date.now().toString().slice(-6)}</span>
+      </div>
+
+      <p className="text-xs text-stone-600 text-center mb-5">We'll email you at <span className="font-medium text-stone-900">{type === "mosque" ? form.contactEmail : form.email}</span> as soon as verification is complete.</p>
+
+      <button onClick={onHome} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
+        Back to Amanah
+      </button>
+    </div>
+    <style>{`@keyframes bounceIn { 0% { opacity: 0; transform: scale(0.9); } 50% { transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } }`}</style>
   </div>
 );
 
@@ -4638,6 +5075,8 @@ export default function App() {
   const [selectedJob, setSelectedJob] = useState(null);
   const [myApplications, setMyApplications] = useState(MOCK_MY_APPLICATIONS);
   const [submittedApplication, setSubmittedApplication] = useState(null);
+  const [registeredProfile, setRegisteredProfile] = useState(null);
+  const [registrationType, setRegistrationType] = useState(null);
 
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
@@ -4678,7 +5117,10 @@ export default function App() {
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
-  if (view === "login") return <LoginScreen role={role} onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : role === "admin" ? "adminPanel" : "imamDashboard")} onBack={() => setView("rolePicker")} />;
+  if (view === "login") return <LoginScreen role={role} onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : role === "admin" ? "adminPanel" : "imamDashboard")} onBack={() => setView("rolePicker")} onGoRegister={() => setView(role === "mosque" ? "mosqueRegister" : "imamRegister")} />;
+  if (view === "mosqueRegister") return <MosqueRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); setView("registrationPending"); }} />;
+  if (view === "imamRegister") return <ImamRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); setView("registrationPending"); }} />;
+  if (view === "registrationPending") return <RegistrationPending type={registrationType} form={registeredProfile} onHome={() => setView("publicHome")} />;
   if (view === "adminPanel") return <AdminPanel onExit={() => setView("publicHome")} />;
   if (view === "mosqueDashboard") return <MosqueDashboard
     onLogout={() => setView("publicHome")}
