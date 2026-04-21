@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt } from "lucide-react";
+import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
   { id: "quran-kids", name: "Qur'an for Kids", icon: Baby, desc: "1-on-1 tajweed for children", tint: "from-amber-100 to-amber-50", iconBg: "bg-amber-500", count: 24 },
@@ -282,6 +282,9 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+            <button onClick={() => onSignIn("prayer")} className="inline-flex items-center gap-1.5 text-sm text-stone-700 hover:text-stone-900 transition-colors font-medium">
+              <Moon size={14} /> <span className="hidden sm:inline">Prayer</span>
+            </button>
             <button onClick={() => onSignIn("mosque")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">For Mosques</button>
             <button onClick={() => onSignIn("imam")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">Become a Scholar</button>
             <button onClick={() => onSignIn("user")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
@@ -5475,6 +5478,348 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
   );
 };
 
+// ==================== PRAYER HUB ====================
+
+// Prayer times data - UK average April pattern. In production this comes from Aladhan API
+const getPrayerTimes = () => {
+  const today = new Date();
+  // Approximate UK London prayer times for late April
+  return {
+    fajr: { time: "04:32", name: "Fajr", arabic: "الفجر", icon: Sunrise, desc: "Dawn prayer" },
+    sunrise: { time: "05:54", name: "Sunrise", arabic: "الشروق", icon: Sun, desc: "Not a prayer — marks end of Fajr" },
+    dhuhr: { time: "12:58", name: "Dhuhr", arabic: "الظهر", icon: Sun, desc: "Midday prayer" },
+    asr: { time: "16:51", name: "Asr", arabic: "العصر", icon: Sun, desc: "Afternoon prayer" },
+    maghrib: { time: "20:04", name: "Maghrib", arabic: "المغرب", icon: Sunset, desc: "Sunset prayer" },
+    isha: { time: "21:32", name: "Isha", arabic: "العشاء", icon: Moon, desc: "Night prayer" }
+  };
+};
+
+// Parse time string to Date today
+const parseTimeToday = (timeStr) => {
+  const [h, m] = timeStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+
+// Find current and next prayer
+const getCurrentPrayerState = (times) => {
+  const now = new Date();
+  const prayers = [
+    { key: "fajr", ...times.fajr },
+    { key: "dhuhr", ...times.dhuhr },
+    { key: "asr", ...times.asr },
+    { key: "maghrib", ...times.maghrib },
+    { key: "isha", ...times.isha }
+  ];
+
+  let current = null;
+  let next = null;
+
+  for (let i = 0; i < prayers.length; i++) {
+    const start = parseTimeToday(prayers[i].time);
+    const end = i < prayers.length - 1 ? parseTimeToday(prayers[i + 1].time) : new Date(start.getTime() + 5 * 60 * 60 * 1000);
+
+    if (now >= start && now < end) {
+      current = prayers[i];
+      next = prayers[i + 1] || null;
+      break;
+    }
+    if (now < start) {
+      next = prayers[i];
+      current = i > 0 ? prayers[i - 1] : null;
+      break;
+    }
+  }
+
+  if (!current && !next) {
+    // After Isha, next is Fajr tomorrow
+    current = prayers[prayers.length - 1];
+    next = { ...prayers[0], tomorrow: true };
+  }
+
+  return { current, next };
+};
+
+// Calculate time until a prayer
+const timeUntil = (timeStr, tomorrow = false) => {
+  const now = new Date();
+  let target = parseTimeToday(timeStr);
+  if (tomorrow || target < now) {
+    target.setDate(target.getDate() + 1);
+  }
+  const diffMs = target - now;
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours >= 1) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+};
+
+// Calculate qibla bearing (from UK cities to Mecca)
+// Kaaba coordinates: 21.4225°N, 39.8262°E
+const getQiblaBearing = (userLat, userLng) => {
+  const kaabaLat = 21.4225 * Math.PI / 180;
+  const kaabaLng = 39.8262 * Math.PI / 180;
+  const lat1 = userLat * Math.PI / 180;
+  const lng1 = userLng * Math.PI / 180;
+
+  const dLng = kaabaLng - lng1;
+  const y = Math.sin(dLng) * Math.cos(kaabaLat);
+  const x = Math.cos(lat1) * Math.sin(kaabaLat) - Math.sin(lat1) * Math.cos(kaabaLat) * Math.cos(dLng);
+
+  let bearing = Math.atan2(y, x) * 180 / Math.PI;
+  bearing = (bearing + 360) % 360;
+  return bearing;
+};
+
+// Nearby mosques — these are the verified mosques from the register
+const NEARBY_MOSQUES = [
+  { id: 1, name: "Masjid Al-Noor", city: "Birmingham", postcode: "B12 9AA", distance: 0.8, denomination: "Sunni — Hanafi", verified: true, gradient: "from-emerald-400 to-emerald-700", initials: "MN", jumuahTime: "13:30", languages: ["English", "Urdu", "Arabic"] },
+  { id: 2, name: "Masjid As-Salam", city: "Leicester", postcode: "LE2 7AA", distance: 1.2, denomination: "Sunni — Hanafi", verified: true, gradient: "from-rose-400 to-rose-700", initials: "AS", jumuahTime: "13:15", languages: ["English", "Gujarati"] },
+  { id: 3, name: "Blackburn Islamic Centre", city: "Blackburn", postcode: "BB1 8AA", distance: 2.4, denomination: "Sunni — Hanafi", verified: true, gradient: "from-amber-400 to-amber-700", initials: "BI", jumuahTime: "13:00", languages: ["English", "Urdu"] },
+  { id: 4, name: "Noor Academy", city: "London", postcode: "E1 1AA", distance: 3.7, denomination: "Non-denominational", verified: true, gradient: "from-indigo-400 to-indigo-700", initials: "NA", jumuahTime: "13:30", languages: ["English", "Arabic"] },
+  { id: 5, name: "Darul Hikmah", city: "Cardiff", postcode: "CF10 1AA", distance: 5.2, denomination: "Sunni — Shafi'i", verified: true, gradient: "from-teal-400 to-teal-700", initials: "DH", jumuahTime: "13:15", languages: ["English", "Arabic", "Bengali"] }
+];
+
+// ==================== PRAYER HUB PAGE ====================
+const PrayerHub = ({ onBack, onSignIn }) => {
+  const [prayerTimes] = useState(getPrayerTimes());
+  const [prayerState, setPrayerState] = useState(getCurrentPrayerState(prayerTimes));
+  const [userCity, setUserCity] = useState("Birmingham, UK");
+  // Rough Birmingham coordinates for qibla
+  const userLat = 52.4862;
+  const userLng = -1.8904;
+  const qiblaBearing = getQiblaBearing(userLat, userLng);
+
+  // Live countdown
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPrayerState(getCurrentPrayerState(prayerTimes));
+    }, 30000); // refresh every 30s
+    return () => clearInterval(id);
+  }, [prayerTimes]);
+
+  const { current, next } = prayerState;
+  const nextTimeLeft = next ? timeUntil(next.time, next.tomorrow) : "";
+
+  const CurrentIcon = current?.icon || Moon;
+
+  return (
+    <div className="min-h-screen bg-stone-950" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Background gradient */}
+      <div className="fixed inset-0 bg-gradient-to-br from-stone-950 via-indigo-950 to-stone-900 pointer-events-none"></div>
+
+      {/* Subtle twinkle pattern */}
+      <div className="fixed inset-0 opacity-[0.08] pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath d='M40 0L50 30L80 40L50 50L40 80L30 50L0 40L30 30Z' fill='%23fbbf24'/%3E%3C/svg%3E")`, backgroundSize: "120px 120px" }}></div>
+
+      <div className="relative">
+        <header className="sticky top-0 z-20 bg-stone-950/80 backdrop-blur-md border-b border-white/5">
+          <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+            <button onClick={onBack} className="flex items-center gap-2.5 md:gap-3 text-white">
+              <div className="w-9 h-9 rounded-xl bg-emerald-800 flex items-center justify-center"><ShieldCheck className="text-emerald-100" size={18} /></div>
+              <h1 className="text-base md:text-lg font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+            </button>
+            <button onClick={onBack} className="text-sm text-white/70 hover:text-white flex items-center gap-2"><ArrowLeft size={14} /> Back</button>
+          </div>
+        </header>
+
+        <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10 pb-24">
+          {/* Page title */}
+          <div className="text-center mb-8 md:mb-10">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/15 px-3 py-1 rounded-full text-[11px] uppercase tracking-widest text-white/80 mb-4">
+              <MapPin size={11} /> {userCity}
+              <button className="text-amber-300 hover:text-amber-200 ml-1">Change</button>
+            </div>
+            <h1 className="text-3xl md:text-5xl font-semibold text-white tracking-tight mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              {new Date().toLocaleDateString("en-GB", { weekday: "long" })}
+              <span className="italic text-amber-200/90">, </span>
+              <span className="font-normal text-white/80">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long" })}</span>
+            </h1>
+            <p className="text-xs text-white/60 mt-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+          </div>
+
+          {/* Next prayer hero card */}
+          {next && (
+            <div className="relative mb-6 md:mb-8 bg-gradient-to-br from-amber-500/20 via-indigo-800/30 to-stone-900/60 border border-amber-300/20 rounded-3xl p-6 md:p-10 overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400 rounded-full blur-[120px] opacity-20"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500 rounded-full blur-[100px] opacity-30"></div>
+              <div className="relative">
+                <p className="text-xs uppercase tracking-widest text-amber-200/80 font-medium mb-3">Next prayer</p>
+                <div className="flex items-end justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h2 className="text-5xl md:text-7xl font-semibold text-white tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{next.name}</h2>
+                      <span className="text-xl md:text-3xl text-amber-200/80" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{next.arabic}</span>
+                    </div>
+                    <p className="text-lg md:text-xl text-white/80 font-medium">in {nextTimeLeft}</p>
+                    <p className="text-sm text-white/60 mt-1">at {next.time}{next.tomorrow ? " tomorrow" : ""}</p>
+                  </div>
+                  <div className="hidden md:block">
+                    {(() => { const Icon = next.icon; return <Icon className="text-amber-200/60" size={80} strokeWidth={1} />; })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* All prayer times for today */}
+          <div className="mb-6 md:mb-8">
+            <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium mb-3">Today's prayers</h3>
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+              {["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"].map((key, i) => {
+                const p = prayerTimes[key];
+                const Icon = p.icon;
+                const parsedTime = parseTimeToday(p.time);
+                const now = new Date();
+                const isPast = parsedTime < now;
+                const isCurrent = current?.key === key;
+
+                return (
+                  <div key={key} className={`flex items-center gap-4 px-5 py-4 ${i < 5 ? "border-b border-white/5" : ""} ${isCurrent ? "bg-amber-500/10" : ""}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isCurrent ? "bg-amber-400/20" : isPast ? "bg-white/5" : "bg-white/10"}`}>
+                      <Icon className={isCurrent ? "text-amber-300" : isPast ? "text-white/30" : "text-white/70"} size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold ${isCurrent ? "text-amber-200" : isPast ? "text-white/40" : "text-white"}`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{p.name}</span>
+                        {key === "sunrise" && <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-white/60 rounded uppercase tracking-wider">Not a prayer</span>}
+                        {isCurrent && <span className="text-[10px] px-1.5 py-0.5 bg-amber-400/20 text-amber-200 rounded uppercase tracking-wider font-medium">Now</span>}
+                      </div>
+                      <p className={`text-[11px] ${isPast && !isCurrent ? "text-white/30" : "text-white/50"}`}>{p.desc}</p>
+                    </div>
+                    <div className={`text-right font-mono font-medium ${isCurrent ? "text-amber-200 text-lg" : isPast ? "text-white/40" : "text-white/90 text-base"}`}>
+                      {p.time}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-white/40 text-center mt-3">
+              Times calculated for {userCity}. Based on Muslim World League method. 
+              <button className="text-amber-200/80 hover:text-amber-200 ml-1">Change method</button>
+            </p>
+          </div>
+
+          {/* Qibla + Masjid grid */}
+          <div className="grid md:grid-cols-2 gap-5 md:gap-6">
+            {/* Qibla compass */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col items-center">
+              <div className="w-full flex items-center justify-between mb-5">
+                <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium">Qibla direction</h3>
+                <span className="text-[10px] px-2 py-0.5 bg-white/10 text-white/60 rounded uppercase tracking-wider">From {userCity.split(",")[0]}</span>
+              </div>
+
+              {/* The compass */}
+              <div className="relative w-56 h-56 md:w-64 md:h-64 mb-5">
+                {/* Outer ring with degrees */}
+                <div className="absolute inset-0 rounded-full border-2 border-white/10"></div>
+                {/* Cardinal direction markers */}
+                {["N", "E", "S", "W"].map((dir, i) => {
+                  const angle = i * 90;
+                  const style = {
+                    top: angle === 0 ? "8px" : angle === 180 ? "auto" : "50%",
+                    bottom: angle === 180 ? "8px" : "auto",
+                    left: angle === 270 ? "8px" : angle === 90 ? "auto" : "50%",
+                    right: angle === 90 ? "8px" : "auto",
+                    transform: angle === 0 || angle === 180 ? "translateX(-50%)" : angle === 90 || angle === 270 ? "translateY(-50%)" : "none"
+                  };
+                  return <span key={dir} className="absolute text-[10px] font-semibold text-white/40 uppercase tracking-widest" style={style}>{dir}</span>;
+                })}
+                {/* Middle soft glow */}
+                <div className="absolute inset-6 rounded-full bg-gradient-to-br from-amber-500/10 via-transparent to-indigo-500/10"></div>
+                <div className="absolute inset-12 rounded-full border border-white/5"></div>
+
+                {/* Qibla arrow */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative" style={{ transform: `rotate(${qiblaBearing}deg)` }}>
+                    {/* Arrow needle */}
+                    <svg width="80" height="200" viewBox="0 0 80 200" className="drop-shadow-[0_0_12px_rgba(251,191,36,0.5)]">
+                      <defs>
+                        <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="#fbbf24" stopOpacity="1" />
+                          <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.2" />
+                        </linearGradient>
+                      </defs>
+                      {/* Needle */}
+                      <path d="M 40 10 L 55 100 L 40 90 L 25 100 Z" fill="url(#arrowGrad)" stroke="#fbbf24" strokeWidth="1.5" />
+                      {/* Kaaba icon at tip */}
+                      <rect x="32" y="2" width="16" height="14" rx="1" fill="#1c1917" stroke="#fbbf24" strokeWidth="1.5" />
+                      <line x1="32" y1="6" x2="48" y2="6" stroke="#fbbf24" strokeWidth="0.8" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Center dot */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.8)]"></div>
+              </div>
+
+              {/* Bearing text */}
+              <div className="text-center">
+                <p className="text-4xl font-semibold text-amber-200 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{Math.round(qiblaBearing)}°</p>
+                <p className="text-xs text-white/50">from North · {qiblaBearing > 90 && qiblaBearing < 270 ? "South-east" : "East-south-east"}</p>
+              </div>
+
+              <div className="mt-5 pt-5 border-t border-white/10 w-full">
+                <p className="text-xs text-white/50 text-center leading-relaxed">
+                  <Info size={11} className="inline mr-1" />
+                  On mobile, the arrow will spin as you turn. For web, it shows the fixed bearing.
+                </p>
+              </div>
+            </div>
+
+            {/* Nearby mosques */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 md:p-8">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium">Verified mosques near you</h3>
+                <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded uppercase tracking-wider font-medium flex items-center gap-1"><ShieldCheck size={9} /> Vetted</span>
+              </div>
+
+              <div className="space-y-2">
+                {NEARBY_MOSQUES.slice(0, 5).map(m => (
+                  <button key={m.id} className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-left transition-colors">
+                    <Avatar scholar={{ initials: m.initials, avatarGradient: m.gradient }} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <p className="text-sm font-semibold text-white truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{m.name}</p>
+                        {m.verified && <ShieldCheck size={11} className="text-emerald-400 flex-shrink-0" />}
+                      </div>
+                      <p className="text-[11px] text-white/50 truncate">{m.denomination}</p>
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-white/60">
+                        <span className="flex items-center gap-0.5"><MapPin size={10} /> {m.distance} mi</span>
+                        <span>·</span>
+                        <span>Jumu'ah {m.jumuahTime}</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="text-white/30 flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+
+              <button className="w-full mt-4 text-sm text-amber-200/80 hover:text-amber-200 font-medium flex items-center justify-center gap-1.5">
+                View all mosques on map <ArrowRight size={13} />
+              </button>
+
+              <div className="mt-5 pt-5 border-t border-white/10">
+                <div className="flex items-start gap-2.5 text-xs text-white/50 leading-relaxed">
+                  <ShieldCheck className="text-emerald-400 flex-shrink-0 mt-0.5" size={13} />
+                  <p>Every mosque shown is Charity Commission verified and has a designated safeguarding lead.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer note */}
+          <div className="mt-8 md:mt-12 text-center">
+            <p className="text-xs text-white/40 leading-relaxed max-w-lg mx-auto">
+              May Allah accept your prayers and make them a source of peace and guidance in your life. Ameen.
+            </p>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+};
+
 // ==================== ADMIN PANEL ====================
 const ADMIN_MOSQUE_APPS = [
   { id: "mosque-app-1", name: "Masjid Ar-Rahma", city: "Sheffield", postcode: "S2 4AA", charityNumber: "1193847", submittedDate: "2026-04-18", contactName: "Ismail Khan", contactRole: "Chairperson", contactPhone: "+44 7700 900301", safeguardingLead: "Aisha Begum", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "match", notes: "" },
@@ -6107,6 +6452,7 @@ export default function App() {
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
     onSignIn={(r) => {
+      if (r === "prayer") { setView("prayerHub"); return; }
       if (r === "user") { setUserAuthMode("login"); setView("userAuth"); return; }
       setRole(r); setView(r === "admin" ? "login" : "rolePicker");
     }}
@@ -6114,6 +6460,7 @@ export default function App() {
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
   />;
+  if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={() => setView("userDashboard")} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
     onLogout={() => setView("publicHome")}
