@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin } from "lucide-react";
+import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign } from "lucide-react";
 
 const CATEGORIES = [
   { id: "quran-kids", name: "Qur'an for Kids", icon: Baby, desc: "1-on-1 tajweed for children", tint: "from-amber-100 to-amber-50", iconBg: "bg-amber-500", count: 24 },
@@ -1236,7 +1236,7 @@ const DBSStatusPill = ({ status }) => {
   );
 };
 
-const MosqueDashboard = ({ onLogout, onPublic, checks, onOrderCheck, onViewImam, onStartCampaign, onOpenMessages }) => {
+const MosqueDashboard = ({ onLogout, onPublic, checks, onOrderCheck, onViewImam, onStartCampaign, onOpenMessages, onPostJob }) => {
   const [tab, setTab] = useState("directory");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -1282,6 +1282,9 @@ const MosqueDashboard = ({ onLogout, onPublic, checks, onOrderCheck, onViewImam,
               <p className="text-stone-600">{verifiedCount} fully verified imams available · {IMAM_REGISTRY.length} total</p>
             </div>
             <div className="flex gap-2 flex-wrap">
+              <button onClick={onPostJob} className="inline-flex items-center gap-2 bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] shadow-lg shadow-emerald-900/20">
+                <Briefcase size={15} /> Post a job
+              </button>
               <button onClick={onStartCampaign} className="inline-flex items-center gap-2 bg-white border border-amber-500 text-amber-700 hover:bg-amber-50 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
                 <HandCoins size={15} /> Start a campaign
               </button>
@@ -1604,7 +1607,7 @@ const OrderCheck = ({ onBack, onComplete }) => {
 };
 
 // ==================== IMAM DASHBOARD ====================
-const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages }) => {
+const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages, onOpenJobs }) => {
   const [tab, setTab] = useState("overview");
   const myProfile = {
     id: 101, name: "Yusuf Al-Rahman", initials: "YR", city: "Birmingham",
@@ -1634,6 +1637,9 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
         <div className="max-w-5xl mx-auto px-6 flex gap-1 border-t border-stone-100">
           <button onClick={() => setTab("overview")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "overview" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><LayoutDashboard size={14} /> Overview</span>
+          </button>
+          <button onClick={onOpenJobs} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors">
+            <span className="flex items-center gap-1.5"><Briefcase size={14} /> Jobs <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">{MOCK_JOBS.length}</span></span>
           </button>
           <button onClick={() => setTab("messages")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "messages" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><MessageCircle size={14} /> Messages <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">2</span></span>
@@ -3327,6 +3333,696 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
   );
 };
 
+// ==================== JOB BOARD ====================
+const MOCK_JOBS = [
+  {
+    id: "job-1",
+    title: "Friday Jumu'ah Imam",
+    mosque: "Masjid Al-Noor",
+    mosqueInitials: "MN",
+    mosqueGradient: "from-emerald-400 to-emerald-700",
+    city: "Birmingham",
+    type: "part-time",
+    commitment: "Every Friday, 12:30–14:00",
+    pay: "£120 per khutbah",
+    startDate: "Friday 1 May 2026",
+    duration: "Ongoing",
+    postedDate: "2 days ago",
+    applicationsCount: 8,
+    urgent: false,
+    featured: true,
+    denomination: "Sunni – Hanafi",
+    languages: ["English", "Arabic"],
+    description: "We're looking for a regular Jumu'ah imam to deliver our Friday khutbah. Our congregation is around 400, mixed ages. We prefer a structured, classically-trained scholar who can deliver khutbah in English with Arabic recitation.",
+    requirements: ["Minimum 3 years' experience delivering Jumu'ah", "Enhanced DBS (verified on Amanah)", "Confident public speaking in English", "Classical training preferred (Al-Azhar, Darul Uloom, etc.)"],
+    responsibilities: ["Deliver 15-20 min khutbah each Friday", "Lead Jumu'ah prayer", "Optional: stay for Q&A afterwards"]
+  },
+  {
+    id: "job-2",
+    title: "Ramadan Taraweeh Imam",
+    mosque: "Masjid As-Salam",
+    mosqueInitials: "AS",
+    mosqueGradient: "from-rose-400 to-rose-700",
+    city: "Leicester",
+    type: "contract",
+    commitment: "30 nights, 20 rakat each",
+    pay: "£3,500 for full month",
+    startDate: "Ramadan 1447 (approx. Feb 2027)",
+    duration: "30 nights",
+    postedDate: "5 days ago",
+    applicationsCount: 24,
+    urgent: true,
+    featured: false,
+    denomination: "Sunni – Hanafi",
+    languages: ["Arabic"],
+    description: "Seeking a Hafiz to lead our taraweeh prayers every night of Ramadan. Our community expects clear, steady recitation. Accommodation, iftar, and suhoor provided on-site.",
+    requirements: ["Must be a Hafiz with ijazah", "Confident in leading 20 rakat taraweeh nightly", "Previous Ramadan imamate experience essential", "Enhanced DBS"],
+    responsibilities: ["Lead 20 rakat taraweeh every night", "Optional khatam schedule with community", "Stay on-site for the month"]
+  },
+  {
+    id: "job-3",
+    title: "Full-time Imam & Khateeb",
+    mosque: "Blackburn Islamic Centre",
+    mosqueInitials: "BI",
+    mosqueGradient: "from-amber-400 to-amber-700",
+    city: "Blackburn",
+    type: "full-time",
+    commitment: "5 days/week, salary + housing",
+    pay: "£32,000–38,000/year + accommodation",
+    startDate: "Negotiable",
+    duration: "Permanent",
+    postedDate: "1 week ago",
+    applicationsCount: 15,
+    urgent: false,
+    featured: true,
+    denomination: "Sunni – Hanafi",
+    languages: ["Urdu", "English", "Arabic"],
+    description: "Our long-serving senior imam is retiring insha'Allah. We seek a warm, community-focused scholar to lead our masjid and serve our diverse congregation. On-site 3-bedroom house provided.",
+    requirements: ["Classically trained (Darul Uloom or equivalent)", "Minimum 5 years' experience as full-time imam", "Fluent in Urdu and English", "Comfortable with pastoral work, youth programs, counselling"],
+    responsibilities: ["Lead all 5 daily prayers and Jumu'ah", "Deliver khutbah", "Teach daily halaqah after Maghrib", "Youth programs and counselling", "Nikah and janazah services", "Represent masjid in interfaith work"]
+  },
+  {
+    id: "job-4",
+    title: "Weekend Qur'an Teacher",
+    mosque: "Noor Academy",
+    mosqueInitials: "NA",
+    mosqueGradient: "from-indigo-400 to-indigo-700",
+    city: "London",
+    type: "part-time",
+    commitment: "Saturdays 10:00–14:00",
+    pay: "£65 per session",
+    startDate: "3 May 2026",
+    duration: "Academic year",
+    postedDate: "3 days ago",
+    applicationsCount: 12,
+    urgent: false,
+    featured: false,
+    denomination: "Non-denominational",
+    languages: ["English", "Arabic"],
+    description: "Small, well-organised weekend madrassa needs a tajweed teacher for ages 8–13. Structured curriculum provided. Classes of 6–8 students.",
+    requirements: ["Experience teaching children", "Ijazah in tajweed preferred", "Enhanced DBS", "Patient, engaging teaching style"],
+    responsibilities: ["Teach 4 × 50-min classes on Saturdays", "Progress reports for parents", "Attend termly teacher meeting"]
+  }
+];
+
+const MOCK_MY_APPLICATIONS = [
+  { id: "app-1", jobId: "job-1", status: "viewed", appliedDate: "3 days ago", message: "Assalamu alaikum, I would be honoured to serve your community as Jumu'ah imam..." },
+  { id: "app-2", jobId: "job-3", status: "shortlisted", appliedDate: "6 days ago", message: "Wa alaikum assalam. I've been teaching and leading..." }
+];
+
+// Job type pill
+const JobTypePill = ({ type }) => {
+  const config = {
+    "full-time": { bg: "bg-emerald-50", text: "text-emerald-800", label: "Full-time" },
+    "part-time": { bg: "bg-sky-50", text: "text-sky-800", label: "Part-time" },
+    "contract": { bg: "bg-purple-50", text: "text-purple-800", label: "Contract" },
+    "one-off": { bg: "bg-stone-100", text: "text-stone-700", label: "One-off" }
+  }[type];
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${config.bg} ${config.text}`}>{config.label}</span>;
+};
+
+// Application status pill
+const AppStatusPill = ({ status }) => {
+  const config = {
+    submitted: { bg: "bg-stone-100", text: "text-stone-700", label: "Submitted", icon: Clock },
+    viewed: { bg: "bg-sky-50", text: "text-sky-700", label: "Viewed", icon: Eye },
+    shortlisted: { bg: "bg-amber-50", text: "text-amber-800", label: "Shortlisted", icon: Star },
+    offered: { bg: "bg-emerald-50", text: "text-emerald-800", label: "Offered", icon: CheckCircle2 },
+    declined: { bg: "bg-rose-50", text: "text-rose-700", label: "Declined", icon: XCircle }
+  }[status];
+  const Icon = config.icon;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+      <Icon size={11} /> {config.label}
+    </span>
+  );
+};
+
+// Job card
+const JobCard = ({ job, onClick, applied }) => (
+  <div onClick={onClick} className="group bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-400 hover:shadow-lg cursor-pointer transition-all hover:-translate-y-0.5">
+    <div className="flex items-start gap-3 mb-3">
+      <Avatar scholar={{ initials: job.mosqueInitials, avatarGradient: job.mosqueGradient }} size="md" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+          <h4 className="text-base font-semibold text-stone-900 leading-snug" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{job.title}</h4>
+          {job.featured && <Flame size={12} className="text-amber-500" />}
+          {job.urgent && <span className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded font-medium uppercase tracking-wider">Urgent</span>}
+          {applied && <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-medium uppercase tracking-wider"><CheckCircle2 size={9} /> Applied</span>}
+        </div>
+        <p className="text-sm text-stone-600 mb-1">{job.mosque} · <MapPin size={11} className="inline" /> {job.city}</p>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-2 mb-3 flex-wrap">
+      <JobTypePill type={job.type} />
+      <span className="text-xs text-stone-500">·</span>
+      <span className="text-xs text-stone-700 font-medium">{job.pay}</span>
+    </div>
+
+    <p className="text-sm text-stone-700 line-clamp-2 mb-4 leading-relaxed">{job.description}</p>
+
+    <div className="flex items-center justify-between pt-3 border-t border-stone-100 text-xs text-stone-500">
+      <span className="flex items-center gap-1"><Clock size={11} /> {job.commitment}</span>
+      <div className="flex items-center gap-3">
+        <span>{job.applicationsCount} applied</span>
+        <span>·</span>
+        <span>{job.postedDate}</span>
+      </div>
+    </div>
+  </div>
+);
+
+// ==================== JOBS BOARD (for imams) ====================
+const JobsBoard = ({ onBack, onJob, myApplications }) => {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [tab, setTab] = useState("browse");
+
+  const filtered = MOCK_JOBS.filter(j => {
+    const matchesSearch = !search || j.title.toLowerCase().includes(search.toLowerCase()) || j.mosque.toLowerCase().includes(search.toLowerCase()) || j.city.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter = filter === "all" || j.type === filter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const appliedJobIds = myApplications.map(a => a.jobId);
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
+          <button onClick={onBack} className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          </button>
+        </div>
+      </header>
+
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-stone-900 text-white">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
+        <div className="relative max-w-6xl mx-auto px-6 py-10">
+          <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-4"><ArrowLeft size={14} /> Back to dashboard</button>
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-1 rounded-full text-xs uppercase tracking-wider mb-3">
+            <Briefcase size={12} /> Jobs for scholars & imams
+          </div>
+          <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Find your next role</h2>
+          <p className="text-emerald-100/90 max-w-xl">Every mosque on Amanah has been Charity Commission verified. Apply with one tap — your DBS and reviews come through automatically.</p>
+        </div>
+      </section>
+
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-stone-200 mb-6">
+          <button onClick={() => setTab("browse")} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "browse" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+            <span className="flex items-center gap-1.5"><Search size={14} /> Browse jobs <span className="bg-stone-100 text-stone-700 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{MOCK_JOBS.length}</span></span>
+          </button>
+          <button onClick={() => setTab("applications")} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "applications" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+            <span className="flex items-center gap-1.5"><FileText size={14} /> My applications <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{myApplications.length}</span></span>
+          </button>
+        </div>
+
+        {tab === "browse" && (
+          <>
+            <div className="flex flex-col md:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input type="text" placeholder="Search by title, mosque, or city..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              </div>
+              <div className="flex gap-2 bg-white border border-stone-300 rounded-xl p-1 overflow-x-auto">
+                {[{ v: "all", l: "All" }, { v: "full-time", l: "Full-time" }, { v: "part-time", l: "Part-time" }, { v: "contract", l: "Contract" }, { v: "one-off", l: "One-off" }].map(f => (
+                  <button key={f.v} onClick={() => setFilter(f.v)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === f.v ? "bg-emerald-900 text-white" : "text-stone-600 hover:text-stone-900"}`}>{f.l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {filtered.map((job, i) => (
+                <div key={job.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
+                  <JobCard job={job} onClick={() => onJob(job)} applied={appliedJobIds.includes(job.id)} />
+                </div>
+              ))}
+            </div>
+            {filtered.length === 0 && (
+              <div className="text-center py-16 text-stone-500">
+                <Briefcase size={28} className="mx-auto mb-2 text-stone-300" />
+                No jobs match your filters
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === "applications" && (
+          <div className="space-y-3">
+            {myApplications.map(app => {
+              const job = MOCK_JOBS.find(j => j.id === app.jobId);
+              if (!job) return null;
+              return (
+                <div key={app.id} className="bg-white border border-stone-200 rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                    <div className="flex items-start gap-3">
+                      <Avatar scholar={{ initials: job.mosqueInitials, avatarGradient: job.mosqueGradient }} size="md" />
+                      <div>
+                        <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{job.title}</h4>
+                        <p className="text-sm text-stone-600">{job.mosque} · {job.city}</p>
+                      </div>
+                    </div>
+                    <AppStatusPill status={app.status} />
+                  </div>
+                  <div className="bg-stone-50 rounded-lg p-3 mb-3">
+                    <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Your message</p>
+                    <p className="text-sm text-stone-700 italic line-clamp-2">"{app.message}"</p>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-stone-500">
+                    <span>Applied {app.appliedDate}</span>
+                    <button onClick={() => onJob(job)} className="text-emerald-800 font-medium hover:underline">View job →</button>
+                  </div>
+                </div>
+              );
+            })}
+            {myApplications.length === 0 && (
+              <div className="text-center py-16 text-stone-500">
+                <FileText size={28} className="mx-auto mb-2 text-stone-300" />
+                You haven't applied to anything yet
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+// ==================== JOB DETAIL (for imams) ====================
+const JobDetail = ({ job, onBack, onApply, applied }) => (
+  <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+      <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+        <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+      </div>
+    </header>
+
+    <section className={`relative overflow-hidden bg-gradient-to-br ${job.mosqueGradient}`}>
+      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
+      <div className="relative max-w-5xl mx-auto px-6 py-10 text-white">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/80 hover:text-white mb-6"><ArrowLeft size={14} /> Back to jobs</button>
+        <div className="flex items-start gap-3 flex-wrap mb-3">
+          <JobTypePill type={job.type} />
+          {job.urgent && <span className="inline-flex items-center gap-1 bg-rose-400 text-rose-950 text-[10px] px-2 py-1 rounded-full font-semibold uppercase tracking-wider"><Flame size={10} /> Urgent</span>}
+          {job.featured && <span className="inline-flex items-center gap-1 bg-amber-400 text-amber-950 text-[10px] px-2 py-1 rounded-full font-semibold uppercase tracking-wider"><Flame size={10} /> Featured</span>}
+        </div>
+        <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{job.title}</h2>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-white/90">
+            <Building2 size={15} />
+            <span className="font-medium">{job.mosque}</span>
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full">
+              <ShieldCheck size={11} /> Verified
+            </span>
+          </div>
+          <span className="text-white/70">·</span>
+          <span className="text-sm text-white/90 flex items-center gap-1"><MapPin size={13} /> {job.city}</span>
+        </div>
+      </div>
+    </section>
+
+    <main className="max-w-5xl mx-auto px-6 py-8">
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* Left: main content */}
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-white border border-stone-200 rounded-2xl p-6">
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">About this role</h3>
+            <p className="text-stone-800 leading-relaxed">{job.description}</p>
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-2xl p-6">
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Responsibilities</h3>
+            <ul className="space-y-2">
+              {job.responsibilities.map(r => (
+                <li key={r} className="flex gap-2 text-sm text-stone-800">
+                  <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-white border border-stone-200 rounded-2xl p-6">
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Requirements</h3>
+            <ul className="space-y-2">
+              {job.requirements.map(r => (
+                <li key={r} className="flex gap-2 text-sm text-stone-800">
+                  <span className="text-emerald-700 font-bold flex-shrink-0 mt-0.5">•</span>
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="text-emerald-800" size={20} />
+              </div>
+              <div>
+                <h4 className="font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>This mosque is verified</h4>
+                <p className="text-sm text-stone-700 leading-relaxed">{job.mosque} has been Charity Commission verified by Amanah. Trustees confirmed, safeguarding policy in place, and documents validated.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: apply box */}
+        <div>
+          <div className="bg-white border border-stone-200 rounded-2xl p-5 sticky top-24 shadow-sm">
+            <div className="mb-5 pb-5 border-b border-stone-100">
+              <p className="text-3xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{job.pay}</p>
+              <p className="text-xs text-stone-500">{job.commitment}</p>
+            </div>
+
+            <div className="space-y-3 mb-5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-stone-500">Start date</span>
+                <span className="text-stone-900 font-medium text-right">{job.startDate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Duration</span>
+                <span className="text-stone-900">{job.duration}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Denomination</span>
+                <span className="text-stone-900 text-right text-xs">{job.denomination}</span>
+              </div>
+            </div>
+
+            {applied ? (
+              <button disabled className="w-full bg-emerald-100 text-emerald-800 py-3.5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2">
+                <CheckCircle2 size={15} /> Already applied
+              </button>
+            ) : (
+              <button onClick={() => onApply(job)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
+                Apply with one tap <ArrowRight size={15} />
+              </button>
+            )}
+
+            <div className="mt-5 pt-5 border-t border-stone-100 space-y-2 text-xs text-stone-600">
+              <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-emerald-700" /> Your profile & reviews sent automatically</p>
+              <p className="flex items-center gap-2"><FileCheck size={12} className="text-emerald-700" /> DBS status verified by Amanah</p>
+              <p className="flex items-center gap-2"><Eye size={12} className="text-emerald-700" /> You'll be notified when viewed</p>
+            </div>
+
+            <p className="text-xs text-stone-500 text-center mt-4">{job.applicationsCount} people have applied so far</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+);
+
+// ==================== APPLY TO JOB ====================
+const ApplyToJob = ({ job, onBack, onSubmit }) => {
+  const [message, setMessage] = useState("");
+  const [availableDate, setAvailableDate] = useState("");
+  const [includeProfile, setIncludeProfile] = useState(true);
+  const [includeReviews, setIncludeReviews] = useState(true);
+
+  const canSubmit = message.length >= 30 && availableDate;
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back to job</button>
+
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Apply to {job.title}</h1>
+          <p className="text-stone-600 text-sm">{job.mosque} · {job.city}</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-5">
+          <div className="md:col-span-2 bg-white border border-stone-200 rounded-2xl p-6">
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Your message to the mosque</label>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={8}
+                placeholder="Assalamu alaikum. I'm very interested in this position because..."
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed"
+              />
+              <p className="text-xs text-stone-500 mt-1">{message.length} characters · minimum 30 · mention your relevant experience</p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Earliest available date</label>
+              <input type="date" value={availableDate} onChange={e => setAvailableDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Include with your application</p>
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${includeProfile ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-200"}`}>
+                <input type="checkbox" checked={includeProfile} onChange={e => setIncludeProfile(e.target.checked)} className="mt-0.5 accent-emerald-800" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-stone-900">My Amanah profile</p>
+                  <p className="text-xs text-stone-600 mt-0.5">DBS, Right to Work, qualifications, specialties, languages</p>
+                </div>
+                <ShieldCheck className="text-emerald-700 flex-shrink-0" size={16} />
+              </label>
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${includeReviews ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-200"}`}>
+                <input type="checkbox" checked={includeReviews} onChange={e => setIncludeReviews(e.target.checked)} className="mt-0.5 accent-emerald-800" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-stone-900">My reviews (4.9 ★ · 142 reviews)</p>
+                  <p className="text-xs text-stone-600 mt-0.5">From verified bookings across Amanah</p>
+                </div>
+                <Star className="text-amber-500 flex-shrink-0" size={16} fill="currentColor" />
+              </label>
+            </div>
+
+            <button onClick={() => onSubmit({ job, message, availableDate, includeProfile, includeReviews })} disabled={!canSubmit} className="w-full mt-6 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.01] disabled:hover:scale-100">
+              <Send size={15} /> Submit application
+            </button>
+          </div>
+
+          {/* Right: context */}
+          <div>
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 sticky top-24">
+              <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-3">Applying as</p>
+              <div className="flex items-center gap-3 mb-4">
+                <Avatar scholar={{ initials: "YR", avatarGradient: "from-emerald-400 to-emerald-700" }} size="md" />
+                <div>
+                  <p className="text-sm font-semibold text-stone-900">Ustadh Yusuf Al-Rahman</p>
+                  <p className="text-xs text-stone-500 flex items-center gap-1"><ShieldCheck size={10} className="text-emerald-700" /> Verified</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs text-stone-600 pt-4 border-t border-stone-100">
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> DBS Verified (Nov 2025)</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> Right to Work verified</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> Al-Azhar graduate</p>
+                <p className="flex items-center gap-2"><Star size={12} className="text-amber-500" fill="currentColor" /> 4.9 rating (142 reviews)</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+// ==================== APPLICATION SUBMITTED ====================
+const ApplicationSubmitted = ({ application, onJobs, onHome }) => (
+  <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center" style={{ animation: "bounceIn 0.6s ease-out" }}>
+      <div className="relative inline-block mb-5">
+        <div className="absolute inset-0 bg-emerald-300 rounded-full blur-xl opacity-40"></div>
+        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-700 shadow-lg">
+          <Send className="text-white" size={28} strokeWidth={2} />
+        </div>
+      </div>
+      <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application sent</h2>
+      <p className="text-stone-700 leading-relaxed mb-5">Your application for <span className="font-semibold">{application.job.title}</span> has been sent to <span className="font-semibold">{application.job.mosque}</span>.</p>
+      <div className="bg-stone-50 rounded-xl p-4 text-left mb-5 space-y-2 text-sm">
+        <div className="flex justify-between"><span className="text-stone-500">Status</span><AppStatusPill status="submitted" /></div>
+        <div className="flex justify-between"><span className="text-stone-500">Application ID</span><span className="text-stone-900 font-mono text-xs">APP-{Date.now().toString().slice(-6)}</span></div>
+      </div>
+      <p className="text-xs text-stone-600 mb-5">You'll get a notification when the mosque views your application and when they respond.</p>
+      <button onClick={onJobs} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium mb-2 transition-all hover:scale-[1.02]">
+        Browse more jobs
+      </button>
+      <button onClick={onHome} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium">
+        Back to dashboard
+      </button>
+    </div>
+    <style>{`@keyframes bounceIn { 0% { opacity: 0; transform: scale(0.9); } 50% { transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } }`}</style>
+  </div>
+);
+
+// ==================== MOSQUE: POST A JOB ====================
+const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    title: "", type: "part-time", commitment: "", pay: "",
+    startDate: "", duration: "",
+    description: "", responsibilities: [""], requirements: [""],
+    denomination: "", languages: [""]
+  });
+
+  const updateArrayItem = (field, i, value) => {
+    const arr = [...form[field]];
+    arr[i] = value;
+    setForm({ ...form, [field]: arr });
+  };
+  const addArrayItem = (field) => setForm({ ...form, [field]: [...form[field], ""] });
+  const removeArrayItem = (field, i) => setForm({ ...form, [field]: form[field].filter((_, idx) => idx !== i) });
+
+  const canProceed = {
+    1: form.title.length >= 10 && form.type && form.commitment && form.pay,
+    2: form.startDate && form.duration && form.description.length >= 50,
+    3: form.responsibilities.filter(r => r.trim()).length >= 1 && form.requirements.filter(r => r.trim()).length >= 1
+  }[step];
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back</button>
+
+        <div className="mb-2">
+          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Post a job</h1>
+          <p className="text-stone-600 mt-1">Reach verified, DBS-checked imams and scholars across the UK.</p>
+        </div>
+
+        <div className="mt-8 mb-8">
+          <div className="flex items-center gap-3 mb-3">
+            {[1, 2, 3].map(n => (
+              <div key={n} className="flex items-center gap-3 flex-1">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-emerald-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
+                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-emerald-900" : "bg-stone-200"}`}></div>}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-stone-500 text-center">{["Basics", "Dates & description", "Requirements"][step - 1]}</p>
+        </div>
+
+        <div className="bg-white border border-stone-200 rounded-2xl p-6">
+          {step === 1 && (
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Job title</label>
+                <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="e.g. Friday Jumu'ah Imam" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <p className="text-xs text-stone-500 mt-1">Be specific — "Taraweeh Imam for Ramadan 1447" beats "Imam needed"</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Type of role</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[{v:"full-time",l:"Full-time"},{v:"part-time",l:"Part-time"},{v:"contract",l:"Contract"},{v:"one-off",l:"One-off"}].map(opt => (
+                    <button key={opt.v} onClick={() => setForm({...form, type: opt.v})} className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${form.type === opt.v ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Time commitment</label>
+                <input value={form.commitment} onChange={e => setForm({...form, commitment: e.target.value})} placeholder="e.g. Every Friday 12:30–14:00" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Compensation</label>
+                <input value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} placeholder="e.g. £120 per khutbah · or £32,000/year" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <p className="text-xs text-stone-500 mt-1">Jobs with clear pay get 5× more applications</p>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Start date</label>
+                  <input value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} placeholder="e.g. 1 May 2026" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Duration</label>
+                  <input value={form.duration} onChange={e => setForm({...form, duration: e.target.value})} placeholder="e.g. 30 nights · Permanent" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">About this role</label>
+                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={6} placeholder="Describe the role, your community, and what kind of scholar would thrive here..." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed" />
+                <p className="text-xs text-stone-500 mt-1">{form.description.length} characters · minimum 50</p>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Key responsibilities</label>
+                <div className="space-y-2">
+                  {form.responsibilities.map((r, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input value={r} onChange={e => updateArrayItem("responsibilities", i, e.target.value)} placeholder={i === 0 ? "e.g. Deliver 15-20 min khutbah each Friday" : "Add another..."} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      {form.responsibilities.length > 1 && <button onClick={() => removeArrayItem("responsibilities", i)} className="px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg"><X size={14} /></button>}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => addArrayItem("responsibilities")} className="mt-2 text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another</button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Requirements</label>
+                <div className="space-y-2">
+                  {form.requirements.map((r, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input value={r} onChange={e => updateArrayItem("requirements", i, e.target.value)} placeholder={i === 0 ? "e.g. Enhanced DBS, minimum 3 years' experience" : "Add another..."} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      {form.requirements.length > 1 && <button onClick={() => removeArrayItem("requirements", i)} className="px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg"><X size={14} /></button>}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => addArrayItem("requirements")} className="mt-2 text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another</button>
+              </div>
+
+              <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
+                <Info className="text-sky-800 flex-shrink-0 mt-0.5" size={16} />
+                <p className="text-xs text-sky-900 leading-relaxed">All applicants on Amanah are already DBS-checked, so you don't need to list "DBS required" — it's implicit.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
+            <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">{step > 1 ? "Back" : "Cancel"}</button>
+            {step < 3 ? (
+              <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                Continue <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button onClick={() => onComplete(form)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                <Zap size={14} /> Post job
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
 // ==================== ADMIN PANEL ====================
 const ADMIN_MOSQUE_APPS = [
   { id: "mosque-app-1", name: "Masjid Ar-Rahma", city: "Sheffield", postcode: "S2 4AA", charityNumber: "1193847", submittedDate: "2026-04-18", contactName: "Ismail Khan", contactRole: "Chairperson", contactPhone: "+44 7700 900301", safeguardingLead: "Aisha Begum", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "match", notes: "" },
@@ -3939,6 +4635,9 @@ export default function App() {
   const [reviewScholar, setReviewScholar] = useState(null);
   const [submittedReview, setSubmittedReview] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [myApplications, setMyApplications] = useState(MOCK_MY_APPLICATIONS);
+  const [submittedApplication, setSubmittedApplication] = useState(null);
 
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
@@ -3960,6 +4659,16 @@ export default function App() {
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
   if (view === "messagesInbox") return <MessagesInbox conversations={MOCK_CONVERSATIONS} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : "imamDashboard")} />;
   if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} />;
+  if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
+  if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => setView("jobsBoard")} onApply={(j) => { setSelectedJob(j); setView("applyJob"); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
+  if (view === "applyJob") return <ApplyToJob job={selectedJob} onBack={() => setView("jobDetail")} onSubmit={(app) => {
+    const newApp = { id: `app-${Date.now()}`, jobId: app.job.id, status: "submitted", appliedDate: "just now", message: app.message };
+    setMyApplications([newApp, ...myApplications]);
+    setSubmittedApplication(app);
+    setView("applicationSubmitted");
+  }} />;
+  if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
+  if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
   if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
   if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} />;
   if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
@@ -3979,6 +4688,7 @@ export default function App() {
     onViewImam={(i) => { setSelectedImam(i); setView("mosqueImamDetail"); }}
     onStartCampaign={() => { setCampaignCreatorType("mosque"); setView("createCampaign"); }}
     onOpenMessages={() => { setRole("mosque"); setView("messagesInbox"); }}
+    onPostJob={() => setView("postJob")}
   />;
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
@@ -3991,6 +4701,7 @@ export default function App() {
     onPublic={() => setView("publicHome")}
     onStartCampaign={() => { setCampaignCreatorType("scholar"); setView("createCampaign"); }}
     onOpenMessages={() => { setRole("imam"); setView("messagesInbox"); }}
+    onOpenJobs={() => setView("jobsBoard")}
   />;
   if (view === "createCampaign") return <CreateCampaign
     creatorType={campaignCreatorType}
