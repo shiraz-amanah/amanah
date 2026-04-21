@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign } from "lucide-react";
+import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt } from "lucide-react";
 
 const CATEGORIES = [
   { id: "quran-kids", name: "Qur'an for Kids", icon: Baby, desc: "1-on-1 tajweed for children", tint: "from-amber-100 to-amber-50", iconBg: "bg-amber-500", count: 24 },
@@ -284,7 +284,7 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
           <div className="flex items-center gap-2 md:gap-4">
             <button onClick={() => onSignIn("mosque")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">For Mosques</button>
             <button onClick={() => onSignIn("imam")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">Become a Scholar</button>
-            <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
+            <button onClick={() => onSignIn("user")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
           </div>
         </div>
       </header>
@@ -4990,6 +4990,491 @@ const DateTimePicker = ({ availability, bookings, selectedDate, selectedTime, on
   );
 };
 
+// ==================== USER ACCOUNT SYSTEM ====================
+
+// Mock user data
+const MOCK_USER = {
+  name: "Aisha Khan",
+  email: "aisha.khan@example.com",
+  initials: "AK",
+  avatarGradient: "from-rose-400 to-rose-700",
+  city: "Birmingham",
+  joinedDate: "March 2026",
+  phone: "+44 7700 900145",
+  notifications: { email: true, sms: false, whatsapp: true },
+  students: [
+    { id: 1, name: "Yusuf", age: 9, relation: "Son", notes: "Starting Qur'an properly, works on tajweed" },
+    { id: 2, name: "Mariam", age: 7, relation: "Daughter", notes: "Learning Arabic alphabet" }
+  ]
+};
+
+const MOCK_USER_BOOKINGS = [
+  { id: "b-1", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-24", time: "18:00", student: "Yusuf", status: "upcoming", type: "Qur'an · Tajweed", joinLink: "#" },
+  { id: "b-2", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-26", time: "14:00", student: "Mariam", status: "upcoming", type: "Arabic", joinLink: "#" },
+  { id: "b-3", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-17", time: "18:00", student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
+  { id: "b-4", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-10", time: "18:00", student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
+  { id: "b-5", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-19", time: "14:00", student: "Mariam", status: "completed", type: "Arabic", reviewLeft: false }
+];
+
+const MOCK_USER_DONATIONS = [
+  { id: "d-1", campaign: "New roof for Masjid Al-Noor", creator: "Masjid Al-Noor", amount: 50, tip: 5, giftAid: 12.50, total: 67.50, date: "2026-04-15", anonymous: false, receiptId: "AMN-D-458912" },
+  { id: "d-2", campaign: "Ramadan 1447 Iftar Programme", creator: "Blackburn Islamic Centre", amount: 120, tip: 0, giftAid: 30, total: 150, date: "2026-03-28", anonymous: true, receiptId: "AMN-D-445301" },
+  { id: "d-3", campaign: "Help Ustadh Ibrahim study at Madinah", creator: "Ustadh Ibrahim Siddiqui", amount: 30, tip: 3, giftAid: 7.50, total: 40.50, date: "2026-03-12", anonymous: false, receiptId: "AMN-D-432089" },
+  { id: "d-4", campaign: "New women's prayer hall", creator: "Masjid As-Salam", amount: 200, tip: 20, giftAid: 50, total: 270, date: "2026-02-04", anonymous: false, receiptId: "AMN-D-419763" }
+];
+
+const MOCK_SAVED_SCHOLARS = [101, 104, 105];
+const MOCK_SAVED_CAMPAIGNS = [1, 2];
+
+// ==================== USER SIGN UP / LOGIN ====================
+const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({ name: "", email: "", password: "", interest: "" });
+
+  const isSignUp = mode === "signup";
+
+  return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="w-full max-w-md">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back to Amanah</button>
+
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
+            <ShieldCheck className="text-emerald-50" size={22} />
+          </div>
+          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm">
+          {isSignUp && step === 1 && (
+            <>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Create your account</h2>
+              <p className="text-sm text-stone-500 mb-6">Book scholars, track your giving, save favourites.</p>
+              <div className="space-y-3">
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Your name" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 8 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <button onClick={() => setStep(2)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] inline-flex items-center justify-center gap-2">
+                  Continue <ArrowRight size={14} />
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-500 text-center mt-4 leading-relaxed">By continuing, you agree to Amanah's Terms and Privacy Policy.</p>
+            </>
+          )}
+
+          {isSignUp && step === 2 && (
+            <>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {form.name.split(" ")[0]}</h2>
+              <p className="text-sm text-stone-500 mb-6">What brings you to Amanah?</p>
+              <div className="space-y-2">
+                {[
+                  { v: "parent", l: "Qur'an / Arabic lessons for my kids", i: Baby },
+                  { v: "adult", l: "Learning for myself", i: BookOpen },
+                  { v: "family", l: "Nikah, janazah, or family event", i: HeartHandshake },
+                  { v: "donate", l: "Support Muslim causes", i: HandCoins },
+                  { v: "browse", l: "Just browsing for now", i: Search }
+                ].map(opt => {
+                  const Icon = opt.i;
+                  return (
+                    <button
+                      key={opt.v}
+                      onClick={() => setForm({...form, interest: opt.v})}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${form.interest === opt.v ? "bg-emerald-50 border-emerald-400" : "bg-white border-stone-200 hover:border-stone-400"}`}
+                    >
+                      <Icon size={18} className={form.interest === opt.v ? "text-emerald-800" : "text-stone-500"} />
+                      <span className="text-sm text-stone-900 flex-1">{opt.l}</span>
+                      {form.interest === opt.v && <CheckCircle2 size={16} className="text-emerald-700" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={() => onComplete(form)} disabled={!form.interest} className="w-full mt-5 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
+                Create account <CheckCircle2 size={14} />
+              </button>
+            </>
+          )}
+
+          {!isSignUp && (
+            <>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Welcome back</h2>
+              <p className="text-sm text-stone-500 mb-6">Sign in to manage your bookings and giving.</p>
+              <div className="space-y-3">
+                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <button onClick={() => onComplete(form)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]">Sign in</button>
+              </div>
+              <div className="text-center mt-3">
+                <button className="text-sm text-stone-500 hover:text-stone-900">Forgot password?</button>
+              </div>
+            </>
+          )}
+
+          <div className="mt-6 pt-6 border-t border-stone-100 text-center">
+            <p className="text-sm text-stone-600 mb-2">
+              {isSignUp ? "Already have an account?" : "New to Amanah?"}
+            </p>
+            <button onClick={onSwitchMode} className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+              {isSignUp ? "Sign in" : "Create an account"} <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 text-center text-xs text-stone-500">
+          Are you a <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">scholar</button>? Different sign-in.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== USER DASHBOARD ====================
+const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages }) => {
+  const [tab, setTab] = useState("bookings");
+  const user = MOCK_USER;
+
+  const upcomingBookings = MOCK_USER_BOOKINGS.filter(b => b.status === "upcoming");
+  const pastBookings = MOCK_USER_BOOKINGS.filter(b => b.status === "completed");
+  const totalGiven = MOCK_USER_DONATIONS.reduce((s, d) => s + d.amount, 0);
+  const totalGiftAid = MOCK_USER_DONATIONS.reduce((s, d) => s + d.giftAid, 0);
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+          <button onClick={onPublic} className="flex items-center gap-2.5 md:gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="text-left">
+              <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+              <p className="text-xs text-stone-500 hidden md:block">{user.name}</p>
+            </div>
+          </button>
+          <div className="flex items-center gap-2">
+            <Avatar scholar={{ initials: user.initials, avatarGradient: user.avatarGradient }} size="sm" />
+            <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
+          {[
+            { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
+            { v: "donations", l: "My giving", i: HandCoins, badge: null },
+            { v: "saved", l: "Saved", i: Heart, badge: MOCK_SAVED_SCHOLARS.length + MOCK_SAVED_CAMPAIGNS.length },
+            { v: "messages", l: "Messages", i: MessageCircle, badge: 2 },
+            { v: "account", l: "Account", i: Settings, badge: null }
+          ].map(t => {
+            const Icon = t.i;
+            const isActive = tab === t.v;
+            return (
+              <button
+                key={t.v}
+                onClick={() => t.v === "messages" ? onOpenMessages() : setTab(t.v)}
+                className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
+              >
+                <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l} {t.badge > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>}</span>
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        {tab === "bookings" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {user.name.split(" ")[0]}</h2>
+              <p className="text-stone-600 text-sm md:text-base">You have {upcomingBookings.length} upcoming sessions.</p>
+            </div>
+
+            {/* Upcoming */}
+            {upcomingBookings.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Upcoming</h3>
+                <div className="space-y-3">
+                  {upcomingBookings.map(b => {
+                    const dateObj = new Date(b.date);
+                    const isTomorrow = toDateKey(new Date(Date.now() + 86400000)) === b.date;
+                    const isToday_ = toDateKey(new Date()) === b.date;
+                    return (
+                      <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
+                        <div className="flex items-start gap-3 md:gap-4">
+                          <Avatar scholar={{ initials: b.scholarInitials, avatarGradient: b.scholarGradient }} size="md" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                              <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.scholarName}</h4>
+                              {(isToday_ || isTomorrow) && (
+                                <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-semibold uppercase tracking-wider">{isToday_ ? "Today" : "Tomorrow"}</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-stone-500 mb-2">{b.type} · for {b.student} · {b.package} package</p>
+                            <div className="flex items-center gap-3 text-sm text-stone-700 mb-3 flex-wrap">
+                              <span className="flex items-center gap-1"><Calendar size={13} /> {dateObj.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
+                              <span className="flex items-center gap-1"><Clock size={13} /> {b.time}</span>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                              <button className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+                                <Play size={13} /> Join session
+                              </button>
+                              <button className="bg-white border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:border-stone-400">Reschedule</button>
+                              <button className="text-sm text-stone-500 hover:text-rose-700 px-2 py-2">Cancel</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Past */}
+            {pastBookings.length > 0 && (
+              <div>
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Past sessions</h3>
+                <div className="space-y-3">
+                  {pastBookings.map(b => {
+                    const dateObj = new Date(b.date);
+                    return (
+                      <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
+                        <div className="flex items-start gap-3 md:gap-4">
+                          <Avatar scholar={{ initials: b.scholarInitials, avatarGradient: b.scholarGradient }} size="md" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.scholarName}</h4>
+                              <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded-full uppercase tracking-wider font-medium">Completed</span>
+                            </div>
+                            <p className="text-xs text-stone-500 mb-2">{b.type} · for {b.student} · {dateObj.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                            <div className="flex gap-2 flex-wrap">
+                              <button onClick={() => onBookAgain(b.scholarId)} className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">Book again</button>
+                              {!b.reviewLeft && (
+                                <>
+                                  <span className="text-stone-300">·</span>
+                                  <button onClick={() => onReview(b.scholarId)} className="text-sm text-amber-700 font-medium hover:underline inline-flex items-center gap-1"><Star size={12} /> Leave a review</button>
+                                </>
+                              )}
+                              {b.reviewLeft && (
+                                <>
+                                  <span className="text-stone-300">·</span>
+                                  <span className="text-sm text-stone-500 inline-flex items-center gap-1"><CheckCircle2 size={12} className="text-emerald-600" /> Review left</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "donations" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My giving</h2>
+              <p className="text-stone-600 text-sm md:text-base">Your sadaqah jariyah, tracked.</p>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-4">
+                <p className="text-xs text-emerald-700 uppercase tracking-wider font-medium mb-1">Total given</p>
+                <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiven.toLocaleString()}</p>
+              </div>
+              <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-2xl p-4">
+                <p className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-1">Gift Aid boost</p>
+                <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiftAid.toLocaleString()}</p>
+              </div>
+              <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-1">Causes supported</p>
+                <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{MOCK_USER_DONATIONS.length}</p>
+              </div>
+              <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-1">Member since</p>
+                <p className="text-sm font-semibold text-stone-900 mt-1.5">{user.joinedDate}</p>
+              </div>
+            </div>
+
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-6 flex gap-3">
+              <Info className="text-sky-800 flex-shrink-0 mt-0.5" size={16} />
+              <p className="text-xs text-sky-900 leading-relaxed">Your 2025/26 giving summary is available for tax purposes. Total charitable contributions with Gift Aid: <strong>£{(totalGiven + totalGiftAid).toFixed(2)}</strong></p>
+            </div>
+
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">All donations</h3>
+            <div className="space-y-3">
+              {MOCK_USER_DONATIONS.map(d => (
+                <div key={d.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                    <div className="min-w-0">
+                      <h4 className="text-base font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{d.campaign}</h4>
+                      <p className="text-xs text-stone-500">{d.creator}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{d.amount}</p>
+                      {d.giftAid > 0 && <p className="text-[11px] text-emerald-700 font-medium">+£{d.giftAid} Gift Aid</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-stone-100 text-xs text-stone-500 flex-wrap">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="flex items-center gap-1"><Calendar size={11} /> {new Date(d.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      {d.anonymous && <span>· Anonymous</span>}
+                      <span className="font-mono">· {d.receiptId}</span>
+                    </div>
+                    <button className="text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                      <Download size={11} /> Receipt
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab === "saved" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Saved</h2>
+              <p className="text-stone-600 text-sm md:text-base">Scholars and campaigns you've hearted.</p>
+            </div>
+
+            {/* Saved scholars */}
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Scholars ({MOCK_SAVED_SCHOLARS.length})</h3>
+            <div className="grid md:grid-cols-2 gap-3 mb-8">
+              {MOCK_SAVED_SCHOLARS.map(id => {
+                const s = MOCK_SCHOLARS.find(x => x.id === id);
+                if (!s) return null;
+                return (
+                  <div key={id} className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-3">
+                    <Avatar scholar={s} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{s.name}</p>
+                      <p className="text-xs text-stone-500">{s.city} · £{s.packages[1].price} / {s.packages[1].name}</p>
+                    </div>
+                    <button className="text-rose-500 hover:text-rose-700 p-2"><Heart size={16} fill="currentColor" /></button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Saved campaigns */}
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Campaigns ({MOCK_SAVED_CAMPAIGNS.length})</h3>
+            <div className="grid md:grid-cols-2 gap-3">
+              {MOCK_SAVED_CAMPAIGNS.map(id => {
+                const c = MOCK_CAMPAIGNS.find(x => x.id === id);
+                if (!c) return null;
+                const pct = Math.min((c.raised / c.goal) * 100, 100);
+                return (
+                  <button key={id} onClick={() => onViewCampaign(c)} className="bg-white border border-stone-200 rounded-2xl overflow-hidden text-left hover:border-emerald-300 transition-colors">
+                    <div className={`h-20 bg-gradient-to-br ${c.gradient}`}></div>
+                    <div className="p-4">
+                      <h4 className="text-sm font-semibold text-stone-900 line-clamp-1 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.title}</h4>
+                      <p className="text-xs text-stone-500 mb-2">{c.creator}</p>
+                      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden mb-1.5">
+                        <div className={`h-full bg-gradient-to-r ${c.gradient}`} style={{ width: `${pct}%` }}></div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-stone-900">£{c.raised.toLocaleString()}</span>
+                        <span className="text-stone-500">{Math.round(pct)}%</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {tab === "account" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Account</h2>
+              <p className="text-stone-600 text-sm md:text-base">Your profile and preferences.</p>
+            </div>
+
+            {/* Profile */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-5">
+              <div className="flex items-start gap-4 mb-5">
+                <Avatar scholar={{ initials: user.initials, avatarGradient: user.avatarGradient }} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{user.name}</h3>
+                  <p className="text-sm text-stone-500 truncate">{user.email}</p>
+                  <p className="text-xs text-stone-500 mt-1">Member since {user.joinedDate}</p>
+                </div>
+                <button className="text-sm text-emerald-800 font-medium hover:underline">Edit</button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-5 border-t border-stone-100 text-sm">
+                <div>
+                  <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-0.5">City</p>
+                  <p className="text-stone-900">{user.city}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-0.5">Phone</p>
+                  <p className="text-stone-900">{user.phone}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Kids/students */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My students</h3>
+                  <p className="text-xs text-stone-500 mt-0.5">Track learning for each child separately.</p>
+                </div>
+                <button className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                  <Plus size={14} /> Add
+                </button>
+              </div>
+              <div className="space-y-2">
+                {user.students.map(s => (
+                  <div key={s.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white text-sm font-semibold">
+                      {s.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-stone-900">{s.name} <span className="text-stone-500 font-normal">· {s.relation}, age {s.age}</span></p>
+                      <p className="text-xs text-stone-500 truncate">{s.notes}</p>
+                    </div>
+                    <button className="text-stone-400 hover:text-stone-700 p-1"><MoreHorizontal size={16} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Notifications */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-5">
+              <h3 className="text-base font-semibold text-stone-900 mb-4" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Notifications</h3>
+              <div className="space-y-3">
+                {[
+                  { k: "email", l: "Email", sub: "Booking reminders, receipts" },
+                  { k: "sms", l: "SMS", sub: "Session reminders 1h before" },
+                  { k: "whatsapp", l: "WhatsApp", sub: "Scholar messages & updates" }
+                ].map(n => (
+                  <label key={n.k} className="flex items-center justify-between p-3 bg-stone-50 rounded-xl cursor-pointer">
+                    <div>
+                      <p className="text-sm font-medium text-stone-900">{n.l}</p>
+                      <p className="text-xs text-stone-500">{n.sub}</p>
+                    </div>
+                    <div className={`w-11 h-6 rounded-full transition-colors relative ${user.notifications[n.k] ? "bg-emerald-600" : "bg-stone-300"}`}>
+                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${user.notifications[n.k] ? "translate-x-5" : "translate-x-0.5"}`}></div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={onLogout} className="w-full bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 py-3 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2">
+              <LogOut size={14} /> Sign out
+            </button>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
 // ==================== ADMIN PANEL ====================
 const ADMIN_MOSQUE_APPS = [
   { id: "mosque-app-1", name: "Masjid Ar-Rahma", city: "Sheffield", postcode: "S2 4AA", charityNumber: "1193847", submittedDate: "2026-04-18", contactName: "Ismail Khan", contactRole: "Chairperson", contactPhone: "+44 7700 900301", safeguardingLead: "Aisha Begum", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "match", notes: "" },
@@ -5608,6 +6093,7 @@ export default function App() {
   const [registeredProfile, setRegisteredProfile] = useState(null);
   const [registrationType, setRegistrationType] = useState(null);
   const [scholarAvailability, setScholarAvailability] = useState(DEFAULT_AVAILABILITY);
+  const [userAuthMode, setUserAuthMode] = useState("login");
 
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
@@ -5620,14 +6106,32 @@ export default function App() {
   if (view === "publicHome") return <PublicHome
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
-    onSignIn={(r) => { setRole(r); setView(r === "admin" ? "login" : "rolePicker"); }}
+    onSignIn={(r) => {
+      if (r === "user") { setUserAuthMode("login"); setView("userAuth"); return; }
+      setRole(r); setView(r === "admin" ? "login" : "rolePicker");
+    }}
     onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
   />;
+  if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={() => setView("userDashboard")} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
+  if (view === "userDashboard") return <UserDashboard
+    onLogout={() => setView("publicHome")}
+    onPublic={() => setView("publicHome")}
+    onBookAgain={(scholarId) => {
+      const s = MOCK_SCHOLARS.find(x => x.id === scholarId);
+      if (s) { setSelectedScholar(s); setView("scholarDetail"); }
+    }}
+    onReview={(scholarId) => {
+      const s = MOCK_SCHOLARS.find(x => x.id === scholarId);
+      if (s) { setReviewScholar(s); setView("leaveReview"); }
+    }}
+    onViewCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
+    onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
+  />;
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
-  if (view === "messagesInbox") return <MessagesInbox conversations={MOCK_CONVERSATIONS} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : "imamDashboard")} />;
+  if (view === "messagesInbox") return <MessagesInbox conversations={MOCK_CONVERSATIONS} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")} />;
   if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
