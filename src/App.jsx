@@ -6208,7 +6208,7 @@ const ADMIN_DBS_ORDERS = [
 ];
 
 // Admin sidebar navigation
-const AdminSidebar = ({ active, onNavigate, onLogout, counts }) => {
+const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onCloseMobile }) => {
   const items = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
     { id: "mosques", label: "Mosque queue", icon: Building2, count: counts.mosques, urgent: counts.mosques > 0 },
@@ -6220,47 +6220,64 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts }) => {
     { id: "settings", label: "Settings", icon: Settings, count: null }
   ];
 
+  const handleNavigate = (id) => {
+    onNavigate(id);
+    if (onCloseMobile) onCloseMobile();
+  };
+
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 bg-stone-950 text-stone-300 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-5 py-5 border-b border-stone-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-700 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={16} /></div>
-          <div>
-            <p className="text-sm font-semibold text-white" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</p>
-            <p className="text-[10px] uppercase tracking-widest text-emerald-400">Admin</p>
+    <>
+      {/* Backdrop for mobile drawer */}
+      {mobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="md:hidden fixed inset-0 bg-stone-950/60 backdrop-blur-sm z-30"
+        />
+      )}
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-stone-950 text-stone-300 flex flex-col z-40 transition-transform duration-200 md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`} style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="px-5 py-5 border-b border-stone-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-700 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={16} /></div>
+            <div>
+              <p className="text-sm font-semibold text-white" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</p>
+              <p className="text-[10px] uppercase tracking-widest text-emerald-400">Admin</p>
+            </div>
           </div>
+          {onCloseMobile && (
+            <button onClick={onCloseMobile} className="md:hidden text-stone-400 hover:text-white p-1"><X size={18} /></button>
+          )}
         </div>
-      </div>
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {items.map(item => {
-          const Icon = item.icon;
-          const isActive = active === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? "bg-stone-800 text-white" : "text-stone-400 hover:text-white hover:bg-stone-900"}`}
-            >
-              <Icon size={16} />
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.count !== null && item.count > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${item.highlight && item.urgent ? "bg-rose-600 text-white" : item.urgent ? "bg-amber-500 text-stone-950" : "bg-stone-700 text-stone-300"}`}>{item.count}</span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-      <div className="px-3 py-4 border-t border-stone-800">
-        <div className="px-3 py-2 mb-1">
-          <p className="text-xs text-stone-400">Signed in as</p>
-          <p className="text-sm font-medium text-white">Yusuf Rahman</p>
-          <p className="text-xs text-stone-500">Platform admin</p>
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {items.map(item => {
+            const Icon = item.icon;
+            const isActive = active === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavigate(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive ? "bg-stone-800 text-white" : "text-stone-400 hover:text-white hover:bg-stone-900"}`}
+              >
+                <Icon size={16} />
+                <span className="flex-1 text-left">{item.label}</span>
+                {item.count !== null && item.count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${item.highlight && item.urgent ? "bg-rose-600 text-white" : item.urgent ? "bg-amber-500 text-stone-950" : "bg-stone-700 text-stone-300"}`}>{item.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="px-3 py-4 border-t border-stone-800">
+          <div className="px-3 py-2 mb-1">
+            <p className="text-xs text-stone-400">Signed in as</p>
+            <p className="text-sm font-medium text-white">Yusuf Rahman</p>
+            <p className="text-xs text-stone-500">Platform admin</p>
+          </div>
+          <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-400 hover:text-white hover:bg-stone-900">
+            <LogOut size={14} /> Sign out
+          </button>
         </div>
-        <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-400 hover:text-white hover:bg-stone-900">
-          <LogOut size={14} /> Sign out
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 };
 
@@ -6275,9 +6292,9 @@ const AdminOverview = ({ onNavigate, counts }) => {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Good morning, Yusuf</h1>
-        <p className="text-stone-600">Here's what needs your attention today.</p>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Good morning, Yusuf</h1>
+        <p className="text-sm md:text-base text-stone-600">Here's what needs your attention today.</p>
       </div>
 
       {/* Urgent queue alert */}
@@ -6365,7 +6382,7 @@ const AdminOverview = ({ onNavigate, counts }) => {
 const AdminMosqueQueue = ({ apps, onAction }) => (
   <div>
     <div className="mb-6">
-      <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque applications</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque applications</h1>
       <p className="text-stone-600">{apps.length} pending review · sorted oldest first</p>
     </div>
     <div className="space-y-3">
@@ -6449,7 +6466,7 @@ const AdminMosqueQueue = ({ apps, onAction }) => (
 const AdminScholarQueue = ({ apps, onAction }) => (
   <div>
     <div className="mb-6">
-      <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Scholar applications</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Scholar applications</h1>
       <p className="text-stone-600">{apps.length} pending review</p>
     </div>
     <div className="space-y-3">
@@ -6522,7 +6539,7 @@ const AdminScholarQueue = ({ apps, onAction }) => (
 const AdminCampaignQueue = ({ apps, onAction }) => (
   <div>
     <div className="mb-6">
-      <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Campaign queue</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Campaign queue</h1>
       <p className="text-stone-600">Review before campaigns go live to the public</p>
     </div>
     <div className="space-y-3">
@@ -6581,7 +6598,7 @@ const AdminCampaignQueue = ({ apps, onAction }) => (
 const AdminFlags = ({ flags, onAction }) => (
   <div>
     <div className="mb-6">
-      <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Flags & reports</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Flags & reports</h1>
       <p className="text-stone-600">User-submitted reports requiring action</p>
     </div>
     <div className="space-y-3">
@@ -6632,7 +6649,7 @@ const AdminFlags = ({ flags, onAction }) => (
 const AdminDBSOrders = ({ orders }) => (
   <div>
     <div className="mb-6">
-      <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>DBS check orders</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>DBS check orders</h1>
       <p className="text-stone-600">Live pipeline of checks processing through our umbrella body partner</p>
     </div>
 
@@ -6690,6 +6707,7 @@ const AdminDBSOrders = ({ orders }) => (
 // ===== Admin panel shell =====
 const AdminPanel = ({ onExit }) => {
   const [section, setSection] = useState("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mosqueApps, setMosqueApps] = useState(ADMIN_MOSQUE_APPS);
   const [scholarApps, setScholarApps] = useState(ADMIN_SCHOLAR_APPS);
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
@@ -6703,6 +6721,17 @@ const AdminPanel = ({ onExit }) => {
     flags: flags.length,
     dbs: ADMIN_DBS_ORDERS.length
   };
+
+  const sectionTitle = {
+    overview: "Overview",
+    mosques: "Mosque queue",
+    scholars: "Scholar queue",
+    campaigns: "Campaign queue",
+    flags: "Flags & reports",
+    dbs: "DBS orders",
+    users: "All users",
+    settings: "Settings"
+  }[section] || "Admin";
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -6728,8 +6757,33 @@ const AdminPanel = ({ onExit }) => {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <AdminSidebar active={section} onNavigate={setSection} onLogout={onExit} counts={counts} />
-      <main className="ml-64 p-8 min-h-screen">
+      <AdminSidebar
+        active={section}
+        onNavigate={setSection}
+        onLogout={onExit}
+        counts={counts}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+      />
+
+      {/* Mobile top bar */}
+      <div className="md:hidden sticky top-0 z-20 bg-white border-b border-stone-200 flex items-center justify-between px-4 py-3">
+        <button onClick={() => setMobileNavOpen(true)} className="p-2 -ml-2 text-stone-700 hover:text-stone-900 relative">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          {(counts.flags > 0 || counts.mosques > 0 || counts.scholars > 0) && (
+            <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
+          )}
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={14} /></div>
+          <div className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{sectionTitle}</div>
+        </div>
+        <div className="w-10"></div>{/* spacer for symmetry */}
+      </div>
+
+      <main className="md:ml-64 p-4 md:p-8 min-h-screen">
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} />}
         {section === "mosques" && <AdminMosqueQueue apps={mosqueApps} onAction={handleMosqueAction} />}
         {section === "scholars" && <AdminScholarQueue apps={scholarApps} onAction={handleScholarAction} />}
@@ -6738,7 +6792,7 @@ const AdminPanel = ({ onExit }) => {
         {section === "dbs" && <AdminDBSOrders orders={ADMIN_DBS_ORDERS} />}
         {section === "users" && (
           <div>
-            <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>All users</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>All users</h1>
             <p className="text-stone-600 mb-8">Search, filter, and manage every account on the platform.</p>
             <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
               <Users className="mx-auto text-stone-300 mb-3" size={36} />
