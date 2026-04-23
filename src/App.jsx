@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -5170,6 +5170,79 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
   const [savingProfile, setSavingProfile] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  // Students (real, from Supabase)
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [studentForm, setStudentForm] = useState({ name: "", age: "", relation: "Son", notes: "" });
+  const [savingStudent, setSavingStudent] = useState(false);
+
+  // Notifications (live-saved to Supabase)
+  const [notifications, setNotifications] = useState(profile?.notifications || { email: true, sms: false, whatsapp: true });
+
+  // Load students when dashboard mounts (for real users only)
+  useEffect(() => {
+    if (isDemo) {
+      // Demo mode: use mock data
+      setStudents(MOCK_USER.students);
+      setStudentsLoading(false);
+    } else {
+      getStudents().then(data => {
+        setStudents(data);
+        setStudentsLoading(false);
+      });
+    }
+  }, [isDemo]);
+
+  // Keep notifications in sync when profile prop changes
+  useEffect(() => {
+    if (profile?.notifications) setNotifications(profile.notifications);
+  }, [profile]);
+
+  // Toggle notification (saves to Supabase)
+  const toggleNotification = async (key) => {
+    if (isDemo) return; // demo mode ignores
+    const updated = { ...notifications, [key]: !notifications[key] };
+    setNotifications(updated); // optimistic update
+    const { error } = await updateNotifications(updated);
+    if (error) {
+      // Roll back if it failed
+      setNotifications(notifications);
+      console.error("Failed to save notification preference:", error);
+    }
+  };
+
+  // Add a new student
+  const handleAddStudent = async () => {
+    if (!studentForm.name.trim()) return;
+    setSavingStudent(true);
+    const { data, error } = await addStudent({
+      name: studentForm.name.trim(),
+      age: studentForm.age ? parseInt(studentForm.age) : null,
+      relation: studentForm.relation,
+      notes: studentForm.notes.trim() || null
+    });
+    setSavingStudent(false);
+    if (error) {
+      console.error("Failed to add student:", error);
+      return;
+    }
+    setStudents([...students, data]);
+    setStudentForm({ name: "", age: "", relation: "Son", notes: "" });
+    setAddingStudent(false);
+  };
+
+  // Delete a student
+  const handleDeleteStudent = async (id) => {
+    if (!confirm("Remove this student?")) return;
+    const { error } = await deleteStudent(id);
+    if (error) {
+      console.error("Failed to delete:", error);
+      return;
+    }
+    setStudents(students.filter(s => s.id !== id));
+  };
+
   // Use real profile data when available, fall back to mock for demo
   const user = profile ? {
     name: profile.name || profile.email?.split("@")[0] || "Friend",
@@ -5612,25 +5685,95 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
                   <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My students</h3>
                   <p className="text-xs text-stone-500 mt-0.5">Track learning for each child separately.</p>
                 </div>
-                <button className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
-                  <Plus size={14} /> Add
-                </button>
+                {!addingStudent && (
+                  <button onClick={() => setAddingStudent(true)} className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                    <Plus size={14} /> Add
+                  </button>
+                )}
               </div>
+
+              {/* Add student inline form */}
+              {addingStudent && (
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-3">
+                  <div className="space-y-2.5">
+                    <input
+                      type="text"
+                      value={studentForm.name}
+                      onChange={e => setStudentForm({...studentForm, name: e.target.value})}
+                      placeholder="Name (e.g. Yusuf)"
+                      className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        value={studentForm.age}
+                        onChange={e => setStudentForm({...studentForm, age: e.target.value})}
+                        placeholder="Age"
+                        min="1" max="25"
+                        className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                      />
+                      <select
+                        value={studentForm.relation}
+                        onChange={e => setStudentForm({...studentForm, relation: e.target.value})}
+                        className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                      >
+                        <option>Son</option>
+                        <option>Daughter</option>
+                        <option>Ward</option>
+                        <option>Nephew</option>
+                        <option>Niece</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                    <input
+                      type="text"
+                      value={studentForm.notes}
+                      onChange={e => setStudentForm({...studentForm, notes: e.target.value})}
+                      placeholder="What are they learning? (optional)"
+                      className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 mt-3">
+                    <button
+                      onClick={() => { setAddingStudent(false); setStudentForm({ name: "", age: "", relation: "Son", notes: "" }); }}
+                      disabled={savingStudent}
+                      className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900"
+                    >Cancel</button>
+                    <button
+                      onClick={handleAddStudent}
+                      disabled={savingStudent || !studentForm.name.trim()}
+                      className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                    >
+                      {savingStudent ? "Saving..." : <><CheckCircle2 size={12} /> Save</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
-                {user.students.length === 0 ? (
+                {studentsLoading ? (
+                  <div className="text-center py-6 text-sm text-stone-400">Loading...</div>
+                ) : students.length === 0 ? (
                   <div className="text-center py-6 text-sm text-stone-500">
                     Add your kids to track their learning separately.
                   </div>
-                ) : user.students.map(s => (
+                ) : students.map(s => (
                   <div key={s.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white text-sm font-semibold">
                       {s.name[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-900">{s.name} <span className="text-stone-500 font-normal">· {s.relation}, age {s.age}</span></p>
-                      <p className="text-xs text-stone-500 truncate">{s.notes}</p>
+                      <p className="text-sm font-medium text-stone-900">
+                        {s.name}
+                        {(s.relation || s.age) && <span className="text-stone-500 font-normal">
+                          {" · "}{s.relation}{s.age && `, age ${s.age}`}
+                        </span>}
+                      </p>
+                      {s.notes && <p className="text-xs text-stone-500 truncate">{s.notes}</p>}
                     </div>
-                    <button className="text-stone-400 hover:text-stone-700 p-1"><MoreHorizontal size={16} /></button>
+                    {!isDemo && (
+                      <button onClick={() => handleDeleteStudent(s.id)} className="text-stone-400 hover:text-rose-600 p-1"><X size={16} /></button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -5645,17 +5788,26 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
                   { k: "sms", l: "SMS", sub: "Session reminders 1h before" },
                   { k: "whatsapp", l: "WhatsApp", sub: "Scholar messages & updates" }
                 ].map(n => (
-                  <label key={n.k} className="flex items-center justify-between p-3 bg-stone-50 rounded-xl cursor-pointer">
+                  <button
+                    type="button"
+                    key={n.k}
+                    onClick={() => toggleNotification(n.k)}
+                    disabled={isDemo}
+                    className="w-full flex items-center justify-between p-3 bg-stone-50 hover:bg-stone-100 disabled:opacity-70 disabled:cursor-not-allowed rounded-xl text-left transition-colors"
+                  >
                     <div>
                       <p className="text-sm font-medium text-stone-900">{n.l}</p>
                       <p className="text-xs text-stone-500">{n.sub}</p>
                     </div>
-                    <div className={`w-11 h-6 rounded-full transition-colors relative ${user.notifications[n.k] ? "bg-emerald-600" : "bg-stone-300"}`}>
-                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${user.notifications[n.k] ? "translate-x-5" : "translate-x-0.5"}`}></div>
+                    <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${notifications[n.k] ? "bg-emerald-600" : "bg-stone-300"}`}>
+                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifications[n.k] ? "translate-x-5" : "translate-x-0.5"}`}></div>
                     </div>
-                  </label>
+                  </button>
                 ))}
               </div>
+              {isDemo && (
+                <p className="text-[11px] text-stone-400 mt-3 text-center">Sign in to manage notification preferences.</p>
+              )}
             </div>
 
             <button onClick={onLogout} className="w-full bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 py-3 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2">
