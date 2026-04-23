@@ -49,6 +49,21 @@ export async function getProfile() {
   return data
 }
 
+// NEW: Update the logged-in user's profile
+export async function updateProfile(updates) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.id)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
 export function onAuthChange(callback) {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(session?.user || null)

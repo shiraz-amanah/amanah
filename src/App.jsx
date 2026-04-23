@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -5163,8 +5163,12 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
 };
 
 // ==================== USER DASHBOARD ====================
-const UserDashboard = ({ profile, isDemo, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages }) => {
+const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages }) => {
   const [tab, setTab] = useState("bookings");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", city: "", phone: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   // Use real profile data when available, fall back to mock for demo
   const user = profile ? {
@@ -5492,25 +5496,113 @@ const UserDashboard = ({ profile, isDemo, onLogout, onPublic, onBookAgain, onRev
 
             {/* Profile */}
             <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-5">
-              <div className="flex items-start gap-4 mb-5">
-                <Avatar scholar={{ initials: user.initials, avatarGradient: user.avatarGradient }} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{user.name}</h3>
-                  <p className="text-sm text-stone-500 truncate">{user.email}</p>
-                  <p className="text-xs text-stone-500 mt-1">Member since {user.joinedDate}</p>
-                </div>
-                <button className="text-sm text-emerald-800 font-medium hover:underline">Edit</button>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-5 border-t border-stone-100 text-sm">
+              {!editingProfile ? (
+                <>
+                  <div className="flex items-start gap-4 mb-5">
+                    <Avatar scholar={{ initials: user.initials, avatarGradient: user.avatarGradient }} size="lg" />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{user.name}</h3>
+                      <p className="text-sm text-stone-500 truncate">{user.email}</p>
+                      <p className="text-xs text-stone-500 mt-1">Member since {user.joinedDate}</p>
+                    </div>
+                    {!isDemo && (
+                      <button onClick={() => {
+                        setEditForm({ name: user.name || "", city: user.city || "", phone: user.phone || "" });
+                        setSaveError(null);
+                        setEditingProfile(true);
+                      }} className="text-sm text-emerald-800 font-medium hover:underline">Edit</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-5 border-t border-stone-100 text-sm">
+                    <div>
+                      <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-0.5">City</p>
+                      <p className="text-stone-900">{user.city || <span className="text-stone-400">Not set</span>}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-0.5">Phone</p>
+                      <p className="text-stone-900">{user.phone || <span className="text-stone-400">Not set</span>}</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-0.5">City</p>
-                  <p className="text-stone-900">{user.city}</p>
+                  <div className="flex items-center gap-3 mb-4">
+                    <Avatar scholar={{ initials: user.initials, avatarGradient: user.avatarGradient }} size="md" />
+                    <div>
+                      <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Edit profile</h3>
+                      <p className="text-xs text-stone-500">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Name</label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={e => setEditForm({...editForm, name: e.target.value})}
+                        placeholder="Your name"
+                        className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">City</label>
+                        <input
+                          type="text"
+                          value={editForm.city}
+                          onChange={e => setEditForm({...editForm, city: e.target.value})}
+                          placeholder="e.g. Birmingham"
+                          className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Phone</label>
+                        <input
+                          type="tel"
+                          value={editForm.phone}
+                          onChange={e => setEditForm({...editForm, phone: e.target.value})}
+                          placeholder="+44 7700 900000"
+                          className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {saveError && <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{saveError}</div>}
+                  <div className="flex items-center justify-end gap-2 mt-5">
+                    <button
+                      onClick={() => { setEditingProfile(false); setSaveError(null); }}
+                      disabled={savingProfile}
+                      className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900"
+                    >Cancel</button>
+                    <button
+                      onClick={async () => {
+                        if (!editForm.name.trim()) { setSaveError("Name can't be empty"); return; }
+                        setSavingProfile(true);
+                        setSaveError(null);
+                        const { data, error } = await updateProfile({
+                          name: editForm.name.trim(),
+                          city: editForm.city.trim() || null,
+                          phone: editForm.phone.trim() || null,
+                          avatar_initials: editForm.name.trim().split(" ").map(w => w[0]).join("").substring(0,2).toUpperCase()
+                        });
+                        if (error) {
+                          setSaveError(error.message || "Couldn't save. Try again.");
+                          setSavingProfile(false);
+                          return;
+                        }
+                        // Tell the app the profile changed so it re-renders with fresh data
+                        onProfileUpdate(data);
+                        setSavingProfile(false);
+                        setEditingProfile(false);
+                      }}
+                      disabled={savingProfile}
+                      className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-5 py-2 rounded-xl text-sm font-medium inline-flex items-center gap-2"
+                    >
+                      {savingProfile ? "Saving..." : <><CheckCircle2 size={14} /> Save</>}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-0.5">Phone</p>
-                  <p className="text-stone-900">{user.phone}</p>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Kids/students */}
@@ -6590,6 +6682,7 @@ export default function App() {
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
     isDemo={!authedProfile}
+    onProfileUpdate={(updated) => setAuthedProfile(updated)}
     onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onBookAgain={(scholarId) => {
