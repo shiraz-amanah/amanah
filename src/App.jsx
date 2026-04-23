@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { signUp, signIn, signOut, getUser, getProfile } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -3111,7 +3112,8 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
               <ul className="text-xs text-stone-700 space-y-2 leading-relaxed">
                 {step === 1 && (
                   <>
-<li className="flex gap-2"><span className="text-amber-600">•</span> Specific titles beat vague ones. "Fix our leaking roof" &gt; "Help our mosque."</li>
+                    <li className="flex gap-2"><span className="text-amber-600">•</span> Specific titles beat vague ones. "Fix our leaking roof" > "Help our mosque."</li>
+                    <li className="flex gap-2"><span className="text-amber-600">•</span> Summaries with a specific amount or number raise more. "Serving 300 iftars" > "Ramadan appeal."</li>
                   </>
                 )}
                 {step === 2 && (
@@ -5032,8 +5034,35 @@ const MOCK_SAVED_CAMPAIGNS = [1, 2];
 const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: "", email: "", password: "", interest: "" });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const isSignUp = mode === "signup";
+
+  const handleSignUp = async () => {
+    setError(null);
+    setLoading(true);
+    const { data, error: authError } = await signUp(form.email, form.password, form.name, form.interest);
+    if (authError) {
+      setError(authError.message || "Something went wrong");
+      setLoading(false);
+      return;
+    }
+    // Success! data.user contains the new user
+    onComplete(form);
+  };
+
+  const handleSignIn = async () => {
+    setError(null);
+    setLoading(true);
+    const { data, error: authError } = await signIn(form.email, form.password);
+    if (authError) {
+      setError(authError.message || "Invalid email or password");
+      setLoading(false);
+      return;
+    }
+    onComplete(form);
+  };
 
   return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -5055,8 +5084,8 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
               <div className="space-y-3">
                 <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Your name" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 8 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <button onClick={() => setStep(2)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] inline-flex items-center justify-center gap-2">
+                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <button onClick={() => form.name && form.email && form.password.length >= 6 && setStep(2)} disabled={!form.name || !form.email || form.password.length < 6} className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
                   Continue <ArrowRight size={14} />
                 </button>
               </div>
@@ -5090,8 +5119,9 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
                   );
                 })}
               </div>
-              <button onClick={() => onComplete(form)} disabled={!form.interest} className="w-full mt-5 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
-                Create account <CheckCircle2 size={14} />
+              {error && <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
+              <button onClick={handleSignUp} disabled={!form.interest || loading} className="w-full mt-5 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
+                {loading ? "Creating account..." : <>Create account <CheckCircle2 size={14} /></>}
               </button>
             </>
           )}
@@ -5103,7 +5133,10 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
               <div className="space-y-3">
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <button onClick={() => onComplete(form)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]">Sign in</button>
+                {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
+                <button onClick={handleSignIn} disabled={loading || !form.email || !form.password} className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100">
+                  {loading ? "Signing in..." : "Sign in"}
+                </button>
               </div>
               <div className="text-center mt-3">
                 <button className="text-sm text-stone-500 hover:text-stone-900">Forgot password?</button>
@@ -6438,6 +6471,18 @@ export default function App() {
   const [registrationType, setRegistrationType] = useState(null);
   const [scholarAvailability, setScholarAvailability] = useState(DEFAULT_AVAILABILITY);
   const [userAuthMode, setUserAuthMode] = useState("login");
+  const [authedUser, setAuthedUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Check for existing session on page load — keeps users logged in across reloads
+  useEffect(() => {
+    getUser().then(user => {
+      setAuthedUser(user);
+      setAuthLoading(false);
+      // If user is already logged in and they're on the home page, could auto-redirect to dashboard
+      // For now we just remember them silently
+    });
+  }, []);
 
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
@@ -6462,7 +6507,7 @@ export default function App() {
   if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={() => setView("userDashboard")} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
-    onLogout={() => setView("publicHome")}
+    onLogout={async () => { await signOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onBookAgain={(scholarId) => {
       const s = MOCK_SCHOLARS.find(x => x.id === scholarId);
