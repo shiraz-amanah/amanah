@@ -1224,14 +1224,18 @@ const RolePicker = ({ onPick, onPublic }) => (
   </div>
 );
 
-const LoginScreen = ({ role, onLogin, onBack, onGoRegister }) => (
+const LoginScreen = ({ role, onLogin, onBack, onGoRegister, onSwitchRole }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
     <div className="w-full max-w-md">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}><ArrowLeft size={14} /> Back</button>
       <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg"><ShieldCheck className="text-emerald-50" size={22} /></div><h1 className="text-3xl font-semibold text-stone-900 tracking-tight">Amanah</h1>{role === "admin" && <p className="text-xs text-stone-500 uppercase tracking-widest mt-2" style={{ fontFamily: "'Inter', sans-serif" }}>Admin Portal</p>}</div>
       <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-sm">
         <h2 className="text-xl font-semibold text-stone-900 mb-1">{role === "mosque" ? "Mosque Sign In" : role === "admin" ? "Admin Sign In" : "Scholar Sign In"}</h2>
-        <p className="text-sm text-stone-500 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}>Enter any details — this is a demo.</p>
+        <p className="text-sm text-stone-500 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+          {role === "mosque" ? "Sign in to manage your imams, run DBS checks, and post jobs." :
+           role === "admin" ? "Enter any details — this is a demo." :
+           "Sign in to manage your availability, bookings and profile."}
+        </p>
         <div className="space-y-4" style={{ fontFamily: "'Inter', sans-serif" }}>
           <input type="email" placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
           <input type="password" placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
@@ -1248,6 +1252,15 @@ const LoginScreen = ({ role, onLogin, onBack, onGoRegister }) => (
           </div>
         )}
       </div>
+      {role !== "admin" && (
+        <div className="mt-5 text-center text-xs text-stone-500" style={{ fontFamily: "'Inter', sans-serif" }}>
+          {role === "mosque" ? (
+            <>Are you a scholar or imam? <button onClick={() => onSwitchRole("imam")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
+          ) : (
+            <>Are you a mosque? <button onClick={() => onSwitchRole("mosque")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
+          )}
+        </div>
+      )}
     </div>
   </div>
 );
@@ -6815,13 +6828,14 @@ export default function App() {
         if (authedUser) { setView("userDashboard"); return; }
         setUserAuthMode("login"); setView("userAuth"); return;
       }
-      setRole(r); setView(r === "admin" ? "login" : "rolePicker");
+      // For mosque, imam, admin — go straight to role-specific login, skip picker
+      setRole(r); setView("login");
     }}
     onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
   />;
-  if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
+  if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
@@ -6864,16 +6878,22 @@ export default function App() {
   }} />;
   if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
   if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
-  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
+  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} />;
   if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
-  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
+  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => setView("publicHome")} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
-  if (view === "login") return <LoginScreen role={role} onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : role === "admin" ? "adminPanel" : "imamDashboard")} onBack={() => setView("rolePicker")} onGoRegister={() => setView(role === "mosque" ? "mosqueRegister" : "imamRegister")} />;
+  if (view === "login") return <LoginScreen
+    role={role}
+    onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : role === "admin" ? "adminPanel" : "imamDashboard")}
+    onBack={() => setView("publicHome")}
+    onGoRegister={() => setView(role === "mosque" ? "mosqueRegister" : "imamRegister")}
+    onSwitchRole={(newRole) => setRole(newRole)}
+  />;
   if (view === "mosqueRegister") return <MosqueRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); setView("registrationPending"); }} />;
   if (view === "imamRegister") return <ImamRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); setView("registrationPending"); }} />;
   if (view === "registrationPending") return <RegistrationPending type={registrationType} form={registeredProfile} onHome={() => setView("publicHome")} />;
