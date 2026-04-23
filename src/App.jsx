@@ -5163,14 +5163,30 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
 };
 
 // ==================== USER DASHBOARD ====================
-const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages }) => {
+const UserDashboard = ({ profile, isDemo, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages }) => {
   const [tab, setTab] = useState("bookings");
-  const user = MOCK_USER;
 
-  const upcomingBookings = MOCK_USER_BOOKINGS.filter(b => b.status === "upcoming");
-  const pastBookings = MOCK_USER_BOOKINGS.filter(b => b.status === "completed");
-  const totalGiven = MOCK_USER_DONATIONS.reduce((s, d) => s + d.amount, 0);
-  const totalGiftAid = MOCK_USER_DONATIONS.reduce((s, d) => s + d.giftAid, 0);
+  // Use real profile data when available, fall back to mock for demo
+  const user = profile ? {
+    name: profile.name || profile.email?.split("@")[0] || "Friend",
+    email: profile.email,
+    initials: profile.avatar_initials || (profile.name || profile.email || "??").substring(0, 2).toUpperCase(),
+    avatarGradient: profile.avatar_gradient || "from-emerald-400 to-emerald-700",
+    city: profile.city || "",
+    joinedDate: profile.joined_date ? new Date(profile.joined_date).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "Recently",
+    phone: profile.phone || "",
+    notifications: profile.notifications || { email: true, sms: false, whatsapp: true },
+    students: []
+  } : MOCK_USER;
+
+  // For real users (not demo), start with no bookings/donations/saved. They're a new user.
+  const upcomingBookings = isDemo ? MOCK_USER_BOOKINGS.filter(b => b.status === "upcoming") : [];
+  const pastBookings = isDemo ? MOCK_USER_BOOKINGS.filter(b => b.status === "completed") : [];
+  const donations = isDemo ? MOCK_USER_DONATIONS : [];
+  const savedScholars = isDemo ? MOCK_SAVED_SCHOLARS : [];
+  const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : [];
+  const totalGiven = donations.reduce((s, d) => s + d.amount, 0);
+  const totalGiftAid = donations.reduce((s, d) => s + d.giftAid, 0);
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -5194,8 +5210,8 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
           {[
             { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
             { v: "donations", l: "My giving", i: HandCoins, badge: null },
-            { v: "saved", l: "Saved", i: Heart, badge: MOCK_SAVED_SCHOLARS.length + MOCK_SAVED_CAMPAIGNS.length },
-            { v: "messages", l: "Messages", i: MessageCircle, badge: 2 },
+            { v: "saved", l: "Saved", i: Heart, badge: savedScholars.length + savedCampaigns.length },
+            { v: "messages", l: "Messages", i: MessageCircle, badge: isDemo ? 2 : 0 },
             { v: "account", l: "Account", i: Settings, badge: null }
           ].map(t => {
             const Icon = t.i;
@@ -5218,8 +5234,24 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
           <div>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {user.name.split(" ")[0]}</h2>
-              <p className="text-stone-600 text-sm md:text-base">You have {upcomingBookings.length} upcoming sessions.</p>
+              <p className="text-stone-600 text-sm md:text-base">
+                {upcomingBookings.length > 0 ? `You have ${upcomingBookings.length} upcoming sessions.` : "Welcome to Amanah. Ready to find your first scholar?"}
+              </p>
             </div>
+
+            {/* Empty state for new users with no bookings */}
+            {upcomingBookings.length === 0 && pastBookings.length === 0 && (
+              <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 mb-4">
+                  <BookOpen className="text-emerald-700" size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No bookings yet</h3>
+                <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Browse verified Qur'an tutors, Arabic teachers, imams and counsellors. All DBS-checked, all a click away.</p>
+                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                  <Search size={14} /> Find a scholar
+                </button>
+              </div>
+            )}
 
             {/* Upcoming */}
             {upcomingBookings.length > 0 && (
@@ -5312,20 +5344,33 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
               <p className="text-stone-600 text-sm md:text-base">Your sadaqah jariyah, tracked.</p>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-4">
-                <p className="text-xs text-emerald-700 uppercase tracking-wider font-medium mb-1">Total given</p>
-                <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiven.toLocaleString()}</p>
+            {donations.length === 0 ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-50 mb-4">
+                  <HandCoins className="text-amber-700" size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No donations yet</h3>
+                <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">When you give to verified mosque and scholar campaigns, your sadaqah will be tracked here with Gift Aid receipts for tax purposes.</p>
+                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                  <Heart size={14} /> Browse campaigns
+                </button>
               </div>
-              <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-2xl p-4">
-                <p className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-1">Gift Aid boost</p>
-                <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiftAid.toLocaleString()}</p>
-              </div>
-              <div className="bg-white border border-stone-200 rounded-2xl p-4">
-                <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-1">Causes supported</p>
-                <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{MOCK_USER_DONATIONS.length}</p>
-              </div>
+            ) : (
+              <>
+                {/* Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                  <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-4">
+                    <p className="text-xs text-emerald-700 uppercase tracking-wider font-medium mb-1">Total given</p>
+                    <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiven.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-2xl p-4">
+                    <p className="text-xs text-amber-700 uppercase tracking-wider font-medium mb-1">Gift Aid boost</p>
+                    <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiftAid.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white border border-stone-200 rounded-2xl p-4">
+                    <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-1">Causes supported</p>
+                    <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{donations.length}</p>
+                  </div>
               <div className="bg-white border border-stone-200 rounded-2xl p-4">
                 <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-1">Member since</p>
                 <p className="text-sm font-semibold text-stone-900 mt-1.5">{user.joinedDate}</p>
@@ -5339,7 +5384,7 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
 
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">All donations</h3>
             <div className="space-y-3">
-              {MOCK_USER_DONATIONS.map(d => (
+              {donations.map(d => (
                 <div key={d.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
                   <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                     <div className="min-w-0">
@@ -5364,6 +5409,8 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
                 </div>
               ))}
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -5374,10 +5421,23 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
               <p className="text-stone-600 text-sm md:text-base">Scholars and campaigns you've hearted.</p>
             </div>
 
+            {savedScholars.length === 0 && savedCampaigns.length === 0 ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rose-50 mb-4">
+                  <Heart className="text-rose-600" size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Nothing saved yet</h3>
+                <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Tap the heart icon on scholars or campaigns to save them here for later.</p>
+                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                  <Search size={14} /> Start browsing
+                </button>
+              </div>
+            ) : (
+              <>
             {/* Saved scholars */}
-            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Scholars ({MOCK_SAVED_SCHOLARS.length})</h3>
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Scholars ({savedScholars.length})</h3>
             <div className="grid md:grid-cols-2 gap-3 mb-8">
-              {MOCK_SAVED_SCHOLARS.map(id => {
+              {savedScholars.map(id => {
                 const s = MOCK_SCHOLARS.find(x => x.id === id);
                 if (!s) return null;
                 return (
@@ -5394,9 +5454,9 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
             </div>
 
             {/* Saved campaigns */}
-            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Campaigns ({MOCK_SAVED_CAMPAIGNS.length})</h3>
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Campaigns ({savedCampaigns.length})</h3>
             <div className="grid md:grid-cols-2 gap-3">
-              {MOCK_SAVED_CAMPAIGNS.map(id => {
+              {savedCampaigns.map(id => {
                 const c = MOCK_CAMPAIGNS.find(x => x.id === id);
                 if (!c) return null;
                 const pct = Math.min((c.raised / c.goal) * 100, 100);
@@ -5418,6 +5478,8 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
                 );
               })}
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -5463,7 +5525,11 @@ const UserDashboard = ({ onLogout, onPublic, onBookAgain, onReview, onViewCampai
                 </button>
               </div>
               <div className="space-y-2">
-                {user.students.map(s => (
+                {user.students.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-stone-500">
+                    Add your kids to track their learning separately.
+                  </div>
+                ) : user.students.map(s => (
                   <div key={s.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white text-sm font-semibold">
                       {s.name[0]}
@@ -6472,15 +6538,18 @@ export default function App() {
   const [scholarAvailability, setScholarAvailability] = useState(DEFAULT_AVAILABILITY);
   const [userAuthMode, setUserAuthMode] = useState("login");
   const [authedUser, setAuthedUser] = useState(null);
+  const [authedProfile, setAuthedProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Check for existing session on page load — keeps users logged in across reloads
   useEffect(() => {
-    getUser().then(user => {
+    getUser().then(async user => {
       setAuthedUser(user);
+      if (user) {
+        const profile = await getProfile();
+        setAuthedProfile(profile);
+      }
       setAuthLoading(false);
-      // If user is already logged in and they're on the home page, could auto-redirect to dashboard
-      // For now we just remember them silently
     });
   }, []);
 
@@ -6497,7 +6566,11 @@ export default function App() {
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
     onSignIn={(r) => {
       if (r === "prayer") { setView("prayerHub"); return; }
-      if (r === "user") { setUserAuthMode("login"); setView("userAuth"); return; }
+      if (r === "user") {
+        // If already signed in, skip login and go straight to dashboard
+        if (authedUser) { setView("userDashboard"); return; }
+        setUserAuthMode("login"); setView("userAuth"); return;
+      }
       setRole(r); setView(r === "admin" ? "login" : "rolePicker");
     }}
     onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
@@ -6505,9 +6578,19 @@ export default function App() {
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
   />;
   if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("rolePicker"); }} />;
-  if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={() => setView("userDashboard")} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
+  if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
+    const user = await getUser();
+    setAuthedUser(user);
+    if (user) {
+      const profile = await getProfile();
+      setAuthedProfile(profile);
+    }
+    setView("userDashboard");
+  }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
-    onLogout={async () => { await signOut(); setView("publicHome"); }}
+    profile={authedProfile}
+    isDemo={!authedProfile}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onBookAgain={(scholarId) => {
       const s = MOCK_SCHOLARS.find(x => x.id === scholarId);
