@@ -3111,8 +3111,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
               <ul className="text-xs text-stone-700 space-y-2 leading-relaxed">
                 {step === 1 && (
                   <>
-                    <li className="flex gap-2"><span className="text-amber-600">•</span> Specific titles beat vague ones. "Fix our leaking roof" > "Help our mosque."</li>
-                    <li className="flex gap-2"><span className="text-amber-600">•</span> Summaries with a specific amount or number raise more. "Serving 300 iftars" > "Ramadan appeal."</li>
+<li className="flex gap-2"><span className="text-amber-600">•</span> Specific titles beat vague ones. "Fix our leaking roof" &gt; "Help our mosque."</li>
                   </>
                 )}
                 {step === 2 && (
