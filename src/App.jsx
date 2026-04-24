@@ -158,6 +158,7 @@ const transformScholar = (dbScholar) => {
     online: dbScholar.is_online,
     rating: Number(dbScholar.rating) || 0,
     reviews: dbScholar.review_count || 0,
+    reviewCount: dbScholar.review_count || 0,
     students: dbScholar.students_taught || 0,
     packages: dbScholar.packages || [],
     acceptsBookings: dbScholar.accepts_bookings,
