@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -133,6 +133,40 @@ const Counter = ({ end, duration = 1500, suffix = "" }) => {
   return <span>{count.toLocaleString()}{suffix}</span>;
 };
 
+// Transform a Supabase scholar row to the shape the UI expects
+// (our DB uses snake_case, our React uses camelCase for some fields)
+const transformScholar = (dbScholar) => {
+  if (!dbScholar) return null;
+  return {
+    id: dbScholar.id,
+    slug: dbScholar.slug,
+    name: dbScholar.name,
+    title: dbScholar.title,
+    bio: dbScholar.bio,
+    city: dbScholar.city,
+    initials: dbScholar.avatar_initials,
+    avatarGradient: dbScholar.avatar_gradient,
+    categories: dbScholar.categories || [],
+    languages: dbScholar.languages || [],
+    qualifications: dbScholar.qualifications || [],
+    experience: dbScholar.experience_years || 0,
+    gender: dbScholar.gender,
+    dbsVerified: dbScholar.dbs_verified,
+    dbsDate: dbScholar.dbs_verified_date,
+    rtwVerified: dbScholar.rtw_verified,
+    ijazahVerified: dbScholar.ijazah_verified,
+    online: dbScholar.is_online,
+    rating: Number(dbScholar.rating) || 0,
+    reviews: dbScholar.review_count || 0,
+    students: dbScholar.students_taught || 0,
+    packages: dbScholar.packages || [],
+    acceptsBookings: dbScholar.accepts_bookings,
+    verified: dbScholar.dbs_verified && dbScholar.rtw_verified && dbScholar.ijazah_verified,
+    // Static fallbacks for fields not in DB yet
+    nextAvailable: "Today",
+  };
+};
+
 // ==================== CAMPAIGNS DATA ====================
 const MOCK_CAMPAIGNS = [
   {
@@ -262,13 +296,24 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Real scholars from Supabase
+  const [scholars, setScholars] = useState([]);
+  const [scholarsLoading, setScholarsLoading] = useState(true);
+
+  useEffect(() => {
+    getScholars().then(data => {
+      setScholars(data.map(transformScholar));
+      setScholarsLoading(false);
+    });
+  }, []);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const filtered = activeTab === "all" ? MOCK_SCHOLARS : MOCK_SCHOLARS.filter(s => s.categories.includes(activeTab));
+  const filtered = activeTab === "all" ? scholars : scholars.filter(s => s.categories.includes(activeTab));
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -574,13 +619,35 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
         </div>
 
         {/* Scholars grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((s, i) => (
-            <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-              <ScholarCard scholar={s} onClick={() => onScholar(s)} />
-            </div>
-          ))}
-        </div>
+        {scholarsLoading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="bg-white border border-stone-200 rounded-2xl p-5 animate-pulse">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-stone-200 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="h-4 bg-stone-200 rounded w-2/3 mb-2"></div>
+                    <div className="h-3 bg-stone-100 rounded w-1/2"></div>
+                  </div>
+                </div>
+                <div className="h-3 bg-stone-100 rounded w-full mb-2"></div>
+                <div className="h-3 bg-stone-100 rounded w-4/5"></div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 bg-white border border-stone-200 rounded-2xl">
+            <p className="text-sm text-stone-500">No scholars in this category yet. Check back soon.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map((s, i) => (
+              <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
+                <ScholarCard scholar={s} onClick={() => onScholar(s)} />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Campaigns / Sadaqah Jariyah */}
@@ -905,7 +972,16 @@ const ScholarCard = ({ scholar, onClick }) => {
 // ==================== CATEGORY PAGE ====================
 const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
   const category = CATEGORIES.find(c => c.id === categoryId);
-  const scholars = MOCK_SCHOLARS.filter(s => s.categories.includes(categoryId));
+  const [scholars, setScholars] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getScholarsByCategory(categoryId).then(data => {
+      setScholars(data.map(transformScholar));
+      setLoading(false);
+    });
+  }, [categoryId]);
+
   const Icon = category?.icon || BookOpen;
 
   return (
@@ -936,7 +1012,23 @@ const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
         </div>
       </section>
       <main className="max-w-7xl mx-auto px-5 md:px-6 py-6 md:py-8">
-        {scholars.length > 0 ? (
+        {loading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+            {[1,2,3].map(i => (
+              <div key={i} className="bg-white border border-stone-200 rounded-2xl p-5 animate-pulse">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-stone-200 rounded-full"></div>
+                  <div className="flex-1">
+                    <div className="h-4 bg-stone-200 rounded w-2/3 mb-2"></div>
+                    <div className="h-3 bg-stone-100 rounded w-1/2"></div>
+                  </div>
+                </div>
+                <div className="h-3 bg-stone-100 rounded w-full mb-2"></div>
+                <div className="h-3 bg-stone-100 rounded w-4/5"></div>
+              </div>
+            ))}
+          </div>
+        ) : scholars.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {scholars.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
