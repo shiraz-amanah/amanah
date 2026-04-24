@@ -260,6 +260,7 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -288,10 +289,92 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
             </button>
             <button onClick={() => onSignIn("mosque")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">For Mosques</button>
             <button onClick={() => onSignIn("imam")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">Become a Scholar</button>
-            <button onClick={() => onSignIn("user")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
+            <button onClick={() => onSignIn("user")} className="hidden md:inline-block bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
+            {/* Hamburger menu — mobile only */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden p-2 -mr-1 text-stone-700 hover:text-stone-900"
+              aria-label="Open menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
+
+      {/* Mobile slide-out menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm"></div>
+          {/* Drawer */}
+          <div className="absolute top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+                <h2 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h2>
+              </div>
+              <button onClick={() => setMobileMenuOpen(false)} className="p-2 -mr-1 text-stone-500 hover:text-stone-900" aria-label="Close menu">
+                <X size={18} />
+              </button>
+            </div>
+            <nav className="flex-1 p-3 overflow-y-auto">
+              <div className="mb-2 px-3 pt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">For students & families</p>
+              </div>
+              <button onClick={() => { setMobileMenuOpen(false); onSignIn("user"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><User className="text-emerald-800" size={18} /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-stone-900">Parent or student</p>
+                  <p className="text-xs text-stone-500">Find a scholar or donate</p>
+                </div>
+                <ChevronRight className="text-stone-300" size={16} />
+              </button>
+
+              <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">For mosques</p>
+              </div>
+              <button onClick={() => { setMobileMenuOpen(false); onSignIn("mosque"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><Building2 className="text-amber-800" size={18} /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-stone-900">Mosque sign in</p>
+                  <p className="text-xs text-stone-500">Manage imams, DBS checks, jobs</p>
+                </div>
+                <ChevronRight className="text-stone-300" size={16} />
+              </button>
+
+              <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">For scholars</p>
+              </div>
+              <button onClick={() => { setMobileMenuOpen(false); onSignIn("imam"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center"><GraduationCap className="text-sky-800" size={18} /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-stone-900">Scholar sign in</p>
+                  <p className="text-xs text-stone-500">Teach, get hired, build profile</p>
+                </div>
+                <ChevronRight className="text-stone-300" size={16} />
+              </button>
+
+              <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">Tools</p>
+              </div>
+              <button onClick={() => { setMobileMenuOpen(false); onSignIn("prayer"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center"><Moon className="text-indigo-800" size={18} /></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-stone-900">Prayer times & Qibla</p>
+                  <p className="text-xs text-stone-500">Verified mosques near you</p>
+                </div>
+                <ChevronRight className="text-stone-300" size={16} />
+              </button>
+            </nav>
+            <div className="px-5 py-4 border-t border-stone-100 text-center">
+              <p className="text-[11px] text-stone-500">Every scholar DBS-checked · Every mosque verified</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hero with animated cinematic background */}
       <section className="relative overflow-hidden">
