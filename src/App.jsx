@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -1239,18 +1239,69 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
     </div>
   );
 };
-const BookingConfirm = ({ scholar, pkg, onBack, onDone }) => {
+const BookingConfirm = ({ scholar, pkg, onBack, onDone, profile, authedUser }) => {
   const [step, setStep] = useState(1);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState(profile?.email || "");
+  const [name, setName] = useState(profile?.name || "");
+  const [students, setStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("self");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  // Load this user's students on mount (for booking-for-child picker)
+  useEffect(() => {
+    if (authedUser) {
+      getStudents().then(setStudents);
+    }
+  }, [authedUser]);
 
   const platformFee = Math.round(pkg.price * 0.1);
   const total = pkg.price + platformFee;
   const canStep1 = name && email;
   const canStep2 = date && time;
+
+  const handleConfirmBooking = async () => {
+    // If user is not signed in, fall back to demo flow
+    if (!authedUser) {
+      onDone({ scholar, pkg, date, time, name, email, notes, total });
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    // Combine date + time into proper ISO timestamp
+    const scheduledAt = new Date(`${date}T${time}`).toISOString();
+
+    const { data, error } = await createBooking({
+      scholarId: scholar.id,
+      studentId: selectedStudentId === "self" ? null : selectedStudentId,
+      packageName: pkg.name,
+      packageDescription: pkg.description || pkg.desc,
+      sessionsTotal: pkg.sessions || 1,
+      durationMinutes: pkg.duration || 60,
+      scheduledAt: scheduledAt,
+      amountPaid: total,
+      parentNotes: notes
+    });
+
+    setSaving(false);
+
+    if (error) {
+      setSaveError(error.message || "Couldn't save booking. Try again.");
+      return;
+    }
+
+    // Pass real booking data back to parent for success screen
+    onDone({
+      scholar, pkg, date, time, name, email, notes, total,
+      id: data.id,
+      saved: true
+    });
+  };
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -1296,6 +1347,43 @@ const BookingConfirm = ({ scholar, pkg, onBack, onDone }) => {
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Email</label>
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                   </div>
+                  {/* Student picker — only shown if user has added students */}
+                  {authedUser && students.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Who is this for?</label>
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentId("self")}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selectedStudentId === "self" ? "border-emerald-600 bg-emerald-50" : "border-stone-200 hover:border-stone-300"}`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${selectedStudentId === "self" ? "border-emerald-600 bg-emerald-600" : "border-stone-300"}`}>
+                            {selectedStudentId === "self" && <div className="w-full h-full flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full"></div></div>}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-stone-900">For myself</p>
+                            <p className="text-xs text-stone-500">The session is for you</p>
+                          </div>
+                        </button>
+                        {students.map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setSelectedStudentId(s.id)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selectedStudentId === s.id ? "border-emerald-600 bg-emerald-50" : "border-stone-200 hover:border-stone-300"}`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${selectedStudentId === s.id ? "border-emerald-600 bg-emerald-600" : "border-stone-300"}`}>
+                              {selectedStudentId === s.id && <div className="w-full h-full flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full"></div></div>}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-stone-900">{s.name}</p>
+                              <p className="text-xs text-stone-500">{s.relation}{s.age && `, age ${s.age}`}{s.notes && ` · ${s.notes}`}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1342,17 +1430,20 @@ const BookingConfirm = ({ scholar, pkg, onBack, onDone }) => {
             )}
 
             <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
-              <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">Back</button>
+              <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} disabled={saving} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Back</button>
               {step < 3 ? (
                 <button onClick={() => setStep(step + 1)} disabled={step === 1 ? !canStep1 : !canStep2} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                   Continue <ArrowRight size={14} />
                 </button>
               ) : (
-                <button onClick={() => onDone({ scholar, pkg, date, time, name, email, notes, total })} className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
-                  <CreditCard size={14} /> Pay £{total}
+                <button onClick={handleConfirmBooking} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                  {saving ? "Saving..." : <><CreditCard size={14} /> Pay £{total}</>}
                 </button>
               )}
             </div>
+            {saveError && step === 3 && (
+              <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{saveError}</div>
+            )}
           </div>
 
           {/* Sticky summary */}
@@ -5464,8 +5555,51 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
   } : MOCK_USER;
 
   // For real users (not demo), start with no bookings/donations/saved. They're a new user.
-  const upcomingBookings = isDemo ? MOCK_USER_BOOKINGS.filter(b => b.status === "upcoming") : [];
-  const pastBookings = isDemo ? MOCK_USER_BOOKINGS.filter(b => b.status === "completed") : [];
+  // Real bookings from Supabase
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(!isDemo);
+
+  useEffect(() => {
+    if (isDemo) {
+      setBookings(MOCK_USER_BOOKINGS);
+      setBookingsLoading(false);
+    } else {
+      getMyBookings().then(data => {
+        // Transform DB shape to the shape the UI expects
+        const transformed = data.map(b => {
+          const scheduledDate = new Date(b.scheduled_at);
+          const isUpcoming = scheduledDate >= new Date() && b.status !== "cancelled" && b.status !== "completed";
+          const dateKey = scheduledDate.toISOString().split("T")[0];
+          const timeStr = scheduledDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+          return {
+            id: b.id,
+            scholarName: b.scholar?.name || "Unknown scholar",
+            scholarInitials: b.scholar?.avatar_initials || "??",
+            scholarGradient: b.scholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
+            scholarCity: b.scholar?.city,
+            scholarSlug: b.scholar?.slug,
+            package: b.package_name,
+            packageDesc: b.package_description,
+            date: dateKey,
+            time: timeStr,
+            duration: b.duration_minutes,
+            sessionsTotal: b.sessions_total,
+            sessionsCompleted: b.sessions_completed,
+            amountPaid: Number(b.amount_paid),
+            status: b.status === "completed" ? "completed" : isUpcoming ? "upcoming" : b.status,
+            forStudent: b.student ? { name: b.student.name, relation: b.student.relation, age: b.student.age } : null,
+            notes: b.parent_notes,
+            rawScheduledAt: b.scheduled_at
+          };
+        });
+        setBookings(transformed);
+        setBookingsLoading(false);
+      });
+    }
+  }, [isDemo]);
+
+  const upcomingBookings = bookings.filter(b => b.status === "upcoming");
+  const pastBookings = bookings.filter(b => b.status === "completed");
   const donations = isDemo ? MOCK_USER_DONATIONS : [];
   const savedScholars = isDemo ? MOCK_SAVED_SCHOLARS : [];
   const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : [];
@@ -5519,12 +5653,29 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {user.name.split(" ")[0]}</h2>
               <p className="text-stone-600 text-sm md:text-base">
-                {upcomingBookings.length > 0 ? `You have ${upcomingBookings.length} upcoming sessions.` : "Welcome to Amanah. Ready to find your first scholar?"}
+                {bookingsLoading ? "Loading your bookings..." : upcomingBookings.length > 0 ? `You have ${upcomingBookings.length} upcoming ${upcomingBookings.length === 1 ? "session" : "sessions"}.` : "Welcome to Amanah. Ready to find your first scholar?"}
               </p>
             </div>
 
+            {/* Loading skeleton */}
+            {bookingsLoading && (
+              <div className="space-y-3">
+                {[1,2].map(i => (
+                  <div key={i} className="bg-white border border-stone-200 rounded-2xl p-5 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-stone-200 rounded-full"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-stone-200 rounded w-1/3 mb-2"></div>
+                        <div className="h-3 bg-stone-100 rounded w-1/2"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Empty state for new users with no bookings */}
-            {upcomingBookings.length === 0 && pastBookings.length === 0 && (
+            {!bookingsLoading && upcomingBookings.length === 0 && pastBookings.length === 0 && (
               <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
                 <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 mb-4">
                   <BookOpen className="text-emerald-700" size={24} />
@@ -5557,7 +5708,7 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
                                 <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-semibold uppercase tracking-wider">{isToday_ ? "Today" : "Tomorrow"}</span>
                               )}
                             </div>
-                            <p className="text-xs text-stone-500 mb-2">{b.type} · for {b.student} · {b.package} package</p>
+                            <p className="text-xs text-stone-500 mb-2">{b.package} package{b.forStudent && ` · for ${b.forStudent.name}`}{b.packageDesc && ` · ${b.packageDesc}`}</p>
                             <div className="flex items-center gap-3 text-sm text-stone-700 mb-3 flex-wrap">
                               <span className="flex items-center gap-1"><Calendar size={13} /> {dateObj.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
                               <span className="flex items-center gap-1"><Clock size={13} /> {b.time}</span>
@@ -5594,7 +5745,7 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
                               <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.scholarName}</h4>
                               <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded-full uppercase tracking-wider font-medium">Completed</span>
                             </div>
-                            <p className="text-xs text-stone-500 mb-2">{b.type} · for {b.student} · {dateObj.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                            <p className="text-xs text-stone-500 mb-2">{b.package} package{b.forStudent && ` · for ${b.forStudent.name}`} · {dateObj.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
                             <div className="flex gap-2 flex-wrap">
                               <button onClick={() => onBookAgain(b.scholarId)} className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">Book again</button>
                               {!b.reviewLeft && (
@@ -7158,7 +7309,7 @@ export default function App() {
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => setView("publicHome")} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} />;
-  if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
+  if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
   if (view === "login") return <LoginScreen

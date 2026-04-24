@@ -75,49 +75,124 @@ export async function updateNotifications(notifications) {
 
 // ============ SCHOLARS ============
 
-// Get all active scholars for the public marketplace
 export async function getScholars() {
   const { data, error } = await supabase
-    .from('scholars')
-    .select('*')
-    .eq('status', 'active')
-    .order('rating', { ascending: false })
+    .from('scholars').select('*').eq('status', 'active').order('rating', { ascending: false })
   if (error) { console.error('Error fetching scholars:', error); return [] }
   return data || []
 }
 
-// Get scholars filtered by category
 export async function getScholarsByCategory(categoryId) {
   const { data, error } = await supabase
-    .from('scholars')
-    .select('*')
-    .eq('status', 'active')
-    .contains('categories', [categoryId])
-    .order('rating', { ascending: false })
+    .from('scholars').select('*').eq('status', 'active')
+    .contains('categories', [categoryId]).order('rating', { ascending: false })
   if (error) { console.error('Error fetching scholars by category:', error); return [] }
   return data || []
 }
 
-// Get single scholar by slug (for detail page)
 export async function getScholarBySlug(slug) {
   const { data, error } = await supabase
-    .from('scholars')
-    .select('*')
-    .eq('slug', slug)
-    .single()
+    .from('scholars').select('*').eq('slug', slug).single()
   if (error) { console.error('Error fetching scholar:', error); return null }
   return data
 }
 
-// Get single scholar by id
 export async function getScholarById(id) {
   const { data, error } = await supabase
-    .from('scholars')
-    .select('*')
-    .eq('id', id)
-    .single()
+    .from('scholars').select('*').eq('id', id).single()
   if (error) { console.error('Error fetching scholar:', error); return null }
   return data
+}
+
+// ============ BOOKINGS ============
+
+// Create a new booking
+export async function createBooking({
+  scholarId, studentId, packageName, packageDescription,
+  sessionsTotal, durationMinutes, scheduledAt, amountPaid, parentNotes
+}) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      parent_id: user.id,
+      scholar_id: scholarId,
+      student_id: studentId || null,
+      package_name: packageName,
+      package_description: packageDescription || null,
+      sessions_total: sessionsTotal || 1,
+      duration_minutes: durationMinutes || 60,
+      scheduled_at: scheduledAt,
+      amount_paid: amountPaid || 0,
+      parent_notes: parentNotes || null,
+      status: 'confirmed'
+    })
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+// Get all bookings for the current user (as parent)
+// Includes scholar and student info via joins
+export async function getMyBookings() {
+  const user = await getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      scholar:scholars (id, slug, name, title, avatar_initials, avatar_gradient, city),
+      student:students (id, name, relation, age)
+    `)
+    .eq('parent_id', user.id)
+    .order('scheduled_at', { ascending: false })
+
+  if (error) { console.error('Error fetching bookings:', error); return [] }
+  return data || []
+}
+
+// Get bookings for a scholar (for scholar dashboard)
+export async function getScholarBookings() {
+  const user = await getUser()
+  if (!user) return []
+
+  // First find this user's scholar profile
+  const { data: scholarProfile } = await supabase
+    .from('scholars').select('id').eq('user_id', user.id).single()
+
+  if (!scholarProfile) return []
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      parent:profiles (id, name, city, avatar_initials, avatar_gradient),
+      student:students (id, name, relation, age)
+    `)
+    .eq('scholar_id', scholarProfile.id)
+    .order('scheduled_at', { ascending: false })
+
+  if (error) { console.error('Error fetching scholar bookings:', error); return [] }
+  return data || []
+}
+
+// Update a booking (add notes, change status, etc.)
+export async function updateBooking(bookingId, updates) {
+  const { data, error } = await supabase
+    .from('bookings').update(updates).eq('id', bookingId).select().single()
+  return { data, error }
+}
+
+// Cancel a booking
+export async function cancelBooking(bookingId) {
+  return updateBooking(bookingId, {
+    status: 'cancelled',
+    cancelled_at: new Date().toISOString()
+  })
 }
 
 export function onAuthChange(callback) {
