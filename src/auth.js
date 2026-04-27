@@ -200,3 +200,41 @@ export function onAuthChange(callback) {
     callback(session?.user || null)
   })
 }
+// ============ SAVES (favourites) ============
+
+// Get all of the user's saved items (scholars + campaigns)
+export async function getSaves() {
+  const user = await getUser()
+  if (!user) return []
+  const { data, error } = await supabase
+    .from('saves')
+    .select('*')
+    .eq('user_id', user.id)
+  if (error) { console.error('Error fetching saves:', error); return [] }
+  return data || []
+}
+
+// Save (heart) an item — scholar or campaign
+export async function addSave(itemType, itemId) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data, error } = await supabase
+    .from('saves')
+    .insert({ user_id: user.id, item_type: itemType, item_id: String(itemId) })
+    .select()
+    .single()
+  return { data, error }
+}
+
+// Unsave (un-heart) an item
+export async function removeSave(itemType, itemId) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { error } = await supabase
+    .from('saves')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('item_type', itemType)
+    .eq('item_id', String(itemId))
+  return { error }
+}
