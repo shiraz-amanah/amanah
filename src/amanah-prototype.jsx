@@ -301,6 +301,32 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [scholars, setScholars] = useState([]);
   const [scholarsLoading, setScholarsLoading] = useState(true);
 
+  // Track which scholars/campaigns the user has saved
+  const [savedScholarIds, setSavedScholarIds] = useState(new Set());
+  const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
+
+  // Load saves when user is signed in
+  useEffect(() => {
+    getSaves().then(saves => {
+      setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
+      setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
+    });
+  }, []);
+
+  // Toggle save state for a scholar
+  const toggleScholarSave = async (scholarId) => {
+    const idStr = String(scholarId);
+    if (savedScholarIds.has(idStr)) {
+      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      const { error } = await removeSave('scholar', scholarId);
+      if (error) setSavedScholarIds(prev => new Set([...prev, idStr]));
+    } else {
+      setSavedScholarIds(prev => new Set([...prev, idStr]));
+      const { error } = await addSave('scholar', scholarId);
+      if (error) setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+    }
+  };
+
   useEffect(() => {
     getScholars().then(data => {
       setScholars(data.map(transformScholar));
@@ -646,7 +672,7 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                <ScholarCard scholar={s} onClick={() => onScholar(s)} />
+               <ScholarCard scholar={s} onClick={() => onScholar(s)} isSaved={savedScholarIds.has(String(s.id))} onToggleSave={toggleScholarSave} />
               </div>
             ))}
           </div>
@@ -925,7 +951,7 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
 };
 
 // Scholar card with hover interactions
-const ScholarCard = ({ scholar, onClick }) => {
+const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
   const minPrice = Math.min(...scholar.packages.map(p => p.price));
   return (
     <div
@@ -936,6 +962,19 @@ const ScholarCard = ({ scholar, onClick }) => {
         <div className="absolute top-4 right-4 inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
           <Flame size={10} /> Top rated
         </div>
+      )}
+      {onToggleSave && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSave(scholar.id); }}
+          className={`absolute top-4 ${scholar.topRated ? 'right-28' : 'right-4'} z-10 p-1.5 hover:scale-110 transition-transform`}
+          aria-label={isSaved ? "Unsave" : "Save"}
+        >
+          <Heart
+            size={18}
+            className={isSaved ? "text-rose-500" : "text-stone-400 hover:text-rose-400"}
+            fill={isSaved ? "currentColor" : "none"}
+          />
+        </button>
       )}
       <div className="flex items-start gap-3 mb-3">
         <Avatar scholar={scholar} size="md" />
