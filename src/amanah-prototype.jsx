@@ -2862,6 +2862,53 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [giftAid, setGiftAid] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  // Save donation to database, then call onDone
+  const handlePay = async () => {
+    setSaving(true);
+    setSaveError(null);
+
+    const { data, error } = await createDonation({
+      campaignId: campaign.id,
+      campaignTitle: campaign.title,
+      campaignCreator: campaign.creator,
+      amount: effectiveAmount,
+      tip: tip,
+      giftAid: giftAidAmount,
+      total: total,
+      anonymous: anonymous,
+      displayName: anonymous ? null : name,
+      message: message
+    });
+
+    setSaving(false);
+
+    if (error) {
+      // If user not signed in or other error, fall back to demo flow
+      if (error.message === 'Not signed in') {
+        onDone({ campaign, amount: effectiveAmount, tip, total, name: anonymous ? "Anonymous" : name, email, message, giftAid, giftAidAmount });
+        return;
+      }
+      setSaveError(error.message || "Couldn't save donation. Try again.");
+      return;
+    }
+
+    // Success — pass real receipt ID along
+    onDone({
+      campaign,
+      amount: effectiveAmount,
+      tip,
+      total,
+      name: anonymous ? "Anonymous" : name,
+      email,
+      message,
+      giftAid,
+      giftAidAmount,
+      receiptId: data.receipt_id
+    });
+  };
 
   const effectiveAmount = custom ? parseFloat(custom) || 0 : amount;
   const tip = Math.round(effectiveAmount * (tipPct / 100));
@@ -3032,10 +3079,12 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
                   Continue <ArrowRight size={14} />
                 </button>
               ) : (
-                <button onClick={() => onDone({ campaign, amount: effectiveAmount, tip, total, name: anonymous ? "Anonymous" : name, email, message, giftAid, giftAidAmount })} className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
-                  <CreditCard size={14} /> Pay {fmt(total)}
-                </button>
-              )}
+<div className="flex flex-col items-end">
+                  {saveError && <p className="text-xs text-rose-700 mb-2">{saveError}</p>}
+                  <button onClick={handlePay} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                    {saving ? "Saving..." : <><CreditCard size={14} /> Pay {fmt(total)}</>}
+                  </button>
+                </div>              )}
             </div>
           </div>
 
