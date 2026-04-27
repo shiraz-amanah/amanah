@@ -200,6 +200,50 @@ export function onAuthChange(callback) {
     callback(session?.user || null)
   })
 }
+
+// ============ DONATIONS ============
+
+// Get all of the user's donations
+export async function getDonations() {
+  const user = await getUser()
+  if (!user) return []
+  const { data, error } = await supabase
+    .from('donations')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching donations:', error); return [] }
+  return data || []
+}
+
+// Save a new donation
+export async function createDonation({ campaignId, campaignTitle, campaignCreator, amount, tip, giftAid, total, anonymous, displayName, message }) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  
+  // Generate a unique receipt ID
+  const receiptId = `AMN-D-${Date.now().toString().slice(-6)}`
+  
+  const { data, error } = await supabase
+    .from('donations')
+    .insert({
+      user_id: user.id,
+      campaign_id: String(campaignId),
+      campaign_title: campaignTitle,
+      campaign_creator: campaignCreator,
+      amount: amount,
+      tip: tip || 0,
+      gift_aid: giftAid || 0,
+      total: total,
+      anonymous: anonymous || false,
+      display_name: displayName || null,
+      message: message || null,
+      receipt_id: receiptId
+    })
+    .select()
+    .single()
+  return { data, error }
+}
 // ============ SAVES (favourites) ============
 
 // Get all of the user's saved items (scholars + campaigns)
