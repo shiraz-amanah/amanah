@@ -2867,11 +2867,7 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
 
   // Save donation to database, then call onDone
   const handlePay = async () => {
-  const handlePay = async () => {
     console.log('🔵 handlePay called!', { campaign, effectiveAmount, total });
-    setSaving(true);
-    setSaveError(null);
-    ...  
     setSaving(true);
     setSaveError(null);
 
@@ -2891,15 +2887,9 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
     setSaving(false);
 
     if (error) {
-      // If user not signed in or other error, fall back to demo flow
-      if (error.message === 'Not signed in') {
-        onDone({ campaign, amount: effectiveAmount, tip, total, name: anonymous ? "Anonymous" : name, email, message, giftAid, giftAidAmount });
-        return;
-      }
       setSaveError(error.message || "Couldn't save donation. Try again.");
       return;
-    }
-
+}
     // Success — pass real receipt ID along
     onDone({
       campaign,
