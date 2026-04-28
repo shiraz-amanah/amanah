@@ -2867,6 +2867,11 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
 
   // Save donation to database, then call onDone
   const handlePay = async () => {
+  const handlePay = async () => {
+    console.log('🔵 handlePay called!', { campaign, effectiveAmount, total });
+    setSaving(true);
+    setSaveError(null);
+    ...  
     setSaving(true);
     setSaveError(null);
 
