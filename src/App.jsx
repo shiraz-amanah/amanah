@@ -300,21 +300,18 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [scholars, setScholars] = useState([]);
   const [scholarsLoading, setScholarsLoading] = useState(true);
 
-  useEffect(() => {
-    console.log("[App] fetching scholars on mount");
-    getScholars()
-      .then(data => {
-        console.log("[App] getScholars returned:", data?.length, "scholars");
-        setScholars(data.map(transformScholar));
-      })
-      .catch(err => {
-        console.error("[App] getScholars failed:", err);
-      })
-      .finally(() => {
-        setScholarsLoading(false);
-      });
-  }, []);
-
+useEffect(() => {
+  getScholars()
+    .then(data => {
+      setScholars(data.map(transformScholar));
+    })
+    .catch(err => {
+      console.error("Failed to load scholars:", err);
+    })
+    .finally(() => {
+      setScholarsLoading(false);
+    });
+}, []);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
@@ -998,13 +995,18 @@ const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn, savedScholar
   const [scholars, setScholars] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getScholarsByCategory(categoryId).then(data => {
+useEffect(() => {
+  getScholarsByCategory(categoryId)
+    .then(data => {
       setScholars(data.map(transformScholar));
+    })
+    .catch(err => {
+      console.error("Failed to load category scholars:", err);
+    })
+    .finally(() => {
       setLoading(false);
     });
-  }, [categoryId]);
-
+}, [categoryId]);
   const Icon = category?.icon || BookOpen;
 
   return (
@@ -1074,20 +1076,22 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
   const [scholar, setScholar] = useState(initialScholar);
   const [selectedPkg, setSelectedPkg] = useState(initialScholar.packages.find(p => p.popular) || initialScholar.packages[1] || initialScholar.packages[0]);
 
-  useEffect(() => {
-    if (initialScholar.slug) {
-      getScholarBySlug(initialScholar.slug).then(fresh => {
-        if (fresh) {
-          const transformed = transformScholar(fresh);
-          setScholar(transformed);
-          // Re-set selected package in case it changed
-          const newPkg = transformed.packages.find(p => p.popular) || transformed.packages[1] || transformed.packages[0];
-          if (newPkg) setSelectedPkg(newPkg);
-        }
-      });
-    }
-  }, [initialScholar.slug]);
-
+useEffect(() => {
+  if (!initialScholar.slug) return;
+  getScholarBySlug(initialScholar.slug)
+    .then(fresh => {
+      if (fresh) {
+        const transformed = transformScholar(fresh);
+        setScholar(transformed);
+        // Re-set selected package in case it changed
+        const newPkg = transformed.packages.find(p => p.popular) || transformed.packages[0];
+        if (newPkg) setSelectedPkg(newPkg);
+      }
+    })
+    .catch(err => {
+      console.error("Failed to refresh scholar:", err);
+    });
+}, [initialScholar.slug]);
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
@@ -1272,11 +1276,12 @@ const BookingConfirm = ({ scholar, pkg, onBack, onDone, profile, authedUser }) =
   const [saveError, setSaveError] = useState(null);
 
   // Load this user's students on mount (for booking-for-child picker)
-  useEffect(() => {
-    if (authedUser) {
-      getStudents().then(setStudents);
-    }
-  }, [authedUser]);
+useEffect(() => {
+  if (!authedUser) return;
+  getStudents()
+    .then(setStudents)
+    .catch(err => console.error("Failed to load students:", err));
+}, [authedUser]);
 
   const platformFee = Math.round(pkg.price * 0.1);
   const total = pkg.price + platformFee;
@@ -5544,18 +5549,24 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
   const [notifications, setNotifications] = useState(profile?.notifications || { email: true, sms: false, whatsapp: true });
 
   // Load students when dashboard mounts (for real users only)
-  useEffect(() => {
-    if (isDemo) {
-      // Demo mode: use mock data
-      setStudents(MOCK_USER.students);
+useEffect(() => {
+  if (isDemo) {
+    // Demo mode: use mock data
+    setStudents(MOCK_USER.students);
+    setStudentsLoading(false);
+    return;
+  }
+  getStudents()
+    .then(data => {
+      setStudents(data);
+    })
+    .catch(err => {
+      console.error("Failed to load students:", err);
+    })
+    .finally(() => {
       setStudentsLoading(false);
-    } else {
-      getStudents().then(data => {
-        setStudents(data);
-        setStudentsLoading(false);
-      });
-    }
-  }, [isDemo]);
+    });
+}, [isDemo]);
 
   // Keep notifications in sync when profile prop changes
   useEffect(() => {
@@ -5657,11 +5668,16 @@ const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, o
             rawScheduledAt: b.scheduled_at
           };
         });
-        setBookings(transformed);
-        setBookingsLoading(false);
-      });
-    }
-  }, [isDemo]);
+setBookings(transformed);
+    })
+    .catch(err => {
+      console.error("Failed to load bookings:", err);
+    })
+    .finally(() => {
+      setBookingsLoading(false);
+    });
+  }
+}, [isDemo]);
 
   const upcomingBookings = bookings.filter(b => b.status === "upcoming");
   const pastBookings = bookings.filter(b => b.status === "completed");
@@ -7266,12 +7282,14 @@ export default function App() {
   const [savedScholarIds, setSavedScholarIds] = useState(new Set());
   const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
 
-  useEffect(() => {
-    getSaves().then(saves => {
+useEffect(() => {
+  getSaves()
+    .then(saves => {
       setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
       setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
-    });
-  }, [authedUser]);
+    })
+    .catch(err => console.error("Failed to load saves:", err));
+}, [authedUser]);
 
   const toggleScholarSave = async (scholarId) => {
     const idStr = String(scholarId);
@@ -7312,18 +7330,23 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Check for existing session on page load — keeps users logged in across reloads
-  useEffect(() => {
-    getUser().then(async user => {
+// Check for existing session on page load - keeps users logged in across reloads
+useEffect(() => {
+  (async () => {
+    try {
+      const user = await getUser();
       setAuthedUser(user);
       if (user) {
         const profile = await getProfile();
         setAuthedProfile(profile);
       }
+    } catch (err) {
+      console.error("Auth bootstrap failed:", err);
+    } finally {
       setAuthLoading(false);
-    });
-  }, []);
-
+    }
+  })();
+}, []);
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
   const scholarCreator = { name: "Ustadh Yusuf Al-Rahman", city: "Birmingham" };
