@@ -301,6 +301,21 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [scholarsLoading, setScholarsLoading] = useState(true);
 
   useEffect(() => {
+    console.log("[App] fetching scholars on mount");
+    getScholars()
+      .then(data => {
+        console.log("[App] getScholars returned:", data?.length, "scholars");
+        setScholars(data.map(transformScholar));
+      })
+      .catch(err => {
+        console.error("[App] getScholars failed:", err);
+      })
+      .finally(() => {
+        setScholarsLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
