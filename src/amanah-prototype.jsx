@@ -291,8 +291,7 @@ const CampaignCard = ({ campaign, onClick }) => {
 };
 
 // ==================== PUBLIC HOME ====================
-const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview }) => {
-  const [search, setSearch] = useState("");
+const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave }) => {  const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -300,39 +299,6 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   // Real scholars from Supabase
   const [scholars, setScholars] = useState([]);
   const [scholarsLoading, setScholarsLoading] = useState(true);
-
-  // Track which scholars/campaigns the user has saved
-  const [savedScholarIds, setSavedScholarIds] = useState(new Set());
-  const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
-
-  // Load saves when user is signed in
-  useEffect(() => {
-    getSaves().then(saves => {
-      setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
-      setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
-    });
-  }, []);
-
-  // Toggle save state for a scholar
-  const toggleScholarSave = async (scholarId) => {
-    const idStr = String(scholarId);
-    if (savedScholarIds.has(idStr)) {
-      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
-      const { error } = await removeSave('scholar', scholarId);
-      if (error) setSavedScholarIds(prev => new Set([...prev, idStr]));
-    } else {
-      setSavedScholarIds(prev => new Set([...prev, idStr]));
-      const { error } = await addSave('scholar', scholarId);
-      if (error) setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
-    }
-  };
-
-  useEffect(() => {
-    getScholars().then(data => {
-      setScholars(data.map(transformScholar));
-      setScholarsLoading(false);
-    });
-  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -7281,6 +7247,30 @@ export default function App() {
   const [authedProfile, setAuthedProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Saved items - lifted up so all views can access
+  const [savedScholarIds, setSavedScholarIds] = useState(new Set());
+  const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
+
+  useEffect(() => {
+    getSaves().then(saves => {
+      setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
+      setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
+    });
+  }, [authedUser]);
+
+  const toggleScholarSave = async (scholarId) => {
+    const idStr = String(scholarId);
+    if (savedScholarIds.has(idStr)) {
+      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      const { error } = await removeSave('scholar', scholarId);
+      if (error) setSavedScholarIds(prev => new Set([...prev, idStr]));
+    } else {
+      setSavedScholarIds(prev => new Set([...prev, idStr]));
+      const { error } = await addSave('scholar', scholarId);
+      if (error) setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+    }
+  };
+
   // Custom setView that also pushes to browser history — enables browser back button
   const setView = (newView) => {
     if (newView !== view) {
@@ -7343,6 +7333,7 @@ export default function App() {
     onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
+    savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave}
   />;
   if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
