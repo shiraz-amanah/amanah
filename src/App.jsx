@@ -301,12 +301,19 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [scholars, setScholars] = useState([]);
   const [scholarsLoading, setScholarsLoading] = useState(true);
 
-  useEffect(() => {
-    getScholars().then(data => {
-      setScholars(data.map(transformScholar));
-      setScholarsLoading(false);
-    });
-  }, []);
+useEffect(() => {
+  console.log("[App] PublicHome useEffect firing");
+  getScholars().then(data => {
+    console.log("[App] getScholars resolved with:", data);
+    const transformed = data.map(transformScholar);
+    console.log("[App] transformed:", transformed);
+    setScholars(transformed);
+    setScholarsLoading(false);
+  }).catch(err => {
+    console.error("[App] getScholars FAILED:", err);
+    setScholarsLoading(false);
+  });
+}, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);

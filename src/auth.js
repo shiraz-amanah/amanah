@@ -76,12 +76,15 @@ export async function updateNotifications(notifications) {
 // ============ SCHOLARS ============
 
 export async function getScholars() {
+  console.log("[getScholars] called");
   const { data, error } = await supabase
     .from('scholars').select('*').eq('status', 'active').order('rating', { ascending: false })
+  console.log("[getScholars] data:", data);
+  console.log("[getScholars] error:", error);
+  console.log("[getScholars] count:", data?.length);
   if (error) { console.error('Error fetching scholars:', error); return [] }
   return data || []
 }
-
 export async function getScholarsByCategory(categoryId) {
   const { data, error } = await supabase
     .from('scholars').select('*').eq('status', 'active')
