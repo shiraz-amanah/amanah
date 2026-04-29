@@ -1012,7 +1012,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
 };
 
 // ==================== CATEGORY PAGE ====================
-const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
+const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn, savedScholarIds, toggleScholarSave }) => {
   const category = CATEGORIES.find(c => c.id === categoryId);
   const [scholars, setScholars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1074,7 +1074,7 @@ const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {scholars.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                <ScholarCard scholar={s} onClick={() => onScholar(s)} />
+                <ScholarCard scholar={s} onClick={() => onScholar(s)} isSaved={savedScholarIds.has(String(s.id))} onToggleSave={toggleScholarSave} />
               </div>
             ))}
           </div>
