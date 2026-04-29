@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getDonations, createDonation } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -291,8 +291,7 @@ const CampaignCard = ({ campaign, onClick }) => {
 };
 
 // ==================== PUBLIC HOME ====================
-const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview }) => {
-  const [search, setSearch] = useState("");
+const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave }) => {  const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -300,20 +299,6 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   // Real scholars from Supabase
   const [scholars, setScholars] = useState([]);
   const [scholarsLoading, setScholarsLoading] = useState(true);
-
-useEffect(() => {
-  console.log("[App] PublicHome useEffect firing");
-  getScholars().then(data => {
-    console.log("[App] getScholars resolved with:", data);
-    const transformed = data.map(transformScholar);
-    console.log("[App] transformed:", transformed);
-    setScholars(transformed);
-    setScholarsLoading(false);
-  }).catch(err => {
-    console.error("[App] getScholars FAILED:", err);
-    setScholarsLoading(false);
-  });
-}, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -653,7 +638,7 @@ useEffect(() => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                <ScholarCard scholar={s} onClick={() => onScholar(s)} />
+               <ScholarCard scholar={s} onClick={() => onScholar(s)} isSaved={savedScholarIds.has(String(s.id))} onToggleSave={toggleScholarSave} />
               </div>
             ))}
           </div>
@@ -932,7 +917,7 @@ useEffect(() => {
 };
 
 // Scholar card with hover interactions
-const ScholarCard = ({ scholar, onClick }) => {
+const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
   const minPrice = Math.min(...scholar.packages.map(p => p.price));
   return (
     <div
@@ -943,6 +928,19 @@ const ScholarCard = ({ scholar, onClick }) => {
         <div className="absolute top-4 right-4 inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
           <Flame size={10} /> Top rated
         </div>
+      )}
+      {onToggleSave && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSave(scholar.id); }}
+          className={`absolute top-4 ${scholar.topRated ? 'right-28' : 'right-4'} z-10 p-1.5 hover:scale-110 transition-transform`}
+          aria-label={isSaved ? "Unsave" : "Save"}
+        >
+          <Heart
+            size={18}
+            className={isSaved ? "text-rose-500" : "text-stone-400 hover:text-rose-400"}
+            fill={isSaved ? "currentColor" : "none"}
+          />
+        </button>
       )}
       <div className="flex items-start gap-3 mb-3">
         <Avatar scholar={scholar} size="md" />
@@ -980,7 +978,7 @@ const ScholarCard = ({ scholar, onClick }) => {
 };
 
 // ==================== CATEGORY PAGE ====================
-const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
+const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn, savedScholarIds, toggleScholarSave }) => {
   const category = CATEGORIES.find(c => c.id === categoryId);
   const [scholars, setScholars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1042,7 +1040,7 @@ const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn }) => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
             {scholars.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                <ScholarCard scholar={s} onClick={() => onScholar(s)} />
+                <ScholarCard scholar={s} onClick={() => onScholar(s)} isSaved={savedScholarIds.has(String(s.id))} onToggleSave={toggleScholarSave} />
               </div>
             ))}
           </div>
@@ -2821,6 +2819,7 @@ const CampaignDetail = ({ campaign, onBack, onDonate }) => {
 
 // ==================== DONATE FLOW ====================
 const DonateFlow = ({ campaign, onBack, onDone }) => {
+  console.log('🟢 DonateFlow build version: 2026-04-29-A');
   const [step, setStep] = useState(1);
   const [amount, setAmount] = useState(50);
   const [custom, setCustom] = useState("");
@@ -2830,6 +2829,48 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [giftAid, setGiftAid] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  // Save donation to database, then call onDone
+  const handlePay = async () => {
+    console.log('🔵 handlePay called!', { campaign, effectiveAmount, total });
+    setSaving(true);
+    setSaveError(null);
+
+    const { data, error } = await createDonation({
+      campaignId: campaign.id,
+      campaignTitle: campaign.title,
+      campaignCreator: campaign.creator,
+      amount: effectiveAmount,
+      tip: tip,
+      giftAid: giftAidAmount,
+      total: total,
+      anonymous: anonymous,
+      displayName: anonymous ? null : name,
+      message: message
+    });
+
+    setSaving(false);
+
+    if (error) {
+      setSaveError(error.message || "Couldn't save donation. Try again.");
+    return;
+}
+    // Success — pass real receipt ID along
+    onDone({
+      campaign,
+      amount: effectiveAmount,
+      tip,
+      total,
+      name: anonymous ? "Anonymous" : name,
+      email,
+      message,
+      giftAid,
+      giftAidAmount,
+      receiptId: data.receipt_id
+    });
+  };
 
   const effectiveAmount = custom ? parseFloat(custom) || 0 : amount;
   const tip = Math.round(effectiveAmount * (tipPct / 100));
@@ -3000,10 +3041,12 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
                   Continue <ArrowRight size={14} />
                 </button>
               ) : (
-                <button onClick={() => onDone({ campaign, amount: effectiveAmount, tip, total, name: anonymous ? "Anonymous" : name, email, message, giftAid, giftAidAmount })} className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
-                  <CreditCard size={14} /> Pay {fmt(total)}
-                </button>
-              )}
+<div className="flex flex-col items-end">
+                  {saveError && <p className="text-xs text-rose-700 mb-2">{saveError}</p>}
+                  <button onClick={handlePay} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                    {saving ? "Saving..." : <><CreditCard size={14} /> Pay {fmt(total)}</>}
+                  </button>
+                </div>              )}
             </div>
           </div>
 
@@ -7204,6 +7247,30 @@ export default function App() {
   const [authedProfile, setAuthedProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Saved items - lifted up so all views can access
+  const [savedScholarIds, setSavedScholarIds] = useState(new Set());
+  const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
+
+  useEffect(() => {
+    getSaves().then(saves => {
+      setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
+      setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
+    });
+  }, [authedUser]);
+
+  const toggleScholarSave = async (scholarId) => {
+    const idStr = String(scholarId);
+    if (savedScholarIds.has(idStr)) {
+      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      const { error } = await removeSave('scholar', scholarId);
+      if (error) setSavedScholarIds(prev => new Set([...prev, idStr]));
+    } else {
+      setSavedScholarIds(prev => new Set([...prev, idStr]));
+      const { error } = await addSave('scholar', scholarId);
+      if (error) setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+    }
+  };
+
   // Custom setView that also pushes to browser history — enables browser back button
   const setView = (newView) => {
     if (newView !== view) {
@@ -7266,6 +7333,7 @@ export default function App() {
     onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
+    savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave}
   />;
   if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
@@ -7314,7 +7382,7 @@ export default function App() {
   if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} />;
   if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
-  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} />;
+  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} />;
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => setView("publicHome")} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
