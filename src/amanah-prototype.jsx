@@ -2853,6 +2853,7 @@ const CampaignDetail = ({ campaign, onBack, onDonate }) => {
 
 // ==================== DONATE FLOW ====================
 const DonateFlow = ({ campaign, onBack, onDone }) => {
+  console.log('🟢 DonateFlow build version: 2026-04-29-A');
   const [step, setStep] = useState(1);
   const [amount, setAmount] = useState(50);
   const [custom, setCustom] = useState("");
@@ -2888,7 +2889,7 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
 
     if (error) {
       setSaveError(error.message || "Couldn't save donation. Try again.");
-      return;
+    return;
 }
     // Success — pass real receipt ID along
     onDone({
