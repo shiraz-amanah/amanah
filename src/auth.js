@@ -284,3 +284,27 @@ export async function removeSave(itemType, itemId) {
     .eq('item_id', String(itemId))
   return { error }
 }
+
+// Get full scholar data for everything the user has saved
+export async function getSavedScholars() {
+  const user = await getUser()
+  if (!user) return []
+  // Step 1: get the saved scholar IDs
+  const { data: saves, error: savesError } = await supabase
+    .from('saves')
+    .select('item_id')
+    .eq('user_id', user.id)
+    .eq('item_type', 'scholar')
+  if (savesError || !saves.length) return []
+  const ids = saves.map(s => s.item_id)
+  // Step 2: fetch those scholars
+  const { data: scholars, error: scholarsError } = await supabase
+    .from('scholars')
+    .select('*')
+    .in('id', ids)
+  if (scholarsError) {
+    console.error('Error fetching saved scholars:', scholarsError)
+    return []
+  }
+  return scholars
+}

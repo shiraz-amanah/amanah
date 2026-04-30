@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getDonations, createDonation } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -950,7 +950,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
       )}
       {onToggleSave && (
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleSave(scholar.id); }}
+          onClick={(e) => { e.stopPropagation(); onToggleSave(scholar); }}
           className={`absolute top-4 ${scholar.topRated ? 'right-28' : 'right-4'} z-10 p-1.5 hover:scale-110 transition-transform`}
           aria-label={isSaved ? "Unsave" : "Save"}
         >
@@ -5538,8 +5538,7 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
 };
 
 // ==================== USER DASHBOARD ====================
-const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages }) => {
-  const [tab, setTab] = useState("bookings");
+  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave }) => {  const [tab, setTab] = useState("bookings");
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", city: "", phone: "" });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -5689,9 +5688,9 @@ setBookings(transformed);
   const upcomingBookings = bookings.filter(b => b.status === "upcoming");
   const pastBookings = bookings.filter(b => b.status === "completed");
   const donations = isDemo ? MOCK_USER_DONATIONS : [];
-  const savedScholars = isDemo ? MOCK_SAVED_SCHOLARS : [];
-  const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : [];
-  const totalGiven = donations.reduce((s, d) => s + d.amount, 0);
+  const savedScholars = isDemo
+    ? MOCK_SAVED_SCHOLARS.map(id => MOCK_SCHOLARS.find(x => x.id === id)).filter(Boolean)
+    : realSavedScholars;  const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : Array.from(realSavedCampaignIds);  const totalGiven = donations.reduce((s, d) => s + d.amount, 0);
   const totalGiftAid = donations.reduce((s, d) => s + d.giftAid, 0);
 
   return (
@@ -5960,21 +5959,19 @@ setBookings(transformed);
             {/* Saved scholars */}
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Scholars ({savedScholars.length})</h3>
             <div className="grid md:grid-cols-2 gap-3 mb-8">
-              {savedScholars.map(id => {
-                const s = MOCK_SCHOLARS.find(x => x.id === id);
-                if (!s) return null;
-                return (
-                  <div key={id} className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-3">
-                    <Avatar scholar={s} size="md" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{s.name}</p>
-                      <p className="text-xs text-stone-500">{s.city} · £{s.packages[1].price} / {s.packages[1].name}</p>
-                    </div>
-                    <button className="text-rose-500 hover:text-rose-700 p-2"><Heart size={16} fill="currentColor" /></button>
-                  </div>
-                );
-              })}
-            </div>
+{savedScholars.map(s => {
+      if (!s) return null;
+      return (
+        <ScholarCard
+          key={s.id}
+          scholar={s}
+          onClick={() => onScholar(s)}
+          isSaved={true}
+          onToggleSave={() => toggleScholarSave(s)}
+        />
+      );
+    })}            
+    </div>
 
             {/* Saved campaigns */}
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Campaigns ({savedCampaigns.length})</h3>
@@ -7288,6 +7285,7 @@ export default function App() {
   // Saved items - lifted up so all views can access
   const [savedScholarIds, setSavedScholarIds] = useState(new Set());
   const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
+  const [savedScholars, setSavedScholars] = useState([]);
 
 useEffect(() => {
   getSaves()
@@ -7296,21 +7294,35 @@ useEffect(() => {
       setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
     })
     .catch(err => console.error("Failed to load saves:", err));
+  getSavedScholars()
+    .then(setSavedScholars)
+    .catch(err => console.error("Failed to load saved scholars:", err));
 }, [authedUser]);
 
-  const toggleScholarSave = async (scholarId) => {
-    const idStr = String(scholarId);
-    if (savedScholarIds.has(idStr)) {
-      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
-      const { error } = await removeSave('scholar', scholarId);
-      if (error) setSavedScholarIds(prev => new Set([...prev, idStr]));
-    } else {
+const toggleScholarSave = async (scholar) => {
+  const idStr = String(scholar.id);
+  if (savedScholarIds.has(idStr)) {
+    // Un-save: optimistic remove from both Set and array
+    setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+    setSavedScholars(prev => prev.filter(s => String(s.id) !== idStr));
+    const { error } = await removeSave('scholar', scholar.id);
+    if (error) {
+      // Roll back
       setSavedScholarIds(prev => new Set([...prev, idStr]));
-      const { error } = await addSave('scholar', scholarId);
-      if (error) setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      setSavedScholars(prev => [...prev, scholar]);
     }
-  };
-
+  } else {
+    // Save: optimistic add to both Set and array
+    setSavedScholarIds(prev => new Set([...prev, idStr]));
+    setSavedScholars(prev => [...prev, scholar]);
+    const { error } = await addSave('scholar', scholar.id);
+    if (error) {
+      // Roll back
+      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      setSavedScholars(prev => prev.filter(s => String(s.id) !== idStr));
+    }
+  }
+};
   // Custom setView that also pushes to browser history — enables browser back button
   const setView = (newView) => {
     if (newView !== view) {
@@ -7407,6 +7419,11 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     }}
     onViewCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
+    savedScholarIds={savedScholarIds}
+    savedCampaignIds={savedCampaignIds}
+    savedScholars={savedScholars}
+    onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
+    toggleScholarSave={toggleScholarSave}
   />;
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
