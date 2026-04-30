@@ -337,27 +337,19 @@ useEffect(() => {
             <button onClick={() => onSignIn("prayer")} className="inline-flex items-center gap-1.5 text-sm text-stone-700 hover:text-stone-900 transition-colors font-medium">
               <Moon size={14} /> <span className="hidden sm:inline">Prayer</span>
             </button>
-            <button onClick={() => onSignIn("mosque")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">For Mosques</button>
-            <button onClick={() => onSignIn("imam")} className="hidden md:inline-block text-sm text-stone-600 hover:text-stone-900 transition-colors">Become a Scholar</button>
-            <button onClick={() => onSignIn("user")} className="hidden md:inline-block bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg transition-colors">Sign in</button>
-            {/* Hamburger menu — mobile only */}
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 -mr-1 text-stone-700 hover:text-stone-900"
-              aria-label="Open menu"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-        </div>
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-xl transition-colors"
+>
+     Sign in
+    </button>        </div>
+        </div> 
       </header>
 
       {/* Mobile slide-out menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50">
-          {/* Backdrop */}
+<div className="fixed inset-0 z-50">
+            {/* Backdrop */}
           <div onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm"></div>
           {/* Drawer */}
           <div className="absolute top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
