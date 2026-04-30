@@ -291,8 +291,8 @@ const CampaignCard = ({ campaign, onClick }) => {
 };
 
 // ==================== PUBLIC HOME ====================
-const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave }) => {  const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, authedUser, authedProfile }) => {  const [activeTab, setActiveTab] = useState("all");
+  const [search, setSearch] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -337,15 +337,30 @@ useEffect(() => {
             <button onClick={() => onSignIn("prayer")} className="inline-flex items-center gap-1.5 text-sm text-stone-700 hover:text-stone-900 transition-colors font-medium">
               <Moon size={14} /> <span className="hidden sm:inline">Prayer</span>
             </button>
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-xl transition-colors"
->
-     Sign in
-    </button>        </div>
-        </div> 
-      </header>
-
+{authedUser ? (
+  <button
+    onClick={() => onSignIn("user")}
+    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+    aria-label="Open dashboard"
+  >
+    <div
+      className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
+      style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+    >
+      {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
+    </div>
+  </button>
+) : (
+  <button
+    onClick={() => setMobileMenuOpen(true)}
+    className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-xl transition-colors"
+  >
+    Sign in
+  </button>
+)}        
+        </div>
+      </div>
+    </header>
       {/* Mobile slide-out menu */}
       {mobileMenuOpen && (
 <div className="fixed inset-0 z-50">
@@ -7364,8 +7379,9 @@ useEffect(() => {
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
     savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave}
-  />;
-  if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
+    authedUser={authedUser} authedProfile={authedProfile}
+    />;  
+if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
