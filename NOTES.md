@@ -26,3 +26,5 @@ Spent hours debugging "Top-rated scholars" stuck on skeletons. Root cause was ti
 - [ ] Trim remaining debug `console.log` lines once confident things are stable
 - [ ] Consider splitting `App.jsx` (~7400 lines) into separate component files
 - [ ] Add a proper test suite — even one smoke test per page would have caught the original bug in 5 seconds
+
+When find-and-replacing a function signature, watch for code piggybacking on the same line. Long single-line signatures sometimes have other declarations crammed after the opening {. The error surfaces as a ReferenceError in the browser, not a build error, because the JSX parses fine — the variable just doesn't exist at runtime.
