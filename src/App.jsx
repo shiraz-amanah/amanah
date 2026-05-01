@@ -107,6 +107,239 @@ const MOCK_SCHOLARS = [
   }
 ];
 
+const MOCK_MOSQUES = [
+  {
+    id: 1,
+    name: "Birmingham Central Mosque",
+    slug: "birmingham-central",
+    photo: "https://images.unsplash.com/photo-1604873446650-3a47e9c3f8e6?w=800&q=80",
+    verified: true,
+    address: "180 Belgrave Middleway",
+    city: "Birmingham",
+    postcode: "B12 0XS",
+    lat: 52.4651,
+    lng: -1.8895,
+    phone: "0121 440 5588",
+    email: "info@birminghamcentralmosque.org.uk",
+    description: "One of the largest mosques in the UK, serving the community since 1969 with daily prayers, Islamic education, and welfare services.",
+    facilities: ["disability_access", "parking", "womens_area", "wudu_facilities", "first_aid"],
+    scholarIds: [101, 105],
+    campaignId: null,
+    jumuahTime: "13:30",
+    iqamaTimes: { fajr: "05:30", dhuhr: "13:30", asr: "16:30", maghrib: "20:15", isha: "21:45" },
+    mockReviews: [
+      { author: "Yusuf K.", rating: 5, text: "Spacious, welcoming, and well-maintained. Excellent Jumu'ah khutbahs.", date: "2 weeks ago" },
+      { author: "Aisha R.", rating: 5, text: "The womens prayer area is clean and accessible. Great facilities.", date: "1 month ago" }
+    ]
+  },
+  {
+    id: 2,
+    name: "East London Mosque",
+    slug: "east-london-mosque",
+    photo: "https://images.unsplash.com/photo-1542379510-6c4dabe18f87?w=800&q=80",
+    verified: true,
+    address: "82-92 Whitechapel Road",
+    city: "London",
+    postcode: "E1 1JQ",
+    lat: 51.5168,
+    lng: -0.0648,
+    phone: "020 7650 3000",
+    email: "info@eastlondonmosque.org.uk",
+    description: "A landmark mosque in the heart of East London, providing prayer, education, and community services for over 35 years.",
+    facilities: ["disability_access", "parking", "womens_area", "wudu_facilities", "first_aid", "defibrillator"],
+    scholarIds: [102],
+    campaignId: 1,
+    jumuahTime: "13:15",
+    iqamaTimes: { fajr: "05:15", dhuhr: "13:15", asr: "16:45", maghrib: "20:00", isha: "21:30" },
+    mockReviews: [
+      { author: "Bilal M.", rating: 5, text: "Beautiful mosque, well-organised programmes for youth.", date: "1 week ago" }
+    ]
+  },
+  {
+    id: 3,
+    name: "Manchester Central Mosque",
+    slug: "manchester-central",
+    photo: "https://images.unsplash.com/photo-1584286595398-a59e7dfb7991?w=800&q=80",
+    verified: true,
+    address: "20 Upper Park Road",
+    city: "Manchester",
+    postcode: "M14 5RU",
+    lat: 53.4528,
+    lng: -2.2271,
+    phone: "0161 224 4119",
+    email: "info@manchestercentralmosque.org",
+    description: "Serving Manchester's Muslim community with daily prayers, Quran classes, and outreach programmes.",
+    facilities: ["disability_access", "womens_area", "wudu_facilities"],
+    scholarIds: [104, 102],
+    campaignId: 1,
+    jumuahTime: "13:00",
+    iqamaTimes: { fajr: "05:45", dhuhr: "13:00", asr: "17:00", maghrib: "20:30", isha: "22:00" },
+    mockReviews: [
+      { author: "Hassan A.", rating: 5, text: "Great community vibe, friendly volunteers, and clean facilities.", date: "3 weeks ago" }
+    ]
+  },
+  {
+    id: 4,
+    name: "Leeds Grand Mosque",
+    slug: "leeds-grand",
+    photo: "https://images.unsplash.com/photo-1591824438708-ce405f36ba3d?w=800&q=80",
+    verified: true,
+    address: "9 Woodsley Road",
+    city: "Leeds",
+    postcode: "LS3 1DT",
+    lat: 53.8089,
+    lng: -1.5645,
+    phone: "0113 245 6789",
+    email: "contact@leedsgrandmosque.com",
+    description: "A welcoming community mosque in central Leeds offering daily prayers, Islamic education, and revert support.",
+    facilities: ["disability_access", "parking", "womens_area", "first_aid"],
+    scholarIds: [103],
+    campaignId: 1,
+    jumuahTime: "13:15",
+    iqamaTimes: { fajr: "05:30", dhuhr: "13:15", asr: "16:45", maghrib: "20:15", isha: "21:45" },
+    mockReviews: [
+      { author: "Sarah J.", rating: 5, text: "Wonderful welcoming community. Reverts class is excellent.", date: "1 month ago" }
+    ]
+  },
+  {
+    id: 5,
+    name: "Bradford Grand Mosque",
+    slug: "bradford-grand",
+    photo: "https://images.unsplash.com/photo-1564769625905-50e93615e769?w=800&q=80",
+    verified: true,
+    address: "Horton Park Avenue",
+    city: "Bradford",
+    postcode: "BD7 3EG",
+    lat: 53.7833,
+    lng: -1.7667,
+    phone: "01274 727 922",
+    email: "info@bradfordgrandmosque.org.uk",
+    description: "A historic mosque serving Bradford's Muslim community with prayers, education, and family programmes.",
+    facilities: ["parking", "womens_area", "wudu_facilities"],
+    scholarIds: [101],
+    campaignId: 1,
+    jumuahTime: "13:30",
+    iqamaTimes: { fajr: "05:30", dhuhr: "13:30", asr: "16:30", maghrib: "20:15", isha: "21:45" },
+    mockReviews: [
+      { author: "Tariq M.", rating: 4, text: "Steeped in history. Beautiful Friday khutbahs.", date: "2 weeks ago" }
+    ]
+  },
+  {
+    id: 6,
+    name: "Glasgow Central Mosque",
+    slug: "glasgow-central",
+    photo: "https://images.unsplash.com/photo-1542652694-40abf526446e?w=800&q=80",
+    verified: true,
+    address: "1 Mosque Avenue",
+    city: "Glasgow",
+    postcode: "G5 9TA",
+    lat: 55.8519,
+    lng: -4.2528,
+    phone: "0141 429 3132",
+    email: "info@glasgowcentralmosque.com",
+    description: "Scotland's largest mosque, serving the community with daily prayers, education, and community engagement.",
+    facilities: ["disability_access", "parking", "womens_area", "wudu_facilities", "first_aid", "defibrillator"],
+    scholarIds: [102, 104],
+    campaignId: 1,
+    jumuahTime: "13:30",
+    iqamaTimes: { fajr: "06:00", dhuhr: "13:30", asr: "17:15", maghrib: "20:30", isha: "22:00" },
+    mockReviews: [
+      { author: "Amina S.", rating: 5, text: "Scotland's gem. The defibrillator and full accessibility make it stand out.", date: "1 week ago" }
+    ]
+  },
+  {
+    id: 7,
+    name: "Cardiff Madina Mosque",
+    slug: "cardiff-madina",
+    photo: "https://images.unsplash.com/photo-1548625361-1adcab316530?w=800&q=80",
+    verified: true,
+    address: "121 Woodville Road",
+    city: "Cardiff",
+    postcode: "CF24 4DY",
+    lat: 51.4928,
+    lng: -3.1781,
+    phone: "029 2049 3656",
+    email: "info@madinamosque.co.uk",
+    description: "Welsh capital's vibrant mosque community with active youth and family programmes.",
+    facilities: ["womens_area", "wudu_facilities", "first_aid"],
+    scholarIds: [103, 105],
+    campaignId: 1,
+    jumuahTime: "13:15",
+    iqamaTimes: { fajr: "05:45", dhuhr: "13:15", asr: "16:45", maghrib: "20:15", isha: "21:45" },
+    mockReviews: [
+      { author: "Yasmin R.", rating: 5, text: "Vibrant youth programmes — kids love it.", date: "5 days ago" }
+    ]
+  },
+  {
+    id: 8,
+    name: "Leicester Central Mosque",
+    slug: "leicester-central",
+    photo: "https://images.unsplash.com/photo-1584286595398-a59e7dfb7991?w=800&q=80",
+    verified: true,
+    address: "20 Conduit Street",
+    city: "Leicester",
+    postcode: "LE2 0JN",
+    lat: 52.6309,
+    lng: -1.1223,
+    phone: "0116 254 4459",
+    email: "info@leicestercentralmosque.org",
+    description: "Serving Leicester's Muslim community since 1980 with prayers, education, and welfare.",
+    facilities: ["disability_access", "parking", "womens_area", "wudu_facilities"],
+    scholarIds: [101, 104],
+    campaignId: 1,
+    jumuahTime: "13:30",
+    iqamaTimes: { fajr: "05:30", dhuhr: "13:30", asr: "16:45", maghrib: "20:15", isha: "21:45" },
+    mockReviews: [
+      { author: "Ibrahim K.", rating: 5, text: "Long-standing pillar of the community. Excellent welfare programmes.", date: "3 weeks ago" }
+    ]
+  }
+];
+
+// ============== GEO HELPERS ==============
+
+// Haversine distance between two lat/lng points, returns km
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth's radius in km
+  const toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Custom hook for browser geolocation
+// Returns { coords: {lat, lng} | null, status: 'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported' }
+function useGeolocation() {
+  const [coords, setCoords] = useState(null);
+  const [status, setStatus] = useState('idle');
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setStatus('unsupported');
+      return;
+    }
+    setStatus('requesting');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setStatus('granted');
+      },
+      (err) => {
+        console.warn('Geolocation error:', err.message);
+        setStatus('denied');
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  return { coords, status, requestLocation };
+}
+
+
+
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
   const dims = { sm: "w-10 h-10 text-sm", md: "w-14 h-14 text-lg", lg: "w-24 h-24 text-3xl" }[size];
@@ -291,7 +524,7 @@ const CampaignCard = ({ campaign, onClick }) => {
 };
 
 // ==================== PUBLIC HOME ====================
-const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, authedUser, authedProfile }) => {  const [activeTab, setActiveTab] = useState("all");
+const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, authedUser, authedProfile, onMosquesListing, onMosqueDetail }) => {  const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -362,76 +595,7 @@ useEffect(() => {
       </div>
     </header>
       {/* Mobile slide-out menu */}
-      {mobileMenuOpen && (
-<div className="fixed inset-0 z-50">
-            {/* Backdrop */}
-          <div onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm"></div>
-          {/* Drawer */}
-          <div className="absolute top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-                <h2 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h2>
-              </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-2 -mr-1 text-stone-500 hover:text-stone-900" aria-label="Close menu">
-                <X size={18} />
-              </button>
-            </div>
-            <nav className="flex-1 p-3 overflow-y-auto">
-              <div className="mb-2 px-3 pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">For students & families</p>
-              </div>
-              <button onClick={() => { setMobileMenuOpen(false); onSignIn("user"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><User className="text-emerald-800" size={18} /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-stone-900">Parent or student</p>
-                  <p className="text-xs text-stone-500">Find a scholar or donate</p>
-                </div>
-                <ChevronRight className="text-stone-300" size={16} />
-              </button>
-
-              <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">For mosques</p>
-              </div>
-              <button onClick={() => { setMobileMenuOpen(false); onSignIn("mosque"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><Building2 className="text-amber-800" size={18} /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-stone-900">Mosque sign in</p>
-                  <p className="text-xs text-stone-500">Manage imams, DBS checks, jobs</p>
-                </div>
-                <ChevronRight className="text-stone-300" size={16} />
-              </button>
-
-              <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">For scholars</p>
-              </div>
-              <button onClick={() => { setMobileMenuOpen(false); onSignIn("imam"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
-                <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center"><GraduationCap className="text-sky-800" size={18} /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-stone-900">Scholar sign in</p>
-                  <p className="text-xs text-stone-500">Teach, get hired, build profile</p>
-                </div>
-                <ChevronRight className="text-stone-300" size={16} />
-              </button>
-
-              <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">Tools</p>
-              </div>
-              <button onClick={() => { setMobileMenuOpen(false); onSignIn("prayer"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center"><Moon className="text-indigo-800" size={18} /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-stone-900">Prayer times & Qibla</p>
-                  <p className="text-xs text-stone-500">Verified mosques near you</p>
-                </div>
-                <ChevronRight className="text-stone-300" size={16} />
-              </button>
-            </nav>
-            <div className="px-5 py-4 border-t border-stone-100 text-center">
-              <p className="text-[11px] text-stone-500">Every scholar DBS-checked · Every mosque verified</p>
-            </div>
-          </div>
-        </div>
-      )}
+    <AudienceDrawer isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} onSignIn={onSignIn} />
 
       {/* Hero with animated cinematic background */}
       <section className="relative overflow-hidden">
@@ -586,6 +750,29 @@ useEffect(() => {
           })}
         </div>
       </section>
+
+{/* Mosques near you */}
+<section className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
+  <div className="flex items-end justify-between mb-6 md:mb-8">
+    <div>
+      <h3 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verified mosques near you</h3>
+      <p className="text-stone-600 mt-1 text-sm md:text-base">Discover trusted mosques in your area</p>
+    </div>
+    <button onClick={() => onMosquesListing && onMosquesListing()} className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+      View all <ArrowRight size={14} />
+    </button>
+  </div>
+
+  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {MOCK_MOSQUES.slice(0, 4).map(m => (
+      <MosqueCard
+        key={m.id}
+        mosque={m}
+        onClick={() => onMosqueDetail && onMosqueDetail(m)}
+      />
+    ))}
+  </div>
+</section>
 
       {/* Recent booking review prompt */}
       <section className="max-w-7xl mx-auto px-6">
@@ -935,6 +1122,130 @@ useEffect(() => {
   );
 };
 
+// ============== AUDIENCE DRAWER (sign-in audience picker) ==============
+
+const AudienceDrawer = ({ isOpen, onClose, onSignIn }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50">
+      {/* Backdrop */}
+      <div onClick={onClose} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm"></div>
+      {/* Drawer */}
+      <div className="absolute top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <h2 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h2>
+          </div>
+          <button onClick={onClose} className="p-2 -mr-1 text-stone-500 hover:text-stone-900" aria-label="Close menu">
+            <X size={18} />
+          </button>
+        </div>
+        <nav className="flex-1 p-3 overflow-y-auto">
+          <div className="mb-2 px-3 pt-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">For students & families</p>
+          </div>
+          <button onClick={() => { onClose(); onSignIn("user"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><User className="text-emerald-800" size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-stone-900">Parent or student</p>
+              <p className="text-xs text-stone-500">Find a scholar or donate</p>
+            </div>
+            <ChevronRight className="text-stone-300" size={16} />
+          </button>
+
+          <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">For mosques</p>
+          </div>
+          <button onClick={() => { onClose(); onSignIn("mosque"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><Building2 className="text-amber-800" size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-stone-900">Mosque sign in</p>
+              <p className="text-xs text-stone-500">Manage imams, DBS checks, jobs</p>
+            </div>
+            <ChevronRight className="text-stone-300" size={16} />
+          </button>
+
+          <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">For scholars</p>
+          </div>
+          <button onClick={() => { onClose(); onSignIn("imam"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+            <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center"><GraduationCap className="text-sky-800" size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-stone-900">Scholar sign in</p>
+              <p className="text-xs text-stone-500">Teach, get hired, build profile</p>
+            </div>
+            <ChevronRight className="text-stone-300" size={16} />
+          </button>
+
+          <div className="mt-4 mb-2 px-3 pt-2 border-t border-stone-100">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mt-4">Tools</p>
+          </div>
+          <button onClick={() => { onClose(); onSignIn("prayer"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center"><Moon className="text-indigo-800" size={18} /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-stone-900">Prayer times & Qibla</p>
+              <p className="text-xs text-stone-500">Verified mosques near you</p>
+            </div>
+            <ChevronRight className="text-stone-300" size={16} />
+          </button>
+        </nav>
+        <div className="px-5 py-4 border-t border-stone-100 text-center">
+          <p className="text-[11px] text-stone-500">Every scholar DBS-checked · Every mosque verified</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============== PUBLIC HEADER ==============
+
+const PublicHeader = ({ authedUser, authedProfile, onLogoClick, onSignIn }) => {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  return (
+    <>
+    <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+        {/* Logo - clickable, returns home */}
+        <button onClick={onLogoClick} className="flex items-center gap-2.5 group">
+          <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md group-hover:bg-emerald-800 transition-colors">
+            <ShieldCheck className="text-emerald-50" size={18} />
+          </div>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </button>
+
+        {/* Right: avatar if logged in, Sign in if not */}
+        {authedUser ? (
+          <button
+            onClick={() => onSignIn && onSignIn("user")}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            aria-label="Open dashboard"
+          >
+            <div
+              className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
+              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+            >
+              {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
+            </div>
+          </button>
+        ) : (
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-xl transition-colors"
+          >
+            Sign in
+          </button>
+        )}
+      </div>
+    </header>
+    <AudienceDrawer
+     isOpen={drawerOpen}
+     onClose={() => setDrawerOpen(false)}
+     onSignIn={(role) => { setDrawerOpen(false); onSignIn && onSignIn(role); }}
+   />
+   </>
+  );
+};
 // Scholar card with hover interactions
 const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
   const minPrice = Math.min(...scholar.packages.map(p => p.price));
@@ -991,6 +1302,379 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
         <span className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
           View <ArrowRight size={14} />
         </span>
+      </div>
+    </div>
+  );
+};
+
+// Mosque card with hover interactions
+const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave }) => {
+  return (
+    <div
+      onClick={onClick}
+      className="group relative bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-400 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1"
+    >
+      {/* Photo header */}
+      <div className="relative h-40 bg-stone-100 overflow-hidden">
+        <img
+          src={mosque.photo}
+          alt={mosque.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+        {/* Verified badge */}
+        {mosque.verified && (
+          <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
+            <ShieldCheck size={12} /> Verified
+          </div>
+        )}
+        {/* Distance badge */}
+        {distance !== undefined && distance !== null && (
+          <div className="absolute top-3 right-3 inline-flex items-center gap-1 bg-white/90 backdrop-blur text-stone-900 text-[10px] px-2 py-0.5 rounded-full font-medium">
+            <MapPin size={11} /> {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}
+          </div>
+        )}
+        {/* Save heart */}
+        {onToggleSave && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSave(mosque); }}
+            className="absolute bottom-3 right-3 z-10 p-1.5 bg-white/90 backdrop-blur rounded-full hover:scale-110 transition-transform"
+            aria-label={isSaved ? "Unsave" : "Save"}
+          >
+            <Heart
+              size={16}
+              className={isSaved ? "text-rose-500" : "text-stone-400 hover:text-rose-400"}
+              fill={isSaved ? "currentColor" : "none"}
+            />
+          </button>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="p-4">
+        <h3 className="text-base font-semibold text-stone-900 mb-1 line-clamp-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{mosque.name}</h3>
+        <div className="flex items-center gap-1 text-xs text-stone-500 mb-3">
+          <MapPin size={11} />
+          <span className="truncate">{mosque.city}{mosque.postcode ? ` · ${mosque.postcode}` : ''}</span>
+        </div>
+
+        {/* Facility chips - first 3 */}
+        {mosque.facilities && mosque.facilities.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {mosque.facilities.slice(0, 3).map(f => (
+              <span key={f} className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded-md">
+                {f.replace(/_/g, ' ')}
+              </span>
+            ))}
+            {mosque.facilities.length > 3 && (
+              <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-500 rounded-md">+{mosque.facilities.length - 3}</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============== MOSQUES LISTING PAGE ==============
+
+const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, authedUser, authedProfile, onLogoClick, onSignIn }) => {
+  const { coords, status, requestLocation } = useGeolocation();
+  const [search, setSearch] = useState("");
+
+  // Auto-request on mount (once)
+  useEffect(() => {
+    if (status === 'idle') requestLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Compute mosques with distance, sort by it (or alpha if no coords)
+  const mosques = MOCK_MOSQUES.map(m => ({
+    ...m,
+    distance: coords ? haversineDistance(coords.lat, coords.lng, m.lat, m.lng) : null
+  }));
+
+  // Filter by search
+  const filtered = mosques.filter(m => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return m.name.toLowerCase().includes(q) || m.city.toLowerCase().includes(q);
+  });
+
+  // Sort
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.distance !== null && b.distance !== null) return a.distance - b.distance;
+    return a.name.localeCompare(b.name);
+  });
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Header */}
+<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onLogoClick} onSignIn={onSignIn} />
+
+      {/* Title block */}
+      <div className="max-w-6xl mx-auto px-5 md:px-6 pt-6 md:pt-10">
+        <h2 className="text-3xl md:text-4xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verified Mosques</h2>
+        <p className="text-stone-600 mb-6">Browse trusted, verified mosques across the UK. {coords ? "Sorted by distance from you." : "Sorted alphabetically."}</p>
+
+        {/* Geolocation CTA banner */}
+        {(status === 'idle' || status === 'denied' || status === 'unsupported') && (
+          <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+            <MapPin className="text-emerald-700 shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-stone-900">Find mosques near you</p>
+              <p className="text-xs text-stone-600 mt-0.5">
+                {status === 'denied' && "Location access was denied. Showing alphabetical order. Enable in browser settings to see nearest first."}
+                {status === 'unsupported' && "Your browser doesn't support location. Showing alphabetical order."}
+                {status === 'idle' && "Share your location to see the nearest mosques first."}
+              </p>
+            </div>
+            {status === 'idle' && (
+              <button onClick={requestLocation} className="text-xs font-medium bg-emerald-700 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-800 transition-colors">
+                Enable
+              </button>
+            )}
+          </div>
+        )}
+
+        {status === 'requesting' && (
+          <div className="mb-6 text-sm text-stone-500">Getting your location...</div>
+        )}
+
+        {/* Search */}
+        <div className="mb-6 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or city..."
+            className="w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-xl focus:outline-none focus:border-emerald-500 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="max-w-6xl mx-auto px-5 md:px-6 pb-16">
+        {sorted.length === 0 ? (
+          <div className="text-center py-16 text-stone-500">
+            <p className="text-sm">No mosques match your search.</p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {sorted.map(m => (
+              <MosqueCard
+                key={m.id}
+                mosque={m}
+                distance={m.distance}
+                onClick={() => onMosque(m)}
+                isSaved={savedMosqueIds?.has?.(String(m.id))}
+                onToggleSave={onToggleMosqueSave}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============== MOSQUE DETAIL PAGE ==============
+
+const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSave, authedUser, authedProfile, onLogoClick, onSignIn }) => {
+  if (!mosque) return null;
+
+  const facilityLabels = {
+    disability_access: { label: "Disability access", icon: "♿" },
+    parking: { label: "Parking", icon: "🅿️" },
+    womens_area: { label: "Women's area", icon: "🌸" },
+    wudu_facilities: { label: "Wudu facilities", icon: "💧" },
+    first_aid: { label: "First aid", icon: "🩹" },
+    defibrillator: { label: "Defibrillator", icon: "❤️‍🩹" }
+  };
+
+  // Resolve affiliated scholars from MOCK_SCHOLARS by ID
+  const affiliatedScholars = (mosque.scholarIds || [])
+    .map(id => MOCK_SCHOLARS.find(s => s.id === id))
+    .filter(Boolean);
+
+  // Prayer times - hardcoded Adhan times for now (Session C will use Aladhan API)
+  const prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
+  const adhanTimes = { Fajr: "05:14", Dhuhr: "12:55", Asr: "15:48", Maghrib: "19:32", Isha: "21:08" };
+  const iqamaKeys = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onLogoClick} onSignIn={onSignIn} />
+      {/* Hero with photo */}
+      <div className="relative h-72 md:h-96 bg-stone-900 overflow-hidden">
+        <img
+          src={mosque.photo}
+          alt={mosque.name}
+          className="w-full h-full object-cover opacity-90"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-stone-900/70 via-stone-900/20 to-transparent" />
+
+        {/* Back button + save */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+          <button onClick={onBack} className="bg-white/90 backdrop-blur text-stone-900 inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-white transition-colors">
+            <ArrowLeft size={16} /> Back
+          </button>
+          {onToggleSave && (
+            <button
+              onClick={() => onToggleSave(mosque)}
+              className="bg-white/90 backdrop-blur p-2 rounded-full hover:bg-white transition-colors"
+              aria-label={isSaved ? "Unsave" : "Save"}
+            >
+              <Heart size={18} className={isSaved ? "text-rose-500" : "text-stone-700"} fill={isSaved ? "currentColor" : "none"} />
+            </button>
+          )}
+        </div>
+
+        {/* Title overlaid */}
+        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8">
+          <div className="max-w-4xl mx-auto">
+            {mosque.verified && (
+              <div className="inline-flex items-center gap-1 bg-emerald-600 text-white text-[11px] px-2.5 py-1 rounded-full font-medium uppercase tracking-wider mb-2">
+                <ShieldCheck size={12} /> Verified
+              </div>
+            )}
+            <h1 className="text-3xl md:text-5xl font-semibold text-white" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{mosque.name}</h1>
+            <p className="text-white/80 mt-1 text-sm md:text-base">{mosque.address}, {mosque.city} {mosque.postcode}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-5 md:px-6 py-8 md:py-10 space-y-6">
+        {/* About */}
+        {mosque.description && (
+          <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">About</h2>
+            <p className="text-stone-800 leading-relaxed">{mosque.description}</p>
+          </section>
+        )}
+
+        {/* Contact */}
+        <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+          <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Contact</h2>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <a href={`tel:${mosque.phone}`} className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 hover:border-emerald-400 transition-colors">
+              <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center"><Phone size={16} className="text-emerald-700" /></div>
+              <div className="text-sm">
+                <p className="text-stone-500 text-xs">Phone</p>
+                <p className="text-stone-900 font-medium">{mosque.phone}</p>
+              </div>
+            </a>
+            <a href={`mailto:${mosque.email}`} className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 hover:border-emerald-400 transition-colors">
+              <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center"><Mail size={16} className="text-emerald-700" /></div>
+              <div className="text-sm min-w-0">
+                <p className="text-stone-500 text-xs">Email</p>
+                <p className="text-stone-900 font-medium truncate">{mosque.email}</p>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        {/* Prayer times */}
+        <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+          <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Today's prayer times</h2>
+          <div className="overflow-hidden rounded-xl border border-stone-200">
+            <table className="w-full text-sm">
+              <thead className="bg-stone-50 text-stone-600 text-xs uppercase tracking-wider">
+                <tr>
+                  <th className="text-left px-4 py-2.5">Prayer</th>
+                  <th className="text-right px-4 py-2.5">Adhan</th>
+                  {mosque.iqamaTimes && <th className="text-right px-4 py-2.5">Iqama</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {prayerNames.map((name, i) => (
+                  <tr key={name} className="border-t border-stone-100">
+                    <td className="px-4 py-2.5 font-medium text-stone-900">{name}</td>
+                    <td className="px-4 py-2.5 text-right text-stone-700 font-mono">{adhanTimes[name]}</td>
+                    {mosque.iqamaTimes && (
+                      <td className="px-4 py-2.5 text-right text-emerald-700 font-mono font-medium">{mosque.iqamaTimes[iqamaKeys[i]] || "—"}</td>
+                    )}
+                  </tr>
+                ))}
+                {mosque.jumuahTime && (
+                  <tr className="border-t border-stone-100 bg-emerald-50/40">
+                    <td className="px-4 py-2.5 font-medium text-stone-900">Jumu'ah</td>
+                    <td className="px-4 py-2.5 text-right text-stone-700 font-mono">—</td>
+                    {mosque.iqamaTimes && <td className="px-4 py-2.5 text-right text-emerald-700 font-mono font-medium">{mosque.jumuahTime}</td>}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-stone-500 mt-2">Iqama times are mosque-reported. Adhan times are calculated; please verify locally.</p>
+        </section>
+
+        {/* Facilities */}
+        {mosque.facilities && mosque.facilities.length > 0 && (
+          <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Facilities</h2>
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {mosque.facilities.map(f => {
+                const meta = facilityLabels[f] || { label: f.replace(/_/g, ' '), icon: "✓" };
+                return (
+                  <div key={f} className="flex items-center gap-2 p-2.5 rounded-lg bg-stone-50 border border-stone-100">
+                    <span className="text-base">{meta.icon}</span>
+                    <span className="text-sm text-stone-800">{meta.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Affiliated scholars */}
+        {affiliatedScholars.length > 0 && (
+          <section>
+            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3 px-1">Scholars at this mosque</h2>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {affiliatedScholars.map(s => (
+                <ScholarCard key={s.id} scholar={s} onClick={() => onScholar(s)} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Donate */}
+        {mosque.campaignId && (
+          <section className="bg-gradient-to-br from-emerald-700 to-emerald-900 text-white rounded-2xl p-6 md:p-8">
+            <h2 className="text-2xl font-semibold mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Support this mosque</h2>
+            <p className="text-emerald-50 text-sm mb-4">Your donation helps keep the mosque running and supports community programmes.</p>
+            <button
+              onClick={() => onDonate && onDonate(mosque)}
+              className="bg-white text-emerald-800 font-medium px-5 py-2.5 rounded-xl hover:bg-emerald-50 transition-colors inline-flex items-center gap-2"
+            >
+              <Heart size={16} fill="currentColor" /> Donate now
+            </button>
+          </section>
+        )}
+
+        {/* Reviews */}
+        {mosque.mockReviews && mosque.mockReviews.length > 0 && (
+          <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Reviews</h2>
+            <div className="space-y-3">
+              {mosque.mockReviews.map((r, i) => (
+                <div key={i} className="border-b border-stone-100 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-stone-900">{r.author}</p>
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {Array.from({ length: r.rating }).map((_, idx) => <Star key={idx} size={11} fill="currentColor" />)}
+                    </div>
+                  </div>
+                  <p className="text-sm text-stone-700 leading-relaxed">{r.text}</p>
+                  <p className="text-xs text-stone-400 mt-1">{r.date}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -7261,6 +7945,7 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedScholar, setSelectedScholar] = useState(null);
+  const [selectedMosque, setSelectedMosque] = useState(null);
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
   const [selectedImam, setSelectedImam] = useState(null);
@@ -7393,6 +8078,8 @@ useEffect(() => {
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
     savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave}
     authedUser={authedUser} authedProfile={authedProfile}
+    onMosquesListing={() => setView("mosquesListing")}
+    onMosqueDetail={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
     />;  
 if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
@@ -7447,6 +8134,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} />;
+  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={(r) => { if (r === "user" && authedUser) setView("userDashboard"); else setView("publicHome"); }} />;
+  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={(r) => { if (r === "user" && authedUser) setView("userDashboard"); else setView("publicHome"); }} />;
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
