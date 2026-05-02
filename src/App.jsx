@@ -7934,14 +7934,16 @@ export default function App() {
   // Saved items - lifted up so all views can access
   const [savedScholarIds, setSavedScholarIds] = useState(new Set());
   const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
+  const [savedMosqueIds, setSavedMosqueIds] = useState(new Set());
   const [savedScholars, setSavedScholars] = useState([]);
 
 useEffect(() => {
   getSaves()
     .then(saves => {
-      setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
-      setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
-    })
+        setSavedScholarIds(new Set(saves.filter(s => s.item_type === 'scholar').map(s => s.item_id)));
+        setSavedCampaignIds(new Set(saves.filter(s => s.item_type === 'campaign').map(s => s.item_id)));
+        setSavedMosqueIds(new Set(saves.filter(s => s.item_type === 'mosque').map(s => s.item_id)));
+      })
     .catch(err => console.error("Failed to load saves:", err));
   getSavedScholars()
     .then(setSavedScholars)
@@ -7965,14 +7967,36 @@ const toggleScholarSave = async (scholar) => {
     setSavedScholarIds(prev => new Set([...prev, idStr]));
     setSavedScholars(prev => [...prev, scholar]);
     const { error } = await addSave('scholar', scholar.id);
-    if (error) {
-      // Roll back
-      setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
-      setSavedScholars(prev => prev.filter(s => String(s.id) !== idStr));
+      if (error) {
+        // Roll back
+        setSavedScholarIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+        setSavedScholars(prev => prev.filter(s => String(s.id) !== idStr));
+      }
     }
-  }
-};
-  // Custom setView that also pushes to browser history — enables browser back button
+  };
+
+  const toggleMosqueSave = async (mosque) => {
+    const idStr = String(mosque.id);
+    if (savedMosqueIds.has(idStr)) {
+      // Un-save: optimistic remove
+      setSavedMosqueIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      const { error } = await removeSave('mosque', mosque.id);
+      if (error) {
+        // Roll back
+        setSavedMosqueIds(prev => new Set([...prev, idStr]));
+      }
+    } else {
+      // Save: optimistic add
+      setSavedMosqueIds(prev => new Set([...prev, idStr]));
+      const { error } = await addSave('mosque', mosque.id);
+      if (error) {
+        // Roll back
+        setSavedMosqueIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      }
+    }
+  };
+
+  // Custom setView that also pushes to browser history
   const setView = (newView) => {
     if (newView !== view) {
       window.history.pushState({ view: newView }, "", window.location.pathname);
