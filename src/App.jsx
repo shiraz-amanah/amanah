@@ -7929,6 +7929,7 @@ export default function App() {
   const [authedUser, setAuthedUser] = useState(null);
   const [authedProfile, setAuthedProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [returnView, setReturnView] = useState("publicHome");
 
   // Saved items - lifted up so all views can access
   const [savedScholarIds, setSavedScholarIds] = useState(new Set());
@@ -8024,15 +8025,14 @@ useEffect(() => {
   
   // Shared sign-in handler used by all public pages
 const handleSignIn = (r) => {
-  if (r === "prayer") { setView("prayerHub"); return; }
-  if (r === "user") {
+    if (r === "prayer") { setView("prayerHub"); return; }
+    if (r === "user") {
     if (authedUser) { setView("userDashboard"); return; }
-    setUserAuthMode("login"); setView("userAuth"); return;
-  }
-  // For mosque, imam, admin - role-specific login
-  setRole(r); setView("login");
-};
-  if (view === "publicHome") return <PublicHome
+      setReturnView(view); setUserAuthMode("login"); setView("userAuth"); return;
+    }
+    // For mosque, imam, admin - role-specific login
+    setRole(r); setView("login");
+  };  if (view === "publicHome") return <PublicHome
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
     onSignIn={handleSignIn}
@@ -8052,7 +8052,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       const profile = await getProfile();
       setAuthedProfile(profile);
     }
-    setView("userDashboard");
+    setView(returnView);
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
