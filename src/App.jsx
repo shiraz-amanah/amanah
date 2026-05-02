@@ -1681,7 +1681,7 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
 };
 
 // ==================== CATEGORY PAGE ====================
-const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn, savedScholarIds, toggleScholarSave }) => {
+  const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn, savedScholarIds, toggleScholarSave, authedUser, authedProfile }) => {
   const category = CATEGORIES.find(c => c.id === categoryId);
   const [scholars, setScholars] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1702,15 +1702,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-2.5 md:gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-          </button>
-          <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3.5 md:px-4 py-2 rounded-lg">Sign in</button>
-        </div>
-      </header>
+      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
       <section className={`bg-gradient-to-br ${category?.tint} border-b border-stone-200`}>
         <div className="max-w-7xl mx-auto px-5 md:px-6 py-8 md:py-12">
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6">
@@ -1762,7 +1754,7 @@ useEffect(() => {
 };
 
 // ==================== SCHOLAR DETAIL ====================
-const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessage }) => {
+const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessage, onSignIn, authedUser, authedProfile }) => {
   // Start with the passed scholar, then refresh from DB for freshest data
   const [scholar, setScholar] = useState(initialScholar);
   const [selectedPkg, setSelectedPkg] = useState(initialScholar.packages.find(p => p.popular) || initialScholar.packages[1] || initialScholar.packages[0]);
@@ -1785,14 +1777,7 @@ useEffect(() => {
 }, [initialScholar.slug]);
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
-          <button onClick={onBack} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-          </button>
-        </div>
-      </header>
+      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
 
       {/* Scholar hero banner */}
       <section className={`relative overflow-hidden bg-gradient-to-br ${scholar.avatarGradient}`}>
@@ -3332,7 +3317,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
 };
 
 // ==================== ALL CAMPAIGNS PAGE ====================
-const AllCampaigns = ({ onBack, onCampaign, onSignIn }) => {
+const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile }) => {
   const [filter, setFilter] = useState("all");
   const categories = ["all", ...new Set(MOCK_CAMPAIGNS.map(c => c.category))];
   const filtered = filter === "all" ? MOCK_CAMPAIGNS : MOCK_CAMPAIGNS.filter(c => c.category === filter);
@@ -3342,17 +3327,8 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn }) => {
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-          </button>
-          <button onClick={() => onSignIn("mosque")} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2 rounded-lg">Sign in</button>
-        </div>
-      </header>
-
-      <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
+    <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />  
+    <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
         <div className="relative max-w-7xl mx-auto px-6 py-14">
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-6"><ArrowLeft size={14} /> Back to Amanah</button>
@@ -3390,19 +3366,12 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn }) => {
 };
 
 // ==================== CAMPAIGN DETAIL ====================
-const CampaignDetail = ({ campaign, onBack, onDonate }) => {
+const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, authedProfile }) => {
   const pct = Math.min((campaign.raised / campaign.goal) * 100, 100);
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
-          <button onClick={onBack} className="flex items-center gap-2.5 md:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-          </button>
-        </div>
-      </header>
+      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
 
       <section className={`relative overflow-hidden bg-gradient-to-br ${campaign.gradient}`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
@@ -5046,14 +5015,7 @@ const JobsBoard = ({ onBack, onJob, myApplications }) => {
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
-          <button onClick={onBack} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-          </button>
-        </div>
-      </header>
+      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
 
       <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
@@ -8059,20 +8021,21 @@ useEffect(() => {
 
   // Mock completed booking for the review flow
   const mockBooking = { package: "Standard", completedDate: "yesterday" };
-
+  
+  // Shared sign-in handler used by all public pages
+const handleSignIn = (r) => {
+  if (r === "prayer") { setView("prayerHub"); return; }
+  if (r === "user") {
+    if (authedUser) { setView("userDashboard"); return; }
+    setUserAuthMode("login"); setView("userAuth"); return;
+  }
+  // For mosque, imam, admin - role-specific login
+  setRole(r); setView("login");
+};
   if (view === "publicHome") return <PublicHome
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
-    onSignIn={(r) => {
-      if (r === "prayer") { setView("prayerHub"); return; }
-      if (r === "user") {
-        // If already signed in, skip login and go straight to dashboard
-        if (authedUser) { setView("userDashboard"); return; }
-        setUserAuthMode("login"); setView("userAuth"); return;
-      }
-      // For mosque, imam, admin — go straight to role-specific login, skip picker
-      setRole(r); setView("login");
-    }}
+    onSignIn={handleSignIn}
     onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
@@ -8129,14 +8092,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   }} />;
   if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
   if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
-  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} />;
-  if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} />;
-  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
+  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
-  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={(r) => { setRole(r); setView("login"); }} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} />;
-  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={(r) => { if (r === "user" && authedUser) setView("userDashboard"); else setView("publicHome"); }} />;
-  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={(r) => { if (r === "user" && authedUser) setView("userDashboard"); else setView("publicHome"); }} />;
-  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} />;
+  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
+  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />; 
+  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
