@@ -28,3 +28,65 @@ Spent hours debugging "Top-rated scholars" stuck on skeletons. Root cause was ti
 - [ ] Add a proper test suite — even one smoke test per page would have caught the original bug in 5 seconds
 
 When find-and-replacing a function signature, watch for code piggybacking on the same line. Long single-line signatures sometimes have other declarations crammed after the opening {. The error surfaces as a ReferenceError in the browser, not a build error, because the JSX parses fine — the variable just doesn't exist at runtime.
+
+When state needs to be in two shapes (Set of IDs + array of objects), update both atomically inside the same toggle function. Don't rely on a useEffect to re-fetch from the DB — that creates timing bugs where the UI shows stale data until the next render cycle.
+State shape duality. When the same data needs to exist in two shapes — a Set for fast membership checks and an array of full objects for rendering — keep both updated atomically inside the toggle function. Don't rely on useEffect to refetch on dependency change; it creates a timing window where the UI is stale.
+
+## Session: Verified Mosques + Shared Header Pattern (May 2026)
+
+### Architectural patterns established
+
+**Shared sign-in handler pattern**
+- Define `handleSignIn` ONCE in App component, just above the view router
+- Pass as reference (`onSignIn={handleSignIn}`) to every page — never inline `onSignIn={(r) => {...}}`
+- Located in App.jsx around line 8064
+- Logic: prayer → prayerHub, user → userDashboard or userAuth, others → setRole + login
+
+**Shared PublicHeader pattern**
+- `<PublicHeader>` component takes authedUser, authedProfile, onLogoClick, onSignIn
+- Has internal drawerOpen state + AudienceDrawer
+- Used on every public page (home, mosques, scholar detail, etc.) — single source of truth for top nav
+- AudienceDrawer extracted as separate component, also reused
+
+**Browser back behaviour**
+- Never hardcode `onBack={() => setView("publicHome")}` — fights the browser's actual history stack
+- Use `onBack={() => window.history.back()}` so in-app back matches browser back
+
+**Tab persistence across navigation**
+- Local component state dies on unmount/remount
+- For tabs that should survive navigation (e.g. dashboard tab when going to detail and back), wrap useState with sessionStorage read/write
+
+### Gotchas
+
+**Literal `\n` in find/replace**
+- VS Code find/replace does NOT expand `\n` to newlines unless regex mode is on
+- When pasting multi-line replacements via tooling, watch for literal `\n` strings appearing in code
+- Manual line breaks usually safer than hoping escape sequences expand
+
+**Find/replace on long single-line JSX signatures**
+- Components like `<PublicHome ... />` may have all props on one line
+- A replace that targets a prop in the middle can accidentally swallow neighbouring props
+- Always view the full line first, replace with full context
+
+**State shape duality**
+- When same data needs both Set (savedScholarIds) and array (savedScholars) shapes
+- Update BOTH atomically inside the toggle function
+- Don't rely on a useEffect to refetch — causes flicker and race conditions
+
+### Verified Mosques: 7-session plan
+- Session A (in progress): Public listing + detail pages, mock data, geo-sort
+- Session B: Save/heart mosques, My Mosques tab in user dashboard
+- Session C: Mosque dashboard editing (profile, prayer times, facilities)
+- Session D: Events & programs (mosque editor + What's happening section)
+- Session E: Home page "What's happening near you" feed
+- Session F: Donate-to-mosque (Stripe + Gift Aid)
+- Session G: Supabase migration + Aladhan API for Adhan times
+
+All 7 must ship before public launch.
+
+### Data model decisions
+- Path B+: organisation account → many-to-many → mosque locations
+- Future tables: `mosques`, `mosque_admins`, `mosque_events`
+- `saves` table is polymorphic via `item_type` — already supports adding 'mosque' alongside 'scholar' and 'campaign'
+- Iqama times: mosque-self-reported via mosque dashboard
+- Adhan times: Aladhan API (Session G)
