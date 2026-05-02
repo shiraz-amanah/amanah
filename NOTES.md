@@ -102,7 +102,7 @@ State shape duality. When the same data needs to exist in two shapes — a Set f
 - Adhan times: Aladhan API (deferred to Session G)
 - Stripe deferred but architected via `processDonation()` function — mock now, real later
 
-### Session A code shipped (not yet pushed at time of writing)
+### Session A code shipped ✅ (committed 2 May 2026)
 
 - `MOCK_MOSQUES` array — 8 UK mosques with real coordinates (Birmingham Central, East London, Manchester Central, Leeds Grand, Bradford Grand, Glasgow Central, Cardiff Madina, Leicester Central)
 - `haversineDistance(lat1, lng1, lat2, lng2)` helper
@@ -112,6 +112,19 @@ State shape duality. When the same data needs to exist in two shapes — a Set f
 - "Verified mosques near you" section on PublicHome between Categories and Recent booking review
 - Shared `handleSignIn` function (this session's main extraction work)
 - `<PublicHeader>` and `<AudienceDrawer>` extracted as shared components
+
+### Parked items (address before launch but not blocking Session B)
+
+- **Sign-in flow always returns to userDashboard** instead of the page the user was browsing. Need a `returnView` state captured before redirecting to auth, then restored after `onComplete`. Affects all six public pages with the shared header.
+- **"View all" button under "What do you need?"** on PublicHome (around the categories section) has no `onClick` handler. There's no "all categories" page currently — needs a destination decision (scroll-to-scholars? new page? remove button?).
+
+### Session A lessons learned (May 2026)
+
+- **Missing `/>` on long single-line JSX swallows the next line.** When replacing a route line like `<MosquesListing ... onSignIn={handleSignIn} />` with a fresh signature, dropping the closing `/>` makes Babel parse into the next route and report the error on the wrong line. The error pointed at line 8139 but the bug was on 8138. Fix: always re-view the line after a swap and confirm it ends with `/>;`.
+
+- **Three-change pattern for shared header drops.** Each public page needs (1) header JSX swap to `<PublicHeader />`, (2) component signature updated to accept `authedUser`, `authedProfile`, `onSignIn`, (3) router line updated to pass those three props plus `handleSignIn`. Skipping any one of them produces silent failures — usually "the header looks unchanged on this one page but works elsewhere."
+
+- **Handler signatures with wrong defaults are bugs, not features.** `CategoryListing` and `AllCampaigns` had `onClick={() => onSignIn("mosque")}` hardcoded — a button labelled "Sign in" that always sent users into the mosque auth flow regardless of who they were. Replacing with `handleSignIn` (which opens the audience picker drawer) is a UX fix, not just a refactor.
 
 ### How to start the next chat
 
