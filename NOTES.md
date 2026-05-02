@@ -115,8 +115,11 @@ State shape duality. When the same data needs to exist in two shapes — a Set f
 
 ### Parked items (address before launch but not blocking Session B)
 
-- **Sign-in flow always returns to userDashboard** instead of the page the user was browsing. Need a `returnView` state captured before redirecting to auth, then restored after `onComplete`. Affects all six public pages with the shared header.
 - **"View all" button under "What do you need?"** on PublicHome (around the categories section) has no `onClick` handler. There's no "all categories" page currently — needs a destination decision (scroll-to-scholars? new page? remove button?).
+
+### Resolved items
+
+- ~~**Sign-in flow always returns to userDashboard**~~ — Fixed 2 May 2026 (commit `1ffcd48`). Added `returnView` state, captured before unauthed user redirect to `userAuth`, restored on `onComplete`. Logged-in avatar click still goes to `userDashboard` unchanged.
 
 ### Session A lessons learned (May 2026)
 
