@@ -32,61 +32,94 @@ When find-and-replacing a function signature, watch for code piggybacking on the
 When state needs to be in two shapes (Set of IDs + array of objects), update both atomically inside the same toggle function. Don't rely on a useEffect to re-fetch from the DB — that creates timing bugs where the UI shows stale data until the next render cycle.
 State shape duality. When the same data needs to exist in two shapes — a Set for fast membership checks and an array of full objects for rendering — keep both updated atomically inside the toggle function. Don't rely on useEffect to refetch on dependency change; it creates a timing window where the UI is stale.
 
-## Session: Verified Mosques + Shared Header Pattern (May 2026)
+## Session: Verified Mosques + Shared Header/Handler Patterns (May 2026)
 
 ### Architectural patterns established
 
 **Shared sign-in handler pattern**
-- Define `handleSignIn` ONCE in App component, just above the view router
+- Define `handleSignIn` ONCE in App component, just above the view router (around line 8064 in App.jsx)
 - Pass as reference (`onSignIn={handleSignIn}`) to every page — never inline `onSignIn={(r) => {...}}`
-- Located in App.jsx around line 8064
-- Logic: prayer → prayerHub, user → userDashboard or userAuth, others → setRole + login
+- Logic: prayer → prayerHub, user → userDashboard if authed else userAuth, others → setRole + login
+- Same pattern should apply to any future shared handler (e.g. handleLogoClick, handleSave)
 
-**Shared PublicHeader pattern**
-- `<PublicHeader>` component takes authedUser, authedProfile, onLogoClick, onSignIn
-- Has internal drawerOpen state + AudienceDrawer
-- Used on every public page (home, mosques, scholar detail, etc.) — single source of truth for top nav
-- AudienceDrawer extracted as separate component, also reused
+**Shared PublicHeader component**
+- `<PublicHeader>` takes authedUser, authedProfile, onLogoClick, onSignIn
+- Has internal drawerOpen state + AudienceDrawer rendered as Fragment sibling
+- Used on every public page (home, mosques listing, mosque detail, scholar detail, etc.) — single source of truth for top nav
+- AudienceDrawer extracted as separate component above PublicHeader, also reused independently
 
 **Browser back behaviour**
 - Never hardcode `onBack={() => setView("publicHome")}` — fights the browser's actual history stack
-- Use `onBack={() => window.history.back()}` so in-app back matches browser back
+- Use `onBack={() => window.history.back()}` so in-app back matches browser back button
 
 **Tab persistence across navigation**
-- Local component state dies on unmount/remount
-- For tabs that should survive navigation (e.g. dashboard tab when going to detail and back), wrap useState with sessionStorage read/write
+- Local component state dies on unmount/remount (e.g. when going to detail page and back)
+- For tabs that should survive navigation, wrap useState with sessionStorage read/write:
+```jsx
+  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("dashboardTab") || "bookings");
+  const setTab = (newTab) => { sessionStorage.setItem("dashboardTab", newTab); setTabRaw(newTab); };
+```
+
+**State shape duality**
+- When the same data needs two shapes (e.g. Set for `savedScholarIds` + array for `savedScholars`)
+- Update BOTH atomically inside the toggle function with rollback on error
+- Don't rely on a useEffect to refetch — causes flicker and race conditions
 
 ### Gotchas
 
 **Literal `\n` in find/replace**
 - VS Code find/replace does NOT expand `\n` to newlines unless regex mode is on
 - When pasting multi-line replacements via tooling, watch for literal `\n` strings appearing in code
-- Manual line breaks usually safer than hoping escape sequences expand
+- Manual line breaks safer than hoping escape sequences expand
 
 **Find/replace on long single-line JSX signatures**
 - Components like `<PublicHome ... />` may have all props on one line
-- A replace that targets a prop in the middle can accidentally swallow neighbouring props
-- Always view the full line first, replace with full context
+- A replace targeting a prop in the middle can swallow neighbouring props
+- Always view full line first, replace with full surrounding context
 
-**State shape duality**
-- When same data needs both Set (savedScholarIds) and array (savedScholars) shapes
-- Update BOTH atomically inside the toggle function
-- Don't rely on a useEffect to refetch — causes flicker and race conditions
+**Removing inline handlers leaves orphaned code**
+- When replacing `onSignIn={(r) => { ...10 lines... }}` with `onSignIn={handleSignIn}`
+- The 10 lines of body must be deleted explicitly — they don't go anywhere automatically
+- After the replace, the `}}` closer becomes orphaned JSX and breaks the build
+- Always re-view the area after the swap and clean up any leftover lines
 
-### Verified Mosques: 7-session plan
-- Session A (in progress): Public listing + detail pages, mock data, geo-sort
-- Session B: Save/heart mosques, My Mosques tab in user dashboard
-- Session C: Mosque dashboard editing (profile, prayer times, facilities)
-- Session D: Events & programs (mosque editor + What's happening section)
-- Session E: Home page "What's happening near you" feed
-- Session F: Donate-to-mosque (Stripe + Gift Aid)
-- Session G: Supabase migration + Aladhan API for Adhan times
+### Verified Mosques: 7-session plan (all required before launch)
 
-All 7 must ship before public launch.
+- **Session A** (in progress): Public listing + detail pages, mock data, geo-sort, save support
+- **Session B**: Heart mosques. Extend `saves` table to item_type='mosque'. Add "My Mosques" tab to UserDashboard
+- **Session C**: Mosque dashboard editing — Profile (name/address/phone/photo/facilities/campaign link/affiliated scholars), Prayer times (Iqama editor), location switcher for multi-location orgs
+- **Session D**: Events/programs — mosque dashboard CRUD + "What's happening" section on mosque detail
+- **Session E**: Home page "What's happening near you" aggregated events feed
+- **Session F**: Donate-to-mosque flow — `processDonation()` abstraction (mock now, Stripe later) + Gift Aid checkbox + anonymous toggle
+- **Session G**: Supabase migration (`mosques`, `mosque_admins`, `mosque_events` tables) + Aladhan API for Adhan times
 
 ### Data model decisions
-- Path B+: organisation account → many-to-many → mosque locations
+
+- **Path B+**: organisation account → many-to-many → mosque locations
 - Future tables: `mosques`, `mosque_admins`, `mosque_events`
-- `saves` table is polymorphic via `item_type` — already supports adding 'mosque' alongside 'scholar' and 'campaign'
+- `saves` table is polymorphic via `item_type` — already supports 'scholar' / 'campaign' / future 'mosque'
 - Iqama times: mosque-self-reported via mosque dashboard
-- Adhan times: Aladhan API (Session G)
+- Adhan times: Aladhan API (deferred to Session G)
+- Stripe deferred but architected via `processDonation()` function — mock now, real later
+
+### Session A code shipped (not yet pushed at time of writing)
+
+- `MOCK_MOSQUES` array — 8 UK mosques with real coordinates (Birmingham Central, East London, Manchester Central, Leeds Grand, Bradford Grand, Glasgow Central, Cardiff Madina, Leicester Central)
+- `haversineDistance(lat1, lng1, lat2, lng2)` helper
+- `useGeolocation()` custom hook — manual-trigger, returns `{coords, status, requestLocation}`
+- `<MosqueCard>`, `<MosquesListing>`, `<MosqueDetail>` components
+- App routing for `view === "mosquesListing"` and `view === "mosqueDetail"`
+- "Verified mosques near you" section on PublicHome between Categories and Recent booking review
+- Shared `handleSignIn` function (this session's main extraction work)
+- `<PublicHeader>` and `<AudienceDrawer>` extracted as shared components
+
+### How to start the next chat
+
+Paste this as your first message:
+
+> Continuing Amanah project. Please:
+> 1. Read NOTES.md in my repo
+> 2. Read the latest transcript in /mnt/transcripts/
+> 3. Confirm you're caught up
+>
+> Last action: extracted shared handleSignIn function, working through Session A of verified mosques plan. Next: drop PublicHeader into ScholarDetail, CategoryListing, and Campaign detail pages — all using onSignIn={handleSignIn}.
