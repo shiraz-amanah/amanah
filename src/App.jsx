@@ -524,7 +524,7 @@ const CampaignCard = ({ campaign, onClick }) => {
 };
 
 // ==================== PUBLIC HOME ====================
-const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, authedUser, authedProfile, onMosquesListing, onMosqueDetail }) => {  const [activeTab, setActiveTab] = useState("all");
+const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, savedMosqueIds, toggleMosqueSave, authedUser, authedProfile, onMosquesListing, onMosqueDetail }) => {  const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -769,6 +769,8 @@ useEffect(() => {
         key={m.id}
         mosque={m}
         onClick={() => onMosqueDetail && onMosqueDetail(m)}
+        isSaved={savedMosqueIds?.has?.(String(m.id))}
+        onToggleSave={toggleMosqueSave}
       />
     ))}
   </div>
@@ -8067,6 +8069,8 @@ const handleSignIn = (r) => {
     authedUser={authedUser} authedProfile={authedProfile}
     onMosquesListing={() => setView("mosquesListing")}
     onMosqueDetail={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
+    savedMosqueIds={savedMosqueIds}
+    toggleMosqueSave={toggleMosqueSave}
     />;  
 if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
@@ -8119,8 +8123,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
-  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
-  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />; 
+  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
+  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />; 
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
