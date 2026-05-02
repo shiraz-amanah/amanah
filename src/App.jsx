@@ -6186,7 +6186,7 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave }) => {  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("dashboardTab") || "bookings");
+  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, toggleMosqueSave, onMosque }) => {  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("dashboardTab") || "bookings");
   const setTab = (newTab) => { sessionStorage.setItem("dashboardTab", newTab); setTabRaw(newTab); };
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", city: "", phone: "" });
@@ -6364,7 +6364,8 @@ setBookings(transformed);
           {[
             { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
             { v: "donations", l: "My giving", i: HandCoins, badge: null },
-            { v: "saved", l: "Saved", i: Heart, badge: savedScholars.length + savedCampaigns.length },
+            { v: "saved", l: "My scholars", i: Heart, badge: savedScholars.length },
+            { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosqueIds?.size || 0 },
             { v: "messages", l: "Messages", i: MessageCircle, badge: isDemo ? 2 : 0 },
             { v: "account", l: "Account", i: Settings, badge: null }
           ].map(t => {
@@ -6553,6 +6554,35 @@ setBookings(transformed);
               <p className="text-xs text-sky-900 leading-relaxed">Your 2025/26 giving summary is available for tax purposes. Total charitable contributions with Gift Aid: <strong>£{(totalGiven + totalGiftAid).toFixed(2)}</strong></p>
             </div>
 
+            {savedCampaigns.length > 0 && (
+              <>
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Causes I'm watching ({savedCampaigns.length})</h3>
+                <div className="grid md:grid-cols-2 gap-3 mb-8">
+                  {savedCampaigns.map(id => {
+                    const c = MOCK_CAMPAIGNS.find(x => x.id === id);
+                    if (!c) return null;
+                    const pct = Math.min((c.raised / c.goal) * 100, 100);
+                    return (
+                      <button key={id} onClick={() => onViewCampaign(c)} className="bg-white border border-stone-200 rounded-2xl overflow-hidden text-left hover:border-emerald-300 transition-colors">
+                        <div className={`h-20 bg-gradient-to-br ${c.gradient}`}></div>
+                        <div className="p-4">
+                          <h4 className="text-sm font-semibold text-stone-900 line-clamp-1 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.title}</h4>
+                          <p className="text-xs text-stone-500 mb-2">{c.creator}</p>
+                          <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden mb-1.5">
+                            <div className={`h-full bg-gradient-to-r ${c.gradient}`} style={{ width: `${pct}%` }}></div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-stone-900">£{c.raised.toLocaleString()}</span>
+                            <span className="text-stone-500">{Math.round(pct)}%</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">All donations</h3>
             <div className="space-y-3">
               {donations.map(d => (
@@ -6588,26 +6618,24 @@ setBookings(transformed);
         {tab === "saved" && (
           <div>
             <div className="mb-6">
-              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Saved</h2>
-              <p className="text-stone-600 text-sm md:text-base">Scholars and campaigns you've hearted.</p>
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My scholars</h2>
+              <p className="text-stone-600 text-sm md:text-base">Scholars you've hearted.</p>
             </div>
 
-            {savedScholars.length === 0 && savedCampaigns.length === 0 ? (
+            {savedScholars.length === 0 ? (
               <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
                 <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rose-50 mb-4">
                   <Heart className="text-rose-600" size={24} />
                 </div>
-                <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Nothing saved yet</h3>
-                <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Tap the heart icon on scholars or campaigns to save them here for later.</p>
+                <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No scholars saved yet</h3>
+                <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Tap the heart on a scholar to save them here for later.</p>
                 <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
-                  <Search size={14} /> Start browsing
+                  <Search size={14} /> Browse scholars
                 </button>
               </div>
             ) : (
               <>
-            {/* Saved scholars */}
-            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Scholars ({savedScholars.length})</h3>
-            <div className="grid md:grid-cols-2 gap-3 mb-8">
+            <div className="grid md:grid-cols-2 gap-3">
 {savedScholars.map(s => {
       if (!s) return null;
       return (
@@ -6621,33 +6649,41 @@ setBookings(transformed);
       );
     })}            
     </div>
-
-            {/* Saved campaigns */}
-            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Campaigns ({savedCampaigns.length})</h3>
-            <div className="grid md:grid-cols-2 gap-3">
-              {savedCampaigns.map(id => {
-                const c = MOCK_CAMPAIGNS.find(x => x.id === id);
-                if (!c) return null;
-                const pct = Math.min((c.raised / c.goal) * 100, 100);
-                return (
-                  <button key={id} onClick={() => onViewCampaign(c)} className="bg-white border border-stone-200 rounded-2xl overflow-hidden text-left hover:border-emerald-300 transition-colors">
-                    <div className={`h-20 bg-gradient-to-br ${c.gradient}`}></div>
-                    <div className="p-4">
-                      <h4 className="text-sm font-semibold text-stone-900 line-clamp-1 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.title}</h4>
-                      <p className="text-xs text-stone-500 mb-2">{c.creator}</p>
-                      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden mb-1.5">
-                        <div className={`h-full bg-gradient-to-r ${c.gradient}`} style={{ width: `${pct}%` }}></div>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-stone-900">£{c.raised.toLocaleString()}</span>
-                        <span className="text-stone-500">{Math.round(pct)}%</span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
               </>
+            )}
+          </div>
+        )}
+
+        {tab === "mosques" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My Mosques</h2>
+              <p className="text-stone-600 text-sm md:text-base">Mosques you've hearted.</p>
+            </div>
+
+            {(!savedMosqueIds || savedMosqueIds.size === 0) ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 mb-4">
+                  <Building2 className="text-emerald-700" size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No mosques saved yet</h3>
+                <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Browse verified mosques across the UK and tap the heart on any you'd like to keep track of.</p>
+                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                  <Search size={14} /> Browse mosques
+                </button>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {MOCK_MOSQUES.filter(m => savedMosqueIds.has(String(m.id))).map(m => (
+                  <MosqueCard
+                    key={m.id}
+                    mosque={m}
+                    onClick={() => onMosque && onMosque(m)}
+                    isSaved={true}
+                    onToggleSave={toggleMosqueSave}
+                  />
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -8103,6 +8139,9 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     savedScholars={savedScholars}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
     toggleScholarSave={toggleScholarSave}
+    savedMosqueIds={savedMosqueIds}
+    toggleMosqueSave={toggleMosqueSave}
+    onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
   />;
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
