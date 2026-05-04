@@ -3227,7 +3227,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
           </div>
 
           <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
-            {MOCK_CONVERSATIONS.slice(0, 3).map((conv, i) => (
+            {(conversations || []).slice(0, 3).map((conv, i) => (
               <button
                 key={conv.id}
                 onClick={onOpenMessages}
@@ -4541,62 +4541,6 @@ function relativeTime(iso) {
   if (d < 7) return `${d}d ago`;
   return then.toLocaleDateString();
 }
-const MOCK_CONVERSATIONS = [
-  {
-    id: "conv-1",
-    counterparty: { name: "Aisha Khan", initials: "AK", avatarGradient: "from-rose-400 to-rose-700", role: "Parent", verified: true },
-    context: { type: "booking", label: "Standard Qur'an package · Yusuf (son, age 9)" },
-    lastMessage: "Jazakallahu khayran, we'll see you Thursday insha'Allah",
-    lastTime: "2m ago",
-    unread: 0,
-    pinned: true,
-    online: true,
-    messages: [
-      { id: 1, from: "them", text: "Assalamu alaikum Ustadh, I saw your profile — my 9-year-old needs help with his tajweed. Is he too young?", time: "Yesterday, 14:20" },
-      { id: 2, from: "me", text: "Wa alaikum assalam sister. Not at all — 9 is a great age to start properly. Is he reading already or completely new?", time: "Yesterday, 14:35" },
-      { id: 3, from: "them", text: "He can read slowly but his makharij needs a lot of work. Can we do Thursdays after school, around 5pm?", time: "Yesterday, 14:40" },
-      { id: 4, from: "me", text: "Thursdays 5pm works perfectly. I'd recommend the Standard package (4× 30min sessions) to start. Shall I send it over for booking?", time: "Yesterday, 14:45", suggestion: { type: "package", name: "Standard", price: 90, duration: "4 × 30 min" } },
-      { id: 5, from: "them", text: "Yes please, that sounds great", time: "Yesterday, 15:02" },
-      { id: 6, from: "me", text: "Perfect. I've sent the booking link — once confirmed I'll add him to my Thursday roster.", time: "Yesterday, 15:05" },
-      { id: 7, from: "them", text: "Just booked. Jazakallahu khayran, we'll see you Thursday insha'Allah", time: "2m ago" }
-    ]
-  },
-  {
-    id: "conv-2",
-    counterparty: { name: "Masjid An-Noor", initials: "MN", avatarGradient: "from-emerald-400 to-emerald-700", role: "Mosque · Bradford", verified: true },
-    context: { type: "hire", label: "Possible Ramadan taraweeh position" },
-    lastMessage: "We'd like to invite you to come visit the masjid before committing",
-    lastTime: "3h ago",
-    unread: 2,
-    pinned: false,
-    online: false,
-    messages: [
-      { id: 1, from: "them", text: "Assalamu alaikum Ustadh Yusuf. We're looking for an imam to lead our taraweeh this Ramadan. Your profile is highly recommended.", time: "3 days ago", senderName: "Br. Imran (Secretary)" },
-      { id: 2, from: "me", text: "Wa alaikum assalam. Thank you for reaching out. I'd be honoured — which days/how many rakat are you looking for?", time: "3 days ago" },
-      { id: 3, from: "them", text: "20 rakat each night, full 30 nights. We'd cover your travel from Birmingham and provide iftar/suhoor.", time: "2 days ago", senderName: "Br. Imran (Secretary)" },
-      { id: 4, from: "me", text: "That sounds workable. Can I ask what your congregation size is typically? I want to make sure my pace suits.", time: "2 days ago" },
-      { id: 5, from: "them", text: "Around 400 each night, mixed ages. Our regulars are used to a steady pace with clear recitation.", time: "3h ago", senderName: "Br. Imran (Secretary)" },
-      { id: 6, from: "them", text: "We'd like to invite you to come visit the masjid before committing", time: "3h ago", senderName: "Br. Imran (Secretary)" }
-    ]
-  },
-  {
-    id: "conv-3",
-    counterparty: { name: "Fatima Begum", initials: "FB", avatarGradient: "from-amber-400 to-amber-700", role: "Parent", verified: false },
-    context: { type: "inquiry", label: "Tajweed for daughter" },
-    lastMessage: "Actually let me share my number quickly — 07700900...",
-    lastTime: "1 day ago",
-    unread: 0,
-    pinned: false,
-    online: false,
-    flagged: true,
-    messages: [
-      { id: 1, from: "them", text: "Salam, interested in lessons for my 11-year-old daughter", time: "2 days ago" },
-      { id: 2, from: "me", text: "Wa alaikum assalam. Happy to help — what's her current level with Qur'an?", time: "2 days ago" },
-      { id: 3, from: "them", text: "She reads but not great. Can you do weekends?", time: "1 day ago" },
-      { id: 4, from: "them", text: "Actually let me share my number quickly — ██████████ so we can arrange directly", time: "1 day ago", blurred: true }
-    ]
-  }
-];
 
 // Inbox list view
 const MessagesInbox = ({ conversations, onConversation, onBack, currentUser = "Ustadh Yusuf" }) => {
@@ -8548,8 +8492,9 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   />;
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
+  const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
+
   if (view === "messagesInbox") {
-    const inboxData = !authedProfile ? MOCK_CONVERSATIONS : conversations.map(adaptConversation).filter(Boolean);
     return <MessagesInbox conversations={inboxData} loading={conversationsLoading && !!authedProfile} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")} />;
   }
   if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} currentUserId={authedUser?.id} />;
@@ -8570,7 +8515,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
   if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />; 
-  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { setSelectedConversation(MOCK_CONVERSATIONS[0]); setView("conversationView"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { 
+    /* TODO(scholars-real): getOrCreateDirectConversation(scholar.userId, ...) once scholars are linked to auth users */ setView("messagesInbox"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
