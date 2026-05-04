@@ -193,26 +193,106 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 - **Pre-scaffolding component signatures pays off.** `<MosqueCard>`, `<MosquesListing>`, and `<MosqueDetail>` were built in Session A already accepting `isSaved` and `onToggleSave` props (with no-op defaults). Session B's wiring work was therefore router-line-only at three sites — no need to also touch component internals. Worth doing prospectively when scaffolding any reusable card/list/detail trio.
 
 ---
+## Session C — Parent dashboard polish ✅
 
-## Session C — Parent dashboard polish (planned)
+**Goal:** fix the five bugs identified in the pre-session audit before
+moving on to mosque admin features. Demoability matters more than feature
+breadth at this stage.
 
-Pre-session audit (May 2026) found these bugs blocking launch readiness for the parent/user experience. All five are scoped tight so this should ship in one focused session (~90 min).
+**Bugs fixed:**
 
-### Bugs to fix
+1. **Donate flow header** — DonateFlow had a plain inline header instead
+   of `<PublicHeader>`. Avatar/sign-in were missing, logo not clickable.
+   Classic Session A three-change pattern miss.
+2. **Edit existing students** — Account tab had Add and X (remove) but
+   no Edit. Users couldn't update a student's name/age/notes once added.
+3. **Cancel booking** — button was a no-op. No `onClick` handler at all.
+4. **Reschedule booking** — same as cancel. Button rendered, did nothing.
+5. **Donations don't persist to dashboard** — completed donations weren't
+   showing in My Giving tab.
 
-1. **Donate flow header** — donate steps 1, 2, 3 are missing `<PublicHeader>`. No user avatar visible when logged in; Amanah logo not clickable. Same three-change pattern as Session A header swaps. See "Three-change pattern for shared header drops" under Session A lessons.
+**Diagnosis surprise:** Bug 5 was a *read* bug, not a *write* bug. The
+`createDonation` helper, the donations table, and the writes were all
+working — there were two real rows in Supabase from previous test
+donations. The bug was in UserDashboard:
 
-2. **Edit existing students** — "My students" section in Account tab has Add and Remove (X) but no Edit. Need a form modal that updates the existing student row instead of only supporting add/remove.
+```js
+const donations = isDemo ? MOCK_USER_DONATIONS : [];
+```
 
-3. **Cancel booking** — Cancel button under each upcoming booking does nothing. Needs confirmation dialog → soft-delete or status-change in DB → refresh list.
+For real users, donations were hardcoded to empty array regardless of DB
+state. Replaced with a useEffect that calls `getDonations()` (which was
+already imported and working).
 
-4. **Reschedule booking** — Reschedule button does nothing. Needs to re-use the slot-picker UI from the initial booking flow → update the row → refresh.
+**What shipped:**
 
-5. **Donations don't persist to dashboard** — completing a donation flow doesn't add a row to "All donations" in the My giving tab. Likely cause: completion handler doesn't insert into Supabase (or `donations` table doesn't exist yet). Need to:
-   - Create `donations` table if missing (columns: id, user_id, campaign_id, amount, gift_aid bool, anonymous bool, display_name, message, created_at)
-   - Write on step-3 completion
-   - UserDashboard reads from this table for the My giving tab
-   - While we're here: pre-fill "Show my name" and "Email (for receipt)" on step 2 when user is logged in (currently asks logged-in users to retype their own details — friction in the donation flow)
+- `c5a73f6` `fix(parent dashboard): donate flow header + donations persist`
+  - DonateFlow signature gains `authedUser`, `authedProfile`, `onSignIn`
+  - Inline header div replaced with `<PublicHeader>`
+  - Router line passes the three props through (Session A three-change)
+  - UserDashboard My Giving tab fetches real donations via `getDonations()`
+  - Snake_case → camelCase transform: `gift_aid` → `giftAid`,
+    `receipt_id` → `receiptId`, `display_name` → `displayName`,
+    `created_at` → `date`
+  - Loading skeleton matches the bookings tab pattern
+- `e948d82` `feat(parent dashboard): add edit affordance to my students`
+  - New `editingStudentId` state next to existing `addingStudent`
+  - `startEditingStudent` handler pre-fills form from row values
+  - `handleUpdateStudent` calls existing `updateStudent` helper
+  - Pencil/document icon (FileText) added next to existing X
+  - Add and Edit are mutually exclusive (opening one closes the other)
+- `[hash]` `feat(parent dashboard): wire cancel + reschedule booking actions`
+  - 5 new state hooks: `cancellingBookingId`, `reschedulingBookingId`,
+    `rescheduleDate`, `rescheduleTime`, `bookingActionLoading`
+  - `handleCancelBooking` calls existing `cancelBooking(bookingId)`
+    helper, sets status='cancelled', optimistic update of local list
+  - `handleReschedule` builds new ISO timestamp from picked date+time,
+    calls `updateBooking(id, { scheduled_at: newISO })`
+  - Cancel renders a rose-bordered confirmation card inline
+    (replaces buttons, doesn't modal)
+  - Reschedule renders an emerald-bordered card with the existing
+    `DateTimePicker` (reuses `DEFAULT_AVAILABILITY` and `DEFAULT_BOOKINGS`
+    constants — same illustrative-only constraint as the booking flow)
+  - "Confirm new time" disabled when picked slot matches current
+
+**Decisions:**
+
+- **Inline expand over modal** for both cancel confirm and reschedule
+  picker. Matches the Add Student inline form pattern, ships faster,
+  fits the visual language. Modals would be overkill for a single
+  decision.
+- **Reused `DEFAULT_AVAILABILITY` for reschedule.** A real
+  per-scholar availability fetch is deferred — would need a new
+  `getScholarAvailability(scholarId)` helper and probably a new
+  `availability` JSONB column on the scholars table. Original booking
+  flow has the same constraint; reschedule wouldn't be any worse.
+- **Bookings show `forStudent.name` already.** The render line was
+  already wired (`{b.forStudent && ` · for ${b.forStudent.name}`}`).
+  Just needs an existing booking with `student_id` non-null to
+  demonstrate. Not a bug.
+
+**Lessons:**
+
+- **Don't assume a bug is a write bug.** Diagnosis often saves you the
+  most when you check the data layer first. Bug 5 was estimated at
+  60+ minutes; turned out to be 30 because the writes were already
+  working — only the read needed fixing.
+- **Look at the imports first.** Both `cancelBooking` and `updateBooking`
+  were already in the App.jsx import line, despite the buttons being
+  no-ops. Saved a round trip to auth.js. Same with `updateStudent` for
+  Bug 1.
+- **The three-change pattern keeps biting until every public page has
+  PublicHeader.** Worth a future grep to find any other component that
+  renders a `<header>` directly with the inline logo div — those are
+  Session A debt.
+
+**TBD (deferred to next session if needed):**
+
+- "Causes I'm watching" click-through to campaign — verify works
+- Account → Notification toggle persistence on refresh — verify works
+- Logout — verify works
+- The `forStudent.name` display in bookings — works in theory; verify
+  next time a fresh booking is made with a student selected
 
 ### Out of scope for Session C
 
