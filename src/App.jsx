@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 
 const CATEGORIES = [
@@ -3249,7 +3249,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
                       {conv.unread > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{conv.unread}</span>}
                     </div>
                   </div>
-                  <p className="text-xs text-stone-500 mb-1">{conv.context.label}</p>
+                  <p className="text-xs text-stone-500 mb-1">{conv.context?.label}</p>
                   <p className={`text-sm truncate ${conv.unread > 0 ? "text-stone-900 font-medium" : "text-stone-600"}`}>{conv.lastMessage}</p>
                 </div>
               </button>
@@ -4496,6 +4496,51 @@ const ReviewSubmitted = ({ review, onHome }) => (
 // ==================== MESSAGING SYSTEM ====================
 
 // Mock conversations — each has a counterparty, messages, context
+// Adapt a Supabase conversation row to the MOCK_CONVERSATIONS shape so
+// MessagesInbox / ConversationView don't need to be rewritten.
+function adaptConversation(conv) {
+  if (!conv) return null;
+  const other = conv.otherParticipants?.[0]?.profile || null;
+  const otherRole = conv.otherParticipants?.[0]?.role || "";
+  const roleLabel =
+    otherRole === "scholar" ? "Scholar" :
+    otherRole === "parent" ? "Parent" :
+    otherRole === "mosque_admin" ? "Mosque" :
+    otherRole === "student" ? "Student" :
+    "";
+  return {
+    id: conv.id,
+    counterparty: {
+      name: other?.name || "Unknown",
+      initials: other?.avatarInitials || (other?.name ? other.name.slice(0, 2).toUpperCase() : "??"),
+      avatarGradient: other?.avatarGradient || "from-stone-400 to-stone-600",
+      role: roleLabel,
+      verified: false,
+    },
+    context: null,
+    lastMessage: conv.lastMessagePreview || "",
+    lastTime: relativeTime(conv.lastMessageAt),
+    unread: conv.hasUnread ? 1 : 0,
+    pinned: false,
+    online: false,
+    messages: [],
+  };
+}
+
+function relativeTime(iso) {
+  if (!iso) return "";
+  const then = new Date(iso);
+  const diffMs = Date.now() - then.getTime();
+  const m = Math.floor(diffMs / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "Yesterday";
+  if (d < 7) return `${d}d ago`;
+  return then.toLocaleDateString();
+}
 const MOCK_CONVERSATIONS = [
   {
     id: "conv-1",
@@ -4629,7 +4674,7 @@ const MessagesInbox = ({ conversations, onConversation, onBack, currentUser = "U
                     {conv.unread > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{conv.unread}</span>}
                   </div>
                 </div>
-                <p className="text-xs text-stone-500 mb-1">{conv.counterparty.role} · {conv.context.label}</p>
+                <p className="text-xs text-stone-500 mb-1">{conv.counterparty.role}{conv.context?.label ? ` · ${conv.context.label}` : ""}</p>
                 <p className={`text-sm truncate ${conv.unread > 0 ? "text-stone-900 font-medium" : "text-stone-600"}`}>{conv.lastMessage}</p>
               </div>
             </button>
@@ -8204,6 +8249,20 @@ export default function App() {
   const [userAuthMode, setUserAuthMode] = useState("login");
   const [authedUser, setAuthedUser] = useState(null);
   const [authedProfile, setAuthedProfile] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authedProfile || !authedUser) {
+      setConversations([]);
+      return;
+    }
+    setConversationsLoading(true);
+    getConversations()
+      .then(setConversations)
+      .catch(err => console.error("Error fetching conversations:", err))
+      .finally(() => setConversationsLoading(false));
+  }, [authedProfile, authedUser?.id]);
   const [authLoading, setAuthLoading] = useState(true);
   const [returnView, setReturnView] = useState("publicHome");
 
@@ -8383,7 +8442,10 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   />;
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
-  if (view === "messagesInbox") return <MessagesInbox conversations={MOCK_CONVERSATIONS} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")} />;
+  if (view === "messagesInbox") {
+    const inboxData = !authedProfile ? MOCK_CONVERSATIONS : conversations.map(adaptConversation).filter(Boolean);
+    return <MessagesInbox conversations={inboxData} loading={conversationsLoading && !!authedProfile} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")} />;
+  }
   if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
