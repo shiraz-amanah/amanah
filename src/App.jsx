@@ -3500,7 +3500,7 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
 };
 
 // ==================== DONATE FLOW ====================
-const DonateFlow = ({ campaign, onBack, onDone }) => {
+const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSignIn }) => {
   console.log('🟢 DonateFlow build version: 2026-04-29-A');
   const [step, setStep] = useState(1);
   const [amount, setAmount] = useState(50);
@@ -3569,12 +3569,7 @@ const DonateFlow = ({ campaign, onBack, onDone }) => {
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-          <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-        </div>
-      </header>
+      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
       <main className="max-w-3xl mx-auto px-6 py-8">
         <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back to campaign</button>
 
@@ -6336,7 +6331,41 @@ setBookings(transformed);
 
   const upcomingBookings = bookings.filter(b => b.status === "upcoming");
   const pastBookings = bookings.filter(b => b.status === "completed");
-  const donations = isDemo ? MOCK_USER_DONATIONS : [];
+
+  // Donations - real from Supabase for logged-in users, mock for demo
+  const [donations, setDonations] = useState([]);
+  const [donationsLoading, setDonationsLoading] = useState(!isDemo);
+
+  useEffect(() => {
+    if (isDemo) {
+      setDonations(MOCK_USER_DONATIONS);
+      setDonationsLoading(false);
+      return;
+    }
+    getDonations()
+      .then(data => {
+        // Transform DB shape (snake_case) to UI shape (camelCase)
+        const transformed = data.map(d => ({
+          id: d.id,
+          campaign: d.campaign_title,
+          creator: d.campaign_creator,
+          amount: Number(d.amount),
+          tip: Number(d.tip),
+          giftAid: Number(d.gift_aid),
+          total: Number(d.total),
+          date: d.created_at,
+          anonymous: d.anonymous,
+          receiptId: d.receipt_id
+        }));
+        setDonations(transformed);
+      })
+      .catch(err => {
+        console.error("Failed to load donations:", err);
+      })
+      .finally(() => {
+        setDonationsLoading(false);
+      });
+  }, [isDemo]);
   const savedScholars = isDemo
     ? MOCK_SAVED_SCHOLARS.map(id => MOCK_SCHOLARS.find(x => x.id === id)).filter(Boolean)
     : realSavedScholars;  const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : Array.from(realSavedCampaignIds);  const totalGiven = donations.reduce((s, d) => s + d.amount, 0);
@@ -8159,7 +8188,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   }} />;
   if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
   if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
-  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} />;
+  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
