@@ -599,3 +599,4 @@ Spent hours debugging "Top-rated scholars" stuck on skeletons. Root cause: a `us
 - **Trim remaining debug `console.log` lines** once confident things are stable.
 - **Consider splitting `App.jsx`** (~8200 lines) into separate component files. Becoming unwieldy.
 - **Add a smoke-test suite** — even one per page would have caught the original scholars-not-loading bug in 5 seconds.
+- **Single Supabase project for dev and prod.** `.env` and Vercel both point at `zgoyvztooyxqkcftwylr.supabase.co`. Test data created during development is visible to real users in production (e.g. the "Realtime test from eesaa" / "Test Message" entries from Session D smoke testing now live in real users' inboxes). Not blocking — but: any RLS mistake, schema migration, or destructive query during dev affects production data. Strongly recommended before public launch: spin up a separate Supabase project for dev. Migration cost will only grow as more tables exist.
