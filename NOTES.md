@@ -11,21 +11,47 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session B (mosque heart saves) — three commits `885be66`, `434a6a0`, `c743c79`. Next: Session C — mosque dashboard editing (profile, prayer times, location switcher).
+> Last action: shipped Session B (mosque heart saves) — three commits `885be66`, `434a6a0`, `c743c79`. Next: Session C — parent dashboard polish. Plan was reshuffled after a pre-Session-C audit found multiple bugs in the parent/user dashboard (donations don't persist, donate flow header missing avatar/logo, can't edit students, booking actions don't work, messages don't work). Mosque admin features pushed to Sessions F–J.
 
 ---
 
-## Verified Mosques: 7-session plan
+## Roadmap
 
-Sessions A–G, all required before launch.
+Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in the parent/user dashboard. Parent dashboard completion now comes first; mosque admin features pushed back. Reasoning: bug debt is worse than feature debt — every day a real user could hit a broken donation flow or non-working booking action is worse than not having mosque admin tooling yet. Demoability also better with parent dashboard tight than with half-built mosque admin behind a login.
 
-- **Session A** ✅ — Public listing + detail pages, mock data, geo-sort, save support
-- **Session B** ✅ — Heart mosques (extend `saves` table to `item_type='mosque'`, "My Mosques" tab in UserDashboard)
-- **Session C** — Mosque dashboard editing (Profile, Prayer times Iqama editor, location switcher for multi-location orgs)
-- **Session D** — Events/programs (mosque dashboard CRUD + "What's happening" section on mosque detail)
-- **Session E** — Home page "What's happening near you" aggregated events feed
-- **Session F** — Donate-to-mosque flow (`processDonation()` abstraction with mock now / Stripe later, Gift Aid checkbox, anonymous toggle)
-- **Session G** — Supabase migration (`mosques`, `mosque_admins`, `mosque_events` tables) + Aladhan API for Adhan times
+### Shipped
+
+- **Session A** ✅ — Verified Mosques scaffolding (public listing + detail, mock data, geo-sort, save support)
+- **Session B** ✅ — Mosque heart saves (`saves` table extended to `item_type='mosque'`, "My Mosques" tab in UserDashboard)
+
+### Up next — parent dashboard completion
+
+- **Session C — Parent dashboard polish** (~90 min, quick wins)
+  - Donate flow header — `<PublicHeader>` swap on all three steps; avatar + logo working
+  - Edit existing students (currently can only add/remove)
+  - Cancel booking
+  - Reschedule booking
+  - Donations persist — new `donations` Supabase table; write on completion; read into "All donations" list
+
+- **Session D — Messages** (its own session, larger)
+  - `messages` and `conversations` Supabase tables
+  - Send/receive with Supabase realtime subscriptions
+  - Conversation threading + unread badge
+  - Account → notification toggle persistence
+
+- **Session E — Join session** (scope-dependent)
+  - Decision needed first: scholar-provided link vs built-in video vs something else
+  - Then build accordingly
+
+### Deferred — mosque admin features (originally C–G)
+
+- **Session F** — Mosque dashboard editing (Profile, Prayer times Iqama editor, location switcher for multi-location orgs)
+- **Session G** — Events/programs (mosque dashboard CRUD + "What's happening" section on mosque detail)
+- **Session H** — Home page "What's happening near you" aggregated events feed
+- **Session I** — Donate-to-mosque flow (`processDonation()` abstraction, Gift Aid checkbox, anonymous toggle)
+- **Session J** — Supabase migration for mosques (`mosques`, `mosque_admins`, `mosque_events` tables) + Aladhan API for Adhan times
+
+> **Note:** Session J (mosque DB migration) likely wants to come *before* F. Otherwise F's "Profile editor" is editing static client data that doesn't persist anywhere. Decide when we get there — same trade-off we hit at the end of Session B.
 
 ---
 
@@ -35,7 +61,7 @@ Sessions A–G, all required before launch.
 - Future tables: `mosques`, `mosque_admins`, `mosque_events`
 - `saves` table is polymorphic via `item_type` — currently allows `'scholar'`, `'campaign'`, `'mosque'`
 - Iqama times: mosque-self-reported via mosque dashboard
-- Adhan times: Aladhan API (deferred to Session G)
+- Adhan times: Aladhan API (deferred to Session J)
 - Stripe deferred but architected via `processDonation()` function — mock now, real later
 
 ---
@@ -146,9 +172,9 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 - `434a6a0` — `feat(mosques): wire heart save props through MosquesListing, MosqueDetail, PublicHome` (also includes the DB constraint migration)
 - `c743c79` — `feat(mosques): add My Mosques tab to UserDashboard, restructure Saved`
 
-### Architectural decisions (revisit at Session G)
+### Architectural decisions (revisit at mosque DB migration — Session J)
 
-- `savedMosqueIds` is a Set only — no parallel `savedMosques` array (asymmetric with `savedScholars`). Mosques are filtered on-demand via `MOCK_MOSQUES.filter(m => savedMosqueIds.has(String(m.id)))`. This works because mosques are static client data. When Session G migrates mosques to Supabase, add the array state then.
+- `savedMosqueIds` is a Set only — no parallel `savedMosques` array (asymmetric with `savedScholars`). Mosques are filtered on-demand via `MOCK_MOSQUES.filter(m => savedMosqueIds.has(String(m.id)))`. This works because mosques are static client data. When Session J migrates mosques to Supabase, add the array state then.
 - Tab value `"saved"` kept for the "My scholars" tab — the rename is label-only — to avoid resetting users' `dashboardTab` sessionStorage value.
 - Saved campaigns relocated to "My giving" (under "Causes I'm watching") rather than getting a dedicated tab. Reasoning: scholars and mosques become parallel "people/places I'm tracking" tabs; campaigns fit thematically with donations.
 
@@ -168,15 +194,41 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 
 ---
 
-## Session C — Mosque dashboard editing (planned)
+## Session C — Parent dashboard polish (planned)
 
-Mosque admins can currently sign up but their dashboard is a stub. Session C adds:
+Pre-session audit (May 2026) found these bugs blocking launch readiness for the parent/user experience. All five are scoped tight so this should ship in one focused session (~90 min).
 
-- **Profile editor** — name, address, phone, photo, facilities (parking, wudu, disability access, women's area, etc.), affiliated scholars, linked campaign
-- **Prayer times editor** — Iqama times for the five daily prayers + Jumu'ah, with day-of-week overrides
-- **Location switcher** — for multi-location organisations (one account → multiple mosque listings)
+### Bugs to fix
 
-Out of scope for Session C: events, donations to specific mosques, mosque-to-user messaging. Those are separate sessions (D, F, and TBD respectively).
+1. **Donate flow header** — donate steps 1, 2, 3 are missing `<PublicHeader>`. No user avatar visible when logged in; Amanah logo not clickable. Same three-change pattern as Session A header swaps. See "Three-change pattern for shared header drops" under Session A lessons.
+
+2. **Edit existing students** — "My students" section in Account tab has Add and Remove (X) but no Edit. Need a form modal that updates the existing student row instead of only supporting add/remove.
+
+3. **Cancel booking** — Cancel button under each upcoming booking does nothing. Needs confirmation dialog → soft-delete or status-change in DB → refresh list.
+
+4. **Reschedule booking** — Reschedule button does nothing. Needs to re-use the slot-picker UI from the initial booking flow → update the row → refresh.
+
+5. **Donations don't persist to dashboard** — completing a donation flow doesn't add a row to "All donations" in the My giving tab. Likely cause: completion handler doesn't insert into Supabase (or `donations` table doesn't exist yet). Need to:
+   - Create `donations` table if missing (columns: id, user_id, campaign_id, amount, gift_aid bool, anonymous bool, display_name, message, created_at)
+   - Write on step-3 completion
+   - UserDashboard reads from this table for the My giving tab
+   - While we're here: pre-fill "Show my name" and "Email (for receipt)" on step 2 when user is logged in (currently asks logged-in users to retype their own details — friction in the donation flow)
+
+### Out of scope for Session C
+
+- Messages (Session D — bigger, needs its own session)
+- Join session button (Session E — scope-dependent on what "join" means)
+- Anything mosque admin (Sessions F+)
+- Stripe integration (still mocked; real payments are Session I or later)
+
+### Audit also checked / TBD
+
+Status of these checks at the time of writing — re-verify before starting Session C in case anything else surfaces:
+
+- "Causes I'm watching" cards click-through to campaign — TBD
+- Account → Edit profile save round-trip — TBD
+- Account → Notification toggle persistence on refresh — TBD
+- Logout — TBD
 
 ---
 
