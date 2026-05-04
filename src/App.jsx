@@ -6196,6 +6196,13 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
   const [studentForm, setStudentForm] = useState({ name: "", age: "", relation: "Son", notes: "" });
   const [savingStudent, setSavingStudent] = useState(false);
 
+  // Booking action state — cancel and reschedule
+  const [cancellingBookingId, setCancellingBookingId] = useState(null);
+  const [reschedulingBookingId, setReschedulingBookingId] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const [bookingActionLoading, setBookingActionLoading] = useState(false);
+
   // Notifications (live-saved to Supabase)
   const [notifications, setNotifications] = useState(profile?.notifications || { email: true, sms: false, whatsapp: true });
 
@@ -6298,6 +6305,48 @@ useEffect(() => {
     setStudents(students.map(s => s.id === editingStudentId ? data : s));
     setStudentForm({ name: "", age: "", relation: "Son", notes: "" });
     setEditingStudentId(null);
+  };
+
+  // Cancel a booking — sets status='cancelled' in Supabase
+  const handleCancelBooking = async (bookingId) => {
+    setBookingActionLoading(true);
+    const { error } = await cancelBooking(bookingId);
+    setBookingActionLoading(false);
+    if (error) {
+      console.error("Failed to cancel booking:", error);
+      alert("Couldn't cancel — please try again.");
+      return;
+    }
+    // Optimistic: mark as cancelled in local state so it disappears from upcoming
+    setBookings(bookings.map(b => b.id === bookingId ? { ...b, status: "cancelled" } : b));
+    setCancellingBookingId(null);
+  };
+
+  // Start rescheduling — open the picker for this booking
+  const startRescheduling = (booking) => {
+    setReschedulingBookingId(booking.id);
+    setRescheduleDate(booking.date); // pre-fill with current date
+    setRescheduleTime(booking.time);
+    setCancellingBookingId(null); // close cancel confirm if open
+  };
+
+  // Save reschedule — combines new date + time, updates booking
+  const handleReschedule = async () => {
+    if (!rescheduleDate || !rescheduleTime || !reschedulingBookingId) return;
+    setBookingActionLoading(true);
+    const newScheduledAt = new Date(`${rescheduleDate}T${rescheduleTime}`).toISOString();
+    const { data, error } = await updateBooking(reschedulingBookingId, { scheduled_at: newScheduledAt });
+    setBookingActionLoading(false);
+    if (error) {
+      console.error("Failed to reschedule:", error);
+      alert("Couldn't reschedule — please try again.");
+      return;
+    }
+    // Update local state with the new date/time
+    setBookings(bookings.map(b => b.id === reschedulingBookingId ? { ...b, date: rescheduleDate, time: rescheduleTime, rawScheduledAt: newScheduledAt } : b));
+    setReschedulingBookingId(null);
+    setRescheduleDate("");
+    setRescheduleTime("");
   };
 
   // Use real profile data when available, fall back to mock for demo
@@ -6512,13 +6561,68 @@ setBookings(transformed);
                               <span className="flex items-center gap-1"><Calendar size={13} /> {dateObj.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
                               <span className="flex items-center gap-1"><Clock size={13} /> {b.time}</span>
                             </div>
-                            <div className="flex gap-2 flex-wrap">
-                              <button className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
-                                <Play size={13} /> Join session
-                              </button>
-                              <button className="bg-white border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:border-stone-400">Reschedule</button>
-                              <button className="text-sm text-stone-500 hover:text-rose-700 px-2 py-2">Cancel</button>
-                            </div>
+                            {/* Reschedule picker (inline, only when this booking is being rescheduled) */}
+                            {reschedulingBookingId === b.id ? (
+                              <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-3 mt-2">
+                                <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Pick a new date & time</p>
+                                <DateTimePicker
+                                  availability={DEFAULT_AVAILABILITY}
+                                  bookings={DEFAULT_BOOKINGS}
+                                  selectedDate={rescheduleDate}
+                                  selectedTime={rescheduleTime}
+                                  onDateChange={setRescheduleDate}
+                                  onTimeChange={setRescheduleTime}
+                                />
+                                <div className="flex items-center justify-end gap-2 mt-3">
+                                  <button
+                                    onClick={() => { setReschedulingBookingId(null); setRescheduleDate(""); setRescheduleTime(""); }}
+                                    disabled={bookingActionLoading}
+                                    className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900"
+                                  >Cancel</button>
+                                  <button
+                                    onClick={handleReschedule}
+                                    disabled={bookingActionLoading || !rescheduleDate || !rescheduleTime || (rescheduleDate === b.date && rescheduleTime === b.time)}
+                                    className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                                  >
+                                    {bookingActionLoading ? "Saving..." : <><CheckCircle2 size={12} /> Confirm new time</>}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : cancellingBookingId === b.id ? (
+                              /* Cancel confirmation (inline, replaces buttons) */
+                              <div className="border border-rose-200 bg-rose-50/40 rounded-xl p-3 mt-2">
+                                <div className="flex items-start gap-2 mb-3">
+                                  <AlertCircle className="text-rose-700 flex-shrink-0 mt-0.5" size={16} />
+                                  <div>
+                                    <p className="text-sm font-medium text-stone-900">Cancel this session?</p>
+                                    <p className="text-xs text-stone-600 mt-0.5">{b.scholarName} will be notified. Refunds processed within 5 days for sessions cancelled 24h+ in advance.</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => setCancellingBookingId(null)}
+                                    disabled={bookingActionLoading}
+                                    className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900"
+                                  >Keep booking</button>
+                                  <button
+                                    onClick={() => handleCancelBooking(b.id)}
+                                    disabled={bookingActionLoading}
+                                    className="bg-rose-700 hover:bg-rose-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                                  >
+                                    {bookingActionLoading ? "Cancelling..." : <><XCircle size={12} /> Yes, cancel</>}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* Default: action buttons */
+                              <div className="flex gap-2 flex-wrap">
+                                <button className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+                                  <Play size={13} /> Join session
+                                </button>
+                                <button onClick={() => startRescheduling(b)} className="bg-white border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:border-stone-400">Reschedule</button>
+                                <button onClick={() => setCancellingBookingId(b.id)} className="text-sm text-stone-500 hover:text-rose-700 px-2 py-2">Cancel</button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
