@@ -308,3 +308,223 @@ export async function getSavedScholars() {
   }
   return scholars
 }
+// ============================================================================
+// Session D — Messaging helpers
+// Append to src/auth.js after getSavedScholars()
+// ============================================================================
+
+// ---- internal shapers -----------------------------------------------------
+
+function shapeProfile(p) {
+  if (!p) return null
+  return {
+    id: p.id,
+    name: p.name,
+    avatarInitials: p.avatar_initials,
+    avatarGradient: p.avatar_gradient,
+  }
+}
+
+function shapeConversation(row, myUserId) {
+  const participants = (row.conversation_participants || []).map(p => ({
+    userId: p.user_id,
+    role: p.role,
+    joinedAt: p.joined_at,
+    lastReadAt: p.last_read_at,
+    notificationsMuted: p.notifications_muted,
+    profile: shapeProfile(p.profiles),
+  }))
+  const me = participants.find(p => p.userId === myUserId) || null
+  const others = participants.filter(p => p.userId !== myUserId)
+  const lastMessageAt = row.last_message_at ? new Date(row.last_message_at) : null
+  const myLastReadAt = me?.lastReadAt ? new Date(me.lastReadAt) : null
+const hasUnread =
+      lastMessageAt != null &&
+      row.last_message_sender_id !== myUserId &&
+      (myLastReadAt == null || lastMessageAt > myLastReadAt)
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastMessageAt: row.last_message_at,
+    lastMessagePreview: row.last_message_preview,
+    lastMessageSenderId: row.last_message_sender_id,
+    participants,
+    me,
+    otherParticipants: others,
+    hasUnread,
+  }
+}
+
+function shapeMessage(row) {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    senderId: row.sender_id,
+    body: row.body,
+    createdAt: row.created_at,
+    editedAt: row.edited_at,
+    deletedAt: row.deleted_at,
+    sender: shapeProfile(row.profiles),
+  }
+}
+
+// ---- conversations --------------------------------------------------------
+
+export async function getConversations() {
+  const user = await getUser()
+  if (!user) return []
+
+  // Step 1: find conversation IDs I'm in
+  const { data: myRows, error: myErr } = await supabase
+    .from('conversation_participants')
+    .select('conversation_id')
+    .eq('user_id', user.id)
+  if (myErr) { console.error('Error fetching my conversation ids:', myErr); return [] }
+
+  const ids = (myRows || []).map(r => r.conversation_id)
+  if (ids.length === 0) return []
+
+  // Step 2: fetch those conversations with all participants + profiles
+  const { data, error } = await supabase
+    .from('conversations')
+    .select(`
+      id,
+      kind,
+      title,
+      created_by,
+      created_at,
+      updated_at,
+      last_message_at,
+      last_message_sender_id,
+      last_message_preview,
+      conversation_participants (
+        user_id,
+        role,
+        joined_at,
+        last_read_at,
+        notifications_muted,
+        profiles:conversation_participants_user_id_profiles_fkey ( id, name, avatar_initials, avatar_gradient )
+      )
+    `)
+    .in('id', ids)
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching conversations:', error); return [] }
+
+  return (data || []).map(row => shapeConversation(row, user.id))
+}
+
+export async function getMessages(conversationId, { before = null, limit = 50 } = {}) {
+  let q = supabase
+    .from('messages')
+    .select(`
+      id,
+      conversation_id,
+      sender_id,
+      body,
+      created_at,
+      edited_at,
+      deleted_at,
+      profiles:messages_sender_id_profiles_fkey ( id, name, avatar_initials, avatar_gradient )
+    `)
+    .eq('conversation_id', conversationId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (before) q = q.lt('created_at', before)
+
+  const { data, error } = await q
+  if (error) { console.error('Error fetching messages:', error); return [] }
+  return (data || []).map(shapeMessage).reverse()
+}
+
+export async function sendMessage(conversationId, body) {
+  const trimmed = (body || '').trim()
+  if (!trimmed) return { error: { message: 'Message body is empty' } }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      body: trimmed,
+    })
+    .select(`
+      id, conversation_id, sender_id, body,
+      created_at, edited_at, deleted_at
+    `)
+    .single()
+  if (error) return { error }
+  return { data: shapeMessage({ ...data, profiles: null }) }
+}
+
+export async function getOrCreateDirectConversation(otherUserId, myRole, theirRole) {
+  if (!otherUserId) return { error: { message: 'otherUserId required' } }
+  const { data, error } = await supabase.rpc('get_or_create_direct_conversation', {
+    other_user_id: otherUserId,
+    my_role: myRole,
+    their_role: theirRole,
+  })
+  if (error) return { error }
+  return { data } // data is the conversation uuid
+}
+
+export async function markConversationRead(conversationId) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { error } = await supabase
+    .from('conversation_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', user.id)
+  return { error }
+}
+
+export function subscribeToMessages(conversationIds, onMessage) {
+  if (!conversationIds || conversationIds.length === 0) return () => {}
+  const filter = `conversation_id=in.(${conversationIds.join(',')})`
+  const channel = supabase.channel(`messages-${Date.now()}`)
+  channel.on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'messages', filter },
+    payload => onMessage(shapeMessage({ ...payload.new, profiles: null }))
+  )
+  channel.subscribe()
+  return () => { supabase.removeChannel(channel) }
+}
+
+// ---- notification preferences --------------------------------------------
+
+export async function updateNotificationPreference(partial) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+
+  const { data: current, error: readErr } = await supabase
+    .from('profiles')
+    .select('notifications')
+    .eq('id', user.id)
+    .single()
+  if (readErr) return { error: readErr }
+
+  const snakeify = obj =>
+    Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [
+        k.replace(/[A-Z]/g, c => '_' + c.toLowerCase()),
+        v,
+      ])
+    )
+
+  const merged = { ...(current?.notifications || {}), ...snakeify(partial) }
+  const { error: writeErr } = await supabase
+    .from('profiles')
+    .update({ notifications: merged })
+    .eq('id', user.id)
+  if (writeErr) return { error: writeErr }
+  return { data: merged }
+}
