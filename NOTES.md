@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session B (mosque heart saves) — three commits `885be66`, `434a6a0`, `c743c79`. Next: Session C — parent dashboard polish. Plan was reshuffled after a pre-Session-C audit found multiple bugs in the parent/user dashboard (donations don't persist, donate flow header missing avatar/logo, can't edit students, booking actions don't work, messages don't work). Mosque admin features pushed to Sessions F–J.
+> Last action: shipped Session D (Messages) — four commits `0bff7d5`, `fce4d79`, `de7f6c7`, `6721a5b`. Real conversations, RLS, realtime, optimistic send, mark-read all working end-to-end. `MOCK_CONVERSATIONS` deleted. Next: Session E — Join session. Scope decision needed first: scholar-provided link vs built-in video vs something else. Several minor follow-ups also logged from Session D verification (see Parked items at the bottom).
 
 ---
 
@@ -23,25 +23,14 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 
 - **Session A** ✅ — Verified Mosques scaffolding (public listing + detail, mock data, geo-sort, save support)
 - **Session B** ✅ — Mosque heart saves (`saves` table extended to `item_type='mosque'`, "My Mosques" tab in UserDashboard)
+- **Session C** ✅ — Parent dashboard polish (donate flow header, edit students, cancel/reschedule booking, donations persist)
+- **Session D** ✅ — Messages (real Supabase tables, RLS, RPC for direct conversations, realtime subscriptions, optimistic send + rollback, unread state via `last_read_at`, `MOCK_CONVERSATIONS` removed)
 
-### Up next — parent dashboard completion
-
-- **Session C — Parent dashboard polish** (~90 min, quick wins)
-  - Donate flow header — `<PublicHeader>` swap on all three steps; avatar + logo working
-  - Edit existing students (currently can only add/remove)
-  - Cancel booking
-  - Reschedule booking
-  - Donations persist — new `donations` Supabase table; write on completion; read into "All donations" list
-
-- **Session D — Messages** (its own session, larger)
-  - `messages` and `conversations` Supabase tables
-  - Send/receive with Supabase realtime subscriptions
-  - Conversation threading + unread badge
-  - Account → notification toggle persistence
+### Up next
 
 - **Session E — Join session** (scope-dependent)
-  - Decision needed first: scholar-provided link vs built-in video vs something else
-  - Then build accordingly
+- Decision needed first: scholar-provided link vs built-in video vs something else
+- Then build accordingly
 
 ### Deferred — mosque admin features (originally C–G)
 
@@ -309,7 +298,273 @@ Status of these checks at the time of writing — re-verify before starting Sess
 - Account → Edit profile save round-trip — TBD
 - Account → Notification toggle persistence on refresh — TBD
 - Logout — TBD
+---
 
+## Session D — Messages ✅
+
+**Goal:** real-data messaging between platform users. Replace
+`MOCK_CONVERSATIONS` with Supabase-backed conversations + messages,
+including realtime delivery, unread state, mark-as-read, optimistic
+send. Generic enough to support future group threads (mosque admin
+broadcasts, parent + multiple scholars) without a schema migration.
+
+### What shipped
+
+**Schema (3 tables + helpers + trigger + RPC):**
+
+- `conversations` — `id`, `kind` ('direct' | 'group'), `title`,
+  `created_by`, `created_at`, `updated_at`, `last_message_at`,
+  `last_message_preview`, `last_message_sender_id`. The last three
+  fields are denormalized for cheap inbox rendering and kept in sync
+  by a trigger.
+- `conversation_participants` — composite PK `(conversation_id,
+  user_id)`, plus `role` ('parent' | 'scholar' | 'mosque_admin' |
+  'student'), `joined_at`, `last_read_at`, `notifications_muted`.
+  Many-to-many table that unlocks group threads later without
+  a schema change.
+- `messages` — `id`, `conversation_id`, `sender_id`, `body`,
+  `created_at`, `edited_at`, `deleted_at`. Soft delete so realtime
+  subscribers don't break mid-stream and future reactions/replies
+  don't orphan.
+- `is_conversation_participant(conv_id)` — `SECURITY DEFINER` helper
+  used by RLS policies. Bypasses RLS internally to avoid recursion
+  when policies on `conversation_participants` need to check membership.
+- `bump_conversation_on_message()` trigger — updates `updated_at`,
+  `last_message_at`, `last_message_preview` (truncated to 120 chars),
+  and `last_message_sender_id` on the parent conversation row when
+  a message is inserted.
+- `get_or_create_direct_conversation(other_user_id, my_role,
+  their_role)` RPC — atomically returns an existing 1:1 conversation
+  between `auth.uid()` and `other_user_id`, or creates one. Dedupes
+  to prevent duplicate threads when a user clicks "Message" twice.
+- RLS policies: read if you're a participant, insert if you marked
+  yourself as creator/sender, update only your own row.
+- Realtime publication: `messages` and `conversations` added to
+  `supabase_realtime`.
+
+**Profile FKs follow-up migration:**
+
+- Added explicit FKs from `messages.sender_id` and
+  `conversation_participants.user_id` to `profiles(id)` so PostgREST
+  can resolve nested embeds. Use the FK constraint name as a
+  disambiguator in the embed expression
+  (`profiles:messages_sender_id_profiles_fkey ( ... )`).
+
+**`auth.js` helpers:**
+
+- `getConversations()` — two queries: first finds participant rows
+  for the current user, then fetches conversation rows with
+  participants + profiles embedded. `shapeConversation` derives
+  `otherParticipants` and `hasUnread` (which excludes self-sent
+  messages via `last_message_sender_id`).
+- `getMessages(conversationId, { before, limit })` — paginated,
+  newest-first from DB, reversed client-side to oldest-first for
+  rendering.
+- `sendMessage(conversationId, body)` — insert; trigger handles
+  conversation row updates. Returns `{data}` or `{error}`.
+- `getOrCreateDirectConversation(otherUserId, myRole, theirRole)` —
+  calls the RPC.
+- `markConversationRead(conversationId)` — updates the current
+  user's participant row's `last_read_at`.
+- `subscribeToMessages(conversationIds, onMessage)` — single channel
+  subscribed to INSERTs on `messages` filtered by
+  `conversation_id=in.(...)`. Returns an unsubscribe fn.
+- `updateNotificationPreference(partial)` — read-merge-write into
+  the JSONB `profiles.notifications` blob. Camel→snake on write.
+
+**App.jsx wiring:**
+
+- `adaptConversation(conv)` + `relativeTime(iso)` helpers near where
+  `MOCK_CONVERSATIONS` used to live. Adapter bridges the Supabase
+  shape to the shape `MessagesInbox` and `ConversationView` already
+  consume.
+- App-level state: `conversations`, `conversationsLoading`. Effect
+  fetches `getConversations()` on mount when `authedProfile &&
+  authedUser`. **Important:** state and effect must be declared
+  *after* `authedProfile` in the App component body — declaring them
+  before causes a React Temporal-Dead-Zone error in dev mode.
+- `MessagesInbox` route uses adapted real data; `inboxData` is
+  computed once at the top of the route block and reused for the
+  imam dashboard preview prop.
+- `ConversationView` rewritten for real data:
+  - Detects "real" via `isReal = !!currentUserId && conversation.id
+    is a UUID-shaped string`.
+  - Fetches messages via `getMessages` on mount.
+  - Subscribes via `subscribeToMessages` for the duration of the view.
+    Realtime echo dedup by message ID.
+  - Marks read on mount and on every incoming message.
+  - Optimistic send: temp message appended with `pending: true`,
+    replaced by real one on success, removed and input restored on
+    failure.
+  - Phone/email regex detection + blur-on-send-anyway preserved
+    from the original mock-only version.
+  - Context strip, safeguarding banner, package suggestions, sender
+    names — all degrade gracefully when the underlying field is
+    missing on real data.
+- Scholar detail "Message" button now routes to inbox (was always
+  opening `MOCK_CONVERSATIONS[0]`). Real wiring deferred until
+  scholars are linked to auth users — TODO comment marks the spot.
+- `MOCK_CONVERSATIONS` array deleted.
+
+**Profiles RLS opened to authenticated reads:**
+
+- Pre-D, `profiles` SELECT was `auth.uid() = id` (own row only),
+  which broke the participant→profile join (Kaneez and eesaa
+  rendered as "Unknown" with "??" initials). Replaced with
+  `to authenticated using (true)`. Standard messaging-app pattern.
+
+### Commits
+
+- `0bff7d5` — `feat(messages): schema, RLS, RPC, and auth.js helpers for Session D`
+- `fce4d79` — `feat(messages): wire MessagesInbox to real Supabase data`
+- `de7f6c7` — `feat(messages): wire ConversationView to real Supabase data + realtime`
+- `6721a5b` — `feat(messages): remove MOCK_CONVERSATIONS, finalize wiring`
+
+### Decisions
+
+- **Three-table shape over two-party columns.** A separate
+  `conversation_participants` join table (instead of `participant_a`
+  / `participant_b` columns on `conversations`) is the single
+  decision that unlocks group threads later. No migration needed
+  when going from 2-party to N-party — just insert more rows.
+- **`last_read_at` per participant for unread state**, not per-message
+  read receipts. Cheap, what most chat apps do (Slack, WhatsApp,
+  iMessage). Per-message receipts is a v2 feature if it's ever needed.
+- **Soft delete on messages.** A delete doesn't break realtime
+  subscribers, doesn't orphan future replies/reactions, and matches
+  what most chat UIs do (renders as "This message was deleted" in
+  v2).
+- **`last_message_sender_id` denormalized onto `conversations`.** So
+  unread state can exclude self-sent messages (i.e. *you* aren't
+  unread on threads where you sent the latest message). Trigger keeps
+  it in sync.
+- **One realtime channel per user, not per thread.** Filter is
+  `conversation_id=in.(uuid1,uuid2,...)`. Subscribing per-open-thread
+  doesn't scale and creates two sources of truth (inbox unread vs.
+  thread feed). Single subscription, derive everything client-side.
+- **Dedup direct conversations in the RPC.** Parent clicks "Message"
+  on a scholar twice → returns the same conversation, not a new one.
+  Scoped to `kind='direct'` only — group threads are different
+  (you might genuinely want two different group chats with the same
+  members).
+- **Profiles RLS opened wide.** "Auth users can read all profiles"
+  is the standard messaging-app pattern. Phone and email *are* on
+  profiles which is a follow-up to audit (see Parked items below).
+- **Sender profile on realtime payloads is `null`** by design. When
+  a message arrives via realtime, we don't have the joined profile
+  data — only the row that was inserted. The reducer should look up
+  the sender from the participants list it already has, rather than
+  refetching. Saves a roundtrip per incoming message.
+
+### Lessons learned
+
+- **React Temporal Dead Zone on `useEffect` deps.** A `useEffect`
+  with a dependency array referencing a `const` declared later in
+  the same component body throws `ReferenceError: Cannot access
+  'X' before initialization` in dev mode. Source order matters,
+  even though the effect runs after all `useState` calls execute.
+  Fix: move state declarations + effects below the `const`s they
+  reference. Specifically: our `conversations`/`conversationsLoading`
+  state and the fetch effect had to move *below* `authedProfile`'s
+  declaration.
+- **PostgREST can't traverse transitive FKs.** `messages.sender_id`
+  → `auth.users.id` ← `profiles.id` doesn't let you embed
+  `profiles` from `messages`. You need a *direct* FK from
+  `messages.sender_id` to `profiles(id)`. Profiles already
+  references `auth.users(id)` so the extra constraint is safe and
+  doesn't create a cycle.
+- **Disambiguate PostgREST embeds by FK constraint name.** When
+  multiple FKs from the same table point at related tables (we have
+  one to `auth.users` and one to `profiles`), PostgREST throws a
+  "more than one relationship found" error. Resolve by naming the
+  constraint in the embed expression:
+  `profiles:messages_sender_id_profiles_fkey ( ... )`.
+- **`auth.uid() = id` on profiles is too restrictive for messaging.**
+  Privacy-by-default sounds nice but it breaks any UI that joins
+  through to other people's display names. Open profiles to all
+  authenticated users, then audit which columns *are* sensitive
+  (phone, email) and consider moving them to a separate restricted
+  table later.
+- **`SECURITY DEFINER` helper for RLS membership checks avoids
+  policy recursion.** `is_conversation_participant(conv_id)` is the
+  standard pattern — without it, an RLS policy on
+  `conversation_participants` that checks "am I a participant?"
+  recursively re-applies the same policy to its own SELECT.
+- **Inline data is OK in the column for v1.** `profiles.notifications`
+  as JSONB is fine for "set of toggles" — no schema migration when
+  you add a new toggle. Trade-off: no indexes/constraints on the
+  inner shape. Worth it.
+- **Verify large block deletions with `grep` between steps.** When
+  deleting `MOCK_CONVERSATIONS` (~150 lines), three intermediate
+  states are expected: (1) all references intact, (2) no code
+  references but array still exists, (3) array deleted. Confirming
+  each stage with `grep -n MOCK_CONVERSATIONS src/App.jsx` prevents
+  nicking a line you didn't mean to touch.
+- **`sed -i ''` for in-place delete on macOS.** The empty `''` after
+  `-i` is the BSD sed quirk — required on macOS, would fail on Linux.
+  `sed -i '' '4544,4599d' file.jsx` is a clean one-shot for
+  "delete lines 4544 through 4599 inclusive."
+
+### Smoke testing
+
+End-to-end verified across two real users (Shiraz Ahmed, eesaa
+ahmed) in two browsers (Safari + Chrome) signed in concurrently:
+
+1. `getConversations()` returns shaped conversations with
+   participants + profiles embedded
+2. `getOrCreateDirectConversation()` creates a thread; running
+   it again with the same other user returns the same UUID (dedup)
+3. `sendMessage()` writes; trigger updates conversation row
+4. `getMessages()` returns oldest-first with sender profile
+5. `subscribeToMessages()` fires cross-user — eesaa sends, Shiraz's
+   open thread updates within ~1s
+6. Unread badge correctly excludes self-sent messages
+   (`hasUnread: false` after you send the latest message)
+7. RLS correctly blocks non-participants — earlier in the session
+   eesaa got a 403 trying to insert into a Shiraz↔Kaneez thread
+   they weren't part of (correct behavior, not a bug)
+8. Optimistic send + rollback works: send, see immediate "Sending..."
+   tick, then "Delivered" once the DB confirms
+
+### TBD (small follow-ups from verification)
+
+Logged to "Parked items" at bottom of NOTES, summarized here:
+
+- **Two notification helpers** in `auth.js` — consolidate to one.
+- **No heart icons on campaign cards** — "Causes I'm watching"
+  read path is wired but the save UI is missing.
+- **All Donations rows aren't clickable** to campaign detail.
+- **Sign-in after explicit logout** lands on public homepage,
+  not dashboard.
+
+### Out of scope for Session D
+
+- Push notifications (need Expo Push / OneSignal / FCM — separate
+  infrastructure piece). User offline receives nothing until they
+  open the app.
+- Per-message read receipts. We chose `last_read_at` per participant.
+- Typing indicators. Ephemeral broadcast over realtime channel
+  without persisting. Skip for v1.
+- Attachments, reactions, edits, voice notes. All separable.
+- Audit of `profiles.phone` / `profiles.email` exposure. We opened
+  profiles SELECT to all authed users. Frontend doesn't render
+  those fields outside Account, so no user-facing leak — but worth
+  a thoughtful pass before public launch.
+
+### Architectural decisions to revisit
+
+- **When scholars become real auth users** (Session F or J probably),
+  wire the scholar detail "Message" button to
+  `getOrCreateDirectConversation(scholar.userId, ...)`. TODO
+  comment marks the spot at line ~8573.
+- **When imam dashboards become a focus** (Session F), pass
+  `conversations={inboxData}` through to `<ImamDashboardView>`
+  properly. Currently it falls back to empty array safely, so
+  nothing breaks — just no preview data.
+- **Profile data scoping.** If phone/email become more sensitive
+  (e.g. when scholars' contact details are added), consider moving
+  them to a separate table with stricter RLS, or adopting
+  column-level grants.
 ---
 
 ## Cross-cutting gotchas
