@@ -4692,48 +4692,147 @@ const MessagesInbox = ({ conversations, onConversation, onBack, currentUser = "U
 };
 
 // Conversation view (individual chat)
-const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) => {
-  const [messages, setMessages] = useState(conversation.messages);
+// Demo conversations (from MOCK_CONVERSATIONS) come with `messages` inline.
+// Real conversations come with just an id + counterparty; the component fetches
+// its own messages and subscribes to realtime for the duration of the view.
+const ConversationView = ({ conversation, onBack, currentUserLabel = "You", currentUserId = null }) => {
+  // For demo conversations (no real conversation.id matching a UUID), keep
+  // the original in-memory behavior. For real conversations, fetch + subscribe.
+  const isReal = !!currentUserId && typeof conversation?.id === "string" && conversation.id.length > 20;
+ 
+  const [messages, setMessages] = useState(isReal ? [] : (conversation.messages || []));
+  const [loading, setLoading] = useState(isReal);
   const [input, setInput] = useState("");
   const [showWarning, setShowWarning] = useState(false);
-
+  const [sending, setSending] = useState(false);
+ 
+  // Initial fetch + realtime subscription + mark-read
+  useEffect(() => {
+    if (!isReal) return;
+    let cancelled = false;
+    setLoading(true);
+    getMessages(conversation.id)
+      .then(msgs => { if (!cancelled) setMessages(msgs); })
+      .catch(err => console.error("Error fetching messages:", err))
+      .finally(() => { if (!cancelled) setLoading(false); });
+ 
+    markConversationRead(conversation.id).catch(err =>
+      console.error("Error marking read:", err)
+    );
+ 
+    const unsub = subscribeToMessages([conversation.id], msg => {
+      // Ignore our own optimistic echoes — already in state
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+      // Mark read whenever a new message arrives while the thread is open
+      markConversationRead(conversation.id).catch(() => {});
+    });
+ 
+    return () => { cancelled = true; unsub(); };
+  }, [isReal, conversation?.id]);
+ 
   // Detect phone numbers or emails in the input
   const containsContact = (text) => {
     const phoneRegex = /(?:\+?\d[\s\-]?){7,}/;
     const emailRegex = /[\w.-]+@[\w.-]+\.[a-z]{2,}/i;
     return phoneRegex.test(text) || emailRegex.test(text);
   };
-
-  const handleSend = () => {
-    if (!input.trim()) return;
+ 
+  // Adapter for rendering: real messages have {senderId, body, createdAt},
+  // demo messages have {from, text, time}. Normalize both into one shape.
+  const renderMessages = messages.map(m => {
+    if (m.senderId !== undefined) {
+      return {
+        ...m,
+        from: m.senderId === currentUserId ? "me" : "them",
+        text: m.body,
+        time: relativeTime(m.createdAt),
+        suggestion: undefined,
+        senderName: undefined,
+      };
+    }
+    return m; // demo shape
+  });
+ 
+  const handleSend = async () => {
+    if (!input.trim() || sending) return;
     if (containsContact(input)) {
       setShowWarning(true);
       return;
     }
-    setMessages([...messages, {
-      id: Date.now(),
-      from: "me",
-      text: input,
-      time: "Just now"
-    }]);
+    if (!isReal) {
+      setMessages([...messages, { id: Date.now(), from: "me", text: input, time: "Just now" }]);
+      setInput("");
+      setShowWarning(false);
+      return;
+    }
+    const body = input;
     setInput("");
     setShowWarning(false);
+    setSending(true);
+    // Optimistic append
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      conversationId: conversation.id,
+      senderId: currentUserId,
+      body,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
+ 
+    const result = await sendMessage(conversation.id, body);
+    if (result.error) {
+      console.error("sendMessage failed:", result.error);
+      // Roll back optimistic, restore input so the user can retry
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setInput(body);
+      setSending(false);
+      return;
+    }
+    // Replace optimistic with real
+    setMessages(prev => prev.map(m => (m.id === tempId ? result.data : m)));
+    setSending(false);
   };
-
-  const handleSendAnyway = () => {
-    // In reality this would blur the contact info
-    const blurredText = input.replace(/(?:\+?\d[\s\-]?){7,}/g, "██████████").replace(/[\w.-]+@[\w.-]+\.[a-z]{2,}/gi, "██████████");
-    setMessages([...messages, {
-      id: Date.now(),
-      from: "me",
-      text: blurredText,
-      time: "Just now",
-      blurred: true
-    }]);
+ 
+  const handleSendAnyway = async () => {
+    const blurredText = input
+      .replace(/(?:\+?\d[\s\-]?){7,}/g, "██████████")
+      .replace(/[\w.-]+@[\w.-]+\.[a-z]{2,}/gi, "██████████");
+    if (!isReal) {
+      setMessages([...messages, { id: Date.now(), from: "me", text: blurredText, time: "Just now", blurred: true }]);
+      setInput("");
+      setShowWarning(false);
+      return;
+    }
     setInput("");
     setShowWarning(false);
+    setSending(true);
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      conversationId: conversation.id,
+      senderId: currentUserId,
+      body: blurredText,
+      createdAt: new Date().toISOString(),
+      pending: true,
+      blurred: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
+    const result = await sendMessage(conversation.id, blurredText);
+    if (result.error) {
+      console.error("sendMessage failed:", result.error);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setSending(false);
+      return;
+    }
+    setMessages(prev => prev.map(m => (m.id === tempId ? { ...result.data, blurred: true } : m)));
+    setSending(false);
   };
-
+ 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Conversation header */}
@@ -4753,18 +4852,20 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
           </div>
           <button className="text-stone-500 hover:text-stone-900 p-2"><MoreHorizontal size={18} /></button>
         </div>
-
-        {/* Context strip */}
-        <div className="max-w-3xl mx-auto px-6 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center gap-2 text-xs">
-          {conversation.context.type === "booking" && <><CheckCircle2 size={12} className="text-emerald-600" /><span className="text-stone-700">Booking confirmed:</span></>}
-          {conversation.context.type === "hire" && <><Building2 size={12} className="text-emerald-700" /><span className="text-stone-700">Discussing:</span></>}
-          {conversation.context.type === "inquiry" && <><MessageCircle size={12} className="text-stone-500" /><span className="text-stone-700">Inquiry:</span></>}
-          <span className="text-stone-900 font-medium truncate">{conversation.context.label}</span>
-        </div>
+ 
+        {/* Context strip — only when context exists */}
+        {conversation.context && (
+          <div className="max-w-3xl mx-auto px-6 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center gap-2 text-xs">
+            {conversation.context.type === "booking" && <><CheckCircle2 size={12} className="text-emerald-600" /><span className="text-stone-700">Booking confirmed:</span></>}
+            {conversation.context.type === "hire" && <><Building2 size={12} className="text-emerald-700" /><span className="text-stone-700">Discussing:</span></>}
+            {conversation.context.type === "inquiry" && <><MessageCircle size={12} className="text-stone-500" /><span className="text-stone-700">Inquiry:</span></>}
+            <span className="text-stone-900 font-medium truncate">{conversation.context.label}</span>
+          </div>
+        )}
       </header>
-
+ 
       {/* Safeguarding banner for inquiries */}
-      {conversation.context.type === "inquiry" && (
+      {conversation.context?.type === "inquiry" && (
         <div className="max-w-3xl mx-auto w-full px-6 pt-4">
           <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 flex gap-2 items-start">
             <ShieldCheck className="text-sky-700 flex-shrink-0 mt-0.5" size={14} />
@@ -4774,18 +4875,24 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
           </div>
         </div>
       )}
-
+ 
       {/* Messages feed */}
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-6 space-y-3 pb-40">
-        {messages.map((m, i) => {
+        {loading && (
+          <p className="text-xs text-stone-400 text-center py-4">Loading messages...</p>
+        )}
+        {!loading && renderMessages.length === 0 && (
+          <p className="text-xs text-stone-400 text-center py-4">No messages yet. Say salaam!</p>
+        )}
+        {renderMessages.map((m, i) => {
           const isMe = m.from === "me";
-          const prevMessage = messages[i - 1];
+          const prevMessage = renderMessages[i - 1];
           const showTime = !prevMessage || prevMessage.time !== m.time;
-
+ 
           return (
             <div key={m.id}>
               {showTime && <p className="text-xs text-stone-400 text-center py-2">{m.time}</p>}
-
+ 
               {m.suggestion && (
                 <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2`}>
                   <div className={`max-w-[85%] rounded-2xl border-2 border-dashed ${isMe ? "border-emerald-700 bg-emerald-50" : "border-stone-300 bg-white"} p-4`}>
@@ -4801,9 +4908,9 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
                   </div>
                 </div>
               )}
-
+ 
               <div className={`flex ${isMe ? "justify-end" : "justify-start"} gap-2`}>
-                {!isMe && i > 0 && messages[i - 1].from === m.from ? (
+                {!isMe && i > 0 && renderMessages[i - 1].from === m.from ? (
                   <div className="w-8 flex-shrink-0"></div>
                 ) : !isMe ? (
                   <Avatar scholar={conversation.counterparty} size="sm" />
@@ -4812,7 +4919,7 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
                   {m.senderName && !isMe && (
                     <p className="text-[10px] text-stone-500 mb-0.5 ml-1">{m.senderName}</p>
                   )}
-                  <div className={`px-4 py-2.5 rounded-2xl ${isMe ? "bg-emerald-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""}`}>
+                  <div className={`px-4 py-2.5 rounded-2xl ${isMe ? "bg-emerald-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""} ${m.pending ? "opacity-70" : ""}`}>
                     {m.blurred ? (
                       <div>
                         <p className="text-sm leading-relaxed">{m.text}</p>
@@ -4825,9 +4932,9 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
                       <p className="text-sm leading-relaxed whitespace-pre-line">{m.text}</p>
                     )}
                   </div>
-                  {isMe && i === messages.length - 1 && (
+                  {isMe && i === renderMessages.length - 1 && (
                     <span className="text-[10px] text-stone-400 mt-0.5 mr-1 flex items-center gap-0.5">
-                      <CheckCheck size={10} /> Delivered
+                      <CheckCheck size={10} /> {m.pending ? "Sending..." : "Delivered"}
                     </span>
                   )}
                 </div>
@@ -4836,7 +4943,7 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
           );
         })}
       </main>
-
+ 
       {/* Warning banner */}
       {showWarning && (
         <div className="fixed bottom-20 left-0 right-0 z-30 px-6">
@@ -4855,7 +4962,7 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
           </div>
         </div>
       )}
-
+ 
       {/* Input */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-10" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-3 md:py-4">
@@ -4870,7 +4977,7 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
               placeholder="Type a message..."
               className="flex-1 min-w-0 px-4 py-2.5 rounded-full border border-stone-300 bg-stone-50 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
             />
-            <button onClick={handleSend} disabled={!input.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white p-2.5 rounded-full transition-all hover:scale-[1.05] active:scale-95 flex-shrink-0">
+            <button onClick={handleSend} disabled={!input.trim() || sending} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white p-2.5 rounded-full transition-all hover:scale-[1.05] active:scale-95 flex-shrink-0">
               <Send size={16} />
             </button>
           </div>
@@ -4880,7 +4987,6 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You" }) =>
     </div>
   );
 };
-
 // ==================== JOB BOARD ====================
 const MOCK_JOBS = [
   {
@@ -8446,7 +8552,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     const inboxData = !authedProfile ? MOCK_CONVERSATIONS : conversations.map(adaptConversation).filter(Boolean);
     return <MessagesInbox conversations={inboxData} loading={conversationsLoading && !!authedProfile} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")} />;
   }
-  if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} />;
+  if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} currentUserId={authedUser?.id} />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
   if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => setView("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
