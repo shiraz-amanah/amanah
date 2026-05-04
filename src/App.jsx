@@ -6192,6 +6192,7 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [addingStudent, setAddingStudent] = useState(false);
+  const [editingStudentId, setEditingStudentId] = useState(null);
   const [studentForm, setStudentForm] = useState({ name: "", age: "", relation: "Son", notes: "" });
   const [savingStudent, setSavingStudent] = useState(false);
 
@@ -6265,6 +6266,38 @@ useEffect(() => {
       return;
     }
     setStudents(students.filter(s => s.id !== id));
+  };
+
+  // Start editing — load this student's values into the form
+  const startEditingStudent = (student) => {
+    setStudentForm({
+      name: student.name || "",
+      age: student.age ? String(student.age) : "",
+      relation: student.relation || "Son",
+      notes: student.notes || ""
+    });
+    setEditingStudentId(student.id);
+    setAddingStudent(false); // close add form if open
+  };
+
+  // Save edits to an existing student
+  const handleUpdateStudent = async () => {
+    if (!studentForm.name.trim() || !editingStudentId) return;
+    setSavingStudent(true);
+    const { data, error } = await updateStudent(editingStudentId, {
+      name: studentForm.name.trim(),
+      age: studentForm.age ? parseInt(studentForm.age) : null,
+      relation: studentForm.relation,
+      notes: studentForm.notes.trim() || null
+    });
+    setSavingStudent(false);
+    if (error) {
+      console.error("Failed to update student:", error);
+      return;
+    }
+    setStudents(students.map(s => s.id === editingStudentId ? data : s));
+    setStudentForm({ name: "", age: "", relation: "Son", notes: "" });
+    setEditingStudentId(null);
   };
 
   // Use real profile data when available, fall back to mock for demo
@@ -6915,23 +6948,95 @@ setBookings(transformed);
                     Add your kids to track their learning separately.
                   </div>
                 ) : students.map(s => (
-                  <div key={s.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white text-sm font-semibold">
-                      {s.name[0]}
+                  editingStudentId === s.id ? (
+                    // EDIT MODE — inline form for this student
+                    <div key={s.id} className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white text-xs font-semibold">
+                          {studentForm.name[0] || s.name[0]}
+                        </div>
+                        <p className="text-xs font-medium text-stone-700 uppercase tracking-wider">Editing student</p>
+                      </div>
+                      <div className="space-y-2.5">
+                        <input
+                          type="text"
+                          value={studentForm.name}
+                          onChange={e => setStudentForm({...studentForm, name: e.target.value})}
+                          placeholder="Name"
+                          className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="number"
+                            value={studentForm.age}
+                            onChange={e => setStudentForm({...studentForm, age: e.target.value})}
+                            placeholder="Age"
+                            min="1" max="25"
+                            className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                          />
+                          <select
+                            value={studentForm.relation}
+                            onChange={e => setStudentForm({...studentForm, relation: e.target.value})}
+                            className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                          >
+                            <option>Son</option>
+                            <option>Daughter</option>
+                            <option>Ward</option>
+                            <option>Nephew</option>
+                            <option>Niece</option>
+                            <option>Other</option>
+                          </select>
+                        </div>
+                        <input
+                          type="text"
+                          value={studentForm.notes}
+                          onChange={e => setStudentForm({...studentForm, notes: e.target.value})}
+                          placeholder="What are they learning? (optional)"
+                          className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-2 mt-3">
+                        <button
+                          onClick={() => { setEditingStudentId(null); setStudentForm({ name: "", age: "", relation: "Son", notes: "" }); }}
+                          disabled={savingStudent}
+                          className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900"
+                        >Cancel</button>
+                        <button
+                          onClick={handleUpdateStudent}
+                          disabled={savingStudent || !studentForm.name.trim()}
+                          className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                        >
+                          {savingStudent ? "Saving..." : <><CheckCircle2 size={12} /> Save</>}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-900">
-                        {s.name}
-                        {(s.relation || s.age) && <span className="text-stone-500 font-normal">
-                          {" · "}{s.relation}{s.age && `, age ${s.age}`}
-                        </span>}
-                      </p>
-                      {s.notes && <p className="text-xs text-stone-500 truncate">{s.notes}</p>}
+                  ) : (
+                    // VIEW MODE — normal row with edit + delete
+                    <div key={s.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white text-sm font-semibold">
+                        {s.name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-stone-900">
+                          {s.name}
+                          {(s.relation || s.age) && <span className="text-stone-500 font-normal">
+                            {" · "}{s.relation}{s.age && `, age ${s.age}`}
+                          </span>}
+                        </p>
+                        {s.notes && <p className="text-xs text-stone-500 truncate">{s.notes}</p>}
+                      </div>
+                      {!isDemo && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => startEditingStudent(s)} className="text-stone-400 hover:text-emerald-700 p-1" aria-label="Edit student">
+                            <FileText size={15} />
+                          </button>
+                          <button onClick={() => handleDeleteStudent(s.id)} className="text-stone-400 hover:text-rose-600 p-1" aria-label="Remove student">
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {!isDemo && (
-                      <button onClick={() => handleDeleteStudent(s.id)} className="text-stone-400 hover:text-rose-600 p-1"><X size={16} /></button>
-                    )}
-                  </div>
+                  )
                 ))}
               </div>
             </div>
