@@ -1069,10 +1069,12 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
     defibrillator: { label: "Defibrillator", icon: "❤️‍🩹" }
   };
 
-  // Resolve affiliated scholars from MOCK_SCHOLARS by ID
-  const affiliatedScholars = (mosque.scholarIds || [])
-    .map(id => MOCK_SCHOLARS.find(s => s.id === id))
-    .filter(Boolean);
+  // TODO(mosques-migration): mosque.scholarIds is empty until mosques migrate
+  // to Supabase and gain real FK relationships to scholars.id (UUIDs). The
+  // previous integer-id lookup against MOCK_SCHOLARS produced fabricated
+  // affiliations — see Session F recap. Affiliated scholars section renders
+  // empty until the mosques DB session lands.
+  const affiliatedScholars = [];
 
   // Prayer times - hardcoded Adhan times for now (Session C will use Aladhan API)
   const prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
