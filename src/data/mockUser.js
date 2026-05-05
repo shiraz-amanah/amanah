@@ -28,5 +28,30 @@ export const MOCK_USER_DONATIONS = [
   { id: "d-4", campaign: "New women's prayer hall", creator: "Masjid As-Salam", amount: 200, tip: 20, giftAid: 50, total: 270, date: "2026-02-04", anonymous: false, receiptId: "AMN-D-419763" }
 ];
 
-export const MOCK_SAVED_SCHOLARS = [101, 104, 105];
+// Full scholar objects for the UserDashboard isDemo branch's "My scholars" tab.
+// Demo content — not the source of truth for any real scholar. Real saves are
+// fetched via getSavedScholars() in App.jsx.
+export const MOCK_SAVED_SCHOLARS = [
+  {
+    id: "demo-yusuf", name: "Ustadh Yusuf Al-Rahman", initials: "YR", city: "Birmingham", verified: true, topRated: true,
+    rating: 4.9, reviewCount: 142, responseTime: "~2 hours", students: 340,
+    categories: ["quran-kids", "arabic"], languages: ["Arabic", "English", "Urdu"],
+    bio: "Al-Azhar graduate with 12 years teaching experience. Patient, child-friendly, and specialises in tajweed for ages 5–15.",
+    avatarGradient: "from-emerald-400 to-emerald-700",
+  },
+  {
+    id: "demo-abdul-kareem", name: "Imam Abdul Kareem Hassan", initials: "AK", city: "Manchester", verified: true, topRated: false,
+    rating: 4.9, reviewCount: 54, responseTime: "~6 hours", students: 98,
+    categories: ["nikah", "janazah", "counselling"], languages: ["English", "Somali", "Arabic"],
+    bio: "15 years of pastoral experience. Available for nikah, funeral prayers, and marital counselling across the north-west.",
+    avatarGradient: "from-amber-400 to-amber-700",
+  },
+  {
+    id: "demo-fatimah", name: "Ustadha Fatimah Khan", initials: "FK", city: "Online", verified: true, topRated: true,
+    rating: 4.9, reviewCount: 203, responseTime: "~3 hours", students: 420,
+    categories: ["arabic", "quran-kids"], languages: ["Arabic", "English"],
+    bio: "Specialises in teaching Arabic to absolute beginners — children and adults. Makes grammar fun. Female teacher, sisters welcome.",
+    avatarGradient: "from-purple-400 to-purple-700",
+  }
+];
 export const MOCK_SAVED_CAMPAIGNS = [1, 2];

@@ -355,7 +355,7 @@ useEffect(() => {
         <div className="bg-gradient-to-br from-amber-50 via-white to-emerald-50 border border-amber-200 rounded-2xl p-5 flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="relative flex-shrink-0">
-              <Avatar scholar={MOCK_SCHOLARS[0]} size="md" />
+              <Avatar scholar={{ initials: "YR", avatarGradient: "from-emerald-400 to-emerald-700" }} size="md" />
               <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center border-2 border-white">
                 <Star size={10} className="text-white" fill="white" />
               </div>
@@ -365,7 +365,7 @@ useEffect(() => {
               <p className="text-xs text-stone-600 mt-0.5">Completed yesterday · Standard package</p>
             </div>
           </div>
-          <button onClick={() => onLeaveReview(MOCK_SCHOLARS[0])} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-all hover:scale-[1.02] inline-flex items-center gap-2 flex-shrink-0">
+          <button onClick={() => onLeaveReview({ id: "demo-yusuf", name: "Ustadh Yusuf Al-Rahman", initials: "YR", avatarGradient: "from-emerald-400 to-emerald-700" })} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-all hover:scale-[1.02] inline-flex items-center gap-2 flex-shrink-0">
             <Star size={14} /> Leave a review
           </button>
         </div>
@@ -524,7 +524,7 @@ useEffect(() => {
             <div className="absolute -inset-4 bg-gradient-to-br from-emerald-200 to-amber-200 rounded-3xl blur-2xl opacity-40"></div>
             <div className="relative bg-white border border-stone-200 rounded-3xl p-8 shadow-xl">
               <div className="flex items-start gap-4 mb-5">
-                <Avatar scholar={MOCK_SCHOLARS[1]} size="md" />
+                <Avatar scholar={{ initials: "MI", avatarGradient: "from-rose-400 to-rose-700" }} size="md" />
                 <div>
                   <p className="font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Shaykha Maryam Idris</p>
                   <div className="flex items-center gap-1 text-xs text-stone-500 mt-0.5">
@@ -5852,9 +5852,7 @@ setBookings(transformed);
         setDonationsLoading(false);
       });
   }, [isDemo]);
-  const savedScholars = isDemo
-    ? MOCK_SAVED_SCHOLARS.map(id => MOCK_SCHOLARS.find(x => x.id === id)).filter(Boolean)
-    : realSavedScholars;  const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : Array.from(realSavedCampaignIds);  const totalGiven = donations.reduce((s, d) => s + d.amount, 0);
+  const savedScholars = isDemo ? MOCK_SAVED_SCHOLARS : realSavedScholars;  const savedCampaigns = isDemo ? MOCK_SAVED_CAMPAIGNS : Array.from(realSavedCampaignIds);  const totalGiven = donations.reduce((s, d) => s + d.amount, 0);
   const totalGiftAid = donations.reduce((s, d) => s + d.giftAid, 0);
 
   return (
