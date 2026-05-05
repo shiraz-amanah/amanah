@@ -7,6 +7,7 @@ import { MOCK_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
+import { fmt } from "./lib/format";
 
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
@@ -33,9 +34,6 @@ const Counter = ({ end, duration = 1500, suffix = "" }) => {
   }, [end, duration]);
   return <span>{count.toLocaleString()}{suffix}</span>;
 };
-
-// Currency formatter
-const fmt = (n) => "£" + n.toLocaleString();
 
 // Progress bar
 const ProgressBar = ({ raised, goal, gradient = "from-emerald-600 to-emerald-800" }) => {
