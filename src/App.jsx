@@ -12,6 +12,7 @@ import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { SCHOLAR_REVIEWS_DB } from "./data/mockReviews";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
+import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
@@ -5043,69 +5044,6 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
       </main>
     </div>
   );
-};
-
-// ==================== SCHEDULING ====================
-
-// Helper: format a date as YYYY-MM-DD
-const toDateKey = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-// Helper: is date today?
-const isToday = (date) => toDateKey(date) === toDateKey(new Date());
-
-// Helper: generate 30-minute time slots for a range
-const generateSlots = (start, end, intervalMin = 30) => {
-  const [sH, sM] = start.split(":").map(Number);
-  const [eH, eM] = end.split(":").map(Number);
-  const startMin = sH * 60 + sM;
-  const endMin = eH * 60 + eM;
-  const slots = [];
-  for (let m = startMin; m < endMin; m += intervalMin) {
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    slots.push(`${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
-  }
-  return slots;
-};
-
-// Helper: get available slots for a specific date
-const getSlotsForDate = (date, availability, bookings) => {
-  const dayOfWeek = date.getDay();
-  const pattern = availability[dayOfWeek] || [];
-  if (pattern.length === 0) return [];
-
-  const dateKey = toDateKey(date);
-  const bookedTimes = bookings.filter(b => b.date === dateKey).map(b => b.time);
-
-  const allSlots = [];
-  pattern.forEach(window => {
-    const slots = generateSlots(window.start, window.end, 30);
-    slots.forEach(time => {
-      allSlots.push({
-        time,
-        booked: bookedTimes.includes(time)
-      });
-    });
-  });
-  return allSlots;
-};
-
-// Helper: total weekly hours from pattern
-const calculateWeeklyHours = (availability) => {
-  let total = 0;
-  Object.values(availability).forEach(windows => {
-    windows.forEach(w => {
-      const [sH, sM] = w.start.split(":").map(Number);
-      const [eH, eM] = w.end.split(":").map(Number);
-      total += (eH * 60 + eM - sH * 60 - sM) / 60;
-    });
-  });
-  return total;
 };
 
 // ==================== AVAILABILITY EDITOR (SCHOLAR) ====================
