@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_SCHOLARS } from "./data/mockScholars";
@@ -7686,13 +7686,13 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
     onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
-    onBookAgain={(scholarId) => {
-      const s = MOCK_SCHOLARS.find(x => x.id === scholarId);
-      if (s) { setSelectedScholar(s); setView("scholarDetail"); }
+    onBookAgain={async (scholarId) => {
+      const raw = await getScholarById(scholarId);
+      if (raw) { setSelectedScholar(transformScholar(raw)); setView("scholarDetail"); }
     }}
-    onReview={(scholarId) => {
-      const s = MOCK_SCHOLARS.find(x => x.id === scholarId);
-      if (s) { setReviewScholar(s); setView("leaveReview"); }
+    onReview={async (scholarId) => {
+      const raw = await getScholarById(scholarId);
+      if (raw) { setReviewScholar(transformScholar(raw)); setView("leaveReview"); }
     }}
     onViewCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
