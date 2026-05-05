@@ -1,0 +1,29 @@
+-- STATUS: TODO
+-- Already applied: pre-Session-A (predates session log).
+-- Full DDL not recoverable from documentation.
+--
+-- Inferred columns from src/auth.js (createBooking, getMyBookings,
+-- getScholarBookings, updateBooking, cancelBooking) + the booking
+-- transform in src/App.jsx:
+--   id                    uuid (primary key)
+--   parent_id             uuid (FK to profiles.id; .eq('parent_id', user.id))
+--   scholar_id            uuid (FK to scholars.id; embedded as scholar:scholars(...))
+--   student_id            uuid (FK to students.id; nullable; embedded as student:students(...))
+--   package_name          text
+--   package_description   text  (nullable)
+--   sessions_total        int
+--   sessions_completed    int
+--   duration_minutes      int
+--   scheduled_at          timestamptz
+--   amount_paid           numeric
+--   parent_notes          text  (nullable)
+--   status                text  (e.g. 'confirmed', 'cancelled', 'completed')
+--   cancelled_at          timestamptz (nullable; set by cancelBooking)
+--   meeting_url           text (nullable; added 2026-05-05 by 007)
+--   created_at            timestamptz
+--
+-- Inferred RLS:
+--   parent SELECT/INSERT/UPDATE on rows where parent_id = auth.uid()
+--   scholar SELECT/UPDATE on rows where scholar_id IN (select id from scholars where user_id = auth.uid())
+--
+-- TODO: replace this comment block with `pg_dump --schema-only -t bookings` output.

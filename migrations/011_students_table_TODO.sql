@@ -1,0 +1,18 @@
+-- STATUS: TODO
+-- Already applied: pre-Session-A.
+-- Full DDL not recoverable from documentation.
+--
+-- Inferred columns from src/auth.js (getStudents, addStudent,
+-- updateStudent, deleteStudent):
+--   id          uuid (primary key)
+--   profile_id  uuid (FK to profiles.id; .eq('profile_id', user.id))
+--   name        text
+--   age         int (nullable)
+--   relation    text (nullable; e.g. 'Son', 'Daughter')
+--   notes       text (nullable)
+--   created_at  timestamptz (ordered by ascending in getStudents)
+--
+-- Inferred RLS:
+--   parent SELECT/INSERT/UPDATE/DELETE on rows where profile_id = auth.uid()
+--
+-- TODO: replace this comment block with `pg_dump --schema-only -t students` output.

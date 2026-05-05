@@ -1,0 +1,26 @@
+-- STATUS: TODO
+-- Already applied: pre-Session-C (predates the donation persistence wiring;
+-- writes were already working when the bug was diagnosed).
+-- Full DDL not recoverable from documentation.
+--
+-- Inferred columns from src/auth.js (getDonations, createDonation):
+--   id                  uuid (primary key)
+--   user_id             uuid (nullable — anonymous donations leave it null)
+--   campaign_id         text
+--   campaign_title      text
+--   campaign_creator    text
+--   amount              numeric
+--   tip                 numeric (default 0)
+--   gift_aid            numeric (default 0)
+--   total               numeric
+--   anonymous           bool (default false)
+--   display_name        text (nullable)
+--   message             text (nullable)
+--   receipt_id          text (e.g. 'AMN-D-458912')
+--   created_at          timestamptz (used as the dashboard "date" field)
+--
+-- Inferred RLS:
+--   user SELECT on rows where user_id = auth.uid()
+--   user INSERT (with check user_id = auth.uid() OR user_id IS NULL for anonymous?)
+--
+-- TODO: replace this comment block with `pg_dump --schema-only -t donations` output.

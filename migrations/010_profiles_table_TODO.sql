@@ -1,0 +1,25 @@
+-- STATUS: TODO
+-- Already applied: project bootstrap.
+-- Full DDL not recoverable from documentation.
+--
+-- Inferred columns from src/auth.js (getProfile, updateProfile,
+-- updateNotificationPreference) + signUp metadata + frontend usage:
+--   id                uuid (primary key; FK to auth.users.id)
+--   name              text
+--   email             text (also on auth.users; mirrored here for queries — verify)
+--   phone             text (nullable)
+--   city              text (nullable)
+--   avatar_initials   text
+--   avatar_gradient   text
+--   notifications     jsonb (read-merge-write target for updateNotificationPreference)
+--   interest          text (signup metadata)
+--   created_at        timestamptz
+--
+-- Inferred RLS (post-Session-D, after 006 applied):
+--   SELECT to authenticated using (true)  — open (Session D change)
+--   UPDATE using auth.uid() = id
+--   INSERT typically handled via auth.users trigger that creates the matching profile row
+--
+-- TODO: replace this comment block with `pg_dump --schema-only -t profiles` output.
+-- Also dump the auth-trigger that creates a profile row on user signup
+-- (probably a function on auth.users insert).

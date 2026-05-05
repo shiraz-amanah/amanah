@@ -1,0 +1,42 @@
+-- STATUS: TODO
+-- Already applied: pre-2026-05 (exact date unknown — predates session log).
+-- Schema lives in production Supabase, was migrated pre-Session-A
+-- (NOTES.md "Pre-mosques saga" — April 2026).
+-- Full DDL not recoverable from documentation.
+--
+-- This file backfills history and is not for re-application against the
+-- live project — it exists so a future dev project can be bootstrapped
+-- from this directory.
+--
+-- Inferred columns from src/auth.js + src/lib/scholarTransform.js:
+--   id                  uuid (primary key; used as scholar_id FK target on bookings)
+--   slug                text (lookup key in getScholarBySlug)
+--   name                text
+--   title               text
+--   bio                 text
+--   city                text
+--   avatar_initials     text
+--   avatar_gradient     text
+--   categories          text[]   (queried via .contains([categoryId]))
+--   languages           text[]
+--   qualifications      text[]
+--   experience_years    int
+--   gender              text
+--   dbs_verified        bool
+--   dbs_verified_date   date
+--   rtw_verified        bool
+--   ijazah_verified     bool
+--   is_online           bool
+--   rating              numeric  (ordered by — getScholars uses rating DESC)
+--   review_count        int
+--   students_taught     int
+--   packages            jsonb    (per-scholar pricing tiers)
+--   accepts_bookings    bool
+--   status              text     (filtered .eq('status', 'active'))
+--   user_id             uuid     (FK to profiles.id; used by getScholarBookings)
+--
+-- Inferred RLS:
+--   anon + authenticated SELECT (listing is public)
+--   no INSERT/UPDATE/DELETE policies yet (scholar editing not yet built)
+--
+-- TODO: replace this comment block with `pg_dump --schema-only -t scholars` output.
