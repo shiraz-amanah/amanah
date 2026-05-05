@@ -25,12 +25,12 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session B** ✅ — Mosque heart saves (`saves` table extended to `item_type='mosque'`, "My Mosques" tab in UserDashboard)
 - **Session C** ✅ — Parent dashboard polish (donate flow header, edit students, cancel/reschedule booking, donations persist)
 - **Session D** ✅ — Messages (real Supabase tables, RLS, RPC for direct conversations, realtime subscriptions, optimistic send + rollback, unread state via `last_read_at`, `MOCK_CONVERSATIONS` removed)
+- **App.jsx split, Phase 1** ✅ — mock data and pure helpers extracted to `src/data/` and `src/lib/` (15 commits, 8,571→7,744 lines, no behavioural change)
+- **Session E** ✅ — Join session button (parent dashboard, scholar-provided URL, four-state UI based on `meeting_url` + ±15 min window — no built-in video yet, that's Path B for later)
 
 ### Up next
 
-- **Session E — Join session** (scope-dependent)
-- Decision needed first: scholar-provided link vs built-in video vs something else
-- Then build accordingly
+- **Session F** (next) — TBD. Mosque admin features (originally Session F) still deferred until something forces it; Path B (built-in video) deferred until usage justifies it.
 
 ### Deferred — mosque admin features (originally C–G)
 
@@ -687,6 +687,186 @@ with a note that Phase 1 shipped 5 May 2026.
 - Smoke-test suite (still parked). Would have caught a regression
   during this refactor cheaply, but adding tests is its own
   session.
+
+---
+
+## Session E — Join session ✅ (5 May 2026)
+
+**Goal:** working "Join session" button on parent-dashboard upcoming
+bookings. Scholar provides the meeting URL per booking; parent clicks
+Join when the session is imminent. Four-state UI driven by
+`meeting_url` + current time vs `scheduled_at`. No built-in video, no
+recording — staging post for Path B (built-in video) in a future
+session. Lean by design.
+
+### What shipped
+
+**DB migration (one column, run manually against shared dev/prod
+Supabase project — no `migrations/` dir in repo, so SQL captured in
+the commit body):**
+
+```sql
+alter table bookings
+  add column if not exists meeting_url text;
+
+comment on column bookings.meeting_url is
+  'Scholar-provided video meeting URL (Zoom/Meet/Teams). Set per-booking by scholar. Nullable until scholar adds it.';
+```
+
+**`src/auth.js`:** no changes. `getMyBookings` already uses
+`select('*', scholar:..., student:...)` so the new column flows
+through automatically. Verified by grep — no explicit column lists.
+
+**`src/data/mockUser.js`:** `joinLink: "#"` → `meetingUrl:
+"https://meet.google.com/abc-defg-hij"` on the two upcoming
+`MOCK_USER_BOOKINGS` rows. `joinLink` was unreferenced
+(`grep -rn` confirmed) — dropped, not aliased.
+
+**`src/App.jsx` booking transform** (around the existing
+`getMyBookings().then(...)` block):
+
+- Added `meetingUrl: b.meeting_url || null` to the UI shape.
+- **Widened `isUpcoming` cutoff to `now − 15 min`.** Previously
+  `scheduledDate >= new Date()` — meaning the row fell off
+  "upcoming" the instant `scheduled_at` passed, never letting the
+  ±15 min enabled state render. Now bookings stay visible up to 15
+  min past start so the enabled window has somewhere to render.
+
+**`src/App.jsx` UserDashboard upcoming-bookings render** (default
+branch only — not in the cancel-confirmation or reschedule-picker
+sub-cards): replaced placeholder Join button with an inline IIFE
+returning one of:
+
+- **No URL** → disabled stone-200 button, copy: "Waiting for scholar
+  to add link"
+- **URL set, > 15 min before start** → disabled, copy: "Available
+  15 min before start"
+- **URL set, within ±15 min** → enabled emerald-900 button,
+  `onClick={() => window.open(b.meetingUrl, "_blank",
+  "noopener,noreferrer")}`
+- **URL set, > 15 min after start** → returns `null` (button
+  hidden; row falls off "upcoming" anyway)
+- **URL set, doesn't start with `https://`** → inline rose-coloured
+  text: "Invalid meeting link — please contact your scholar".
+  Defense against `javascript:` URIs if a scholar account is ever
+  compromised.
+
+### Commits
+
+- `20c08c6` `feat(join): meeting_url column wiring + Join session
+  button on parent dashboard` — single commit covering both the DB
+  migration body (text) and the UI work, since the migration was
+  run outside the repo and splitting would have left commit 1
+  empty-of-code.
+
+### Decisions
+
+- **`isUpcoming` cutoff widened to `now − 15 min`**, not `now`. The
+  brief's parenthetical "(the row falls off 'upcoming' anyway)"
+  assumed it; the existing filter would have hidden the row the
+  instant `scheduled_at` passed and the ±15 min enabled state
+  would never have rendered. One-line change to make the brief's
+  intended UX possible.
+- **Render-time https validation, not click-time.** A non-https
+  `meetingUrl` produces an inline error in place of the button, not
+  an alert on click. Simpler than maintaining click-time error
+  state, and the parent has visibility that the link is broken
+  without needing to interact.
+- **Single commit, not two.** Brief suggested
+  `feat(join): add meeting_url column` then
+  `feat(join): Join session button ...` as separate commits, but
+  with no `migrations/` directory there's nothing to commit for the
+  schema change beyond text in the commit body. Splitting would
+  have produced an empty commit.
+- **Demo data dates not bumped.** `MOCK_USER_BOOKINGS` rows are
+  dated 2026-04-24/26 — already in the past relative to today
+  (2026-05-05). With the new four-state logic, those upcoming
+  rows hit "more than 15 min after start → hidden" and Join
+  doesn't render in demo mode, while Reschedule + Cancel still do.
+  Pre-existing demo-data-staleness issue, not introduced this
+  session — left as parked.
+
+### Gotchas / things to watch
+
+- **State captures `Date.now()` at render.** Sitting on the
+  dashboard for 30 minutes does NOT auto-transition the button
+  from "Available 15 min before start" to enabled. User has to
+  refresh or re-navigate. Acceptable for v1; if it becomes
+  user-visible add a `setInterval` ticker that bumps a state
+  variable every minute.
+- **Single render site only.** Bookings list lives only in
+  `UserDashboard`'s Bookings tab — confirmed via grep
+  (`scheduled_at`, `setBookings`, `forStudent`). No mosque- or
+  imam-side parent-booking view to update.
+- **Bundle +1.04 kB** (779.57 → 780.61 kB JS). Well within noise;
+  no chunk-split warnings beyond the existing one.
+- **No live state across the time boundary.** If a parent has the
+  page open and the ±15 min window opens while they're looking at
+  it, the button stays disabled until they refresh. The ticker fix
+  above addresses this if it bites.
+
+### Smoke test plan
+
+Five state mutations against a real test booking on the parent
+account (parent UUID needed):
+
+```sql
+-- find a future booking
+select id, scheduled_at, meeting_url from bookings
+where parent_id = '<test-parent-uuid>'
+  and status not in ('cancelled', 'completed')
+order by scheduled_at desc limit 5;
+
+-- A: Waiting (no URL)
+update bookings set meeting_url = null where id = '<id>';
+
+-- B: Available 15 min before start (URL set, far future)
+update bookings set
+  meeting_url = 'https://meet.google.com/abc-defg-hij',
+  scheduled_at = now() + interval '2 hours'
+where id = '<id>';
+
+-- C: Enabled (within ±15 min)
+update bookings set scheduled_at = now() + interval '5 minutes'
+where id = '<id>';
+
+-- D: Hidden (> 15 min past)
+update bookings set scheduled_at = now() - interval '30 minutes'
+where id = '<id>';
+
+-- E: Invalid URL — inline error
+update bookings set meeting_url = 'http://example.com'
+where id = '<id>';
+-- also try 'javascript:alert(1)' — same error
+```
+
+### Out of scope (per brief, not built)
+
+- Scholar-side editor for `meeting_url` (scholars aren't auth
+  users yet; will land when scholar accounts go real, probably
+  Session F or J).
+- Built-in video (Path B), recording, recording attestation,
+  post-session prompts.
+- Notifications / reminders.
+- Report-a-concern flow.
+- Any mosque-related work.
+- Cancel/reschedule changes (already shipped Session C).
+
+### Architectural decisions to revisit
+
+- **When scholars become real auth users**, the scholar's view of
+  their bookings will need a `meeting_url` editor — probably an
+  inline edit affordance on each upcoming booking on the
+  scholar dashboard, calling a new `setBookingMeetingUrl` helper
+  in `auth.js`. RLS update needed: scholars should be able to
+  UPDATE `meeting_url` on bookings where `scholar_id` matches
+  their scholar profile, but no other booking columns.
+- **When live updates matter** (parent stares at dashboard waiting
+  for ±15 min window to open), add a `setInterval(() => setNow(Date.now()), 60_000)`
+  pattern at the top of UserDashboard and pass `now` into the IIFE
+  instead of calling `Date.now()` inline. Cheap; not added now to
+  avoid an unjustified re-render every minute when nobody's
+  watching the clock.
 
 ---
 
