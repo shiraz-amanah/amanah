@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, updateNotifications, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
-import { MOCK_SCHOLARS } from "./data/mockScholars";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
@@ -1071,9 +1070,9 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
 
   // TODO(mosques-migration): mosque.scholarIds is empty until mosques migrate
   // to Supabase and gain real FK relationships to scholars.id (UUIDs). The
-  // previous integer-id lookup against MOCK_SCHOLARS produced fabricated
-  // affiliations — see Session F recap. Affiliated scholars section renders
-  // empty until the mosques DB session lands.
+  // previous integer-id lookup against the deleted mock scholar data produced
+  // fabricated affiliations — see Session F recap. Affiliated scholars section
+  // renders empty until the mosques DB session lands.
   const affiliatedScholars = [];
 
   // Prayer times - hardcoded Adhan times for now (Session C will use Aladhan API)
