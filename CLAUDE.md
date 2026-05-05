@@ -29,8 +29,9 @@ There is no test suite, no lint script, and no typechecker — `npm run build` i
 - `src/App.jsx` — ~7,750 lines. Every component (Avatar, PublicHome, MosqueDashboard, UserDashboard, AdminPanel, …), all routing, and the App root state. Components are top-level `const Foo = (...) => {...}` declarations separated by `// ====` banner comments — grep for those when navigating.
 - `src/auth.js` — the entire Supabase data layer. Every DB call goes through a named export here (`getScholars`, `createBooking`, `getConversations`, `sendMessage`, `subscribeToMessages`, …). App.jsx imports functions but never touches the Supabase client directly. Snake_case DB rows are transformed to camelCase here via shaper helpers (`shapeProfile`, `shapeMessage`, `shapeConversation`).
 - `src/supabaseClient.js` — singleton client from `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
-- `src/data/` — mock arrays (`MOCK_SCHOLARS`, `MOCK_MOSQUES`, `MOCK_CAMPAIGNS`, `MOCK_JOBS`, `MOCK_USER`, `ADMIN_*`, `IMAM_REGISTRY`, `SCHOLAR_REVIEWS_DB`, `CATEGORIES`, `NEARBY_MOSQUES`, `DEFAULT_AVAILABILITY`/`BOOKINGS`/`DAYS_OF_WEEK`). Several surfaces are mid-migration to Supabase; the mock files are deletable per-feature once the surface goes real.
+- `src/data/` — mock arrays (`MOCK_MOSQUES`, `MOCK_CAMPAIGNS`, `MOCK_JOBS`, `MOCK_USER`, `ADMIN_*`, `IMAM_REGISTRY`, `SCHOLAR_REVIEWS_DB`, `CATEGORIES`, `NEARBY_MOSQUES`, `DEFAULT_AVAILABILITY`/`BOOKINGS`/`DAYS_OF_WEEK`). Several surfaces are mid-migration to Supabase; mock files are deletable per-feature once the surface goes real. Scholars + messaging + bookings + saves + donations + profiles + students are already on Supabase; mosques and campaigns are next in the queue.
 - `src/lib/` — pure helpers (`fmt` currency, `haversineDistance` + `useGeolocation`, `transformScholar` snake→camel, `schedule` time-slot helpers, `prayer` time + qibla helpers).
+- `migrations/` — source of truth for the Supabase schema. Numbered SQL files in canonical apply order. See `migrations/README.md` for status (verbatim / reconstructed / TODO) and naming convention. Files document what's already in prod — they are NOT auto-applied, and several are TODO placeholders awaiting `pg_dump --schema-only` output. New schema changes go here as the next numbered file before being applied to Supabase.
 
 **Auth state in App root:** `authedUser` (Supabase user) + `authedProfile` (joined `profiles` row). Both fetched on bootstrap and after `userAuth` flow completes. `isDemo` mode falls back to `MOCK_USER` when no real profile is present — several dashboards branch on this.
 
@@ -52,7 +53,7 @@ There is no test suite, no lint script, and no typechecker — `npm run build` i
 
 ## NOTES.md is the project journal
 
-Session log of every shipped change (Sessions A–D so far), architectural decisions with rationale, and a roadmap of upcoming sessions. Read the relevant session block before working on related code — it documents non-obvious decisions (e.g. why "Saved" tab kept value `"saved"` after rename, why `savedMosqueIds` is asymmetric with `savedScholars`, why DonateFlow needed three-change-pattern fixes). The "Parked items" section at the bottom tracks pre-launch risks and TBDs.
+Session log of every shipped change (Sessions A–F so far, plus the App.jsx Phase 1 refactor), architectural decisions with rationale, and a roadmap of upcoming sessions. Read the relevant session block before working on related code — it documents non-obvious decisions (e.g. why "Saved" tab kept value `"saved"` after rename, why `savedMosqueIds` is asymmetric with `savedScholars`, why DonateFlow needed three-change-pattern fixes, why mosque scholar affiliations are empty until Supabase migration). The "Parked items" section at the bottom tracks pre-launch risks and TBDs.
 
 ## Working agreements
 
