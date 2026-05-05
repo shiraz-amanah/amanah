@@ -27,10 +27,17 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session D** ✅ — Messages (real Supabase tables, RLS, RPC for direct conversations, realtime subscriptions, optimistic send + rollback, unread state via `last_read_at`, `MOCK_CONVERSATIONS` removed)
 - **App.jsx split, Phase 1** ✅ — mock data and pure helpers extracted to `src/data/` and `src/lib/` (15 commits, 8,571→7,744 lines, no behavioural change)
 - **Session E** ✅ — Join session button (parent dashboard, scholar-provided URL, four-state UI based on `meeting_url` + ±15 min window — no built-in video yet, that's Path B for later)
+- **Session F** ✅ — `migrations/` directory baseline (12 files: 2 verbatim, 4 reconstructed-from-code, 5 TODO awaiting `pg_dump`) + MOCK_SCHOLARS leak cleanup (10 references gone, file deleted, mosque scholar affiliations emptied to avoid fabricated relationships, book-again/leave-review handlers fixed to use real `getScholarById`)
 
 ### Up next
 
-- **Session F** (next) — TBD. Mosque admin features (originally Session F) still deferred until something forces it; Path B (built-in video) deferred until usage justifies it.
+TBD — pick one next session. Three obvious chunks:
+
+- **Scholar auth** (originally Session G) — sign-in / sign-up / dashboard for scholar accounts. Unlocks the scholar-side `meeting_url` editor (deferred from Session E), the scholar-detail "Message" button real wiring (TODO from Session D), and claiming existing scholar listings.
+- **Mosques-to-Supabase** (originally Session J) — likely should jump in priority. It unblocks the empty mosque-scholar affiliations from Session F, probably interacts with the scholar-message-button-on-detail wiring, and is a prerequisite for the deferred mosque-admin sessions (F→I in the original order).
+- **`SCHOLAR_REVIEWS_DB` migration** — currently keyed by integer legacy IDs (101, 102, …) that don't match real `scholars.id` UUIDs. State on production unverified (parked in Session F). Adds a real `reviews` table + RLS + a `createReview` helper.
+
+Decide at the start of the next session — don't pre-commit here.
 
 ### Deferred — mosque admin features (originally C–G)
 
@@ -867,6 +874,206 @@ where id = '<id>';
   instead of calling `Date.now()` inline. Cheap; not added now to
   avoid an unjustified re-render every minute when nobody's
   watching the clock.
+
+---
+
+## Session F — migrations/ baseline + MOCK_SCHOLARS leak cleanup ✅ (5 May 2026)
+
+**Goal:** two outcomes after the original brief's premise was found
+wrong (scholars already on Supabase since pre-Session-A): (1)
+`migrations/` directory in the repo as schema source of truth, with
+backfilled prior schema; (2) the 10 leftover `MOCK_SCHOLARS`
+references removed and the file deleted. No new tables, no
+destructive SQL against prod.
+
+### Reframe context
+
+The original Session F brief asked me to "create a `scholars` table +
+seed from `MOCK_SCHOLARS` + migrate saves to UUIDs". Stopping early
+to inventory the codebase revealed `auth.js:78–108` already queries
+`supabase.from('scholars')` directly — the migration to Supabase
+happened pre-Session-A (the "Pre-mosques saga" debug session was
+about a missing `useEffect` not calling `getScholars()`). Executing
+the literal brief would have destroyed real production data.
+
+Three options surfaced; user picked Option A — drop "create scholars
+table + seed", keep the `migrations/` baseline and the MOCK_SCHOLARS
+leak cleanup.
+
+### What shipped
+
+**migrations/ directory + 12 files:**
+
+- `migrations/README.md` — naming convention (`NNN_description.sql`,
+  `NNN` is canonical apply order, date in header comment not
+  filename), three-status legend (Verbatim / Reconstructed / TODO),
+  file index with status per file.
+- **Verbatim from NOTES.md (2 files):** `003_saves_allow_mosque.sql`
+  (Session B CHECK constraint extension) and
+  `007_bookings_meeting_url.sql` (Session E column add). Re-applying
+  produces identical schema as production.
+- **Reconstructed from code + NOTES.md prose (4 files):**
+  `002_saves_table.sql`, `004_messages_schema.sql` (3 tables +
+  helper + trigger + RPC + 7 policies + realtime publication adds),
+  `005_messages_profile_fks.sql` (FK constraint names confirmable
+  from PostgREST embed syntax in `auth.js`),
+  `006_profiles_open_authed_select.sql`. Each carries a prominent
+  "VERIFY against `pg_dump --schema-only -t <table>`" header —
+  function bodies, RLS expressions, default values, and constraint
+  names are best-effort.
+- **TODO (5 files):** `001_scholars_table.sql`,
+  `008_bookings_table_TODO.sql`, `009_donations_table_TODO.sql`,
+  `010_profiles_table_TODO.sql`, `011_students_table_TODO.sql`.
+  Each lists inferred columns from `auth.js` usage as a reference;
+  awaits manual `pg_dump --schema-only` paste.
+
+**MOCK_SCHOLARS leak cleanup — all 10 references gone:**
+
+- **PublicHome demo refs (3 sites: lines 358, 368, 527).** Replaced
+  with inline `{initials, avatarGradient}` objects (avatars) and a
+  small `{id, name, initials, avatarGradient}` object passed to
+  `onLeaveReview`. Demo `id` prefixed `demo-` to make obviously
+  non-real.
+- **UserDashboard `isDemo` branch (line 5856).**
+  `MOCK_SAVED_SCHOLARS` in `mockUser.js` rewritten from
+  `[101, 104, 105]` (integer IDs) to three full inline scholar
+  objects (Yusuf / Abdul Kareem / Fatimah). Demo branch simplified
+  from `.map(id => MOCK_SCHOLARS.find(...))` to direct array use.
+- **MosqueDetail affiliations (line 1072–1074).** All 8 mosques in
+  `mockMosques.js` got `scholarIds: []` (was `[101, 105]` etc.),
+  and the App.jsx lookup was hardcoded to `affiliatedScholars = []`
+  with a TODO pointing at the mosque-to-Supabase migration.
+  **Decision:** better empty than fabricated. Integer `scholarIds`
+  never matched real `scholars.id` UUIDs in production —
+  affiliations were pre-existing-broken-but-unnoticed, not real
+  relationships.
+- **App-root book-again + leave-review handlers (lines 7689–7696).**
+  `MOCK_SCHOLARS.find(x => x.id === scholarId)` replaced with
+  async `getScholarById(scholarId)` + `transformScholar(raw)`.
+  Pre-existing real bookings have UUID `scholar_id`; the previous
+  lookup silently no-oped on every real user's dashboard. Added
+  `getScholarById` to the `auth.js` import line.
+- **`src/data/mockScholars.js` deleted.** `grep -rn MOCK_SCHOLARS
+  src/` returns zero (`exit:1`).
+
+**CLAUDE.md updated** — new `migrations/` entry under file layout;
+`MOCK_SCHOLARS` removed from `src/data/` listing; clarified that
+scholars / messaging / bookings / saves / donations / profiles /
+students are already on Supabase, mosques + campaigns next; session
+count bumped A–D → A–F + Phase 1 refactor.
+
+### Commits
+
+- `c7b1be9` `chore(migrations): create migrations/ directory + 11 backfilled files`
+- `bcc8d19` `refactor: replace MOCK_SCHOLARS demo refs with inline demo objects`
+- `ba3695a` `refactor(mosques): empty fabricated scholar affiliations until DB migration`
+- `86e4681` `fix(bookings): book-again + leave-review handlers use real getScholarById`
+- `436d831` `chore: delete src/data/mockScholars.js`
+- `bc827f2` `docs: CLAUDE.md — add migrations/ directory + session count update`
+
+### Decisions
+
+- **Reframed mid-flight, didn't execute the literal brief.** The
+  brief's "create scholars table + seed" step would have dropped
+  the live production schema and overwritten real scholar rows with
+  mock data. Confirmed scholars-already-on-Supabase via
+  `auth.js:78–108` queries + the Pre-mosques saga reference in
+  NOTES.md, paused, surfaced findings, picked Option A together.
+  Lesson: when a brief's premise contradicts what the codebase
+  shows, stop and surface.
+- **Reconstructions get loud "VERIFY" headers, not silent
+  best-effort.** NOTES.md only has verbatim SQL at lines 175–176
+  (saves CHECK) and 709 (meeting_url); the rest of Session D was
+  prose. Reconstructed files (002, 004, 005, 006) have prominent
+  headers warning that types/defaults/expressions/function bodies
+  need `pg_dump`-based verification before applying to a fresh
+  project.
+- **TODO files list inferred columns rather than empty
+  placeholders.** Each TODO file documents what the frontend's
+  `auth.js` queries access (column name + how it's used), so a
+  future `pg_dump` paste has a reference list to compare against.
+  Avoids "what columns does this table even have" archaeology.
+- **Mosque affiliations: option (b), not (a).** User decided
+  against fabricating Birmingham-mosque-gets-Birmingham-scholar
+  relationships from prod scholar slugs — same anti-fabrication
+  principle as the migration TODO files. `scholarIds` zeroed across
+  all 8 mosques rather than left as dormant integer arrays that
+  look like they mean something. Real wiring lands when mosques
+  migrate to Supabase.
+- **Demo scholar IDs prefixed `demo-`** (`demo-yusuf`,
+  `demo-abdul-kareem`, `demo-fatimah`) to make them obviously
+  non-real and unlikely to ever collide with a real scholar UUID.
+  The book-again handler will return null for these, which is the
+  desired no-op for demo content.
+
+### Gotchas / things to watch
+
+- **Reconstructed migration files need verification before
+  bootstrapping a fresh project.** Until `pg_dump --schema-only`
+  output replaces the TODO/reconstructed contents, this directory
+  is not yet sufficient to spin up a clean dev project. Resolving
+  this is a prerequisite for the parked dev/prod-split work.
+- **Bundle size unchanged.** App.jsx grew slightly from inline demo
+  objects + a few comments (~30 net lines), but the bundle remained
+  at ~780 kB JS.
+- **Demo `Leave a review` CTA on PublicHome will fail when
+  `LeaveReview` later gets wired to a real `createReview()`
+  helper.** The demo passes `id: "demo-yusuf"` which isn't a real
+  scholar UUID. Will need a "demo mode" guard on the LeaveReview
+  flow. Not Session F's problem.
+
+### Smoke test plan
+
+Items 1, 8, 9 confirmable locally now; the rest need a deployed-site
+pass (not done in-session — flag for next time the deployed app is
+open):
+
+1. ✅ `ls migrations/` shows README + 11 SQL files in numerical order.
+2. PublicHome testimonial + review CTA cards still render with
+   inline hardcoded data.
+3. Scholar listing / detail / booking flow — no behavioural change.
+4. UserDashboard "My scholars" tab in demo mode — three demo
+   scholars render with full cards.
+5. MosqueDetail affiliated-scholars section — renders empty.
+6. Book-again button on a past booking — clicking now actually
+   navigates to scholar detail (was silently broken).
+7. Leave-review button on a past booking — same.
+8. ✅ `grep -rn MOCK_SCHOLARS src/` returns zero.
+9. ✅ Build green at every step (six builds, six commits).
+10. **Reviews on a real scholar detail page** — open and document
+    state. Brief explicitly said: don't fix in this session, just
+    note state. **Not tested** — flag for next time.
+
+### Out of scope for this session
+
+- Scholar auth / sign-in / sign-up / dashboard (Session G or
+  successor)
+- Scholar profile editing, `meeting_url` editor (Session H or later)
+- `SCHOLAR_REVIEWS_DB` migration (separate session)
+- Mosques-to-Supabase migration (separate session — possibly should
+  jump in priority; see roadmap)
+- Anything mosque-admin
+- Stripe / payouts
+- Scholar detail "Message" button real wiring (still TODO from
+  Session D)
+
+### Architectural decisions to revisit
+
+- **When mosques migrate to Supabase**, MosqueDetail's affiliations
+  section needs real wiring back. The empty-array hardcoding +
+  TODO comment marks the spot.
+- **When `SCHOLAR_REVIEWS_DB` migrates**, the integer-keyed
+  `SCHOLAR_REVIEWS_DB[101]` lookups in scholar-detail need to
+  switch to a real query against the new `reviews` table. Verify
+  current state on production first — reviews may be silently
+  empty already (integer key won't match UUID), making this
+  larger-than-it-looks if reviews are a load-bearing UX element.
+- **When a future cleanup pass reconciles migration files**, run
+  `pg_dump --schema-only` per table and replace the TODO and
+  Reconstructed files. Order: profiles → students → bookings →
+  donations → saves → scholars → messages tables (rough dependency
+  order). This is the prerequisite for splitting dev and prod
+  Supabase projects.
 
 ---
 
