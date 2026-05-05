@@ -567,6 +567,129 @@ Logged to "Parked items" at bottom of NOTES, summarized here:
   column-level grants.
 ---
 
+## Refactor — App.jsx split, Phase 1 ✅ (5 May 2026)
+
+**Goal:** start chipping away at the "Consider splitting App.jsx"
+parked item. App.jsx had grown to 8,571 lines — every component, every
+route, every mock array, every helper in one file. Phase 1 scope was
+deliberately narrow: extract only **mock data and pure helpers** to
+new files. No component moves, no behavioural change.
+
+### What shipped
+
+**New directories under `src/`:**
+
+- `src/data/` — 10 files, 592 lines of mock arrays and lookup data:
+  - `categories.js` (CATEGORIES)
+  - `mockScholars.js` (MOCK_SCHOLARS)
+  - `mockMosques.js` (MOCK_MOSQUES + NEARBY_MOSQUES — same domain)
+  - `mockCampaigns.js` (MOCK_CAMPAIGNS)
+  - `mockJobs.js` (MOCK_JOBS + MOCK_MY_APPLICATIONS)
+  - `mockUser.js` (MOCK_USER + MOCK_USER_BOOKINGS + MOCK_USER_DONATIONS
+    + MOCK_SAVED_SCHOLARS + MOCK_SAVED_CAMPAIGNS)
+  - `mockReviews.js` (SCHOLAR_REVIEWS_DB)
+  - `mockImamRegistry.js` (IMAM_REGISTRY + INITIAL_CHECKS)
+  - `mockAdmin.js` (ADMIN_MOSQUE_APPS, ADMIN_SCHOLAR_APPS,
+    ADMIN_CAMPAIGN_APPS, ADMIN_FLAGS, ADMIN_DBS_ORDERS)
+  - `scheduleDefaults.js` (DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS,
+    DAYS_OF_WEEK)
+
+- `src/lib/` — 5 files, 230 lines of pure helpers:
+  - `format.js` (`fmt` currency)
+  - `geo.js` (`haversineDistance`, `useGeolocation`)
+  - `scholarTransform.js` (`transformScholar` snake→camel)
+  - `schedule.js` (`toDateKey`, `isToday`, `generateSlots`,
+    `getSlotsForDate`, `calculateWeeklyHours`)
+  - `prayer.js` (`getPrayerTimes`, `parseTimeToday`,
+    `getCurrentPrayerState`, `timeUntil`, `getQiblaBearing`)
+
+**App.jsx: 8,571 → 7,744 lines (-827, -9.6%).** Bundle size
+unchanged at every step (779.57 kB JS / 59.71 kB CSS). `npm run build`
+verified green between every extraction.
+
+**CLAUDE.md added** at the repo root — architecture overview,
+Supabase caveats, NOTES.md pointer, and a "Working agreements"
+section codifying the build-and-commit discipline used in this
+session.
+
+### Commits (in order)
+
+- `2c2158f` `docs: log disintermediation risk + Session E mitigations in parked items` (clean rollback point established before refactor began)
+- `fb8ca05` `refactor: extract CATEGORIES + MOCK_SCHOLARS to data/`
+- `79d2e20` `refactor: extract MOCK_MOSQUES + NEARBY_MOSQUES to data/` (NEARBY_MOSQUES file landed here but App.jsx didn't switch to importing it until `a30b608`)
+- `49a52ae` `refactor: extract haversineDistance + useGeolocation to lib/geo`
+- `bea5adc` `refactor: extract transformScholar to lib/scholarTransform`
+- `d90f50c` `refactor: extract MOCK_CAMPAIGNS to data/`
+- `148cf10` `refactor: extract fmt currency helper to lib/format`
+- `7aeee6f` `refactor: extract IMAM_REGISTRY + INITIAL_CHECKS to data/`
+- `aa042fa` `refactor: extract SCHOLAR_REVIEWS_DB to data/`
+- `5f173f9` `refactor: extract MOCK_JOBS + MOCK_MY_APPLICATIONS to data/`
+- `ea55411` `refactor: extract DEFAULT_AVAILABILITY/BOOKINGS/DAYS_OF_WEEK to data/`
+- `fee0f82` `refactor: extract schedule helpers (toDateKey, generateSlots, etc.) to lib/`
+- `019b433` `refactor: extract MOCK_USER + bookings/donations/saved demo data to data/`
+- `1d75b3b` `refactor: extract prayer helpers (getPrayerTimes, qibla, etc.) to lib/`
+- `a30b608` `refactor: wire NEARBY_MOSQUES import (file already in data/mockMosques)`
+- `b4ffcd2` `refactor: extract ADMIN_* mock arrays to data/`
+- `0e21f0e` `docs: add CLAUDE.md with architecture overview + working agreements`
+
+### Decisions
+
+- **Commit cadence: one per destination file.** Multiple source
+  blocks targeting the same destination file (e.g. `IMAM_REGISTRY`
+  + `INITIAL_CHECKS` → `mockImamRegistry.js`) bundled into one
+  commit. Different destinations got different commits. Resulted in
+  15 refactor commits + 1 docs commit (CLAUDE.md).
+- **Move-only, behavior-preserving.** Even when the original code
+  had dead code (`const today = new Date();` in `getPrayerTimes`
+  is never used), kept it 1:1 in the extracted file. Cleanup is a
+  separate commit category and shouldn't be smuggled in.
+- **Phase 2 (component extraction) deferred.** App.jsx still 7,744
+  lines — every component still inline. No timeline for Phase 2;
+  decision-deferred until something concrete forces it.
+
+### Lessons learned
+
+- **Don't add all imports up-front.** First attempt added 15
+  `import { ... }` lines at the top of App.jsx before deleting the
+  corresponding local `const`s. Result: every constant became a
+  duplicate declaration, build broke. Rolled back. Fix: pair every
+  import addition with the matching local-declaration removal in
+  the same step, build green between each.
+- **No bulk-deletion scripts.** Tried a Python script to splice
+  blocks by anchor markers; the script had a known bug (own
+  comment said "let me redo") and the user rejected it before it
+  ran. Edit-tool deletions with full block contents (or
+  rename-to-placeholder + Edit-the-placeholder when blocks exceed
+  Edit's reasonable size) produce reviewable per-block diffs.
+- **Build first, commit second — separate prompts.** Chaining
+  `npm run build && git commit ...` into one Bash call was
+  rejected: build verification and git history are different
+  permission categories. The user wants to see the build output
+  before approving the commit. Codified in CLAUDE.md's "Working
+  agreements" section.
+- **Cumulative line offsets shift fast.** After each extraction
+  the line numbers in `grep -n` output drift by tens or hundreds.
+  Always re-grep for the next block's boundaries against the
+  current file state — don't trust offsets calculated against the
+  original.
+
+### Parked items addressed
+
+The "Consider splitting `App.jsx`" entry under Parked items is
+**partially resolved** — Phase 1 (data + lib) done; Phase 2
+(component extraction) still open. Leaving the parked item in place
+with a note that Phase 1 shipped 5 May 2026.
+
+### Out of scope for this session
+
+- Phase 2 (component extraction). The proposed structure exists in
+  the chat history if needed, but no commitment to execute.
+- Smoke-test suite (still parked). Would have caught a regression
+  during this refactor cheaply, but adding tests is its own
+  session.
+
+---
+
 ## Cross-cutting gotchas
 
 ### Find/replace gotchas
