@@ -5776,7 +5776,10 @@ useEffect(() => {
         // Transform DB shape to the shape the UI expects
         const transformed = data.map(b => {
           const scheduledDate = new Date(b.scheduled_at);
-          const isUpcoming = scheduledDate >= new Date() && b.status !== "cancelled" && b.status !== "completed";
+          // Keep rows in "upcoming" up to 15 min past start so the Join-session button's
+          // "within ±15 min" enabled state has a window to render before the row falls off.
+          const upcomingCutoff = new Date(Date.now() - 15 * 60 * 1000);
+          const isUpcoming = scheduledDate >= upcomingCutoff && b.status !== "cancelled" && b.status !== "completed";
           const dateKey = scheduledDate.toISOString().split("T")[0];
           const timeStr = scheduledDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
           return {
@@ -5797,6 +5800,7 @@ useEffect(() => {
             status: b.status === "completed" ? "completed" : isUpcoming ? "upcoming" : b.status,
             forStudent: b.student ? { name: b.student.name, relation: b.student.relation, age: b.student.age } : null,
             notes: b.parent_notes,
+            meetingUrl: b.meeting_url || null,
             rawScheduledAt: b.scheduled_at
           };
         });
@@ -6016,9 +6020,47 @@ setBookings(transformed);
                             ) : (
                               /* Default: action buttons */
                               <div className="flex gap-2 flex-wrap">
-                                <button className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
-                                  <Play size={13} /> Join session
-                                </button>
+                                {(() => {
+                                  const startMs = b.rawScheduledAt
+                                    ? new Date(b.rawScheduledAt).getTime()
+                                    : new Date(`${b.date}T${b.time}:00`).getTime();
+                                  const minsUntil = (startMs - Date.now()) / 60000;
+                                  // Past +15 min: hide entirely (row should fall off "upcoming" too)
+                                  if (minsUntil < -15) return null;
+                                  // No URL set yet — scholar hasn't added it
+                                  if (!b.meetingUrl) {
+                                    return (
+                                      <button disabled className="bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-not-allowed">
+                                        <Play size={13} /> Waiting for scholar to add link
+                                      </button>
+                                    );
+                                  }
+                                  // URL set but not https:// — refuse to open
+                                  if (!b.meetingUrl.startsWith("https://")) {
+                                    return (
+                                      <p className="text-xs text-rose-700 inline-flex items-center gap-1.5 py-2">
+                                        <AlertCircle size={13} /> Invalid meeting link — please contact your scholar
+                                      </p>
+                                    );
+                                  }
+                                  // More than 15 min before start
+                                  if (minsUntil > 15) {
+                                    return (
+                                      <button disabled className="bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-not-allowed">
+                                        <Play size={13} /> Available 15 min before start
+                                      </button>
+                                    );
+                                  }
+                                  // Within ±15 min — enabled
+                                  return (
+                                    <button
+                                      onClick={() => window.open(b.meetingUrl, "_blank", "noopener,noreferrer")}
+                                      className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
+                                    >
+                                      <Play size={13} /> Join session
+                                    </button>
+                                  );
+                                })()}
                                 <button onClick={() => startRescheduling(b)} className="bg-white border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:border-stone-400">Reschedule</button>
                                 <button onClick={() => setCancellingBookingId(b.id)} className="text-sm text-stone-500 hover:text-rose-700 px-2 py-2">Cancel</button>
                               </div>

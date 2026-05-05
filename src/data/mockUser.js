@@ -14,8 +14,8 @@ export const MOCK_USER = {
 };
 
 export const MOCK_USER_BOOKINGS = [
-  { id: "b-1", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-24", time: "18:00", student: "Yusuf", status: "upcoming", type: "Qur'an · Tajweed", joinLink: "#" },
-  { id: "b-2", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-26", time: "14:00", student: "Mariam", status: "upcoming", type: "Arabic", joinLink: "#" },
+  { id: "b-1", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-24", time: "18:00", student: "Yusuf", status: "upcoming", type: "Qur'an · Tajweed", meetingUrl: "https://meet.google.com/abc-defg-hij" },
+  { id: "b-2", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-26", time: "14:00", student: "Mariam", status: "upcoming", type: "Arabic", meetingUrl: "https://meet.google.com/abc-defg-hij" },
   { id: "b-3", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-17", time: "18:00", student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
   { id: "b-4", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-10", time: "18:00", student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
   { id: "b-5", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-19", time: "14:00", student: "Mariam", status: "completed", type: "Arabic", reviewLeft: false }
