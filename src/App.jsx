@@ -3,7 +3,7 @@ import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudent
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_SCHOLARS } from "./data/mockScholars";
-import { MOCK_MOSQUES } from "./data/mockMosques";
+import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
@@ -6586,15 +6586,6 @@ setBookings(transformed);
 };
 
 // ==================== PRAYER HUB ====================
-
-// Nearby mosques — these are the verified mosques from the register
-const NEARBY_MOSQUES = [
-  { id: 1, name: "Masjid Al-Noor", city: "Birmingham", postcode: "B12 9AA", distance: 0.8, denomination: "Sunni — Hanafi", verified: true, gradient: "from-emerald-400 to-emerald-700", initials: "MN", jumuahTime: "13:30", languages: ["English", "Urdu", "Arabic"] },
-  { id: 2, name: "Masjid As-Salam", city: "Leicester", postcode: "LE2 7AA", distance: 1.2, denomination: "Sunni — Hanafi", verified: true, gradient: "from-rose-400 to-rose-700", initials: "AS", jumuahTime: "13:15", languages: ["English", "Gujarati"] },
-  { id: 3, name: "Blackburn Islamic Centre", city: "Blackburn", postcode: "BB1 8AA", distance: 2.4, denomination: "Sunni — Hanafi", verified: true, gradient: "from-amber-400 to-amber-700", initials: "BI", jumuahTime: "13:00", languages: ["English", "Urdu"] },
-  { id: 4, name: "Noor Academy", city: "London", postcode: "E1 1AA", distance: 3.7, denomination: "Non-denominational", verified: true, gradient: "from-indigo-400 to-indigo-700", initials: "NA", jumuahTime: "13:30", languages: ["English", "Arabic"] },
-  { id: 5, name: "Darul Hikmah", city: "Cardiff", postcode: "CF10 1AA", distance: 5.2, denomination: "Sunni — Shafi'i", verified: true, gradient: "from-teal-400 to-teal-700", initials: "DH", jumuahTime: "13:15", languages: ["English", "Arabic", "Bengali"] }
-];
 
 // ==================== PRAYER HUB PAGE ====================
 const PrayerHub = ({ onBack, onSignIn }) => {
