@@ -1,5 +1,11 @@
 # CLAUDE.md
 
+## Amanah — Claude Code project notes
+
+## What this is
+
+Amanah is a trusted Muslim scholar platform — a marketplace connecting users with verified scholars, mosques, imams, and community campaigns. Built solo by Shiraz, deployed on Vercel from the `main` branch.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
