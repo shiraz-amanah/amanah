@@ -9495,9 +9495,18 @@ const handleSignIn = (r) => {
     if (r === "user") {
       if (authedUser) {
         // PublicHeader's avatar fires onSignIn("user") for any signed-in
-        // user. If they're a scholar, route to their dashboard rather
-        // than dumping them into the parent UI.
+        // user. Route them to scholar surfaces if they have any scholar
+        // context: a linked listing, an application in flight, or a
+        // scholar signup intent stamped on their auth metadata. Without
+        // the metadata fallback, a scholar who signed up but closed
+        // the tab before submitting the wizard would land on the parent
+        // dashboard on their next avatar tap.
         if (myScholar) { setView("scholarDashboard"); return; }
+        const isScholarSignup = authedUser?.user_metadata?.interest === "scholar";
+        if (myScholarApplication || isScholarSignup) {
+          routeAuthedScholar(authedUser.id);
+          return;
+        }
         setView("userDashboard"); return;
       }
       // Picking "Parent or student" expresses intent to use the parent
