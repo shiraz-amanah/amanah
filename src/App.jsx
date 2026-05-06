@@ -8211,6 +8211,7 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
     { id: "mosques", label: "Mosque queue", icon: Building2, count: counts.mosques, urgent: counts.mosques > 0 },
     { id: "scholars", label: "Scholar queue", icon: Users, count: counts.scholars, urgent: counts.scholars > 0 },
+    { id: "scholarApplications", label: "Scholar applications", icon: GraduationCap, count: null, urgent: false },
     { id: "campaigns", label: "Campaign queue", icon: HandCoins, count: counts.campaigns, urgent: counts.campaigns > 0 },
     { id: "flags", label: "Flags & reports", icon: Flag, count: counts.flags, urgent: counts.flags > 0, highlight: true },
     { id: "reviews", label: "Reviews", icon: Star, count: null, urgent: false },
@@ -8843,6 +8844,296 @@ const AdminReviewsModeration = () => {
   );
 };
 
+// ===== Scholar applications (real, from Supabase) =====
+const AdminScholarApplications = () => {
+  const [filter, setFilter] = useState("pending");
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
+  // Detail view state
+  const [selected, setSelected] = useState(null);
+  // Action modals
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const refetch = async () => {
+    setLoading(true);
+    const [list, all] = await Promise.all([
+      getAllScholarApplications(filter === "all" ? null : filter),
+      getAllScholarApplications(null),
+    ]);
+    setApplications(list);
+    setCounts({
+      pending: all.filter(a => a.status === "pending").length,
+      approved: all.filter(a => a.status === "approved").length,
+      rejected: all.filter(a => a.status === "rejected").length,
+    });
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleApprove = async () => {
+    if (!selected) return;
+    setActionError(null);
+    setActionLoading(true);
+    const { data, error } = await approveScholarApplication(selected.id);
+    setActionLoading(false);
+    if (error) {
+      setActionError(error.message || "Couldn't approve. Try again.");
+      return;
+    }
+    setShowApproveModal(false);
+    setSelected(null);
+    showToast(`Approved · scholar listing created`);
+    refetch();
+  };
+
+  const handleReject = async () => {
+    if (!selected) return;
+    setActionError(null);
+    setActionLoading(true);
+    const { data, error } = await rejectScholarApplication(selected.id, rejectReason);
+    setActionLoading(false);
+    if (error) {
+      setActionError(error.message || "Couldn't reject. Try again.");
+      return;
+    }
+    setShowRejectModal(false);
+    setSelected(null);
+    setRejectReason("");
+    showToast("Rejected");
+    refetch();
+  };
+
+  const closeRejectModal = () => {
+    setShowRejectModal(false);
+    setRejectReason("");
+    setActionError(null);
+  };
+
+  // Detail view
+  if (selected) {
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5">
+          <ArrowLeft size={14} /> Back to applications
+        </button>
+        <div className="mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{selected.fullName}</h1>
+            <ApplicationStatusPill status={selected.status} />
+          </div>
+          <p className="text-stone-600 text-sm">
+            Submitted {new Date(selected.createdAt).toLocaleString("en-GB")}
+            {selected.reviewedAt && <> · Reviewed {new Date(selected.reviewedAt).toLocaleString("en-GB")}</>}
+          </p>
+        </div>
+
+        <div className="space-y-4 mb-6">
+          <ApplicationDetailSection title="About">
+            <DetailRow label="Full name" value={selected.fullName} />
+            <DetailRow label="City" value={selected.city} />
+            <DetailRow label="Languages" value={(selected.languages || []).join(", ") || "—"} />
+          </ApplicationDetailSection>
+
+          <ApplicationDetailSection title="Qualifications">
+            <DetailRow label="DBS status" value={DBS_OPTIONS.find(o => o.v === selected.dbsStatus)?.l || "—"} />
+            <DetailRow label="Years teaching" value={selected.yearsTeaching ?? "—"} />
+            <DetailRow label="Ijazah" value={selected.ijazahSummary || "—"} multiline />
+            <DetailRow label="Formal education" value={selected.formalEducation || "—"} multiline />
+          </ApplicationDetailSection>
+
+          <ApplicationDetailSection title="Services">
+            <DetailRow label="Subjects" value={(selected.subjects || []).map(id => CATEGORIES.find(c => c.id === id)?.name || id).join(", ") || "—"} />
+            <div className="mt-2">
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5">Packages</p>
+              <ul className="text-xs text-stone-700 space-y-1">
+                {(selected.packages || []).map((p, i) => (
+                  <li key={i}>· {p.name} · {p.duration} · £{p.price}{p.desc ? ` — ${p.desc}` : ""}</li>
+                ))}
+              </ul>
+            </div>
+            <DetailRow label="Bio" value={selected.bio || "—"} multiline />
+          </ApplicationDetailSection>
+
+          {selected.status === "rejected" && selected.rejectionReason && (
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+              <p className="text-xs font-medium text-rose-900 uppercase tracking-wider mb-1">Rejection reason</p>
+              <p className="text-sm text-rose-800 leading-relaxed">{selected.rejectionReason}</p>
+            </div>
+          )}
+
+          {selected.status === "approved" && selected.createdScholarId && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+              <p className="text-xs font-medium text-emerald-900 uppercase tracking-wider mb-1">Scholar listing created</p>
+              <p className="text-sm text-emerald-800 font-mono break-all">{selected.createdScholarId}</p>
+            </div>
+          )}
+        </div>
+
+        {selected.status === "pending" && (
+          <div className="flex gap-2 flex-wrap pt-4 border-t border-stone-200">
+            <button onClick={() => setShowApproveModal(true)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
+              <CheckCircle2 size={14} /> Approve
+            </button>
+            <button onClick={() => setShowRejectModal(true)} className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
+              <XCircle size={14} /> Reject
+            </button>
+          </div>
+        )}
+
+        {/* Approve modal */}
+        {showApproveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+            <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Approve {selected.fullName}?</h3>
+              <p className="text-sm text-stone-700 mb-5 leading-relaxed">This creates a public scholar listing in pending_verification status. The scholar can sign in and use their dashboard, but parents won't see them in listings until DBS / RTW / Ijazah are verified.</p>
+              {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowApproveModal(false)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+                <button onClick={handleApprove} disabled={actionLoading} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                  {actionLoading ? "Approving..." : <><CheckCircle2 size={14} /> Confirm approval</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reject modal */}
+        {showRejectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+            <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Reject {selected.fullName}'s application</h3>
+              <p className="text-sm text-stone-700 mb-3 leading-relaxed">Tell them why so they can fix and resubmit. Min 10 characters.</p>
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={4}
+                placeholder="e.g. Couldn't verify your DBS — please attach a document next time."
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none mb-2"
+              />
+              <p className="text-xs text-stone-500 mb-3">{rejectReason.length} chars</p>
+              {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
+              <div className="flex justify-end gap-2">
+                <button onClick={closeRejectModal} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+                <button onClick={handleReject} disabled={actionLoading || rejectReason.trim().length < 10} className="bg-rose-700 hover:bg-rose-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                  {actionLoading ? "Rejecting..." : <><XCircle size={14} /> Confirm rejection</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {toast && (
+          <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+            <CheckCircle2 className="text-emerald-400" size={18} />
+            <span className="text-sm font-medium">{toast}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // List view
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Scholar applications</h1>
+        <p className="text-stone-600">Review and approve scholar onboarding submissions.</p>
+      </div>
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {[
+          { v: "pending", l: "Pending", c: counts.pending },
+          { v: "approved", l: "Approved", c: counts.approved },
+          { v: "rejected", l: "Rejected", c: counts.rejected },
+          { v: "all", l: "All", c: counts.pending + counts.approved + counts.rejected },
+        ].map(f => (
+          <button
+            key={f.v}
+            onClick={() => setFilter(f.v)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${filter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+          >
+            {f.l}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${filter === f.v ? "bg-white/20" : "bg-stone-100"}`}>{f.c}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-stone-400 text-center py-8">Loading applications...</p>
+      ) : applications.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <Inbox className="mx-auto text-stone-300 mb-3" size={36} />
+          <p className="text-stone-600">No applications in this view.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          {applications.map((a, i) => (
+            <button
+              key={a.id}
+              onClick={() => setSelected(a)}
+              className={`w-full flex items-center gap-4 p-5 text-left hover:bg-stone-50 transition-colors ${i < applications.length - 1 ? "border-b border-stone-100" : ""}`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <p className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{a.fullName}</p>
+                  <ApplicationStatusPill status={a.status} />
+                </div>
+                <p className="text-xs text-stone-500">{a.city} · submitted {new Date(a.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+              </div>
+              <ChevronRight size={16} className="text-stone-400 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+          <CheckCircle2 className="text-emerald-400" size={18} />
+          <span className="text-sm font-medium">{toast}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ApplicationStatusPill = ({ status }) => {
+  const cfg = {
+    pending:  { bg: "bg-amber-50",   text: "text-amber-800",   border: "border-amber-200",   label: "Pending" },
+    approved: { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", label: "Approved" },
+    rejected: { bg: "bg-rose-50",    text: "text-rose-800",    border: "border-rose-200",    label: "Rejected" },
+  }[status] || { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-200", label: status };
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
+};
+
+const ApplicationDetailSection = ({ title, children }) => (
+  <div className="bg-white border border-stone-200 rounded-2xl p-5">
+    <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">{title}</h3>
+    <div className="space-y-2">{children}</div>
+  </div>
+);
+
+const DetailRow = ({ label, value, multiline = false }) => (
+  <div className={multiline ? "" : "flex items-start justify-between gap-3"}>
+    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{label}</p>
+    <p className={`text-sm text-stone-900 ${multiline ? "whitespace-pre-line" : ""}`}>{value}</p>
+  </div>
+);
+
 // ===== Admin panel shell =====
 const AdminPanel = ({ onExit }) => {
   const [section, setSection] = useState("overview");
@@ -8865,6 +9156,7 @@ const AdminPanel = ({ onExit }) => {
     overview: "Overview",
     mosques: "Mosque queue",
     scholars: "Scholar queue",
+    scholarApplications: "Scholar applications",
     campaigns: "Campaign queue",
     flags: "Flags & reports",
     reviews: "Reviews",
@@ -8927,6 +9219,7 @@ const AdminPanel = ({ onExit }) => {
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} />}
         {section === "mosques" && <AdminMosqueQueue apps={mosqueApps} onAction={handleMosqueAction} />}
         {section === "scholars" && <AdminScholarQueue apps={scholarApps} onAction={handleScholarAction} />}
+        {section === "scholarApplications" && <AdminScholarApplications />}
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
         {section === "flags" && <AdminFlags flags={flags} onAction={handleFlagAction} />}
         {section === "reviews" && <AdminReviewsModeration />}
