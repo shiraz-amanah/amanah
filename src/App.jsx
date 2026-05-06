@@ -6409,17 +6409,19 @@ setBookings(transformed);
                                   // More than 15 min before start — show a
                                   // "ready" affordance so the parent knows the
                                   // scholar has done their part. The Join button
-                                  // still gates on time.
+                                  // still gates on time. Pill renders inline with
+                                  // the disabled button so row height matches
+                                  // peer rows that don't have it.
                                   if (minsUntil > 15) {
                                     return (
-                                      <div className="flex flex-col gap-1.5">
-                                        <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full font-medium self-start">
-                                          <CheckCircle2 size={11} /> Meeting link ready
+                                      <>
+                                        <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full font-medium">
+                                          <CheckCircle2 size={11} /> Link ready
                                         </span>
-                                        <button disabled className="bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-not-allowed self-start">
+                                        <button disabled className="bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-not-allowed">
                                           <Play size={13} /> Available 15 min before start
                                         </button>
-                                      </div>
+                                      </>
                                     );
                                   }
                                   // Within ±15 min — enabled
