@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
@@ -5708,6 +5708,38 @@ const DateTimePicker = ({ availability, bookings, selectedDate, selectedTime, on
   );
 };
 
+// ==================== SCHOLAR PENDING CLAIM ====================
+// Shown after a scholar successfully signs up but their auth user_id
+// isn't yet linked to a scholars row. Manual SQL claim today; proper
+// claim flow lands in a follow-up session.
+const ScholarPendingClaim = ({ authedUser, onPublic, onLogout }) => (
+  <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-100 mb-4">
+        <Clock className="text-amber-700" size={24} />
+      </div>
+      <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Account created — pending claim</h2>
+      <p className="text-sm text-stone-700 leading-relaxed mb-3">
+        Thanks for signing up, scholar. An Amanah team member will link your scholar listing within 24 hours. You'll get an email when it's ready.
+      </p>
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-5 text-left">
+        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Signed in as</p>
+        <p className="text-sm text-stone-900 break-all">{authedUser?.email}</p>
+        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mt-3 mb-1">Your auth ID (share with admin if asked)</p>
+        <p className="text-xs text-stone-700 font-mono break-all">{authedUser?.id}</p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+          Browse Amanah while you wait
+        </button>
+        <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+          <LogOut size={14} /> Sign out
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 // ==================== USER SIGN UP / LOGIN ====================
 const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
   const [step, setStep] = useState(1);
@@ -7919,6 +7951,9 @@ export default function App() {
   const [campaignCreatorType, setCampaignCreatorType] = useState("mosque");
   const [reviewScholar, setReviewScholar] = useState(null);
   const [reviewBookingId, setReviewBookingId] = useState(null);
+  // Scholar dashboard — set when a signed-in user has a scholars row
+  // pointing at them. Null otherwise (parent or unauthed).
+  const [myScholar, setMyScholar] = useState(null);
   const [submittedReview, setSubmittedReview] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -8064,6 +8099,10 @@ useEffect(() => {
       if (user) {
         const profile = await getProfile();
         setAuthedProfile(profile);
+        // Also probe for a scholar listing — drives avatar-click routing
+        // and lets a returning scholar reload back into their dashboard.
+        const scholar = await getScholarByUserId(user.id);
+        if (scholar) setMyScholar(scholar);
       }
     } catch (err) {
       console.error("Auth bootstrap failed:", err);
@@ -8084,14 +8123,43 @@ useEffect(() => {
 const handleSignIn = (r) => {
     if (r === "prayer") { setView("prayerHub"); return; }
     if (r === "user") {
-    if (authedUser) { setView("userDashboard"); return; }
+      if (authedUser) {
+        // PublicHeader's avatar fires onSignIn("user") for any signed-in
+        // user. If they're a scholar, route to their dashboard rather
+        // than dumping them into the parent UI.
+        if (myScholar) { setView("scholarDashboard"); return; }
+        setView("userDashboard"); return;
+      }
       // Picking "Parent or student" expresses intent to use the parent
       // dashboard. Default the post-auth destination there rather than
       // capturing whatever public page the user happened to be on.
       setReturnView("userDashboard"); setUserAuthMode("login"); setView("userAuth"); return;
     }
-    // For mosque, imam, admin - role-specific login
+    if (r === "imam" || r === "scholar") {
+      // Scholars use the same Supabase auth as parents. Post-auth we
+      // route to scholarDashboard if their auth user is linked to a
+      // scholar listing, else scholarPendingClaim.
+      if (authedUser) {
+        routeAuthedScholar(authedUser.id);
+        return;
+      }
+      setReturnView("scholarPostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
+    }
+    // For mosque, admin - role-specific mock login
     setRole(r); setView("login");
+  };
+
+  // After a scholar signs in (or is already signed in and clicks a scholar
+  // sign-in entry point), look up their scholar listing and route to the
+  // dashboard if claimed, the pending-claim screen otherwise.
+  const routeAuthedScholar = async (userId) => {
+    const scholar = await getScholarByUserId(userId);
+    if (scholar) {
+      setMyScholar(scholar);
+      setView("scholarDashboard");
+    } else {
+      setView("scholarPendingClaim");
+    }
   };  if (view === "publicHome") return <PublicHome
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
@@ -8109,12 +8177,22 @@ const handleSignIn = (r) => {
     toggleCampaignSave={toggleCampaignSave}
     />;
 if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
+  if (view === "scholarPendingClaim") return <ScholarPendingClaim
+    authedUser={authedUser}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); }}
+  />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
     if (user) {
       const profile = await getProfile();
       setAuthedProfile(profile);
+    }
+    if (returnView === "scholarPostAuth" && user) {
+      // Scholar entry point — look up scholar link and route accordingly.
+      await routeAuthedScholar(user.id);
+      return;
     }
     setView(returnView);
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;

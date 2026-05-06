@@ -103,6 +103,18 @@ export async function getScholarById(id) {
   return data
 }
 
+// Used by the scholar sign-in flow to decide whether the auth user
+// has a claimed scholar listing. Returns null if the user_id isn't
+// linked to any scholar row (yet) — the caller routes to a
+// "pending claim" screen in that case.
+export async function getScholarByUserId(userId) {
+  if (!userId) return null
+  const { data, error } = await supabase
+    .from('scholars').select('*').eq('user_id', userId).maybeSingle()
+  if (error) { console.error('Error fetching scholar by user_id:', error); return null }
+  return data
+}
+
 // ============ BOOKINGS ============
 
 // Create a new booking
@@ -183,6 +195,25 @@ export async function getScholarBookings() {
 export async function updateBooking(bookingId, updates) {
   const { data, error } = await supabase
     .from('bookings').update(updates).eq('id', bookingId).select().single()
+  return { data, error }
+}
+
+// Scholar-side write: set or clear meeting_url on a booking. Validates
+// the URL client-side; the RLS policy from 014 enforces that only the
+// owning scholar can hit this row. The application is the trust
+// boundary for "only meeting_url" — see migration 014's header.
+export async function setBookingMeetingUrl(bookingId, url) {
+  if (!bookingId) return { error: { message: 'bookingId required' } }
+  const trimmed = url == null ? null : String(url).trim()
+  if (trimmed && !trimmed.startsWith('https://')) {
+    return { error: { message: 'Meeting URL must start with https://' } }
+  }
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ meeting_url: trimmed || null })
+    .eq('id', bookingId)
+    .select()
+    .single()
   return { data, error }
 }
 
