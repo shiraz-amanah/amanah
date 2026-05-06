@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session D (Messages) — four commits `0bff7d5`, `fce4d79`, `de7f6c7`, `6721a5b`. Real conversations, RLS, realtime, optimistic send, mark-read all working end-to-end. `MOCK_CONVERSATIONS` deleted. Next: Session E — Join session. Scope decision needed first: scholar-provided link vs built-in video vs something else. Several minor follow-ups also logged from Session D verification (see Parked items at the bottom).
+> Last action: shipped Session G (parent dashboard end-to-end polish) — nine commits `c63cda9`, `7dafdab`, `96763d7`, `946f42c`, `b4d2657`, `f4f39ca`, `49f9407`, `3029d0f`, `dd70b28`. Closed every parent-facing parked item from Sessions C–F. Next session: pick from the three Up next options below (scholar auth / mosques-to-Supabase / SCHOLAR_REVIEWS_DB migration). The reviews migration just got a confirmed-broken status from Session G's check, which raises its priority.
 
 ---
 
@@ -28,14 +28,15 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **App.jsx split, Phase 1** ✅ — mock data and pure helpers extracted to `src/data/` and `src/lib/` (15 commits, 8,571→7,744 lines, no behavioural change)
 - **Session E** ✅ — Join session button (parent dashboard, scholar-provided URL, four-state UI based on `meeting_url` + ±15 min window — no built-in video yet, that's Path B for later)
 - **Session F** ✅ — `migrations/` directory baseline (12 files: 2 verbatim, 4 reconstructed-from-code, 5 TODO awaiting `pg_dump`) + MOCK_SCHOLARS leak cleanup (10 references gone, file deleted, mosque scholar affiliations emptied to avoid fabricated relationships, book-again/leave-review handlers fixed to use real `getScholarById`)
+- **Session G** ✅ — Parent dashboard end-to-end polish: nine commits closing every parent-facing parked item from C–F. ConversationView + MessagesInbox wrapped in PublicHeader + a shared `<DashboardTabBar>`; sign-in-after-logout returns to userDashboard; heart icon on campaign cards across PublicHome/AllCampaigns/CampaignDetail with `toggleCampaignSave` mirroring mosque saves; donation rows clickable through to campaign detail; `MOCK_USER_BOOKINGS` switched to Date.now()-relative offsets so demo exercises all four Join states; LeaveReview demo-mode guard (`scholar.id` starts with `demo-`); `updateNotifications` removed (canonical helper is `updateNotificationPreference`); "View all" categories button scroll-tos `#top-scholars`; bonus fix for the type-mismatch in "Causes I'm watching" saved-campaign id lookup. Confirmed via code inspection that `SCHOLAR_REVIEWS_DB` is keyed by integer ids and `scholar.id` is a UUID — reviews are silently empty for every real scholar on prod.
 
 ### Up next
 
 TBD — pick one next session. Three obvious chunks:
 
-- **Scholar auth** (originally Session G) — sign-in / sign-up / dashboard for scholar accounts. Unlocks the scholar-side `meeting_url` editor (deferred from Session E), the scholar-detail "Message" button real wiring (TODO from Session D), and claiming existing scholar listings.
+- **Scholar auth** (originally Session G, still queued) — sign-in / sign-up / dashboard for scholar accounts. Unlocks the scholar-side `meeting_url` editor (deferred from Session E), the scholar-detail "Message" button real wiring (TODO from Session D), and claiming existing scholar listings.
 - **Mosques-to-Supabase** (originally Session J) — likely should jump in priority. It unblocks the empty mosque-scholar affiliations from Session F, probably interacts with the scholar-message-button-on-detail wiring, and is a prerequisite for the deferred mosque-admin sessions (F→I in the original order).
-- **`SCHOLAR_REVIEWS_DB` migration** — currently keyed by integer legacy IDs (101, 102, …) that don't match real `scholars.id` UUIDs. State on production unverified (parked in Session F). Adds a real `reviews` table + RLS + a `createReview` helper.
+- **`SCHOLAR_REVIEWS_DB` migration** — confirmed in Session G via code inspection: integer-keyed dict (101, 102, …), real `scholars.id` is UUID, so the lookup never matches and reviews render empty on every prod scholar detail. Adds a real `reviews` table + RLS + a `createReview` helper, plus repoints `LeaveReview` and the scholar-detail review block.
 
 Decide at the start of the next session — don't pre-commit here.
 
@@ -1077,6 +1078,212 @@ open):
 
 ---
 
+## Session G — Parent dashboard end-to-end polish ✅ (6 May 2026)
+
+**Goal:** close out every parent-facing parked item from Sessions C–F.
+No new feature surface; no scholar work; no Stripe; no reviews
+migration. Success criterion: zero parent-facing parked items remain.
+
+### What shipped
+
+Nine commits, one logical fix each, build green between every step.
+
+- `c63cda9` `fix(messages): wrap ConversationView + MessagesInbox in PublicHeader + dashboard tabs`
+  - New `<DashboardTabBar>` shared component renders the parent
+    dashboard's tab strip (Bookings · My giving · My scholars ·
+    My Mosques · Messages · Account) with badge counts.
+  - `MessagesInbox` and `ConversationView` now render
+    `<PublicHeader>` + `<DashboardTabBar>` when `role === "user"`;
+    other roles (`mosque`, `imam`) keep their existing contextual
+    headers via the role guard.
+  - `handleDashboardTabClick(tabValue)` at App root persists the
+    chosen tab to `sessionStorage` and routes back to userDashboard
+    so the active tab survives the round-trip.
+- `7dafdab` `fix(auth): sign-in-after-logout returns to dashboard`
+  - `handleSignIn("user")` now sets `returnView = "userDashboard"`
+    instead of capturing the current view. Picking "Parent or
+    student" expresses dashboard intent — explicit beats clever.
+  - Logged-in avatar click is unchanged.
+- `96763d7` `feat(saves): heart icon on campaign cards`
+  - `toggleCampaignSave` handler at App root, mirroring
+    `toggleMosqueSave`. The `saves.item_type='campaign'` constraint
+    has been in place since Session B.
+  - Heart button on `<CampaignCard>` (PublicHome and AllCampaigns
+    surfaces) and a "Save campaign / Saved" button on
+    `<CampaignDetail>` beside Donate now.
+- `946f42c` `fix(donations): donation rows navigate to campaign detail`
+  - Donation row click → `onViewCampaign(c)` when the campaign is
+    still resolvable from `MOCK_CAMPAIGNS`; rows referencing a
+    removed campaign render inert (no broken link surfaced).
+  - Plumbed `campaignId` through both the real `getDonations()`
+    transform and `MOCK_USER_DONATIONS` so demo and real users
+    behave identically.
+  - Receipt button stops propagation so it stays a dedicated action.
+- `b4d2657` `chore(demo): bump MOCK_USER_BOOKINGS dates to future`
+  - Replaced literal date/time strings with a `Date.now()`-relative
+    helper (`future(mins)`). The four upcoming demo rows deliberately
+    cover each Join state: enabled (`+5 min`), waiting/no URL
+    (`+2 days`), available later (`+5 days`), invalid URL (`+1 day`,
+    `http://`). Two completed rows (7 and 14 days ago) keep the
+    review/book-again sections populated.
+- `f4f39ca` `feat(reviews): demo-mode guard on LeaveReview`
+  - Detect demo scholars via `scholar.id.startsWith("demo-")`.
+  - Short-circuit to a "this is a demo, sign in to leave a real
+    review" card with an `onSignIn("user")` CTA. No backend call
+    happens for demo scholars.
+- `49f9407` `refactor(auth): consolidate notification update helpers`
+  - Removed `updateNotifications` (full replace). Kept
+    `updateNotificationPreference` (read-merge-write with snake_case
+    conversion) — the helper Session D documented as canonical.
+  - `toggleNotification` now passes the partial diff and lets the
+    helper own the merge. Slightly safer if two toggles ever land
+    in flight.
+- `3029d0f` `feat(home): View all button scrolls to top-rated scholars`
+  - Picked option (a) from the parked-items menu: smooth-scroll to
+    the `#top-scholars` section directly below.
+- `dd70b28` `fix(saves): stringify both sides of saved-campaign id lookup`
+  - Bonus fix: `MOCK_CAMPAIGNS.find(x => x.id === id)` had a
+    type-mismatch (real `realSavedCampaignIds` Set holds strings,
+    `MOCK_CAMPAIGNS.id` is integer). For real users every saved
+    campaign returned `null` and "Causes I'm watching" silently
+    rendered empty. Demo worked because `MOCK_SAVED_CAMPAIGNS`
+    happens to be integers too. Coerced both sides to `String`.
+
+### C-era TBD verification (code inspection)
+
+- **"Causes I'm watching" click-through** — `onClick={() => onViewCampaign(c)}` was correct,
+  but the lookup was broken upstream (see the `dd70b28` bonus fix above). Now works.
+- **Edit profile save round-trip** — `updateProfile()` returns the
+  fresh row via `.select().single()`, which is then handed to
+  `onProfileUpdate(data) → setAuthedProfile(data)`. On hard refresh,
+  the auth bootstrap re-fetches via `getProfile()`. No code-level
+  problem. ✅ verified by inspection.
+- **Notification toggle persistence** — Goes through
+  `updateNotificationPreference` which read-merge-writes the JSONB
+  blob. Refresh re-fetches it. ✅ verified by inspection.
+- **Logout** — `await signOut()` is awaited, state is cleared, view
+  resets, hard refresh stays signed out because `getUser()` returns
+  null. ✅ verified by inspection.
+
+### SCHOLAR_REVIEWS_DB state check (read-only, per brief)
+
+Confirmed via code inspection (not browser). `SCHOLAR_REVIEWS_DB` is
+keyed by integer ids `101, 102, 103, …` (legacy from pre-Supabase
+mock days). Real `scholars.id` is a UUID. So
+`SCHOLAR_REVIEWS_DB[scholar.id]` is always `undefined` on prod, the
+breakdown section is hidden via `{SCHOLAR_REVIEWS_DB[scholar.id] && …}`,
+and the review list maps over `(SCHOLAR_REVIEWS_DB[scholar.id] || [])`
+which renders nothing. **Reviews are silently empty for every real
+scholar on prod.** Not surprising — matches the working hypothesis.
+
+This raises the priority of the reviews migration session: it's not
+just a "nicer-to-have" cleanup, it's a load-bearing UX element that's
+currently absent. Worth picking it up before mosques-to-Supabase if
+review credibility is on the path to public launch.
+
+### Decisions
+
+- **Shared `<DashboardTabBar>` rather than refactoring UserDashboard's
+  inline tab markup.** UserDashboard still has its own copy. The two
+  could drift. Picked the smaller change to keep the regression
+  surface narrow — UserDashboard's internal tab logic
+  (sessionStorage state, `onOpenMessages` short-circuit) is more
+  intricate than a behaviour-preserving extraction warranted in this
+  session. Worth doing in a follow-up if UserDashboard's tab strip
+  ever needs another field.
+- **`returnView = "userDashboard"` instead of capturing `view`.**
+  Session A's `1ffcd48` introduced the capture for "deep page → auth
+  → resume" flows, but every actual call site of `handleSignIn("user")`
+  expresses intent to access the parent dashboard, not to resume.
+  No live deep-flow uses the capture today. If one is added later,
+  the helper can branch on intent at the call site.
+- **Hide rather than fix MessagesInbox's mosque/imam header.** The
+  role guard (`role === "user"`) means only parent traffic sees the
+  new dashboard nav. Mosque/imam roles will need their own dashboard
+  tab strips eventually, but not in this session — explicit out of
+  scope.
+- **Date-relative demo bookings, not hardcoded future dates.** Brief
+  flagged this as a known foot-gun: hardcoded dates rot in 6 weeks
+  and the demo silently regresses. The `future(mins)` helper plus
+  spread inserts `date`/`time`/`rawScheduledAt` into each demo row.
+  The IIFE that drives the Join button prefers `rawScheduledAt`,
+  so adding it explicitly removes the local-vs-UTC ambiguity that
+  the date+time fallback had.
+
+### Gotchas / things to watch
+
+- **Two definitions of the dashboard tabs now exist.** UserDashboard's
+  inline render (line ~5993) and `<DashboardTabBar>` (extracted near
+  PublicHeader). Adding/renaming a tab requires updating both. If
+  this drifts, the symptom will be "tab works on dashboard but
+  missing/labelled wrong on Messages views."
+- **Saved campaign ids are stringified everywhere now.** The
+  `dd70b28` fix coerces both sides; if a future code path adds
+  another consumer of `realSavedCampaignIds`, watch for the same
+  trap — `MOCK_CAMPAIGNS.id` is still integer.
+- **Demo `Date.now()` is captured at module import, not on every
+  render.** `MOCK_USER_BOOKINGS`'s `future(mins)` runs once per
+  bundle load. A user sitting on the dashboard for 30 minutes
+  doesn't see the "in 5 min" booking transition states. Acceptable
+  for v1 demo; same `setInterval(setNow, 60_000)` ticker pattern
+  noted in Session E would address it.
+
+### Smoke test
+
+Code-level walkthrough confirmed:
+
+- All nine commits build green.
+- `grep -n updateNotification src/` returns one canonical name
+  (`updateNotificationPreference`) plus the import line.
+- `grep -n MOCK_SCHOLARS src/` still zero (no Session F regression).
+- ConversationView/MessagesInbox now wrap PublicHeader + tabs only
+  when `role === "user"`.
+
+Deployed-site walkthrough still TBD by the user — flag any surprise
+in the next session opener.
+
+### Out of scope (per brief, not built)
+
+- Reviews migration (`SCHOLAR_REVIEWS_DB` → real Supabase table)
+- Stripe / donations actually charge
+- Scholar auth, scholar dashboard, `meeting_url` editor
+- Built-in video / Path B
+- Mosque migration to Supabase
+- Dev/prod Supabase project split
+- App.jsx Phase 2 component extraction
+- Smoke-test suite
+- `profiles.phone` / `profiles.email` column-level RLS audit
+- MosqueDetail empty affiliations real wiring
+
+### Parked items resolved this session
+
+- ✅ "View all" button on PublicHome
+- ✅ Heart icons on campaign cards (Session D follow-up)
+- ✅ Donation rows clickable (Session D follow-up)
+- ✅ Sign-in-after-logout lands on dashboard (Session D follow-up)
+- ✅ Two notification helpers consolidated (Session D follow-up)
+- ✅ ConversationView missing top nav (Session D follow-up)
+- ✅ Demo MOCK_USER_BOOKINGS dates self-healing (Session E follow-up)
+- ✅ LeaveReview demo-mode guard (Session F follow-up)
+- ✅ "Causes I'm watching" click-through (C-era TBD)
+- ✅ Edit profile save round-trip verified (C-era TBD)
+- ✅ Notification toggle persistence verified (C-era TBD)
+- ✅ Logout verified (C-era TBD)
+- ✅ SCHOLAR_REVIEWS_DB state documented (Session F follow-up)
+
+### Parked items that remain
+
+- App.jsx Phase 2 (component extraction) — still untouched
+- Smoke-test suite
+- Dev/prod Supabase project split
+- Disintermediation prevention (ToS, regex extensions, etc.)
+- `profiles.phone` / `profiles.email` audit
+- Vercel SPA fallback rewrite (deep links on hard refresh)
+- MosqueDetail empty scholar affiliations (waits on mosque DB migration)
+- `SCHOLAR_REVIEWS_DB` migration — now confirmed broken on prod, raises priority
+
+---
+
 ## Cross-cutting gotchas
 
 ### Find/replace gotchas
@@ -1105,9 +1312,16 @@ Spent hours debugging "Top-rated scholars" stuck on skeletons. Root cause: a `us
 
 ## Parked items (address before launch but not blocking next session)
 
-- **"View all" button under "What do you need?"** on PublicHome (around the categories section) has no `onClick` handler. There's no "all categories" page currently — needs a destination decision (scroll-to-scholars? new page? remove button?).
+Session G cleared every parent-facing parked item from C–F. What
+remains is structural / pre-launch work, not parent-flow polish.
+
 - **Trim remaining debug `console.log` lines** once confident things are stable.
-- **Consider splitting `App.jsx`** (~8200 lines) into separate component files. Becoming unwieldy.
-- **Add a smoke-test suite** — even one per page would have caught the original scholars-not-loading bug in 5 seconds.
+- **Consider splitting `App.jsx`, Phase 2** (~7,800 lines) — components still inline. Phase 1 (data + lib) shipped 5 May 2026. No timeline; revisit when something concrete forces it.
+- **Add a smoke-test suite** — even one per page would have caught the original scholars-not-loading bug in 5 seconds. Would also have caught the saved-campaign id-type-mismatch silently fixed in Session G's `dd70b28`.
+- **`SCHOLAR_REVIEWS_DB` migration** — confirmed broken on prod in Session G (integer keys vs. UUID `scholar.id`). Reviews silently render empty for every real scholar detail page. Now in the "next session candidates" list at the top.
 - **Single Supabase project for dev and prod.** `.env` and Vercel both point at `zgoyvztooyxqkcftwylr.supabase.co`. Test data created during development is visible to real users in production (e.g. the "Realtime test from eesaa" / "Test Message" entries from Session D smoke testing now live in real users' inboxes). Not blocking — but: any RLS mistake, schema migration, or destructive query during dev affects production data. Strongly recommended before public launch: spin up a separate Supabase project for dev. Migration cost will only grow as more tables exist.
-- **Disintermediation prevention** — scholars/parents going off-platform after first booking is a structural marketplace risk. Levers, ranked by effectiveness: (1) make the platform genuinely worth the cut — discovery, verification, scheduling, safeguarding, recordings — this is the only real defense; (2) hide contact details (email, phone) from cross-user views, reveal only post-booking or never; (3) extend message regex blocks to phone, email, social handles, and Zoom/Meet/Teams links — hard-block before first booking, soft-warn after; (4) anti-circumvention clause in ToS at launch; (5) lower commission on repeat bookings; (6) Path B (built-in video) for Session E reduces leakage surface dramatically — scholar and parent never need each other's contact details. Not blocking pre-launch but informs Session E decision and ToS drafting. Related: `profiles.phone` / `profiles.email` audit already flagged above.
+- **`profiles.phone` / `profiles.email` audit.** Session D opened profiles SELECT to all authenticated users (needed for messaging joins). Frontend doesn't render those fields outside Account, but a thoughtful pass before public launch is warranted.
+- **Vercel SPA fallback rewrite.** Deep links (e.g. /scholar/yusuf) on hard refresh probably 404 against Vercel's static-host rules. Verify and add `vercel.json` rewrite if so.
+- **MosqueDetail empty scholar affiliations.** Hardcoded to `[]` in Session F until the mosque DB migration replaces them with real wiring.
+- **Two definitions of dashboard tabs.** Session G extracted `<DashboardTabBar>` for the Messages views but kept UserDashboard's inline copy intact to keep the regression surface narrow. Adding/renaming a tab requires both. Worth merging in a follow-up.
+- **Disintermediation prevention** — scholars/parents going off-platform after first booking is a structural marketplace risk. Levers, ranked by effectiveness: (1) make the platform genuinely worth the cut — discovery, verification, scheduling, safeguarding, recordings — this is the only real defense; (2) hide contact details (email, phone) from cross-user views, reveal only post-booking or never; (3) extend message regex blocks to phone, email, social handles, and Zoom/Meet/Teams links — hard-block before first booking, soft-warn after; (4) anti-circumvention clause in ToS at launch; (5) lower commission on repeat bookings; (6) Path B (built-in video) for Session E reduces leakage surface dramatically — scholar and parent never need each other's contact details. Not blocking pre-launch but informs ToS drafting. Related: `profiles.phone` / `profiles.email` audit already flagged above.
