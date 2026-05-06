@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session H (reviews migration) — eight code commits `7c5c2cc`, `7add0c2`, `b2fa0a0`, `0bda72f`, `3813793`, `1a201bc`, `d45a441` plus `migrations/012_reviews.sql` + `013_reviews_seed.sql` applied to prod (single shared Supabase project). Reviews now live in Supabase with RLS + a stats-recompute trigger. 9 sanitized reviews seeded across 4 scholars (anti-fabrication: 2 dropped). LeaveReview wired to `createReview()` for non-demo users. Admin moderation tab live in AdminPanel. `SCHOLAR_REVIEWS_DB` and `src/data/mockReviews.js` deleted. Next session: scholar auth / mosques-to-Supabase / real-admin-RLS — pick at session start.
+> Last action: shipped Session I (scholar auth + read-only dashboard + meeting_url editor) — three code commits `40c39f8`, `37739c0` plus `migrations/014_scholar_dashboard_rls.sql` applied to prod. Scholars now share the parent Supabase auth pool; `scholars.user_id` linkage gates the new ScholarDashboard view (Bookings + Profile + Reviews + Messages + Account tabs). Inline meeting_url editor closes the Session E loop. RLS lets scholars SELECT/UPDATE their own bookings; column-level restriction trusted to the application. Next session: real claim flow (admin approval queue, email) is the obvious next step; mosques-to-Supabase still parked.
 
 ---
 
@@ -30,14 +30,15 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session F** ✅ — `migrations/` directory baseline (12 files: 2 verbatim, 4 reconstructed-from-code, 5 TODO awaiting `pg_dump`) + MOCK_SCHOLARS leak cleanup (10 references gone, file deleted, mosque scholar affiliations emptied to avoid fabricated relationships, book-again/leave-review handlers fixed to use real `getScholarById`)
 - **Session G** ✅ — Parent dashboard end-to-end polish: nine commits closing every parent-facing parked item from C–F. ConversationView + MessagesInbox wrapped in PublicHeader + a shared `<DashboardTabBar>`; sign-in-after-logout returns to userDashboard; heart icon on campaign cards across PublicHome/AllCampaigns/CampaignDetail with `toggleCampaignSave` mirroring mosque saves; donation rows clickable through to campaign detail; `MOCK_USER_BOOKINGS` switched to Date.now()-relative offsets so demo exercises all four Join states; LeaveReview demo-mode guard (`scholar.id` starts with `demo-`); `updateNotifications` removed (canonical helper is `updateNotificationPreference`); "View all" categories button scroll-tos `#top-scholars`; bonus fix for the type-mismatch in "Causes I'm watching" saved-campaign id lookup. Confirmed via code inspection that `SCHOLAR_REVIEWS_DB` is keyed by integer ids and `scholar.id` is a UUID — reviews are silently empty for every real scholar on prod.
 - **Session H** ✅ — Reviews migration. New `reviews` table (UUID PK, FK to scholars/profiles/bookings, status enum, CHECK length 10-2000) with RLS (anon reads published, parents insert own, admin-only status changes via WITH CHECK) and a SECURITY DEFINER trigger that recomputes `scholars.rating + review_count` on every INSERT/UPDATE/DELETE. Seed: 9 sanitized reviews across 4 of 6 active scholars (1 exact name match, 3 first-name + topic-overlap as visual demo, 2 dropped per anti-fabrication). Read path: scholar detail uses `getReviewsForScholar` with loading skeleton; ReviewCard adapted for both Supabase and legacy mock shapes; "Verified booking" pill now gated on `bookingId != null`. Write path: LeaveReview submit calls `createReview()` with inline error + Posting state; demo guard preserved; `bookingId` threaded through from past-booking review buttons; ReviewSubmitted gains a "View on profile" CTA. Admin: new "Reviews" tab in AdminPanel between Flags and DBS — list / status filter / hide / publish, no pagination/bulk/search by design. `SCHOLAR_REVIEWS_DB` and `src/data/mockReviews.js` deleted.
+- **Session I** ✅ — Scholar auth + read-only dashboard + `meeting_url` editor. Scholars now share the parent Supabase auth pool; `scholars.user_id` linkage (existing column, no schema add) gates the new `ScholarDashboard` view. Migration 014 adds two RLS policies on `bookings` (SELECT + UPDATE where `scholar_id ∈ scholars where user_id=auth.uid()`). New auth.js helpers `getScholarByUserId` + `setBookingMeetingUrl` (with `https://` validation). New views: `scholarPendingClaim` (post-signup before SQL link) + `scholarDashboard`. Tabs: Bookings (default, with Upcoming + Past + Cancelled-collapsed sections + inline meeting_url editor), Profile (read-only, "editing comes soon"), Reviews (existing breakdown + cards via `getReviewsForScholar`), Messages (delegates to existing inbox view with `role="scholar"`), Account (email + linked-listing summary + sign out). Earnings derived client-side from `sum(amount_paid where completed)`. Audience drawer's "Scholar sign in" entry now routes through Supabase rather than the legacy mock imam-login flow.
 
 ### Up next
 
-TBD — pick one next session. Three obvious chunks:
-
-- **Scholar auth** (originally Session G, still queued) — sign-in / sign-up / dashboard for scholar accounts. Unlocks the scholar-side `meeting_url` editor (deferred from Session E), the scholar-detail "Message" button real wiring (TODO from Session D), the imam dashboard's "myReviews" wiring (Session H follow-up), and claiming existing scholar listings.
-- **Mosques-to-Supabase** (originally Session J) — likely should jump in priority. It unblocks the empty mosque-scholar affiliations from Session F, probably interacts with the scholar-message-button-on-detail wiring, and is a prerequisite for the deferred mosque-admin sessions (F→I in the original order).
-- **Real admin auth + admin RLS** — Session H's admin Reviews tab uses the existing client-side `role === "admin"` gate. RLS on `reviews` only restricts users to their own writes — admin-only `UPDATE status` isn't enforced at the DB layer. Worth tightening before any third party gets admin access.
+- **Real claim flow** — proper claim form (scholar requests linkage), admin review queue in AdminPanel, email notifications. Today admins SQL-link `scholars.user_id = '<auth-uid>'` manually. The most-obvious next step.
+- **Mosques-to-Supabase** (originally Session J) — unblocks the empty mosque-scholar affiliations from Session F, the scholar-message-button-on-detail wiring (TODO from Session D), and is a prerequisite for the deferred mosque-admin sessions.
+- **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only this session by design.
+- **Scholar availability editor** — currently empty/missing for real scholars.
+- **Real admin auth + admin RLS** — Session H's admin Reviews tab uses client-side `role === "admin"` gating. Needs DB-level enforcement before any third party gets admin access.
 
 Decide at the start of the next session — don't pre-commit here.
 
@@ -1552,6 +1553,260 @@ scholars):**
   with a TODO; lights up once scholar auth lands.
 - **NEW: Drop `scholars_rating_backup`** once the new
   trigger-computed averages have been spot-checked on prod.
+
+---
+
+## Session I — Scholar auth + read-only dashboard + meeting_url editor ✅ (7 May 2026)
+
+**Goal:** scholars become real Supabase auth users with their own
+dashboard. Read-only profile/packages/reviews; one writable surface
+(`meeting_url` editor on bookings) closing the Session E loop.
+Claim flow + profile editing explicitly out of scope.
+
+### What shipped
+
+**Schema (014, Verbatim):** two additive RLS policies on `bookings`:
+SELECT and UPDATE where `scholar_id ∈ (select id from scholars
+where user_id = auth.uid())`. Both run alongside the existing
+parent-side policies — PostgREST ORs USING clauses for SELECT,
+applies per-policy WITH CHECK for UPDATE. No schema add to
+`scholars` (already had a nullable `user_id` column from before).
+
+**`auth.js` helpers (2 new):**
+
+- `getScholarByUserId(userId)` — `maybeSingle()` so unlinked
+  users return `null` cleanly. Drives the routing decision
+  between `scholarDashboard` and `scholarPendingClaim`.
+- `setBookingMeetingUrl(bookingId, url)` — trims, requires
+  `https://` (or null to clear), updates `bookings.meeting_url`
+  only. Returns `{data, error}`. RLS from 014 enforces scholar
+  ownership at the DB layer.
+
+**App-root state + bootstrap:**
+
+- New state `myScholar`. Set on bootstrap when an authed user has
+  a scholars row pointing at them (probed via `getScholarByUserId`),
+  cleared on logout. Drives both the avatar-click routing and the
+  scholar-dashboard prop.
+- New helper `routeAuthedScholar(userId)` — fetches scholar by
+  user_id and routes to `scholarDashboard` or `scholarPendingClaim`.
+
+**`handleSignIn` extended:**
+
+- New `imam | scholar` branch. Authed → `routeAuthedScholar`
+  immediately. Unauthed → returnView marker `"scholarPostAuth"`
+  + `setView("userAuth")`. The `userAuth` `onComplete` reads the
+  marker and runs `routeAuthedScholar` instead of the default
+  `setView(returnView)` path.
+- Existing `user` branch now also routes a signed-in scholar
+  directly to `scholarDashboard` rather than the parent UI when
+  they hit the avatar — so a scholar tapping the universal
+  avatar entry lands in their own dashboard.
+- `mosque | admin` branches unchanged (still go through
+  legacy mock role-based login).
+
+**New views:**
+
+- `scholarPendingClaim` — full-page card with the user's email +
+  auth UID visible (for SQL claim today; proper claim flow is the
+  obvious next session). Includes "Browse Amanah while you wait"
+  + sign-out buttons.
+- `scholarDashboard` — own component (~430 lines), structurally
+  mirrors `UserDashboard`. Header: greeting + summary line
+  ("X upcoming · Y past · £Z earned") + tab strip. Tabs:
+  - **Bookings** (default): Upcoming + Past + Cancelled
+    (collapsible) sections. Each upcoming row shows parent
+    avatar + name + student + scheduled time + package + the
+    inline `meeting_url` editor.
+  - **Profile**: read-only display of avatar, name, title, city,
+    rating, bio, packages, languages, qualifications, verified
+    badge. Top banner reads "Editing comes soon."
+  - **Reviews**: `RatingsBreakdown` + `ReviewCard` against
+    `getReviewsForScholar(myScholar.id)` — same components as
+    the public scholar detail page.
+  - **Messages**: tab click navigates to `messagesInbox` with
+    `role="scholar"`. The shared inbox doesn't yet render
+    scholar-side dashboard tabs (Session G's `<DashboardTabBar>`
+    is parent-only), so messages render with the legacy
+    contextual header — back button returns to
+    `scholarDashboard`. Logged in NEW parked items as a
+    Session-G-follow-up extension.
+  - **Account**: email + linked listing summary + sign out.
+
+**meeting_url editor (Session E follow-up):**
+
+- Inline edit-in-place pattern. Set/Edit toggle reveals a text
+  input + Save/Cancel buttons. Save calls
+  `setBookingMeetingUrl(bookingId, value)`; helper validates
+  `https://` and returns an error otherwise.
+- Optimistic local update on success; inline rose error on
+  failure with previous value restored on cancel.
+- The set state shows a green "Meeting link set" pill + the URL
+  truncated + an Edit pencil. The unset state shows a black "Set
+  meeting link" button.
+- Closes the gap from Session E's recap: the parent dashboard's
+  Join button has been waiting for this since 5 May 2026.
+
+**Tab persistence:** `sessionStorage["scholarDashboardTab"]`,
+distinct from the parent's `"dashboardTab"` key, so a browser
+session that touches both dashboards doesn't clobber the active
+tab on either side.
+
+### Commits
+
+- `56e02f0` `feat(scholars): add RLS for scholar bookings access (014)`
+- `40c39f8` `feat(scholars): "I'm a scholar" sign-up flow + pending claim screen`
+- `37739c0` `feat(scholars): ScholarDashboard with bookings/profile/reviews/messages/account tabs`
+- (this) `docs: NOTES.md — Session I complete`
+
+Three code commits ended up bundling the brief's expected 6–8
+sub-commits because the components were tightly coupled — the
+dashboard shell, every tab, the meeting_url editor, and the
+helper all share state and would have produced near-empty
+intermediate commits if split.
+
+### Decisions
+
+- **No new role column on `profiles`.** Used
+  `scholars.user_id IS NOT NULL` as the gate. Cleaner than a
+  duplicated role flag — single source of truth, FK keeps it
+  honest. Brief suggested this; concurred.
+- **RLS column-level restriction trusted to the application.**
+  The UPDATE policy lets a scholar update any column on their
+  own bookings, not just `meeting_url`. Column-level enforcement
+  needs function-based policies or column-level GRANTs and is
+  more involved than session scope. The single write path
+  (`setBookingMeetingUrl`) is the trust boundary today.
+  Documented at the top of 014. **Promote to column-level
+  before adding any further scholar-side write surface** —
+  e.g. when scholar-side cancel/reschedule lands.
+- **Existing imam mock dashboard left in place.** `imamDashboard`
+  + `imamRegister` views still exist in App.jsx but are no
+  longer reachable from the audience drawer. Keeping them
+  removes a refactor hazard during this session; revisit when
+  scholar profile editing lands and the legacy mock flow is
+  fully obsolete.
+- **Scholar messages render without dashboard tabs.** Session
+  G's `<DashboardTabBar>` is hardcoded to parent tabs; brief
+  flagged "if extending it turns into a yak shave, surface."
+  It would have. Logged in NEW parked items as a follow-up.
+  Today: scholar clicks Messages tab → navigates to inbox →
+  back button returns to scholar dashboard. Functional, just
+  inconsistent with parent UX.
+
+### Gotchas / things to watch
+
+- **Trust the application on `meeting_url` only.** The RLS
+  policy from 014 doesn't enforce column-level restriction. The
+  `setBookingMeetingUrl` helper is the only scholar-side write
+  path. If a future caller adds another `bookings` PATCH from
+  the scholar dashboard, the policy needs to tighten in
+  parallel. Repeated in this NOTES block in two places because
+  it's a real footgun.
+- **`getScholarBookings` already pulls `*`.** Session I's
+  earnings calc + meeting_url editor work without auth.js
+  changes because the existing query selects everything. If the
+  query is ever narrowed to specific columns, both
+  `amount_paid` and `meeting_url` need to stay on the list.
+- **Avatar routing on PublicHeader is now scholar-aware.**
+  Pre-Session-I the avatar always sent users to
+  `userDashboard`. Now it checks `myScholar` and routes to
+  `scholarDashboard` if linked. A scholar visiting public pages
+  and tapping their avatar lands in the scholar UI, not the
+  empty parent UI.
+- **Two definitions of dashboard tabs grew a third side.**
+  Session G inline-defined parent tabs in two places (UserDashboard
+  + DashboardTabBar). Session I now defines scholar tabs inline
+  in ScholarDashboard. The pattern wants extraction to a
+  parameterized component sooner rather than later.
+
+### Smoke test plan (deployed-site walkthrough)
+
+After 014 applied + a real scholar SQL-claimed:
+
+1. **New scholar sign-up:** audience drawer → "Scholar sign in" →
+   sign up with new email/password → land on
+   `scholarPendingClaim` with auth UID visible.
+2. **Manual SQL claim** (admin):
+   ```sql
+   update scholars set user_id = '<auth-uid>'
+   where slug = 'yusuf-al-rahman';
+   ```
+3. **Sign back in as the scholar** → land on `scholarDashboard`
+   with Yusuf's bookings + profile + reviews.
+4. **Bookings tab:** see Yusuf's existing bookings (parent +
+   student + scheduled_at + package). Each upcoming row shows
+   the meeting_url editor.
+5. **Set meeting_url:** click "Set meeting link" on an upcoming
+   booking → input field appears → enter
+   `https://meet.google.com/abc-defg-hij` → Save. Pill flips to
+   "Meeting link set". Refresh — persists.
+6. **Validation:** edit a meeting_url to `http://example.com` →
+   Save. Inline rose "must start with https://" error.
+7. **Cross-user verification:** sign out, sign in as the parent
+   on that booking. Bookings tab → the Join button is now in
+   the right state for `scheduled_at` (no longer "Waiting for
+   scholar to add link").
+8. **Profile tab:** read-only display matches public scholar
+   detail; no edit buttons anywhere.
+9. **Reviews tab:** see Yusuf's 4 seeded reviews + breakdown.
+10. **Messages tab:** routes to `messagesInbox`. If a parent has
+    messaged this scholar (cross-test), conversation appears.
+11. **Account tab:** email + linked listing summary; sign out
+    returns to publicHome with `myScholar` cleared.
+12. **RLS smoke:** as scholar in DevTools console:
+    ```js
+    await supabase.from('bookings').update({ scheduled_at: '2027-01-01' }).eq('id', '<some-id>')
+    ```
+    Should succeed at the DB layer (RLS allows any column) — this
+    is the trust-boundary-is-the-app caveat. The application
+    never sends this PATCH, but if a hostile scholar account
+    crafts one manually they could move bookings around. Promote
+    to column-level RLS before that becomes a real risk.
+
+### Out of scope (per brief, not built)
+
+- Real claim flow (form + admin queue + email)
+- Profile editing (bio/packages/languages/quals/DBS upload)
+- Availability editor for real scholars
+- Earnings breakdown view (just the number this session)
+- Stripe payouts
+- Reply to reviews
+- Scholar-side cancel/reschedule
+- Push notifications
+- Multi-scholar org accounts
+- Anything mosque
+
+### Parked items resolved this session
+
+- ✅ Scholar auth (originally on the post-Session-G "Up next" list)
+- ✅ Scholar-side `meeting_url` editor (Session E follow-up)
+- ✅ Imam dashboard `myReviews` is now reachable conceptually
+  (when a scholar's auth user is linked, the new
+  `ScholarDashboard.reviews` tab is the real surface). Old
+  `ImamDashboardView` stays as a legacy mock with `myReviews=[]`
+  + a TODO; could be deleted in a follow-up cleanup session.
+
+### Parked items that remain
+
+- App.jsx Phase 2 (component extraction) — still untouched
+- Smoke-test suite
+- Dev/prod Supabase project split
+- Disintermediation prevention
+- `profiles.phone` / `profiles.email` audit
+- Vercel SPA fallback rewrite
+- MosqueDetail empty scholar affiliations (waits on mosque DB)
+- Drop `scholars_rating_backup` once stable
+- Real admin auth + admin RLS
+- Two/three definitions of dashboard tabs (now spans
+  UserDashboard + DashboardTabBar + ScholarDashboard)
+- **NEW: Promote `bookings` UPDATE RLS to column-level** before
+  adding any further scholar-side write surface
+- **NEW: Real claim flow** — see Up next
+- **NEW: Scholar profile + availability editing**
+- **NEW: Scholar messages tab missing dashboard chrome** —
+  Session G's tab bar is parent-only; needs DashboardTabBar
+  parameterization to support both roles cleanly
 
 ---
 
