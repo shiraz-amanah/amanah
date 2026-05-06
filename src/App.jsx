@@ -9536,13 +9536,18 @@ const handleSignIn = (r) => {
   //
   //   scholar row exists, status='active'                → scholarDashboard
   //   scholar row exists, status='pending_verification'  → scholarVerificationPending
-  //   no scholar, latest application status='pending'    → scholarApplicationSubmitted
-  //   no scholar, latest application status='rejected'   → scholarApplicationRejected
+  //   no scholar, application status='approved'          → scholarVerificationPending
+  //                                                        (defensive: trigger
+  //                                                         already created the
+  //                                                         scholar row, so RLS
+  //                                                         must be hiding it —
+  //                                                         migration 016 adds
+  //                                                         the self-select
+  //                                                         policy that fixes
+  //                                                         this for new users)
+  //   no scholar, application status='pending'           → scholarApplicationSubmitted
+  //   no scholar, application status='rejected'          → scholarApplicationRejected
   //   no scholar, no application                         → scholarOnboarding (wizard)
-  //
-  // 'approved' on an application without a scholar row is a transient
-  // state — the trigger creates the scholar row in the same UPDATE.
-  // If we ever observe it, treat it like 'pending_verification'.
   const routeAuthedScholar = async (userId) => {
     const scholar = await getScholarByUserId(userId);
     if (scholar) {
@@ -9561,7 +9566,12 @@ const handleSignIn = (r) => {
       return;
     }
     setMyScholarApplication(application);
-    if (application.status === "pending" || application.status === "approved") {
+    if (application.status === "approved") {
+      // Trigger guarantees a scholars row exists when status='approved'.
+      // If we got here without seeing it, RLS is hiding it. Route to
+      // verification-pending — the truthful state regardless.
+      setView("scholarVerificationPending");
+    } else if (application.status === "pending") {
       setView("scholarApplicationSubmitted");
     } else if (application.status === "rejected") {
       setView("scholarApplicationRejected");

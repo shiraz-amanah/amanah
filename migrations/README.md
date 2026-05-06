@@ -43,6 +43,7 @@ filenames.
 | 013 | `013_reviews_seed.sql`                 | Verbatim            | 6 May 2026         | NOTES.md Session H              |
 | 014 | `014_scholar_dashboard_rls.sql`        | Verbatim            | 7 May 2026         | NOTES.md Session I              |
 | 015 | `015_scholar_applications.sql`         | Verbatim            | 7 May 2026         | NOTES.md Session J              |
+| 016 | `016_scholars_self_select.sql`         | Verbatim            | 7 May 2026         | NOTES.md Session J follow-up    |
 
 ## Workflow
 
