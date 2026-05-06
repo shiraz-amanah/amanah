@@ -6172,26 +6172,131 @@ const ReviewSection = ({ title, onEdit, children }) => (
   </div>
 );
 
-// ==================== SCHOLAR PENDING CLAIM ====================
-// Shown after a scholar successfully signs up but their auth user_id
-// isn't yet linked to a scholars row. Manual SQL claim today; proper
-// claim flow lands in a follow-up session.
-const ScholarPendingClaim = ({ authedUser, onPublic, onLogout }) => (
+// ==================== SCHOLAR APPLICATION STATUS PAGES ====================
+
+// Shown immediately after wizard submit and on subsequent sign-ins
+// while application status is 'pending'.
+const ScholarApplicationSubmitted = ({ authedUser, application, onPublic, onLogout }) => {
+  const [showSummary, setShowSummary] = useState(false);
+  return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-100 mb-4">
+            <Clock className="text-amber-700" size={24} />
+          </div>
+          <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application submitted</h2>
+          <p className="text-sm text-stone-700 leading-relaxed mb-5">
+            Thanks{application?.fullName ? `, ${application.fullName.split(" ")[0]}` : ""}. Our team will review your application within 24-48 hours. We'll email you when there's an update.
+          </p>
+        </div>
+        {application && (
+          <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4">
+            <button onClick={() => setShowSummary(s => !s)} className="w-full flex items-center justify-between text-left">
+              <span className="text-xs font-medium text-stone-700 uppercase tracking-wider">What you submitted</span>
+              <ChevronDown size={14} className={`text-stone-500 transition-transform ${showSummary ? "rotate-180" : ""}`} />
+            </button>
+            {showSummary && (
+              <div className="mt-3 pt-3 border-t border-stone-200 text-xs text-stone-700 space-y-1">
+                <p><span className="text-stone-500">Name:</span> {application.fullName}</p>
+                <p><span className="text-stone-500">City:</span> {application.city}</p>
+                <p><span className="text-stone-500">Languages:</span> {(application.languages || []).join(", ")}</p>
+                <p><span className="text-stone-500">Subjects:</span> {(application.subjects || []).map(id => CATEGORIES.find(c => c.id === id)?.name || id).join(", ")}</p>
+                <p><span className="text-stone-500">Submitted:</span> {application.createdAt ? new Date(application.createdAt).toLocaleString("en-GB") : "just now"}</p>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="flex flex-col gap-2">
+          <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+            Browse Amanah while you wait
+          </button>
+          <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+            <LogOut size={14} /> Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Shown when an application has been rejected and the scholar signs
+// in again. Lets them re-apply (which inserts a fresh row — the old
+// rejected one stays in the table for audit).
+const ScholarApplicationRejected = ({ application, onReapply, onLogout, onPublic }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
-    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-100 mb-4">
-        <Clock className="text-amber-700" size={24} />
+    <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rose-100 mb-4">
+          <XCircle className="text-rose-700" size={24} />
+        </div>
+        <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application not approved</h2>
+        <p className="text-sm text-stone-700 leading-relaxed mb-5">
+          Our team reviewed your application and weren't able to approve it this time.
+        </p>
       </div>
-      <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Account created — pending claim</h2>
-      <p className="text-sm text-stone-700 leading-relaxed mb-3">
-        Thanks for signing up, scholar. An Amanah team member will link your scholar listing within 24 hours. You'll get an email when it's ready.
-      </p>
-      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-5 text-left">
-        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Signed in as</p>
-        <p className="text-sm text-stone-900 break-all">{authedUser?.email}</p>
-        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mt-3 mb-1">Your auth ID (share with admin if asked)</p>
-        <p className="text-xs text-stone-700 font-mono break-all">{authedUser?.id}</p>
+      {application?.rejectionReason && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-5">
+          <p className="text-xs font-medium text-rose-900 uppercase tracking-wider mb-1.5">Reason from our team</p>
+          <p className="text-sm text-rose-800 leading-relaxed">{application.rejectionReason}</p>
+        </div>
+      )}
+      <p className="text-xs text-stone-500 leading-relaxed mb-5">You're welcome to update your details and resubmit. Your previous answers are kept as a starting point.</p>
+      <div className="flex flex-col gap-2">
+        <button onClick={onReapply} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+          Edit and resubmit
+        </button>
+        <button onClick={onPublic} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors">
+          Browse Amanah
+        </button>
+        <button onClick={onLogout} className="w-full text-stone-500 hover:text-stone-700 py-2 text-sm inline-flex items-center justify-center gap-1.5">
+          <LogOut size={13} /> Sign out
+        </button>
       </div>
+    </div>
+  </div>
+);
+
+// Shown after admin approval, while scholar's listing is in
+// status='pending_verification'. Lists the three credential checks
+// with stub-pending indicators. Scholar's credentials get manually
+// flipped by admin via SQL today; proper verification UI lives in
+// a follow-up session.
+const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout }) => (
+  <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
+      <div className="text-center mb-5">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-100 mb-4">
+          <CheckCircle2 className="text-emerald-700" size={24} />
+        </div>
+        <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application approved</h2>
+        <p className="text-sm text-stone-700 leading-relaxed">
+          Your scholar listing is created. Before parents can find you, we need to verify your credentials. We'll be in touch within 5 working days.
+        </p>
+      </div>
+
+      <div className="space-y-2 mb-5">
+        {[
+          { label: "Enhanced DBS check", verified: scholar?.dbs_verified },
+          { label: "Right to Work in the UK", verified: scholar?.rtw_verified },
+          { label: "Ijazah / Qualifications", verified: scholar?.ijazah_verified },
+        ].map(check => (
+          <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200"}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${check.verified ? "bg-emerald-100" : "bg-white border border-stone-200"}`}>
+              {check.verified ? <CheckCircle2 className="text-emerald-700" size={16} /> : <Clock className="text-stone-400" size={14} />}
+            </div>
+            <p className="text-sm text-stone-900 flex-1">{check.label}</p>
+            <span className={`text-[10px] uppercase tracking-wider font-medium ${check.verified ? "text-emerald-700" : "text-stone-500"}`}>
+              {check.verified ? "Verified" : "Pending"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4 text-xs text-stone-600 leading-relaxed">
+        <span className="font-medium text-stone-800">What happens next:</span> we'll email you to arrange document checks. Once all three are verified, your profile goes live and parents can book you.
+      </div>
+
       <div className="flex flex-col gap-2">
         <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
           Browse Amanah while you wait
@@ -8880,6 +8985,10 @@ export default function App() {
   // Scholar dashboard — set when a signed-in user has a scholars row
   // pointing at them. Null otherwise (parent or unauthed).
   const [myScholar, setMyScholar] = useState(null);
+  // Latest scholar application for the authed user (any status). Drives
+  // the scholar-side routing branches in handleSignIn. Null means the
+  // user hasn't applied yet → wizard.
+  const [myScholarApplication, setMyScholarApplication] = useState(null);
   // Counts surfaced in the scholar tab bar — lifted to App so they
   // persist across views (Messages tab unmounts the dashboard but the
   // tab bar still wants its badges). Refetched whenever myScholar
@@ -9040,6 +9149,10 @@ useEffect(() => {
         // and lets a returning scholar reload back into their dashboard.
         const scholar = await getScholarByUserId(user.id);
         if (scholar) setMyScholar(scholar);
+        // Probe for an application too so the rejected/pending status
+        // pages have data on first render after a hard refresh.
+        const application = await getMyScholarApplication();
+        if (application) setMyScholarApplication(application);
       }
     } catch (err) {
       console.error("Auth bootstrap failed:", err);
@@ -9116,15 +9229,42 @@ const handleSignIn = (r) => {
   };
 
   // After a scholar signs in (or is already signed in and clicks a scholar
-  // sign-in entry point), look up their scholar listing and route to the
-  // dashboard if claimed, the pending-claim screen otherwise.
+  // sign-in entry point), look up their scholar listing AND application
+  // status and route to the right view. The branching tree:
+  //
+  //   scholar row exists, status='active'                → scholarDashboard
+  //   scholar row exists, status='pending_verification'  → scholarVerificationPending
+  //   no scholar, latest application status='pending'    → scholarApplicationSubmitted
+  //   no scholar, latest application status='rejected'   → scholarApplicationRejected
+  //   no scholar, no application                         → scholarOnboarding (wizard)
+  //
+  // 'approved' on an application without a scholar row is a transient
+  // state — the trigger creates the scholar row in the same UPDATE.
+  // If we ever observe it, treat it like 'pending_verification'.
   const routeAuthedScholar = async (userId) => {
     const scholar = await getScholarByUserId(userId);
     if (scholar) {
       setMyScholar(scholar);
-      setView("scholarDashboard");
+      if (scholar.status === "pending_verification") {
+        setView("scholarVerificationPending");
+      } else {
+        setView("scholarDashboard");
+      }
+      return;
+    }
+    const application = await getMyScholarApplication();
+    if (!application) {
+      setMyScholarApplication(null);
+      setView("scholarOnboarding");
+      return;
+    }
+    setMyScholarApplication(application);
+    if (application.status === "pending" || application.status === "approved") {
+      setView("scholarApplicationSubmitted");
+    } else if (application.status === "rejected") {
+      setView("scholarApplicationRejected");
     } else {
-      setView("scholarPendingClaim");
+      setView("scholarOnboarding");
     }
   };  if (view === "publicHome") return <PublicHome
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
@@ -9143,16 +9283,38 @@ const handleSignIn = (r) => {
     toggleCampaignSave={toggleCampaignSave}
     />;
 if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
-  if (view === "scholarPendingClaim") return <ScholarPendingClaim
+  // Scholar onboarding wizard — entry point for an authed user with no
+  // scholar listing and no application. Submit posts to
+  // scholar_applications and routes to the submitted status page.
+  if (view === "scholarOnboarding") return <ScholarOnboardingWizard
+    authedUser={authedUser}
+    authedProfile={authedProfile}
+    onSubmitted={(app) => { setMyScholarApplication(app); setView("scholarApplicationSubmitted"); }}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+  />;
+  if (view === "scholarApplicationSubmitted") return <ScholarApplicationSubmitted
+    authedUser={authedUser}
+    application={myScholarApplication}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+  />;
+  if (view === "scholarApplicationRejected") return <ScholarApplicationRejected
+    application={myScholarApplication}
+    onReapply={() => setView("scholarOnboarding")}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+  />;
+  if (view === "scholarVerificationPending") return <ScholarVerificationPending
+    scholar={myScholar}
     authedUser={authedUser}
     onPublic={() => setView("publicHome")}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); }}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
   />;
   if (view === "scholarDashboard") return <ScholarDashboard
     scholar={myScholar}
     authedUser={authedUser}
     onPublic={() => setView("publicHome")}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); }}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
     onOpenMessages={() => { setRole("scholar"); setView("messagesInbox"); }}
     onScholarUpdate={(updated) => setMyScholar(updated)}
   />;
@@ -9174,7 +9336,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     profile={authedProfile}
     isDemo={!authedProfile}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setView("publicHome"); }}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onBookAgain={async (scholarId) => {
       if (!scholarId) {
@@ -9236,7 +9398,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         displayName: myScholar?.name || authedUser?.email,
         displayInitials: myScholar?.avatar_initials,
         displayGradient: myScholar?.avatar_gradient,
-        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); },
+        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); },
         upcomingBookingsCount: scholarUpcomingCount,
         scholarReviewsCount: scholarReviewsCount,
       }
@@ -9244,7 +9406,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         displayName: authedProfile?.name || authedUser?.email,
         displayInitials: authedProfile?.avatar_initials,
         displayGradient: authedProfile?.avatar_gradient,
-        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); },
+        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); },
       };
 
   if (view === "messagesInbox") {
