@@ -305,7 +305,13 @@ useEffect(() => {
             <h3 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>What do you need?</h3>
             <p className="text-stone-600 mt-1 text-sm md:text-base">Browse by service</p>
           </div>
-          <button className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+          <button
+            onClick={() => {
+              const el = document.getElementById("top-scholars");
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all"
+          >
             View all <ArrowRight size={14} />
           </button>
         </div>
@@ -384,7 +390,7 @@ useEffect(() => {
       </section>
 
       {/* Scholar filter tabs */}
-      <section className="max-w-7xl mx-auto px-6 py-6">
+      <section id="top-scholars" className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
