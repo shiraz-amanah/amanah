@@ -821,6 +821,53 @@ const PublicHeader = ({ authedUser, authedProfile, onLogoClick, onSignIn }) => {
    </>
   );
 };
+
+// ============== DASHBOARD TAB BAR ==============
+// Shared horizontal tab strip used across the parent-dashboard surfaces
+// (UserDashboard, MessagesInbox, ConversationView) so the parent always has
+// a visible nav and the user dashboard's tab values stay in one place.
+const DashboardTabBar = ({
+  activeTab,
+  onTabClick,
+  upcomingBookingsCount = 0,
+  savedScholarsCount = 0,
+  savedMosquesCount = 0,
+  messagesUnread = 0,
+}) => {
+  const tabs = [
+    { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookingsCount },
+    { v: "donations", l: "My giving", i: HandCoins, badge: null },
+    { v: "saved", l: "My scholars", i: Heart, badge: savedScholarsCount },
+    { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosquesCount },
+    { v: "messages", l: "Messages", i: MessageCircle, badge: messagesUnread },
+    { v: "account", l: "Account", i: Settings, badge: null },
+  ];
+  return (
+    <div className="bg-white border-b border-stone-200">
+      <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 overflow-x-auto scrollbar-hide">
+        {tabs.map(t => {
+          const Icon = t.i;
+          const isActive = activeTab === t.v;
+          return (
+            <button
+              key={t.v}
+              onClick={() => onTabClick(t.v)}
+              className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon size={14} /> {t.l}
+                {t.badge > 0 && (
+                  <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // Scholar card with hover interactions
 const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
   const minPrice = Math.min(...scholar.packages.map(p => p.price));
@@ -4075,7 +4122,21 @@ function relativeTime(iso) {
 }
 
 // Inbox list view
-const MessagesInbox = ({ conversations, onConversation, onBack, currentUser = "Ustadh Yusuf" }) => {
+const MessagesInbox = ({
+  conversations,
+  onConversation,
+  onBack,
+  currentUser = "Ustadh Yusuf",
+  role,
+  authedUser,
+  authedProfile,
+  onSignIn,
+  onLogoClick,
+  onTabClick,
+  upcomingBookingsCount,
+  savedScholarsCount,
+  savedMosquesCount,
+}) => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -4087,17 +4148,37 @@ const MessagesInbox = ({ conversations, onConversation, onBack, currentUser = "U
   });
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
+  const showDashboardTabs = role === "user" && !!onTabClick;
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-            <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-          </button>
-        </div>
-      </header>
+      {showDashboardTabs ? (
+        <>
+          <PublicHeader
+            authedUser={authedUser}
+            authedProfile={authedProfile}
+            onLogoClick={onLogoClick}
+            onSignIn={onSignIn}
+          />
+          <DashboardTabBar
+            activeTab="messages"
+            onTabClick={onTabClick}
+            upcomingBookingsCount={upcomingBookingsCount}
+            savedScholarsCount={savedScholarsCount}
+            savedMosquesCount={savedMosquesCount}
+            messagesUnread={totalUnread}
+          />
+        </>
+      ) : (
+        <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <button onClick={onBack} className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+            </button>
+          </div>
+        </header>
+      )}
 
       <main className="max-w-5xl mx-auto px-6 py-8">
         <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back to dashboard</button>
@@ -4171,7 +4252,22 @@ const MessagesInbox = ({ conversations, onConversation, onBack, currentUser = "U
 // Demo conversations (from MOCK_CONVERSATIONS) come with `messages` inline.
 // Real conversations come with just an id + counterparty; the component fetches
 // its own messages and subscribes to realtime for the duration of the view.
-const ConversationView = ({ conversation, onBack, currentUserLabel = "You", currentUserId = null }) => {
+const ConversationView = ({
+  conversation,
+  onBack,
+  currentUserLabel = "You",
+  currentUserId = null,
+  role,
+  authedUser,
+  authedProfile,
+  onSignIn,
+  onLogoClick,
+  onTabClick,
+  upcomingBookingsCount,
+  savedScholarsCount,
+  savedMosquesCount,
+  messagesUnread = 0,
+}) => {
   // For demo conversations (no real conversation.id matching a UUID), keep
   // the original in-memory behavior. For real conversations, fetch + subscribe.
   const isReal = !!currentUserId && typeof conversation?.id === "string" && conversation.id.length > 20;
@@ -4309,8 +4405,28 @@ const ConversationView = ({ conversation, onBack, currentUserLabel = "You", curr
     setSending(false);
   };
  
+  const showDashboardTabs = role === "user" && !!onTabClick;
+
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {showDashboardTabs && (
+        <>
+          <PublicHeader
+            authedUser={authedUser}
+            authedProfile={authedProfile}
+            onLogoClick={onLogoClick}
+            onSignIn={onSignIn}
+          />
+          <DashboardTabBar
+            activeTab="messages"
+            onTabClick={onTabClick}
+            upcomingBookingsCount={upcomingBookingsCount}
+            savedScholarsCount={savedScholarsCount}
+            savedMosquesCount={savedMosquesCount}
+            messagesUnread={messagesUnread}
+          />
+        </>
+      )}
       {/* Conversation header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-3xl mx-auto px-6 py-3 flex items-center gap-3">
@@ -7707,11 +7823,43 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
   const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
+  const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
+  const handleDashboardTabClick = (tabValue) => {
+    if (tabValue === "messages") return;
+    sessionStorage.setItem("dashboardTab", tabValue);
+    setView("userDashboard");
+  };
 
   if (view === "messagesInbox") {
-    return <MessagesInbox conversations={inboxData} loading={conversationsLoading && !!authedProfile} onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }} onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")} />;
+    return <MessagesInbox
+      conversations={inboxData}
+      loading={conversationsLoading && !!authedProfile}
+      onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }}
+      onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")}
+      role={role}
+      authedUser={authedUser}
+      authedProfile={authedProfile}
+      onSignIn={handleSignIn}
+      onLogoClick={() => setView("publicHome")}
+      onTabClick={handleDashboardTabClick}
+      savedScholarsCount={savedScholars.length}
+      savedMosquesCount={savedMosqueIds?.size || 0}
+    />;
   }
-  if (view === "conversationView") return <ConversationView conversation={selectedConversation} onBack={() => setView("messagesInbox")} currentUserId={authedUser?.id} />;
+  if (view === "conversationView") return <ConversationView
+    conversation={selectedConversation}
+    onBack={() => setView("messagesInbox")}
+    currentUserId={authedUser?.id}
+    role={role}
+    authedUser={authedUser}
+    authedProfile={authedProfile}
+    onSignIn={handleSignIn}
+    onLogoClick={() => setView("publicHome")}
+    onTabClick={handleDashboardTabClick}
+    savedScholarsCount={savedScholars.length}
+    savedMosquesCount={savedMosqueIds?.size || 0}
+    messagesUnread={totalMessagesUnread}
+  />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
   if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => setView("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
