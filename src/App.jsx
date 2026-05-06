@@ -5741,18 +5741,22 @@ const ScholarPendingClaim = ({ authedUser, onPublic, onLogout }) => (
 );
 
 // ==================== USER SIGN UP / LOGIN ====================
-const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
+const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchMode }) => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: "", email: "", password: "", interest: "" });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const isSignUp = mode === "signup";
+  const isScholar = role === "scholar";
 
   const handleSignUp = async () => {
     setError(null);
     setLoading(true);
-    const { data, error: authError } = await signUp(form.email, form.password, form.name, form.interest);
+    // Scholars don't pick a parent-flavored "interest" — stash a marker
+    // instead so the post-signup user metadata reflects the entry path.
+    const interest = isScholar ? "scholar" : form.interest;
+    const { data, error: authError } = await signUp(form.email, form.password, form.name, interest);
     if (authError) {
       setError(authError.message || "Something went wrong");
       setLoading(false);
@@ -5789,21 +5793,38 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
         <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm">
           {isSignUp && step === 1 && (
             <>
-              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Create your account</h2>
-              <p className="text-sm text-stone-500 mb-6">Book scholars, track your giving, save favourites.</p>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isScholar ? "Sign up as a scholar" : "Create your account"}</h2>
+              <p className="text-sm text-stone-500 mb-6">{isScholar ? "Teach, get hired, build your profile on Amanah." : "Book scholars, track your giving, save favourites."}</p>
               <div className="space-y-3">
                 <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Your name" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <button onClick={() => form.name && form.email && form.password.length >= 6 && setStep(2)} disabled={!form.name || !form.email || form.password.length < 6} className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
-                  Continue <ArrowRight size={14} />
+                {isScholar && error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
+                <button
+                  onClick={() => {
+                    if (!form.name || !form.email || form.password.length < 6) return;
+                    if (isScholar) {
+                      // Scholars skip the parent-flavored "interest" picker —
+                      // submit directly. Post-auth, App routes them to the
+                      // pending-claim screen if their listing isn't linked.
+                      handleSignUp();
+                    } else {
+                      setStep(2);
+                    }
+                  }}
+                  disabled={!form.name || !form.email || form.password.length < 6 || loading}
+                  className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
+                >
+                  {isScholar
+                    ? (loading ? "Creating account..." : <>Create account <CheckCircle2 size={14} /></>)
+                    : <>Continue <ArrowRight size={14} /></>}
                 </button>
               </div>
               <p className="text-[11px] text-stone-500 text-center mt-4 leading-relaxed">By continuing, you agree to Amanah's Terms and Privacy Policy.</p>
             </>
           )}
 
-          {isSignUp && step === 2 && (
+          {isSignUp && !isScholar && step === 2 && (
             <>
               <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {form.name.split(" ")[0]}</h2>
               <p className="text-sm text-stone-500 mb-6">What brings you to Amanah?</p>
@@ -5864,9 +5885,16 @@ const UserAuth = ({ mode = "login", onBack, onComplete, onSwitchMode }) => {
           </div>
         </div>
 
-        <div className="mt-5 text-center text-xs text-stone-500">
-          Are you a <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">scholar</button>? Different sign-in.
-        </div>
+        {!isScholar && (
+          <div className="mt-5 text-center text-xs text-stone-500">
+            Are you a <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">scholar</button>? Different sign-in.
+          </div>
+        )}
+        {isScholar && (
+          <div className="mt-5 text-center text-xs text-stone-500">
+            Not a scholar? <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">Pick a different sign-in</button>.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -8384,6 +8412,10 @@ export default function App() {
   const [registrationType, setRegistrationType] = useState(null);
   const [scholarAvailability, setScholarAvailability] = useState(DEFAULT_AVAILABILITY);
   const [userAuthMode, setUserAuthMode] = useState("login");
+  // Tracks which entry path (parent vs scholar) opened the UserAuth view.
+  // Drives the signup flow shape — parents get the "What brings you?"
+  // interest picker; scholars skip it.
+  const [userAuthRole, setUserAuthRole] = useState("user");
   const [authedUser, setAuthedUser] = useState(null);
   const [authedProfile, setAuthedProfile] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -8554,6 +8586,7 @@ const handleSignIn = (r) => {
       // Picking "Parent or student" expresses intent to use the parent
       // dashboard. Default the post-auth destination there rather than
       // capturing whatever public page the user happened to be on.
+      setUserAuthRole("user");
       setReturnView("userDashboard"); setUserAuthMode("login"); setView("userAuth"); return;
     }
     if (r === "imam" || r === "scholar") {
@@ -8564,6 +8597,7 @@ const handleSignIn = (r) => {
         routeAuthedScholar(authedUser.id);
         return;
       }
+      setUserAuthRole("scholar");
       setReturnView("scholarPostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
     }
     // For mosque, admin - role-specific mock login
@@ -8611,7 +8645,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onOpenMessages={() => { setRole("scholar"); setView("messagesInbox"); }}
     onScholarUpdate={(updated) => setMyScholar(updated)}
   />;
-  if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
+  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
     if (user) {
