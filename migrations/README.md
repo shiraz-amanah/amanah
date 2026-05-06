@@ -39,6 +39,7 @@ filenames.
 | 009 | `009_donations_table_TODO.sql`         | TODO                | Pre-Session-C      | inferred from `auth.js`         |
 | 010 | `010_profiles_table_TODO.sql`          | TODO                | Project bootstrap  | inferred from `auth.js`         |
 | 011 | `011_students_table_TODO.sql`          | TODO                | Pre-Session-A      | inferred from `auth.js`         |
+| 012 | `012_reviews.sql`                      | Verbatim            | 6 May 2026         | NOTES.md Session H              |
 
 ## Workflow
 
