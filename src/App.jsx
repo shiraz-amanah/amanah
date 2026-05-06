@@ -55,7 +55,7 @@ const ProgressBar = ({ raised, goal, gradient = "from-emerald-600 to-emerald-800
 };
 
 // Campaign card
-const CampaignCard = ({ campaign, onClick }) => {
+const CampaignCard = ({ campaign, onClick, isSaved, onToggleSave }) => {
   const pct = Math.min((campaign.raised / campaign.goal) * 100, 100);
   return (
     <div onClick={onClick} className="group bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-300 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1">
@@ -69,6 +69,19 @@ const CampaignCard = ({ campaign, onClick }) => {
         <div className="absolute top-3 right-3 inline-flex items-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-full font-medium uppercase tracking-wider border border-white/30">
           {campaign.category}
         </div>
+        {onToggleSave && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSave(campaign); }}
+            className="absolute bottom-3 right-3 z-10 p-1.5 bg-white/90 backdrop-blur rounded-full hover:scale-110 transition-transform"
+            aria-label={isSaved ? "Unsave campaign" : "Save campaign"}
+          >
+            <Heart
+              size={16}
+              className={isSaved ? "text-rose-500" : "text-stone-400 hover:text-rose-400"}
+              fill={isSaved ? "currentColor" : "none"}
+            />
+          </button>
+        )}
         <div className="absolute bottom-3 left-4 right-4 text-white">
           <p className="text-xs opacity-90 flex items-center gap-1"><MapPin size={11} /> {campaign.city}</p>
         </div>
@@ -97,7 +110,7 @@ const CampaignCard = ({ campaign, onClick }) => {
 };
 
 // ==================== PUBLIC HOME ====================
-const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, savedMosqueIds, toggleMosqueSave, authedUser, authedProfile, onMosquesListing, onMosqueDetail }) => {  const [activeTab, setActiveTab] = useState("all");
+const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaigns, onLeaveReview, savedScholarIds, toggleScholarSave, savedMosqueIds, toggleMosqueSave, savedCampaignIds, toggleCampaignSave, authedUser, authedProfile, onMosquesListing, onMosqueDetail }) => {  const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -446,7 +459,7 @@ useEffect(() => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {MOCK_CAMPAIGNS.map((c, i) => (
               <div key={c.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                <CampaignCard campaign={c} onClick={() => onCampaign(c)} />
+                <CampaignCard campaign={c} onClick={() => onCampaign(c)} isSaved={savedCampaignIds?.has(String(c.id))} onToggleSave={toggleCampaignSave} />
               </div>
             ))}
           </div>
@@ -2926,7 +2939,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
 };
 
 // ==================== ALL CAMPAIGNS PAGE ====================
-const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile }) => {
+const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile, savedCampaignIds, toggleCampaignSave }) => {
   const [filter, setFilter] = useState("all");
   const categories = ["all", ...new Set(MOCK_CAMPAIGNS.map(c => c.category))];
   const filtered = filter === "all" ? MOCK_CAMPAIGNS : MOCK_CAMPAIGNS.filter(c => c.category === filter);
@@ -2965,7 +2978,7 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((c, i) => (
             <div key={c.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-              <CampaignCard campaign={c} onClick={() => onCampaign(c)} />
+              <CampaignCard campaign={c} onClick={() => onCampaign(c)} isSaved={savedCampaignIds?.has(String(c.id))} onToggleSave={toggleCampaignSave} />
             </div>
           ))}
         </div>
@@ -2975,7 +2988,7 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile 
 };
 
 // ==================== CAMPAIGN DETAIL ====================
-const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, authedProfile }) => {
+const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, authedProfile, isSaved, onToggleSave }) => {
   const pct = Math.min((campaign.raised / campaign.goal) * 100, 100);
 
   return (
@@ -3089,6 +3102,16 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
               <button onClick={() => onDonate(campaign)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-4 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
                 <HandCoins size={16} /> Donate now
               </button>
+              {onToggleSave && (
+                <button
+                  onClick={() => onToggleSave(campaign)}
+                  className={`w-full mt-2 border py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors ${isSaved ? "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100" : "border-stone-300 hover:border-stone-400 text-stone-700"}`}
+                  aria-label={isSaved ? "Unsave campaign" : "Save campaign"}
+                >
+                  <Heart size={14} className={isSaved ? "text-rose-500" : ""} fill={isSaved ? "currentColor" : "none"} />
+                  {isSaved ? "Saved" : "Save campaign"}
+                </button>
+              )}
               <button className="w-full mt-2 border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2">
                 <Share2 size={14} /> Share campaign
               </button>
@@ -7711,6 +7734,23 @@ const toggleScholarSave = async (scholar) => {
     }
   };
 
+  const toggleCampaignSave = async (campaign) => {
+    const idStr = String(campaign.id);
+    if (savedCampaignIds.has(idStr)) {
+      setSavedCampaignIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      const { error } = await removeSave('campaign', campaign.id);
+      if (error) {
+        setSavedCampaignIds(prev => new Set([...prev, idStr]));
+      }
+    } else {
+      setSavedCampaignIds(prev => new Set([...prev, idStr]));
+      const { error } = await addSave('campaign', campaign.id);
+      if (error) {
+        setSavedCampaignIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      }
+    }
+  };
+
   // Custom setView that also pushes to browser history
   const setView = (newView) => {
     if (newView !== view) {
@@ -7787,7 +7827,9 @@ const handleSignIn = (r) => {
     onMosqueDetail={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
     savedMosqueIds={savedMosqueIds}
     toggleMosqueSave={toggleMosqueSave}
-    />;  
+    savedCampaignIds={savedCampaignIds}
+    toggleCampaignSave={toggleCampaignSave}
+    />;
 if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
@@ -7875,7 +7917,9 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   }} />;
   if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
   if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
-  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} savedCampaignIds={savedCampaignIds} toggleCampaignSave={toggleCampaignSave} />;
+  if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} isSaved={savedCampaignIds?.has(String(selectedCampaign?.id))} onToggleSave={toggleCampaignSave} />;
+  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
