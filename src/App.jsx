@@ -6345,7 +6345,7 @@ setBookings(transformed);
                 <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Causes I'm watching ({savedCampaigns.length})</h3>
                 <div className="grid md:grid-cols-2 gap-3 mb-8">
                   {savedCampaigns.map(id => {
-                    const c = MOCK_CAMPAIGNS.find(x => x.id === id);
+                    const c = MOCK_CAMPAIGNS.find(x => String(x.id) === String(id));
                     if (!c) return null;
                     const pct = Math.min((c.raised / c.goal) * 100, 100);
                     return (
