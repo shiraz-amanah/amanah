@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus } from "./auth";
-import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
+import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
@@ -7146,6 +7146,7 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
     { id: "scholars", label: "Scholar queue", icon: Users, count: counts.scholars, urgent: counts.scholars > 0 },
     { id: "campaigns", label: "Campaign queue", icon: HandCoins, count: counts.campaigns, urgent: counts.campaigns > 0 },
     { id: "flags", label: "Flags & reports", icon: Flag, count: counts.flags, urgent: counts.flags > 0, highlight: true },
+    { id: "reviews", label: "Reviews", icon: Star, count: null, urgent: false },
     { id: "dbs", label: "DBS orders", icon: FileCheck, count: counts.dbs, urgent: false },
     { id: "users", label: "All users", icon: Users, count: null },
     { id: "settings", label: "Settings", icon: Settings, count: null }
@@ -7635,6 +7636,146 @@ const AdminDBSOrders = ({ orders }) => (
   </div>
 );
 
+// ===== Reviews moderation =====
+const AdminReviewsModeration = () => {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [expandedId, setExpandedId] = useState(null);
+  const [actionInFlight, setActionInFlight] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    const data = await getReviewsForModeration(filter === "all" ? null : filter);
+    setReviews(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const handleStatusChange = async (review, newStatus) => {
+    setActionInFlight(review.id);
+    const { error } = await setReviewStatus(review.id, newStatus);
+    setActionInFlight(null);
+    if (error) {
+      alert("Couldn't update review: " + (error.message || "unknown error"));
+      return;
+    }
+    // Refetch so the trigger-recomputed scholar stats are reflected and
+    // the list re-orders correctly under the active filter.
+    load();
+  };
+
+  const statusPill = (status) => {
+    const cfg = {
+      published: { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", label: "Published" },
+      hidden:    { bg: "bg-rose-50",    text: "text-rose-800",    border: "border-rose-200",    label: "Hidden" },
+      pending:   { bg: "bg-amber-50",   text: "text-amber-800",   border: "border-amber-200",   label: "Pending" },
+    }[status] || { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-200", label: status };
+    return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
+  };
+
+  const truncate = (s, n) => (s && s.length > n ? s.slice(0, n) + "…" : s);
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Reviews</h1>
+        <p className="text-stone-600">Moderate published reviews. Hidden reviews don't count toward scholar ratings.</p>
+      </div>
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {[
+          { v: "all", l: "All" },
+          { v: "published", l: "Published" },
+          { v: "hidden", l: "Hidden" },
+          { v: "pending", l: "Pending" },
+        ].map(f => (
+          <button
+            key={f.v}
+            onClick={() => setFilter(f.v)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+          >
+            {f.l}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-stone-400 text-center py-8">Loading reviews...</p>
+      ) : reviews.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <Star className="mx-auto text-stone-300 mb-3" size={36} />
+          <p className="text-stone-600">No reviews in this view.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          {reviews.map((r, i) => {
+            const isExpanded = expandedId === r.id;
+            const authorLabel = r.parent?.name || (r.parentId ? "Anonymous" : "(name withheld)");
+            const isPending = actionInFlight === r.id;
+            return (
+              <div key={r.id} className={`p-5 ${i < reviews.length - 1 ? "border-b border-stone-100" : ""}`}>
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <p className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                        {r.scholar?.name || "(unknown scholar)"}
+                      </p>
+                      <StarRating rating={r.rating} size={11} />
+                      {statusPill(r.status)}
+                      {r.bookingId && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                          <CheckCircle2 size={9} /> Verified
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-stone-500 mb-2">
+                      {authorLabel} · {new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                      className="text-left text-sm text-stone-800 leading-relaxed hover:text-stone-900"
+                    >
+                      {isExpanded ? r.body : truncate(r.body, 200)}
+                      {!isExpanded && r.body.length > 200 && (
+                        <span className="ml-1 text-emerald-700 font-medium">expand</span>
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    {r.status !== "published" && (
+                      <button
+                        onClick={() => handleStatusChange(r, "published")}
+                        disabled={isPending}
+                        className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-xs font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1"
+                      >
+                        <CheckCircle2 size={12} /> Publish
+                      </button>
+                    )}
+                    {r.status !== "hidden" && (
+                      <button
+                        onClick={() => handleStatusChange(r, "hidden")}
+                        disabled={isPending}
+                        className="bg-white border border-rose-200 hover:bg-rose-50 disabled:opacity-50 text-rose-700 text-xs font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1"
+                      >
+                        <EyeOff size={12} /> Hide
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ===== Admin panel shell =====
 const AdminPanel = ({ onExit }) => {
   const [section, setSection] = useState("overview");
@@ -7659,6 +7800,7 @@ const AdminPanel = ({ onExit }) => {
     scholars: "Scholar queue",
     campaigns: "Campaign queue",
     flags: "Flags & reports",
+    reviews: "Reviews",
     dbs: "DBS orders",
     users: "All users",
     settings: "Settings"
@@ -7720,6 +7862,7 @@ const AdminPanel = ({ onExit }) => {
         {section === "scholars" && <AdminScholarQueue apps={scholarApps} onAction={handleScholarAction} />}
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
         {section === "flags" && <AdminFlags flags={flags} onAction={handleFlagAction} />}
+        {section === "reviews" && <AdminReviewsModeration />}
         {section === "dbs" && <AdminDBSOrders orders={ADMIN_DBS_ORDERS} />}
         {section === "users" && (
           <div>
