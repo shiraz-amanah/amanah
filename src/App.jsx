@@ -8,7 +8,6 @@ import { transformScholar } from "./lib/scholarTransform";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
-import { SCHOLAR_REVIEWS_DB } from "./data/mockReviews";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
@@ -2745,7 +2744,11 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
     languages: ["Arabic", "English", "Urdu"],
     availability: "substitute"
   };
-  const myReviews = SCHOLAR_REVIEWS_DB[myProfile.id] || [];
+  // Imam (scholar-side) dashboard is still mock — myProfile.id is hardcoded
+  // 101, not a real auth-linked scholar UUID. Once scholar auth lands, wire
+  // this to getReviewsForScholar(myProfile.id) where myProfile comes from
+  // the authed scholar row.
+  const myReviews = [];
   const stats = getRatingBreakdown(myReviews);
 
   return (
