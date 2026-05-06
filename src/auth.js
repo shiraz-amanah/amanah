@@ -677,3 +677,137 @@ export async function setReviewStatus(reviewId, newStatus) {
     .single()
   return { data, error }
 }
+
+// ============================================================================
+// Session J — Scholar applications
+// ============================================================================
+
+function shapeScholarApplication(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    userId: row.user_id,
+    status: row.status,
+    fullName: row.full_name,
+    city: row.city,
+    languages: row.languages || [],
+    avatarUrl: row.avatar_url,
+    ijazahSummary: row.ijazah_summary,
+    formalEducation: row.formal_education,
+    yearsTeaching: row.years_teaching,
+    dbsStatus: row.dbs_status,
+    subjects: row.subjects || [],
+    packages: row.packages || [],
+    bio: row.bio,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+    rejectionReason: row.rejection_reason,
+    createdScholarId: row.created_scholar_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+// Wizard submit — INSERT a new pending application for the current
+// user. The DB partial unique index (user_id) WHERE status='pending'
+// prevents duplicate pending submissions; surfaces as a 23505 error
+// the caller should treat as "you already have a pending app".
+export async function submitScholarApplication(applicationData) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const payload = {
+    user_id: user.id,
+    status: 'pending',
+    full_name: applicationData.fullName,
+    city: applicationData.city,
+    languages: applicationData.languages || [],
+    avatar_url: applicationData.avatarUrl || null,
+    ijazah_summary: applicationData.ijazahSummary || null,
+    formal_education: applicationData.formalEducation || null,
+    years_teaching: applicationData.yearsTeaching ?? null,
+    dbs_status: applicationData.dbsStatus || null,
+    subjects: applicationData.subjects || [],
+    packages: applicationData.packages || [],
+    bio: applicationData.bio,
+  }
+  const { data, error } = await supabase
+    .from('scholar_applications')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) return { error }
+  return { data: shapeScholarApplication(data) }
+}
+
+// Returns the most recent application for the current user, or null
+// if none exists. Drives the post-auth routing branch in handleSignIn.
+export async function getMyScholarApplication() {
+  const user = await getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('scholar_applications')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) {
+    console.error('Error fetching scholar application:', error)
+    return null
+  }
+  return shapeScholarApplication(data)
+}
+
+// Admin queue — list applications, optionally filtered by status.
+// RLS allows any authenticated user to SELECT; the AdminPanel client
+// gate is the access control today.
+export async function getAllScholarApplications(statusFilter = null) {
+  let q = supabase
+    .from('scholar_applications')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (statusFilter && statusFilter !== 'all') q = q.eq('status', statusFilter)
+  const { data, error } = await q
+  if (error) {
+    console.error('Error fetching scholar applications:', error)
+    return []
+  }
+  return (data || []).map(shapeScholarApplication)
+}
+
+// Admin: approve. Trigger handles scholar row creation + slug + linkback.
+// Returns the updated application with created_scholar_id populated.
+export async function approveScholarApplication(applicationId) {
+  if (!applicationId) return { error: { message: 'applicationId required' } }
+  const { data, error } = await supabase
+    .from('scholar_applications')
+    .update({ status: 'approved', updated_at: new Date().toISOString() })
+    .eq('id', applicationId)
+    .eq('status', 'pending')
+    .select()
+    .single()
+  if (error) return { error }
+  return { data: shapeScholarApplication(data) }
+}
+
+// Admin: reject with required reason.
+export async function rejectScholarApplication(applicationId, reason) {
+  if (!applicationId) return { error: { message: 'applicationId required' } }
+  const trimmed = (reason || '').trim()
+  if (trimmed.length < 10) {
+    return { error: { message: 'Rejection reason must be at least 10 characters' } }
+  }
+  const { data, error } = await supabase
+    .from('scholar_applications')
+    .update({
+      status: 'rejected',
+      rejection_reason: trimmed,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', applicationId)
+    .eq('status', 'pending')
+    .select()
+    .single()
+  if (error) return { error }
+  return { data: shapeScholarApplication(data) }
+}
