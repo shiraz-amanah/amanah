@@ -40,6 +40,7 @@ filenames.
 | 010 | `010_profiles_table_TODO.sql`          | TODO                | Project bootstrap  | inferred from `auth.js`         |
 | 011 | `011_students_table_TODO.sql`          | TODO                | Pre-Session-A      | inferred from `auth.js`         |
 | 012 | `012_reviews.sql`                      | Verbatim            | 6 May 2026         | NOTES.md Session H              |
+| 013 | `013_reviews_seed.sql`                 | Verbatim            | 6 May 2026         | NOTES.md Session H              |
 
 ## Workflow
 
