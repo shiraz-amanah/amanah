@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
@@ -1402,6 +1402,10 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
   const [scholar, setScholar] = useState(initialScholar);
   const [selectedPkg, setSelectedPkg] = useState(initialScholar.packages.find(p => p.popular) || initialScholar.packages[1] || initialScholar.packages[0]);
 
+  // Real reviews from Supabase
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+
 useEffect(() => {
   if (!initialScholar.slug) return;
   getScholarBySlug(initialScholar.slug)
@@ -1418,6 +1422,21 @@ useEffect(() => {
       console.error("Failed to refresh scholar:", err);
     });
 }, [initialScholar.slug]);
+
+  // Load published reviews for this scholar. Demo scholars (id starts
+  // with "demo-") aren't in the DB, skip the fetch.
+  useEffect(() => {
+    if (!scholar?.id || (typeof scholar.id === "string" && scholar.id.startsWith("demo-"))) {
+      setReviews([]);
+      setReviewsLoading(false);
+      return;
+    }
+    setReviewsLoading(true);
+    getReviewsForScholar(scholar.id)
+      .then(data => setReviews(data))
+      .catch(err => console.error("Failed to load reviews:", err))
+      .finally(() => setReviewsLoading(false));
+  }, [scholar?.id]);
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
@@ -1506,20 +1525,26 @@ useEffect(() => {
               </div>
 
               {/* Ratings breakdown */}
-              {SCHOLAR_REVIEWS_DB[scholar.id] && (
+              {!reviewsLoading && reviews.length > 0 && (
                 <div className="pb-5 mb-5 border-b border-stone-100">
-                  <RatingsBreakdown reviews={SCHOLAR_REVIEWS_DB[scholar.id]} />
+                  <RatingsBreakdown reviews={reviews} />
                 </div>
               )}
 
               {/* Review list */}
-              <div className="space-y-5">
-                {(SCHOLAR_REVIEWS_DB[scholar.id] || []).map(r => (
-                  <ReviewCard key={r.id} review={r} compact />
-                ))}
-              </div>
+              {reviewsLoading ? (
+                <p className="text-sm text-stone-400 text-center py-6">Loading reviews...</p>
+              ) : reviews.length === 0 ? (
+                <p className="text-sm text-stone-500 text-center py-6">No reviews yet.</p>
+              ) : (
+                <div className="space-y-5">
+                  {reviews.map(r => (
+                    <ReviewCard key={r.id} review={r} compact />
+                  ))}
+                </div>
+              )}
 
-              {SCHOLAR_REVIEWS_DB[scholar.id] && SCHOLAR_REVIEWS_DB[scholar.id].length >= 4 && (
+              {!reviewsLoading && reviews.length >= 4 && (
                 <button className="w-full mt-4 text-sm text-emerald-800 font-medium hover:underline">See all {scholar.reviewCount} reviews</button>
               )}
             </div>
@@ -3914,44 +3939,64 @@ const RatingsBreakdown = ({ reviews }) => {
 };
 
 // Individual review card
-const ReviewCard = ({ review, compact = false }) => (
-  <div className={`${compact ? "pb-4 border-b border-stone-100 last:border-0 last:pb-0" : "bg-white border border-stone-200 rounded-2xl p-5"}`}>
-    <div className="flex items-start gap-3 mb-2">
-      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-stone-100 flex items-center justify-center text-xs font-medium text-stone-700 flex-shrink-0">
-        {review.author === "Anonymous" ? "✦" : review.author[0]}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div>
-            <p className="text-sm font-medium text-stone-900">{review.author}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <StarRating rating={review.rating} size={12} />
-              <span className="text-xs text-stone-400">·</span>
-              <span className="text-xs text-stone-500">{review.date}</span>
-              <span className="text-xs text-stone-400">·</span>
-              <span className="text-[10px] uppercase tracking-wider text-stone-500">{review.package}</span>
+// Accepts both legacy mock shape ({author, text, date, package, tags, reply})
+// and Supabase shape ({parent: {name}, body, createdAt, bookingId, ...}).
+const ReviewCard = ({ review, compact = false }) => {
+  // Adapter — prefer Supabase fields, fall back to legacy mock fields
+  const authorName = review.parent?.name
+    || review.author
+    || (review.parentId ? "Anonymous" : "(name withheld)");
+  const isAnonymized = !review.parent?.name && !review.author;
+  const text = review.body || review.text;
+  const dateLabel = review.createdAt ? relativeTime(review.createdAt) : review.date;
+  const isVerifiedBooking = !!review.bookingId;
+  const initial = isAnonymized ? "✦" : authorName[0];
+
+  return (
+    <div className={`${compact ? "pb-4 border-b border-stone-100 last:border-0 last:pb-0" : "bg-white border border-stone-200 rounded-2xl p-5"}`}>
+      <div className="flex items-start gap-3 mb-2">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-stone-100 flex items-center justify-center text-xs font-medium text-stone-700 flex-shrink-0">
+          {initial}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <p className="text-sm font-medium text-stone-900">{authorName}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <StarRating rating={review.rating} size={12} />
+                {dateLabel && <>
+                  <span className="text-xs text-stone-400">·</span>
+                  <span className="text-xs text-stone-500">{dateLabel}</span>
+                </>}
+                {review.package && <>
+                  <span className="text-xs text-stone-400">·</span>
+                  <span className="text-[10px] uppercase tracking-wider text-stone-500">{review.package}</span>
+                </>}
+              </div>
             </div>
+            {isVerifiedBooking && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium uppercase tracking-wider">
+                <CheckCircle2 size={9} /> Verified booking
+              </span>
+            )}
           </div>
-          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium uppercase tracking-wider">
-            <CheckCircle2 size={9} /> Verified booking
-          </span>
         </div>
       </div>
+      <p className="text-sm text-stone-800 leading-relaxed ml-12 mb-2">{text}</p>
+      {review.tags && review.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 ml-12 mb-2">
+          {review.tags.map(t => <span key={t} className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded uppercase tracking-wider">{t}</span>)}
+        </div>
+      )}
+      {review.reply && (
+        <div className="ml-12 mt-3 bg-stone-50 border-l-2 border-emerald-600 pl-3 py-2 rounded-r-lg">
+          <p className="text-xs text-emerald-800 font-medium mb-0.5">Scholar replied</p>
+          <p className="text-sm text-stone-700 italic leading-relaxed">{review.reply}</p>
+        </div>
+      )}
     </div>
-    <p className="text-sm text-stone-800 leading-relaxed ml-12 mb-2">{review.text}</p>
-    {review.tags && review.tags.length > 0 && (
-      <div className="flex flex-wrap gap-1 ml-12 mb-2">
-        {review.tags.map(t => <span key={t} className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded uppercase tracking-wider">{t}</span>)}
-      </div>
-    )}
-    {review.reply && (
-      <div className="ml-12 mt-3 bg-stone-50 border-l-2 border-emerald-600 pl-3 py-2 rounded-r-lg">
-        <p className="text-xs text-emerald-800 font-medium mb-0.5">Scholar replied</p>
-        <p className="text-sm text-stone-700 italic leading-relaxed">{review.reply}</p>
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 // ==================== LEAVE REVIEW FLOW ====================
 const LeaveReview = ({ scholar, booking, onBack, onSubmit, onSignIn }) => {
