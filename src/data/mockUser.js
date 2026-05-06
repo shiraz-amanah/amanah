@@ -22,10 +22,10 @@ export const MOCK_USER_BOOKINGS = [
 ];
 
 export const MOCK_USER_DONATIONS = [
-  { id: "d-1", campaign: "New roof for Masjid Al-Noor", creator: "Masjid Al-Noor", amount: 50, tip: 5, giftAid: 12.50, total: 67.50, date: "2026-04-15", anonymous: false, receiptId: "AMN-D-458912" },
-  { id: "d-2", campaign: "Ramadan 1447 Iftar Programme", creator: "Blackburn Islamic Centre", amount: 120, tip: 0, giftAid: 30, total: 150, date: "2026-03-28", anonymous: true, receiptId: "AMN-D-445301" },
-  { id: "d-3", campaign: "Help Ustadh Ibrahim study at Madinah", creator: "Ustadh Ibrahim Siddiqui", amount: 30, tip: 3, giftAid: 7.50, total: 40.50, date: "2026-03-12", anonymous: false, receiptId: "AMN-D-432089" },
-  { id: "d-4", campaign: "New women's prayer hall", creator: "Masjid As-Salam", amount: 200, tip: 20, giftAid: 50, total: 270, date: "2026-02-04", anonymous: false, receiptId: "AMN-D-419763" }
+  { id: "d-1", campaignId: "1", campaign: "New roof for Masjid Al-Noor", creator: "Masjid Al-Noor", amount: 50, tip: 5, giftAid: 12.50, total: 67.50, date: "2026-04-15", anonymous: false, receiptId: "AMN-D-458912" },
+  { id: "d-2", campaignId: "3", campaign: "Ramadan 1447 Iftar Programme", creator: "Blackburn Islamic Centre", amount: 120, tip: 0, giftAid: 30, total: 150, date: "2026-03-28", anonymous: true, receiptId: "AMN-D-445301" },
+  { id: "d-3", campaignId: "2", campaign: "Help Ustadh Ibrahim study at Madinah", creator: "Ustadh Ibrahim Siddiqui", amount: 30, tip: 3, giftAid: 7.50, total: 40.50, date: "2026-03-12", anonymous: false, receiptId: "AMN-D-432089" },
+  { id: "d-4", campaignId: "4", campaign: "New women's prayer hall", creator: "Masjid As-Salam", amount: 200, tip: 20, giftAid: 50, total: 270, date: "2026-02-04", anonymous: false, receiptId: "AMN-D-419763" }
 ];
 
 // Full scholar objects for the UserDashboard isDemo branch's "My scholars" tab.

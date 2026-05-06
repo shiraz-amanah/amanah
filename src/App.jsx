@@ -5973,6 +5973,7 @@ setBookings(transformed);
         // Transform DB shape (snake_case) to UI shape (camelCase)
         const transformed = data.map(d => ({
           id: d.id,
+          campaignId: d.campaign_id,
           campaign: d.campaign_title,
           creator: d.campaign_creator,
           amount: Number(d.amount),
@@ -6331,8 +6332,19 @@ setBookings(transformed);
 
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">All donations</h3>
             <div className="space-y-3">
-              {donations.map(d => (
-                <div key={d.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
+              {donations.map(d => {
+                const linkedCampaign = d.campaignId
+                  ? MOCK_CAMPAIGNS.find(c => String(c.id) === String(d.campaignId))
+                  : null;
+                const handleRowClick = () => {
+                  if (linkedCampaign) onViewCampaign(linkedCampaign);
+                };
+                return (
+                <div
+                  key={d.id}
+                  onClick={linkedCampaign ? handleRowClick : undefined}
+                  className={`bg-white border border-stone-200 rounded-2xl p-4 md:p-5 ${linkedCampaign ? "cursor-pointer hover:border-emerald-300 transition-colors" : ""}`}
+                >
                   <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                     <div className="min-w-0">
                       <h4 className="text-base font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{d.campaign}</h4>
@@ -6349,12 +6361,13 @@ setBookings(transformed);
                       {d.anonymous && <span>· Anonymous</span>}
                       <span className="font-mono">· {d.receiptId}</span>
                     </div>
-                    <button className="text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                    <button onClick={(e) => e.stopPropagation()} className="text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
                       <Download size={11} /> Receipt
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
               </>
             )}
