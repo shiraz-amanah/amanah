@@ -712,9 +712,29 @@ function shapeScholarApplication(row) {
 // user. The DB partial unique index (user_id) WHERE status='pending'
 // prevents duplicate pending submissions; surfaces as a 23505 error
 // the caller should treat as "you already have a pending app".
+//
+// Defensive: re-checks the active session JUST before the insert so
+// a user whose JWT expired between the wizard mount and the submit
+// click gets a clear "Not signed in" error instead of a silent RLS
+// denial. Also guards the {data:null, error:null} edge case the
+// Supabase JS v2 client can return when the implicit SELECT after
+// an insert fails RLS — surfaces as an error instead of routing the
+// wizard forward as success with nothing in the DB.
 export async function submitScholarApplication(applicationData) {
   const user = await getUser()
-  if (!user) return { error: { message: 'Not signed in' } }
+  if (!user) {
+    console.error('submitScholarApplication: getUser returned null')
+    return { error: { message: 'Not signed in' } }
+  }
+  // Sanity-check the session — getUser can return cached user data
+  // even when the access token is gone. Without a session, the insert
+  // hits RLS as anon and silently fails.
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('submitScholarApplication: no active session despite getUser returning a user', { userId: user.id })
+    return { error: { message: 'Your session expired. Sign in again and resubmit.' } }
+  }
+
   const payload = {
     user_id: user.id,
     status: 'pending',
@@ -735,7 +755,20 @@ export async function submitScholarApplication(applicationData) {
     .insert(payload)
     .select()
     .single()
-  if (error) return { error }
+  if (error) {
+    console.error('submitScholarApplication insert failed:', error, { userId: user.id })
+    return { error }
+  }
+  if (!data) {
+    // Supabase JS v2 has a known quirk where .insert().select().single()
+    // can return {data:null, error:null} when the implicit SELECT
+    // after the insert is silently rejected (RLS, session-token
+    // desync, network truncation). Treat as a hard failure so the
+    // wizard surfaces an inline error instead of routing the user
+    // forward to the submitted page with no DB row.
+    console.error('submitScholarApplication: insert returned no data AND no error', { userId: user.id, hasSession: !!session })
+    return { error: { message: "Submission didn't save. Try signing out and back in, then resubmit." } }
+  }
   return { data: shapeScholarApplication(data) }
 }
 
