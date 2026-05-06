@@ -3948,11 +3948,17 @@ const ReviewCard = ({ review, compact = false }) => (
 );
 
 // ==================== LEAVE REVIEW FLOW ====================
-const LeaveReview = ({ scholar, booking, onBack, onSubmit }) => {
+const LeaveReview = ({ scholar, booking, onBack, onSubmit, onSignIn }) => {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
   const [step, setStep] = useState(1);
+
+  // Demo mode: PublicHome's "Leave a review" CTA passes a scholar with a
+  // synthetic id like "demo-yusuf". Block submission so the eventual real
+  // createReview() helper never sees a non-UUID and prompt the visitor to
+  // sign in for a real review instead.
+  const isDemo = typeof scholar?.id === "string" && scholar.id.startsWith("demo-");
 
   const availableTags = {
     5: ["Patient", "Knowledgeable", "Great with kids", "Punctual", "Engaging", "Clear explanations", "Encouraging"],
@@ -3964,6 +3970,33 @@ const LeaveReview = ({ scholar, booking, onBack, onSubmit }) => {
   const tagsForRating = rating > 0 ? availableTags[rating] : [];
 
   const toggleTag = (tag) => setSelectedTags(selectedTags.includes(tag) ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag]);
+
+  if (isDemo) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-100 mb-4">
+            <Star className="text-amber-700" size={24} />
+          </div>
+          <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>This is a demo review</h2>
+          <p className="text-sm text-stone-700 leading-relaxed mb-5">
+            Reviews on Amanah are tied to real bookings with verified scholars.
+            Sign in and book a session to leave one for real.
+          </p>
+          <div className="flex flex-col gap-2">
+            {onSignIn && (
+              <button onClick={() => onSignIn("user")} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+                Sign in to leave a real review
+              </button>
+            )}
+            <button onClick={onBack} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors">
+              Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -7878,7 +7911,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     toggleMosqueSave={toggleMosqueSave}
     onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
   />;
-  if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} />;
+  if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} onSignIn={handleSignIn} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
   const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
   const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
