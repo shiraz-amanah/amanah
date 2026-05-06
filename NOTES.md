@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session G (parent dashboard end-to-end polish) — nine commits `c63cda9`, `7dafdab`, `96763d7`, `946f42c`, `b4d2657`, `f4f39ca`, `49f9407`, `3029d0f`, `dd70b28`. Closed every parent-facing parked item from Sessions C–F. Next session: pick from the three Up next options below (scholar auth / mosques-to-Supabase / SCHOLAR_REVIEWS_DB migration). The reviews migration just got a confirmed-broken status from Session G's check, which raises its priority.
+> Last action: shipped Session H (reviews migration) — eight code commits `7c5c2cc`, `7add0c2`, `b2fa0a0`, `0bda72f`, `3813793`, `1a201bc`, `d45a441` plus `migrations/012_reviews.sql` + `013_reviews_seed.sql` applied to prod (single shared Supabase project). Reviews now live in Supabase with RLS + a stats-recompute trigger. 9 sanitized reviews seeded across 4 scholars (anti-fabrication: 2 dropped). LeaveReview wired to `createReview()` for non-demo users. Admin moderation tab live in AdminPanel. `SCHOLAR_REVIEWS_DB` and `src/data/mockReviews.js` deleted. Next session: scholar auth / mosques-to-Supabase / real-admin-RLS — pick at session start.
 
 ---
 
@@ -29,14 +29,15 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session E** ✅ — Join session button (parent dashboard, scholar-provided URL, four-state UI based on `meeting_url` + ±15 min window — no built-in video yet, that's Path B for later)
 - **Session F** ✅ — `migrations/` directory baseline (12 files: 2 verbatim, 4 reconstructed-from-code, 5 TODO awaiting `pg_dump`) + MOCK_SCHOLARS leak cleanup (10 references gone, file deleted, mosque scholar affiliations emptied to avoid fabricated relationships, book-again/leave-review handlers fixed to use real `getScholarById`)
 - **Session G** ✅ — Parent dashboard end-to-end polish: nine commits closing every parent-facing parked item from C–F. ConversationView + MessagesInbox wrapped in PublicHeader + a shared `<DashboardTabBar>`; sign-in-after-logout returns to userDashboard; heart icon on campaign cards across PublicHome/AllCampaigns/CampaignDetail with `toggleCampaignSave` mirroring mosque saves; donation rows clickable through to campaign detail; `MOCK_USER_BOOKINGS` switched to Date.now()-relative offsets so demo exercises all four Join states; LeaveReview demo-mode guard (`scholar.id` starts with `demo-`); `updateNotifications` removed (canonical helper is `updateNotificationPreference`); "View all" categories button scroll-tos `#top-scholars`; bonus fix for the type-mismatch in "Causes I'm watching" saved-campaign id lookup. Confirmed via code inspection that `SCHOLAR_REVIEWS_DB` is keyed by integer ids and `scholar.id` is a UUID — reviews are silently empty for every real scholar on prod.
+- **Session H** ✅ — Reviews migration. New `reviews` table (UUID PK, FK to scholars/profiles/bookings, status enum, CHECK length 10-2000) with RLS (anon reads published, parents insert own, admin-only status changes via WITH CHECK) and a SECURITY DEFINER trigger that recomputes `scholars.rating + review_count` on every INSERT/UPDATE/DELETE. Seed: 9 sanitized reviews across 4 of 6 active scholars (1 exact name match, 3 first-name + topic-overlap as visual demo, 2 dropped per anti-fabrication). Read path: scholar detail uses `getReviewsForScholar` with loading skeleton; ReviewCard adapted for both Supabase and legacy mock shapes; "Verified booking" pill now gated on `bookingId != null`. Write path: LeaveReview submit calls `createReview()` with inline error + Posting state; demo guard preserved; `bookingId` threaded through from past-booking review buttons; ReviewSubmitted gains a "View on profile" CTA. Admin: new "Reviews" tab in AdminPanel between Flags and DBS — list / status filter / hide / publish, no pagination/bulk/search by design. `SCHOLAR_REVIEWS_DB` and `src/data/mockReviews.js` deleted.
 
 ### Up next
 
 TBD — pick one next session. Three obvious chunks:
 
-- **Scholar auth** (originally Session G, still queued) — sign-in / sign-up / dashboard for scholar accounts. Unlocks the scholar-side `meeting_url` editor (deferred from Session E), the scholar-detail "Message" button real wiring (TODO from Session D), and claiming existing scholar listings.
+- **Scholar auth** (originally Session G, still queued) — sign-in / sign-up / dashboard for scholar accounts. Unlocks the scholar-side `meeting_url` editor (deferred from Session E), the scholar-detail "Message" button real wiring (TODO from Session D), the imam dashboard's "myReviews" wiring (Session H follow-up), and claiming existing scholar listings.
 - **Mosques-to-Supabase** (originally Session J) — likely should jump in priority. It unblocks the empty mosque-scholar affiliations from Session F, probably interacts with the scholar-message-button-on-detail wiring, and is a prerequisite for the deferred mosque-admin sessions (F→I in the original order).
-- **`SCHOLAR_REVIEWS_DB` migration** — confirmed in Session G via code inspection: integer-keyed dict (101, 102, …), real `scholars.id` is UUID, so the lookup never matches and reviews render empty on every prod scholar detail. Adds a real `reviews` table + RLS + a `createReview` helper, plus repoints `LeaveReview` and the scholar-detail review block.
+- **Real admin auth + admin RLS** — Session H's admin Reviews tab uses the existing client-side `role === "admin"` gate. RLS on `reviews` only restricts users to their own writes — admin-only `UPDATE status` isn't enforced at the DB layer. Worth tightening before any third party gets admin access.
 
 Decide at the start of the next session — don't pre-commit here.
 
@@ -1280,7 +1281,277 @@ in the next session opener.
 - `profiles.phone` / `profiles.email` audit
 - Vercel SPA fallback rewrite (deep links on hard refresh)
 - MosqueDetail empty scholar affiliations (waits on mosque DB migration)
-- `SCHOLAR_REVIEWS_DB` migration — now confirmed broken on prod, raises priority
+- `SCHOLAR_REVIEWS_DB` migration ✅ shipped Session H (6 May 2026)
+
+---
+
+## Session H — Reviews migration ✅ (6 May 2026)
+
+**Goal:** kill the silently-empty-on-every-prod-scholar review section
+flagged in Session G. Three end-to-end outcomes:
+
+1. Real scholars show real reviews from a Supabase `reviews` table.
+2. Parents can leave real reviews on completed bookings (LeaveReview's
+   demo guard from Session F preserved for `demo-` ids).
+3. Admin can moderate reviews via a new tab in AdminPanel.
+
+Plus: `scholars.rating` + `scholars.review_count` recomputed from
+real reviews via trigger.
+
+### What shipped
+
+**Schema (012, Verbatim — first migration written under the
+`migrations/` convention rather than backfilled):**
+
+- `reviews(id, scholar_id → scholars, parent_id → profiles nullable,
+  booking_id → bookings nullable, rating int 1–5, body text 10–2000
+  chars, status enum published|hidden|pending, created_at, updated_at)`
+- Indexes: `(scholar_id, created_at desc) WHERE status='published'`
+  for the public read path, plus `status` and `parent_id` indexes.
+- RLS: anon + authenticated SELECT where published; authed SELECT
+  own (any status); authed INSERT with `parent_id = auth.uid()`;
+  authed UPDATE own with `status = 'published'` in the WITH CHECK
+  (i.e. parents can edit body/rating but cannot self-promote a
+  hidden review back to published).
+- `recompute_scholar_review_stats()` SECURITY DEFINER trigger.
+  Fires after every INSERT/UPDATE/DELETE; recomputes
+  `scholars.rating` (avg of published) and `scholars.review_count`
+  (count of published) for the affected scholar.
+- Side effect (flagged before applying): the trigger overwrites any
+  pre-existing "marketing" averages on `scholars`. Pre-seed values
+  preserved in `scholars_rating_backup` per the user's instruction
+  before applying 013.
+
+**Seed (013, Verbatim — 9 sanitized reviews across 4 of 6 active
+scholars):**
+
+- 1 confident match (exact name + city): Yusuf Al-Rahman (Birmingham)
+  ← old key 101, 4 reviews.
+- 3 first-name + topic-overlap matches treated as "seed data for
+  visual demonstration, NOT real attribution":
+  - Maryam Siddique (Sheffield) ← old 102, 2 reviews
+  - Ibrahim Khan (Bradford)     ← old 103, 1 review
+  - Fatima Hussain (Leeds)      ← old 105, 2 reviews
+- 2 dropped per anti-fabrication: Khalid Osman (Manchester) had a
+  nikah-specific review with no overlap to his profile; Aisha
+  Malik (London) had male-fiqh reviews with no overlap. Both stay
+  at 0 reviews / 0 rating on the live site post-seed (was: 4.80/64
+  and 4.90/89).
+- All seeded rows: `parent_id=null`, `booking_id=null`,
+  `status='published'`, body sanitized of specific durations, ages,
+  child names, and service claims (e.g. "memorised 3 juz in 6
+  months" → "progress has been remarkable"; "I'm 35" → "at this
+  stage of life"; "halaqah/fiqh" → "complex topics"). `created_at`
+  varied across the past ~75 days.
+
+**`auth.js` helpers (4 new):**
+
+- `getReviewsForScholar(scholarId)` — published reviews + parent
+  profile join. Returns shaped objects via internal `shapeReview`
+  shaper (snake → camel, optional scholar/parent nests).
+- `createReview({scholarId, bookingId, rating, body})` — client-
+  side validates 1–5 / 10–2000 chars to mirror the DB CHECK
+  constraints (early failure beats a 23514 round trip). Explicitly
+  passes `parent_id = user.id` rather than relying on a default —
+  the RLS WITH CHECK requires it match `auth.uid()`.
+- `getReviewsForModeration(status?)` — admin list with scholar +
+  parent profile joined. RLS isn't admin-aware in this session.
+- `setReviewStatus(reviewId, newStatus)` — bumps `updated_at`
+  alongside the status flip so admin changes are attributable.
+
+**Read path swap (`PublicScholarDetail`):**
+
+- New `reviews`/`reviewsLoading` state + `useEffect` that calls
+  `getReviewsForScholar(scholar.id)` on mount. Demo scholars (id
+  starts with `demo-`) skip the fetch.
+- `RatingsBreakdown` only renders when there are reviews loaded.
+- Loading state: "Loading reviews…" placeholder. Empty state:
+  "No reviews yet."
+- `ReviewCard` adapted to accept both legacy mock shape
+  (`author/text/date/package/tags/reply`) and new Supabase shape
+  (`parent.name/body/createdAt/bookingId/...`). Adapter logic at
+  the top of the component:
+  - Author falls back to `"(name withheld)"` for null `parent_id`
+    seed rows, `"Anonymous"` if there's a `parent_id` but no
+    joined name.
+  - **"Verified booking" pill is now gated on `bookingId != null`** —
+    pre-Session-H it was unconditional, falsely promising every
+    review was verified.
+
+**Write path (`LeaveReview`):**
+
+- New `submitting` + `submitError` state.
+- `handleSubmit` calls `createReview()`; on success bubbles to
+  existing `onSubmit({rating, text, tags, scholar, booking, dbReview})`
+  flow which navigates to `ReviewSubmitted`. On failure: inline
+  rose error banner; user can retry.
+- `bookingId` prop threaded from App-root state via the dashboard
+  router. Past-bookings "Leave a review" button now passes
+  `(b.scholarId, b.id)` so future writes get the verified pill.
+- Demo guard preserved (Session F): `demo-` scholar ids hit the
+  "this is a demo" CTA before the form renders.
+- `ReviewSubmitted` gains a "View on profile" button beside "Back
+  to Amanah" — pushes `setSelectedScholar` + `setView("scholarDetail")`
+  so the user lands on the scholar page with their fresh review
+  visible (the trigger-recomputed rating + getReviewsForScholar
+  pick it up on mount).
+
+**Admin moderation (`AdminReviewsModeration`):**
+
+- New "Reviews" entry in `AdminSidebar` between Flags and DBS.
+- Status filter row (All / Published / Hidden / Pending) — each
+  click refetches via `getReviewsForModeration`.
+- One row per review with scholar name + star rating + status pill
+  + verified-booking pill (only when `booking_id != null`) +
+  parent name (or "(name withheld)") + created date.
+- Body truncated to 200 chars with click-to-expand.
+- Per-row buttons: "Hide" / "Publish" — only the actions that
+  change current state are shown (a published review only has
+  "Hide", etc.).
+- After any status change, refetches the list so the trigger-
+  recomputed `scholars.rating + review_count` are visible and
+  the row re-orders correctly under the active filter.
+- No pagination, bulk actions, or search by design — those are
+  next-pass improvements once review volume warrants them.
+
+### Commits
+
+- `7c5c2cc` `feat(reviews): create reviews table + RLS + trigger (012)`
+- `7add0c2` `feat(reviews): seed reviews from SCHOLAR_REVIEWS_DB (013)`
+- `b2fa0a0` `feat(reviews): auth.js helpers — get / create / moderate`
+- `0bda72f` `feat(reviews): scholar detail uses real reviews from Supabase`
+- `3813793` `feat(reviews): real write path on LeaveReview for non-demo users`
+- `1a201bc` `feat(admin): Reviews moderation tab in AdminPanel`
+- `d45a441` `chore(reviews): delete SCHOLAR_REVIEWS_DB and update CLAUDE.md`
+- (this) `docs: NOTES.md — Session H complete`
+
+### Decisions
+
+- **First migration written under the `migrations/` convention,
+  not backfilled.** Status: Verbatim. Set the bar for what a
+  cleanly-tracked migration looks like — header comment with
+  date + source, side-effect callout, verification queries
+  embedded in the seed file's bottom comment.
+- **Seed bias toward honesty over completeness.** User's call:
+  "Surface ambiguity — don't fabricate scholar/review pairings."
+  Surfaced the 6 mappings in chat with a strength column; user
+  confirmed (b) drop on the two awkward cases (104 Khalid +
+  106 Aisha) and (b) seed-but-paraphrase on the three first-name
+  matches (102/103/105). Body sanitization is the bigger
+  honesty contribution than the drops — removed any specific
+  duration/age/child-name/service-claim that could be falsifiable.
+  Seeded reviews stay anonymized at the DB level (parent_id null)
+  and render as "(name withheld)" so the UX makes the synthetic
+  origin obvious.
+- **Trigger over client-side recompute.** The Session G smoke-test
+  finding flagged that `scholars.rating + review_count` were
+  marketing values, not real averages. SECURITY DEFINER trigger
+  bypasses RLS internally for the recompute, fires on every write,
+  keeps the columns canonical without any client coordination. If
+  reviews scale and the recompute becomes hot, the next move is a
+  materialized view + scheduled refresh — not in this session.
+- **Admin RLS deferred.** RLS allows authenticated UPDATE only on
+  own published rows (with WITH CHECK locking the status column),
+  so non-admin auth users can't flip status via direct API access.
+  But the admin moderation flow doesn't have a dedicated DB role
+  — `setReviewStatus` from the admin panel succeeds because the
+  current admin pattern is client-side `role === "admin"` gating,
+  not DB-enforced. Flagged in the "Up next" list.
+- **`bookingId` threaded through but not strictly required.**
+  `createReview` accepts a null `bookingId`. A real parent
+  leaving a review via the dashboard's past-booking button gets
+  the verified pill; a parent leaving one via PublicHome's CTA
+  (no booking context) doesn't. Matches the brief's "verified
+  badge gated on `booking_id != null`" requirement.
+
+### Gotchas / things to watch
+
+- **The trigger fires per-row, not per-statement.** A bulk admin
+  action (e.g. mass-hiding 50 reviews) would fire 50 trigger
+  invocations, each updating `scholars`. Fine for MVP; if bulk
+  ops land, batch-recompute outside the trigger or use a
+  STATEMENT-level trigger instead.
+- **`scholars_rating_backup` is a real table, not a view.** Drop
+  it once you're confident the new values are right. Lives in
+  the same shared dev/prod project — visible to anyone with
+  schema access, but not exposed via PostgREST unless RLS is
+  added (it isn't).
+- **Imam dashboard's `myReviews` is now `[]` with a TODO.**
+  `myProfile.id` is hardcoded `101` (the integer) in
+  `ImamDashboardView`; once scholar auth lands and `myProfile`
+  becomes a real auth-linked scholar with a UUID id, swap the
+  empty array for `getReviewsForScholar(myProfile.id)`.
+- **`ReviewCard` carries dual-shape adapter.** Legacy mock fields
+  (`author/text/date/package/tags/reply`) still render if present.
+  Worth removing once nothing in the codebase produces that
+  shape — none currently do, so it's just defensive.
+
+### Smoke test plan (deployed-site walkthrough)
+
+1. **Read path:** open Yusuf Al-Rahman's profile (Birmingham). 4
+   real reviews render. Other 3 seeded scholars show 1–2 reviews
+   each. Khalid + Aisha show "No reviews yet."
+2. **Trigger:** `scholars` rows for the 4 seeded scholars match
+   the seed-derived averages (Yusuf 4.8/4, Maryam 5.0/2, Ibrahim
+   5.0/1, Fatima 5.0/2). Khalid + Aisha at 0.0/0.
+3. **Write path:** sign in as test parent → past booking →
+   "Leave a review" → 5 stars + 50-char body → submit. Posting…
+   spinner shows briefly. Land on the celebration screen.
+4. **Verified pill:** click "View on profile" — your new review
+   appears at top with the "Verified booking" emerald pill.
+5. **Trigger after write:** scholar's rating + review_count have
+   ticked up.
+6. **Admin moderation:** sign in as admin → AdminPanel → Reviews
+   tab. Newly-posted review visible at top. Click "Hide" → row
+   updates, status pill flips, list refetches.
+7. **Hidden visibility:** refresh the public scholar detail. The
+   hidden review no longer appears. Rating + count drop back.
+8. **Republish:** admin → "Publish" on the hidden row. Public
+   detail re-shows it. Rating + count restored.
+9. **Demo guard:** incognito → DevTools demo entry from Session G
+   → past demo booking → "Leave a review" → still shows the "this
+   is a demo, sign in to leave a real review" CTA, no DB write.
+10. **Empty state:** Khalid Osman's profile shows "No reviews yet"
+    (not a broken loading state).
+
+### Out of scope (per brief, not built)
+
+- Reviews moderation history / audit log
+- Admin notes on reviews
+- Auto-moderation (spam, toxicity, length rules beyond CHECK)
+- Parent edit / delete their own review (RLS allows it; no UI)
+- Scholar flag review as unfair
+- Pre-publish "pending" workflow UI (column supports it, no UI
+  to push reviews into pending state — admin can do it via SQL)
+- Pagination, bulk actions, search, filters beyond status
+- Email/notify scholars when they get a review
+- Email/notify admin when a review needs moderation
+- Real admin auth / admin RLS
+
+### Parked items resolved this session
+
+- ✅ `SCHOLAR_REVIEWS_DB` migration (was the highest-priority
+  parked item from Session G's smoke-test finding)
+- ✅ Reviews silently empty on every real scholar (parent fix)
+- ✅ "Verified booking" pill no longer falsely unconditional
+
+### Parked items that remain
+
+- App.jsx Phase 2 (component extraction) — still untouched
+- Smoke-test suite
+- Dev/prod Supabase project split
+- Disintermediation prevention
+- `profiles.phone` / `profiles.email` audit
+- Vercel SPA fallback rewrite
+- MosqueDetail empty scholar affiliations (waits on mosque DB)
+- Two definitions of dashboard tabs (Session G follow-up)
+- **NEW: Real admin auth + admin RLS** — Session H's admin
+  Reviews tab uses client-side gating; DB-level admin role is
+  the next step before any third party gets admin access.
+- **NEW: Imam dashboard `myReviews` wiring** — currently `[]`
+  with a TODO; lights up once scholar auth lands.
+- **NEW: Drop `scholars_rating_backup`** once the new
+  trigger-computed averages have been spot-checked on prod.
 
 ---
 
