@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session J (scholar onboarding wizard + applications table + admin queue) — five code commits `d917705`, `a380442`, `a4a61f4`, `3f915df`, `11a05f0` plus `migrations/015_scholar_applications.sql` applied to prod. New scholars sign up → fill 5-step wizard → admin approves in panel → trigger creates scholars row with `status='pending_verification'` (hidden from public listings) → scholar's next sign-in routes to scholarVerificationPending until admin manually flips DBS/RTW/Ijazah flags. ImamRegister mock still untouched. Next session candidates: email notifications (submit / approve / reject), scholar profile editing, scholar availability editor, real admin RLS, photo upload via Supabase storage.
+> Last action: shipped Session J end-to-end (scholar onboarding wizard + applications table + admin queue) — five primary commits `d917705`, `a380442`, `a4a61f4`, `3f915df`, `11a05f0` + docs `8b2bd02` + three follow-up fixes from smoke testing `4ba42f6`, `50b7c41`, `4ce6988`. Two migrations applied to prod: `015_scholar_applications.sql` (table + trigger) + `016_scholars_self_select.sql` (additive RLS so a scholar can read their own pending_verification row). New scholars sign up → 5-step wizard → admin approves → trigger creates scholars row with `status='pending_verification'` (hidden from public listings) → scholar's next sign-in routes to `scholarVerificationPending` until admin manually flips DBS/RTW/Ijazah flags + status='active'. Test scholars live on prod: yusuf-test (claimed Yusuf Al-Rahman), test1 (pending application), test2 (status=pending_verification). Next session candidates: email notifications, real admin auth + admin RLS, photo uploads, scholar profile editing, verification UI for admins.
 
 ---
 
@@ -1958,7 +1958,17 @@ both `myScholar` and `myScholarApplication`.
 - `a4a61f4` `feat(scholars): ScholarOnboardingWizard 5-step flow with sessionStorage hydration`
 - `3f915df` `feat(scholars): status pages + handleSignIn routing tree for application states`
 - `11a05f0` `feat(admin): Scholar applications moderation tab`
-- (this) `docs: NOTES.md — Session J complete`
+- `8b2bd02` `docs: NOTES.md — Session J complete`
+
+Mid-flight smoke-test fixes (same evening, kept in this session
+because they're directly attributable):
+
+- `4ba42f6` `fix(scholars): handleSignIn avatar routes scholars-in-flight to scholar surfaces`
+- `50b7c41` `fix(scholars): defensive guards around wizard submit silent-failure`
+- `4ce6988` `fix(scholars): approved-application routes to verificationPending, not submitted`
+
+Plus migration `016_scholars_self_select.sql` applied to prod
+alongside `4ce6988` to fix the underlying RLS issue.
 
 ### Decisions
 
@@ -2011,6 +2021,105 @@ both `myScholar` and `myScholarApplication`.
   RegField/RegTagInput/RegUploadRow.** Inline JSX in the new
   wizard reads cleaner for the chip-multiselect + radio + package
   table patterns; shared helpers would force shape compromises.
+- **Approval and verification kept as two distinct admin steps.**
+  Approval = "this is a legitimate person, their wizard answers
+  look real, create their listing" → trigger sets
+  `status='pending_verification'` and the credential flags stay
+  false. Verification = "we've actually checked their DBS / RTW /
+  Ijazah documents, flip the flags + status='active' so parents
+  can find them." Bundling them into a single click would either
+  let admins approve scholars onto public listings before document
+  checks (safety hazard for parents booking with kids), or block
+  approval until docs were processed (which slows the funnel and
+  loses applicants). Two-step is honest about what each admin
+  action means and lets an unverified scholar still see their own
+  dashboard + receive messages while doc checks happen offline.
+- **Migration 016 added during smoke testing.** Bug surfaced
+  when test2's first sign-in after approval routed to
+  scholarApplicationSubmitted instead of scholarVerificationPending.
+  Root cause was the existing scholars SELECT RLS filtering on
+  `status='active'` — public listings stayed correct, but the
+  scholar themselves couldn't read their own pending_verification
+  row. Migration 016 adds an additive `using (user_id = auth.uid())`
+  policy. PostgREST ORs USING clauses for SELECT, so the public
+  filter is unaffected. Fix landed alongside a code-level
+  fallback in `routeAuthedScholar` that routes the
+  approved-application case to scholarVerificationPending even if
+  the scholar row remains hidden — defensive belt-and-braces given
+  the trigger guarantees the row exists.
+
+### Mid-flight smoke-test fixes
+
+Three bugs surfaced during the same-evening smoke test that
+shipped before signing off:
+
+**1. Wizard submit silent failure** (`50b7c41`). The Supabase JS v2
+client can return `{data: null, error: null}` from
+`.insert().select().single()` when the implicit SELECT after the
+insert is silently rejected (RLS, expired session token, etc.).
+The wizard's submit handler checked `if (error)` only, so the
+falsy-error nullish-data case slipped through and routed the user
+to the submitted page with no DB row. Fix: defensive layered
+guards in `submitScholarApplication` —
+(a) `getUser()` null check with logging,
+(b) explicit `getSession()` check before insert (catches the
+"user object cached but JWT expired" case which silently RLS-denies),
+(c) `if (!data)` after the error check, surfacing a clear
+"Submission didn't save. Try signing out and back in" message and
+a `console.error` with userId + session presence so prod logs
+diagnose if it recurs.
+
+**2. Parent dashboard fallthrough for scholars-in-flight** (`4ba42f6`).
+test1 signed up via the scholar audience drawer, closed the tab
+before submitting the wizard, then later tapped the avatar to
+sign back in. The avatar fires `handleSignIn("user")` which
+checked only `myScholar` — null for test1, no application yet, so
+fell through to `userDashboard`. Fix: extend the avatar's authed
+branch to route through `routeAuthedScholar` if EITHER
+`myScholarApplication` is set OR
+`authedUser.user_metadata.interest === "scholar"` (signup intent
+stamped by Session I.5's UserAuth scholar-side `signUp` call).
+`routeAuthedScholar`'s "no listing, no application" branch
+already routes to the wizard, so test1's tab-closed state
+recovers cleanly. Parent flow unchanged.
+
+**3. Approved-scholar routing wrong** (`4ce6988` + migration 016).
+test2 had been approved (scholar_applications.status='approved',
+scholars row created with status='pending_verification') but
+sign-in landed on scholarApplicationSubmitted instead of
+scholarVerificationPending. Diagnosis above under Decisions.
+Two-part fix:
+(a) Migration 016 adds the self-SELECT RLS so the underlying
+`getScholarByUserId` works for any scholar.
+(b) Code-level fallback: when `getScholarByUserId` returns null
+AND application status is 'approved', route to
+scholarVerificationPending anyway (the trigger guarantees the
+scholars row exists in that state).
+Pre-fix the approved branch was bundled with pending in
+`routeAuthedScholar` with a comment claiming "approved is
+transient" — wrong. Approved is a stable state for the
+days/weeks between admin approval and admin DBS verification.
+
+### Test scholars on prod
+
+Live accounts useful for regression tests + future debugging:
+
+- **yusuf-test@gmail.com** — claimed manually via SQL during
+  Session I to existing scholar listing "Ustadh Yusuf Al-Rahman"
+  (Birmingham, status='active'). Routes to scholarDashboard. Used
+  to verify Session J didn't regress the existing-claimed-scholar
+  path and to test the ScholarDashboard surface generally.
+- **test1@…** — signed up via scholar drawer but never submitted
+  the wizard. No scholar_applications row, no scholars row. Routes
+  to scholarOnboarding (wizard) on every sign-in. Used to verify
+  the avatar-fallthrough fix (`4ba42f6`) and the resume-in-wizard
+  flow.
+- **test2@…** (auth UID `ef8401a6-7f59-47a9-a4fa-65cde3c5d6b0`) —
+  submitted wizard, admin approved via SQL, scholars row created
+  with status='pending_verification' and all three credential
+  flags false. Routes to scholarVerificationPending. Used to
+  verify the approved-routing fix (`4ce6988` + migration 016) and
+  is the canonical "post-approval, pre-DBS" test fixture.
 
 ### Gotchas / things to watch
 
