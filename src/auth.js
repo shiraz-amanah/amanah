@@ -524,3 +524,125 @@ export async function updateNotificationPreference(partial) {
   if (writeErr) return { error: writeErr }
   return { data: merged }
 }
+
+// ============================================================================
+// Session H — Reviews helpers
+// ============================================================================
+
+function shapeReview(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    scholarId: row.scholar_id,
+    parentId: row.parent_id,
+    bookingId: row.booking_id,
+    rating: row.rating,
+    body: row.body,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    parent: shapeProfile(row.profiles || row.parent),
+    scholar: row.scholars
+      ? {
+          id: row.scholars.id,
+          name: row.scholars.name,
+          slug: row.scholars.slug,
+          avatarInitials: row.scholars.avatar_initials,
+          avatarGradient: row.scholars.avatar_gradient,
+        }
+      : null,
+  }
+}
+
+// Public: published reviews for a scholar, with parent profile joined for
+// display name + avatar. Anonymized seed rows (parent_id=null) come back
+// with parent=null and the UI falls back to "(name withheld)".
+export async function getReviewsForScholar(scholarId) {
+  if (!scholarId) return []
+  const { data, error } = await supabase
+    .from('reviews')
+    .select(`
+      id, scholar_id, parent_id, booking_id, rating, body, status,
+      created_at, updated_at,
+      profiles:parent_id ( id, name, avatar_initials, avatar_gradient )
+    `)
+    .eq('scholar_id', scholarId)
+    .eq('status', 'published')
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.error('Error fetching reviews:', error)
+    return []
+  }
+  return (data || []).map(shapeReview)
+}
+
+// Authenticated: insert a review. RLS check enforces parent_id = auth.uid(),
+// so we must explicitly pass the current user's id rather than letting the
+// DB default it.
+export async function createReview({ scholarId, bookingId, rating, body }) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  if (!scholarId) return { error: { message: 'scholarId required' } }
+  if (!rating || rating < 1 || rating > 5) {
+    return { error: { message: 'rating must be 1-5' } }
+  }
+  const trimmed = (body || '').trim()
+  if (trimmed.length < 10 || trimmed.length > 2000) {
+    return { error: { message: 'body must be 10-2000 characters' } }
+  }
+  const { data, error } = await supabase
+    .from('reviews')
+    .insert({
+      scholar_id: scholarId,
+      parent_id: user.id,
+      booking_id: bookingId || null,
+      rating,
+      body: trimmed,
+      status: 'published',
+    })
+    .select(`
+      id, scholar_id, parent_id, booking_id, rating, body, status,
+      created_at, updated_at,
+      profiles:parent_id ( id, name, avatar_initials, avatar_gradient )
+    `)
+    .single()
+  if (error) return { error }
+  return { data: shapeReview(data) }
+}
+
+// Admin moderation: list reviews with optional status filter (default: all).
+// Joins scholar + parent profile. RLS isn't admin-aware (deferred to a
+// future session); the existing client-side admin-role gate in AdminPanel
+// is what restricts access.
+export async function getReviewsForModeration(status = null) {
+  let q = supabase
+    .from('reviews')
+    .select(`
+      id, scholar_id, parent_id, booking_id, rating, body, status,
+      created_at, updated_at,
+      scholars ( id, name, slug, avatar_initials, avatar_gradient ),
+      profiles:parent_id ( id, name, avatar_initials, avatar_gradient )
+    `)
+    .order('created_at', { ascending: false })
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q
+  if (error) {
+    console.error('Error fetching reviews for moderation:', error)
+    return []
+  }
+  return (data || []).map(shapeReview)
+}
+
+// Admin moderation: change review status. Same RLS caveat as above.
+export async function setReviewStatus(reviewId, newStatus) {
+  if (!['published', 'hidden', 'pending'].includes(newStatus)) {
+    return { error: { message: 'invalid status' } }
+  }
+  const { data, error } = await supabase
+    .from('reviews')
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq('id', reviewId)
+    .select()
+    .single()
+  return { data, error }
+}
