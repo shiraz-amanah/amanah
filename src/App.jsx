@@ -6044,6 +6044,7 @@ useEffect(() => {
           const timeStr = scheduledDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
           return {
             id: b.id,
+            scholarId: b.scholar_id || b.scholar?.id || null,
             scholarName: b.scholar?.name || "Unknown scholar",
             scholarInitials: b.scholar?.avatar_initials || "??",
             scholarGradient: b.scholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
@@ -8124,10 +8125,18 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onBookAgain={async (scholarId) => {
+      if (!scholarId) {
+        console.error("onBookAgain called without a scholarId — booking transform missing field?");
+        return;
+      }
       const raw = await getScholarById(scholarId);
       if (raw) { setSelectedScholar(transformScholar(raw)); setView("scholarDetail"); }
     }}
     onReview={async (scholarId, bookingId) => {
+      if (!scholarId) {
+        console.error("onReview called without a scholarId — booking transform missing field?");
+        return;
+      }
       const raw = await getScholarById(scholarId);
       if (raw) {
         setReviewScholar(transformScholar(raw));
