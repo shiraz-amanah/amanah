@@ -69,10 +69,6 @@ export async function deleteStudent(id) {
   return { error }
 }
 
-export async function updateNotifications(notifications) {
-  return updateProfile({ notifications })
-}
-
 // ============ SCHOLARS ============
 
 export async function getScholars() {
