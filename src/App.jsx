@@ -7767,7 +7767,10 @@ const handleSignIn = (r) => {
     if (r === "prayer") { setView("prayerHub"); return; }
     if (r === "user") {
     if (authedUser) { setView("userDashboard"); return; }
-      setReturnView(view); setUserAuthMode("login"); setView("userAuth"); return;
+      // Picking "Parent or student" expresses intent to use the parent
+      // dashboard. Default the post-auth destination there rather than
+      // capturing whatever public page the user happened to be on.
+      setReturnView("userDashboard"); setUserAuthMode("login"); setView("userAuth"); return;
     }
     // For mosque, imam, admin - role-specific login
     setRole(r); setView("login");
