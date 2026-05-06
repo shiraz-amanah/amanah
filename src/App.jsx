@@ -6932,6 +6932,427 @@ setBookings(transformed);
   );
 };
 
+// ==================== SCHOLAR DASHBOARD ====================
+// Real-data scholar dashboard. Activated when an auth user has a
+// scholars row pointing at them (myScholar). Read-only this session
+// except for meeting_url editing on bookings.
+const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessages, onScholarUpdate }) => {
+  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("scholarDashboardTab") || "bookings");
+  const setTab = (v) => { sessionStorage.setItem("scholarDashboardTab", v); setTabRaw(v); };
+
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+  const [showCancelled, setShowCancelled] = useState(false);
+
+  // meeting_url editor state — keyed by booking id so multiple rows
+  // can be edited in turn, but only one is "open" at a time
+  const [editingBookingId, setEditingBookingId] = useState(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [savingBookingId, setSavingBookingId] = useState(null);
+  const [editError, setEditError] = useState(null);
+
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+
+  // Load scholar's bookings
+  useEffect(() => {
+    setBookingsLoading(true);
+    getScholarBookings()
+      .then(data => {
+        const transformed = (data || []).map(b => {
+          const scheduled = new Date(b.scheduled_at);
+          return {
+            id: b.id,
+            scheduledAt: b.scheduled_at,
+            scheduledDate: scheduled,
+            packageName: b.package_name,
+            packageDescription: b.package_description,
+            durationMinutes: b.duration_minutes,
+            sessionsTotal: b.sessions_total,
+            amountPaid: Number(b.amount_paid || 0),
+            status: b.status,
+            cancelledAt: b.cancelled_at,
+            meetingUrl: b.meeting_url || null,
+            parentNotes: b.parent_notes,
+            parent: b.parent ? {
+              name: b.parent.name,
+              city: b.parent.city,
+              avatarInitials: b.parent.avatar_initials,
+              avatarGradient: b.parent.avatar_gradient,
+            } : null,
+            student: b.student ? {
+              name: b.student.name,
+              relation: b.student.relation,
+              age: b.student.age,
+            } : null,
+          };
+        });
+        setBookings(transformed);
+      })
+      .catch(err => console.error("Failed to load scholar bookings:", err))
+      .finally(() => setBookingsLoading(false));
+  }, [scholar?.id]);
+
+  // Load scholar's reviews
+  useEffect(() => {
+    if (!scholar?.id) return;
+    setReviewsLoading(true);
+    getReviewsForScholar(scholar.id)
+      .then(setReviews)
+      .catch(err => console.error("Failed to load scholar reviews:", err))
+      .finally(() => setReviewsLoading(false));
+  }, [scholar?.id]);
+
+  // Categorize bookings — same cutoff logic as parent dashboard
+  const upcomingCutoff = new Date(Date.now() - 15 * 60 * 1000);
+  const upcomingBookings = bookings.filter(b =>
+    b.status !== "cancelled" && b.status !== "completed" && b.scheduledDate >= upcomingCutoff
+  );
+  const pastBookings = bookings.filter(b =>
+    b.status === "completed" || (b.scheduledDate < upcomingCutoff && b.status !== "cancelled")
+  );
+  const cancelledBookings = bookings.filter(b => b.status === "cancelled");
+  const totalEarned = bookings
+    .filter(b => b.status === "completed" || b.scheduledDate < upcomingCutoff)
+    .filter(b => b.status !== "cancelled")
+    .reduce((sum, b) => sum + (b.amountPaid || 0), 0);
+
+  // ---- Meeting URL editor handlers ----
+  const startEditing = (booking) => {
+    setEditingBookingId(booking.id);
+    setEditingValue(booking.meetingUrl || "");
+    setEditError(null);
+  };
+  const cancelEditing = () => {
+    setEditingBookingId(null);
+    setEditingValue("");
+    setEditError(null);
+  };
+  const saveMeetingUrl = async (bookingId) => {
+    setEditError(null);
+    setSavingBookingId(bookingId);
+    const trimmed = editingValue.trim();
+    const { data, error } = await setBookingMeetingUrl(bookingId, trimmed || null);
+    setSavingBookingId(null);
+    if (error) {
+      setEditError(error.message || "Couldn't save. Try again.");
+      return;
+    }
+    // Optimistically update local state
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, meetingUrl: data?.meeting_url || null } : b));
+    setEditingBookingId(null);
+    setEditingValue("");
+  };
+
+  const formatDateTime = (date) => date.toLocaleString("en-GB", {
+    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false
+  });
+
+  const tabs = [
+    { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
+    { v: "profile", l: "Profile", i: User, badge: null },
+    { v: "reviews", l: "Reviews", i: Star, badge: reviews.length || null },
+    { v: "messages", l: "Messages", i: MessageCircle, badge: null },
+    { v: "account", l: "Account", i: Settings, badge: null },
+  ];
+
+  const firstName = (scholar?.name || "").split(" ").slice(-2, -1)[0] || (scholar?.name || "Scholar");
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+          <button onClick={onPublic} className="flex items-center gap-2.5 md:gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="text-left">
+              <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+              <p className="text-xs text-stone-500 hidden md:block">{scholar?.name}</p>
+            </div>
+          </button>
+          <div className="flex items-center gap-2">
+            <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient }} size="sm" />
+            <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
+          {tabs.map(t => {
+            const Icon = t.i;
+            const isActive = tab === t.v;
+            return (
+              <button
+                key={t.v}
+                onClick={() => t.v === "messages" ? onOpenMessages() : setTab(t.v)}
+                className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
+              >
+                <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l} {t.badge > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>}</span>
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        {tab === "bookings" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {firstName}</h2>
+              <p className="text-stone-600 text-sm md:text-base">
+                {bookingsLoading
+                  ? "Loading your sessions..."
+                  : `${upcomingBookings.length} upcoming · ${pastBookings.length} past · £${totalEarned.toLocaleString()} earned`}
+              </p>
+            </div>
+
+            {/* UPCOMING */}
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Upcoming sessions</h3>
+            {bookingsLoading ? (
+              <p className="text-sm text-stone-400 py-6">Loading...</p>
+            ) : upcomingBookings.length === 0 ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center mb-8">
+                <Calendar className="mx-auto text-stone-300 mb-3" size={32} />
+                <p className="text-stone-600">No upcoming sessions yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 mb-8">
+                {upcomingBookings.map(b => (
+                  <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
+                    <div className="flex items-start gap-4 mb-3 flex-wrap">
+                      <Avatar scholar={{ initials: b.parent?.avatarInitials, avatarGradient: b.parent?.avatarGradient }} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.parent?.name || "Unknown parent"}</h4>
+                          {b.student && (
+                            <span className="text-xs text-stone-500">· for {b.student.name}{b.student.age ? `, ${b.student.age}` : ""}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-stone-500">{b.packageName} package · {formatDateTime(b.scheduledDate)}{b.durationMinutes ? ` · ${b.durationMinutes} min` : ""}</p>
+                      </div>
+                    </div>
+
+                    {/* Meeting URL editor */}
+                    {editingBookingId === b.id ? (
+                      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1.5">Meeting link (https://...)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={editingValue}
+                            onChange={e => setEditingValue(e.target.value)}
+                            placeholder="https://meet.google.com/abc-defg-hij"
+                            className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => saveMeetingUrl(b.id)}
+                            disabled={savingBookingId === b.id}
+                            className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1"
+                          >
+                            {savingBookingId === b.id ? "Saving..." : <><CheckCircle2 size={14} /> Save</>}
+                          </button>
+                          <button
+                            onClick={cancelEditing}
+                            disabled={savingBookingId === b.id}
+                            className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {editError && (
+                          <p className="text-xs text-rose-700 mt-2 flex items-center gap-1.5">
+                            <AlertCircle size={12} /> {editError}
+                          </p>
+                        )}
+                      </div>
+                    ) : b.meetingUrl ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                          <CheckCircle2 size={12} /> Meeting link set
+                        </span>
+                        <span className="text-xs text-stone-500 font-mono truncate max-w-[40ch]">{b.meetingUrl}</span>
+                        <button onClick={() => startEditing(b)} className="text-xs text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                          <FileText size={11} /> Edit
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => startEditing(b)} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+                        <Plus size={14} /> Set meeting link
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* PAST */}
+            {!bookingsLoading && pastBookings.length > 0 && (
+              <>
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Past sessions</h3>
+                <div className="space-y-3 mb-8">
+                  {pastBookings.map(b => (
+                    <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 flex items-start gap-4">
+                      <Avatar scholar={{ initials: b.parent?.avatarInitials, avatarGradient: b.parent?.avatarGradient }} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.parent?.name || "Unknown parent"}</h4>
+                          <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded-full uppercase tracking-wider font-medium">Completed</span>
+                        </div>
+                        <p className="text-xs text-stone-500">{b.packageName} package{b.student ? ` · for ${b.student.name}` : ""} · {formatDateTime(b.scheduledDate)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* CANCELLED — collapsed by default */}
+            {!bookingsLoading && cancelledBookings.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowCancelled(s => !s)}
+                  className="text-xs text-stone-500 hover:text-stone-700 inline-flex items-center gap-1 mb-3"
+                >
+                  {showCancelled ? "Hide" : "Show"} {cancelledBookings.length} cancelled
+                  <ChevronDown size={12} className={`transition-transform ${showCancelled ? "rotate-180" : ""}`} />
+                </button>
+                {showCancelled && (
+                  <div className="space-y-2">
+                    {cancelledBookings.map(b => (
+                      <div key={b.id} className="bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm text-stone-500 flex items-center gap-3 flex-wrap">
+                        <span className="line-through">{b.parent?.name}</span>
+                        <span className="text-xs">{b.packageName} · {formatDateTime(b.scheduledDate)}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-rose-700">Cancelled</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {tab === "profile" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Your profile</h2>
+              <p className="text-stone-600 text-sm md:text-base">This is how parents see you on Amanah. Editing comes soon.</p>
+            </div>
+
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 mb-5">
+              <div className="flex items-start gap-4 mb-5 flex-wrap">
+                <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient }} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholar?.name}</h3>
+                    {scholar?.dbs_verified && scholar?.rtw_verified && scholar?.ijazah_verified && (
+                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-medium">
+                        <ShieldCheck size={11} /> Verified
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-stone-500 mb-2">{scholar?.title}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
+                    <span className="flex items-center gap-1"><MapPin size={11} /> {scholar?.city}</span>
+                    {scholar?.experience_years && <span>· {scholar.experience_years} yrs experience</span>}
+                    <span className="flex items-center gap-1 text-amber-600 font-medium"><Star size={11} fill="currentColor" /> {Number(scholar?.rating || 0).toFixed(1)} ({scholar?.review_count || 0})</span>
+                  </div>
+                </div>
+              </div>
+              {scholar?.bio && (
+                <p className="text-sm text-stone-700 leading-relaxed mb-4">{scholar.bio}</p>
+              )}
+            </div>
+
+            {scholar?.packages && scholar.packages.length > 0 && (
+              <div className="bg-white border border-stone-200 rounded-2xl p-6 mb-5">
+                <h3 className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-3">Packages</h3>
+                <div className="space-y-3">
+                  {scholar.packages.map((pkg, i) => (
+                    <div key={i} className="flex items-start justify-between gap-3 pb-3 border-b border-stone-100 last:border-0 last:pb-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-stone-900">{pkg.name}</p>
+                        {pkg.duration && <p className="text-xs text-stone-500">{pkg.duration}</p>}
+                        {pkg.desc && <p className="text-xs text-stone-600 mt-1">{pkg.desc}</p>}
+                      </div>
+                      <span className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{pkg.price}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid md:grid-cols-2 gap-3">
+              {scholar?.languages && scholar.languages.length > 0 && (
+                <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                  <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Languages</p>
+                  <p className="text-sm text-stone-700">{scholar.languages.join(", ")}</p>
+                </div>
+              )}
+              {scholar?.qualifications && scholar.qualifications.length > 0 && (
+                <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                  <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Qualifications</p>
+                  <ul className="text-sm text-stone-700 space-y-1">
+                    {scholar.qualifications.map((q, i) => <li key={i}>· {q}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === "reviews" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Reviews from parents</h2>
+              <p className="text-stone-600 text-sm md:text-base">Reviews from parents who book you appear here.</p>
+            </div>
+
+            {reviewsLoading ? (
+              <p className="text-sm text-stone-400 text-center py-8">Loading reviews...</p>
+            ) : reviews.length === 0 ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+                <Star className="mx-auto text-stone-300 mb-3" size={32} />
+                <p className="text-stone-600">No reviews yet.</p>
+                <p className="text-xs text-stone-500 mt-1">Parents who book you can leave a review after the session.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-stone-200 rounded-2xl p-6">
+                <div className="pb-5 mb-5 border-b border-stone-100">
+                  <RatingsBreakdown reviews={reviews} />
+                </div>
+                <div className="space-y-5">
+                  {reviews.map(r => <ReviewCard key={r.id} review={r} compact />)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "account" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Account</h2>
+              <p className="text-stone-600 text-sm md:text-base">Signed in as a scholar.</p>
+            </div>
+
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-5 max-w-md">
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Email</p>
+              <p className="text-sm text-stone-900 break-all mb-3">{authedUser?.email}</p>
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Linked scholar listing</p>
+              <p className="text-sm text-stone-900">{scholar?.name} <span className="text-stone-500">· {scholar?.city}</span></p>
+            </div>
+
+            <button onClick={onLogout} className="bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 py-3 px-5 rounded-xl text-sm font-medium inline-flex items-center gap-2">
+              <LogOut size={14} /> Sign out
+            </button>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
 // ==================== PRAYER HUB ====================
 
 // ==================== PRAYER HUB PAGE ====================
@@ -8182,6 +8603,14 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); }}
   />;
+  if (view === "scholarDashboard") return <ScholarDashboard
+    scholar={myScholar}
+    authedUser={authedUser}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); }}
+    onOpenMessages={() => { setRole("scholar"); setView("messagesInbox"); }}
+    onScholarUpdate={(updated) => setMyScholar(updated)}
+  />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
@@ -8252,7 +8681,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       conversations={inboxData}
       loading={conversationsLoading && !!authedProfile}
       onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }}
-      onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : "imamDashboard")}
+      onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : role === "scholar" ? "scholarDashboard" : "imamDashboard")}
       role={role}
       authedUser={authedUser}
       authedProfile={authedProfile}
