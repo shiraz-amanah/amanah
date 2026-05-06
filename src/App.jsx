@@ -8456,6 +8456,13 @@ export default function App() {
   // Scholar dashboard — set when a signed-in user has a scholars row
   // pointing at them. Null otherwise (parent or unauthed).
   const [myScholar, setMyScholar] = useState(null);
+  // Counts surfaced in the scholar tab bar — lifted to App so they
+  // persist across views (Messages tab unmounts the dashboard but the
+  // tab bar still wants its badges). Refetched whenever myScholar
+  // changes; not realtime — counts can briefly lag a fresh booking
+  // or review until the next mount.
+  const [scholarUpcomingCount, setScholarUpcomingCount] = useState(0);
+  const [scholarReviewsCount, setScholarReviewsCount] = useState(0);
   const [submittedReview, setSubmittedReview] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -8617,6 +8624,33 @@ useEffect(() => {
     }
   })();
 }, []);
+
+// Refresh scholar tab-badge counts whenever myScholar changes (sign-in,
+// sign-out, claim). Fetches are independent of ScholarDashboard's own
+// data fetches — those are still scoped to the dashboard. Source of
+// truth for badges is App; source of truth for the rendered list is
+// the dashboard. Cheap duplication beats lifting all the booking/review
+// data to App for two integers.
+useEffect(() => {
+  if (!myScholar?.id) {
+    setScholarUpcomingCount(0);
+    setScholarReviewsCount(0);
+    return;
+  }
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+  getScholarBookings()
+    .then(data => {
+      const upcoming = (data || []).filter(b =>
+        b.status !== "cancelled" && b.status !== "completed" && new Date(b.scheduled_at) >= cutoff
+      );
+      setScholarUpcomingCount(upcoming.length);
+    })
+    .catch(err => console.error("Failed to fetch scholar bookings count:", err));
+  getReviewsForScholar(myScholar.id)
+    .then(reviews => setScholarReviewsCount((reviews || []).length))
+    .catch(err => console.error("Failed to fetch scholar reviews count:", err));
+}, [myScholar?.id]);
+
   // Creator context for the launch flow — in real app this comes from auth
   const mosqueCreator = { name: "Masjid Al-Noor", city: "Birmingham" };
   const scholarCreator = { name: "Ustadh Yusuf Al-Rahman", city: "Birmingham" };
@@ -8770,13 +8804,17 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   const messagesTabClick = role === "scholar" ? handleScholarTabClick : handleDashboardTabClick;
   // Identity-row chrome the Messages views share with the dashboards.
   // Pulls from the right source per role so signed-in users see their
-  // own name + avatar above the tab bar.
+  // own name + avatar above the tab bar. Scholar counts come from
+  // App-level state so the tab bar's badges persist after navigating
+  // away from the scholar dashboard.
   const messagesChrome = role === "scholar"
     ? {
         displayName: myScholar?.name || authedUser?.email,
         displayInitials: myScholar?.avatar_initials,
         displayGradient: myScholar?.avatar_gradient,
         onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); },
+        upcomingBookingsCount: scholarUpcomingCount,
+        scholarReviewsCount: scholarReviewsCount,
       }
     : {
         displayName: authedProfile?.name || authedUser?.email,
