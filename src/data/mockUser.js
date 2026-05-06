@@ -13,12 +13,32 @@ export const MOCK_USER = {
   ]
 };
 
+// Demo bookings need to stay relative to "now" so the four-state Join
+// button (Waiting / Available 15 min before / Enabled / Invalid URL) can
+// each render in demo mode. Hardcoded dates would silently rot.
+const offsetISO = (mins) => new Date(Date.now() + mins * 60 * 1000).toISOString();
+const isoToDate = (iso) => iso.split("T")[0];
+const isoToTime = (iso) => {
+  const d = new Date(iso);
+  return d.toTimeString().slice(0, 5);
+};
+const future = (mins) => {
+  const iso = offsetISO(mins);
+  return { date: isoToDate(iso), time: isoToTime(iso), rawScheduledAt: iso };
+};
+
 export const MOCK_USER_BOOKINGS = [
-  { id: "b-1", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-24", time: "18:00", student: "Yusuf", status: "upcoming", type: "Qur'an · Tajweed", meetingUrl: "https://meet.google.com/abc-defg-hij" },
-  { id: "b-2", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-26", time: "14:00", student: "Mariam", status: "upcoming", type: "Arabic", meetingUrl: "https://meet.google.com/abc-defg-hij" },
-  { id: "b-3", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-17", time: "18:00", student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
-  { id: "b-4", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, date: "2026-04-10", time: "18:00", student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
-  { id: "b-5", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, date: "2026-04-19", time: "14:00", student: "Mariam", status: "completed", type: "Arabic", reviewLeft: false }
+  // Within ±15 min window — Join button enabled
+  { id: "b-1", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, ...future(5), student: "Yusuf", status: "upcoming", type: "Qur'an · Tajweed", meetingUrl: "https://meet.google.com/abc-defg-hij" },
+  // No URL yet — "Waiting for scholar to add link"
+  { id: "b-2", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, ...future(60 * 24 * 2), student: "Mariam", status: "upcoming", type: "Arabic", meetingUrl: null },
+  // URL set, far future — "Available 15 min before start"
+  { id: "b-3", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, ...future(60 * 24 * 5), student: "Yusuf", status: "upcoming", type: "Qur'an · Tajweed", meetingUrl: "https://meet.google.com/abc-defg-hij" },
+  // Invalid URL (non-https) — inline error
+  { id: "b-4", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, ...future(60 * 24), student: "Mariam", status: "upcoming", type: "Arabic", meetingUrl: "http://example.com/meeting" },
+  // Past completed — review + book again sections
+  { id: "b-5", scholarName: "Ustadh Yusuf Al-Rahman", scholarId: 101, scholarGradient: "from-emerald-400 to-emerald-700", scholarInitials: "YR", package: "Standard", price: 90, ...future(-60 * 24 * 7), student: "Yusuf", status: "completed", type: "Qur'an · Tajweed", reviewLeft: true },
+  { id: "b-6", scholarName: "Ustadha Aminah Bakr", scholarId: 105, scholarGradient: "from-pink-400 to-rose-700", scholarInitials: "AB", package: "Weekly", price: 120, ...future(-60 * 24 * 14), student: "Mariam", status: "completed", type: "Arabic", reviewLeft: false }
 ];
 
 export const MOCK_USER_DONATIONS = [
