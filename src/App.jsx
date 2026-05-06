@@ -4288,6 +4288,10 @@ const MessagesInbox = ({
   onSignIn,
   onLogoClick,
   onTabClick,
+  onLogout,
+  displayName,
+  displayInitials,
+  displayGradient,
   upcomingBookingsCount,
   savedScholarsCount,
   savedMosquesCount,
@@ -4309,13 +4313,20 @@ const MessagesInbox = ({
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       {showDashboardTabs ? (
-        <>
-          <PublicHeader
-            authedUser={authedUser}
-            authedProfile={authedProfile}
-            onLogoClick={onLogoClick}
-            onSignIn={onSignIn}
-          />
+        <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
+          <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+            <button onClick={onLogoClick} className="flex items-center gap-2.5 md:gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <div className="text-left">
+                <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+                {displayName && <p className="text-xs text-stone-500 hidden md:block">{displayName}</p>}
+              </div>
+            </button>
+            <div className="flex items-center gap-2">
+              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient }} size="sm" />
+              {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
+            </div>
+          </div>
           <DashboardTabBar
             role={role}
             activeTab="messages"
@@ -4326,7 +4337,7 @@ const MessagesInbox = ({
             scholarReviewsCount={scholarReviewsCount}
             messagesUnread={totalUnread}
           />
-        </>
+        </header>
       ) : (
         <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
           <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -4421,6 +4432,10 @@ const ConversationView = ({
   onSignIn,
   onLogoClick,
   onTabClick,
+  onLogout,
+  displayName,
+  displayInitials,
+  displayGradient,
   upcomingBookingsCount,
   savedScholarsCount,
   savedMosquesCount,
@@ -4569,13 +4584,20 @@ const ConversationView = ({
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
       {showDashboardTabs && (
-        <>
-          <PublicHeader
-            authedUser={authedUser}
-            authedProfile={authedProfile}
-            onLogoClick={onLogoClick}
-            onSignIn={onSignIn}
-          />
+        <header className="bg-white border-b border-stone-200">
+          <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+            <button onClick={onLogoClick} className="flex items-center gap-2.5 md:gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <div className="text-left">
+                <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+                {displayName && <p className="text-xs text-stone-500 hidden md:block">{displayName}</p>}
+              </div>
+            </button>
+            <div className="flex items-center gap-2">
+              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient }} size="sm" />
+              {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
+            </div>
+          </div>
           <DashboardTabBar
             role={role}
             activeTab="messages"
@@ -4586,7 +4608,7 @@ const ConversationView = ({
             scholarReviewsCount={scholarReviewsCount}
             messagesUnread={messagesUnread}
           />
-        </>
+        </header>
       )}
       {/* Conversation header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
@@ -6356,8 +6378,11 @@ setBookings(transformed);
                                 </div>
                               </div>
                             ) : (
-                              /* Default: action buttons */
-                              <div className="flex gap-2 flex-wrap">
+                              /* Default: action buttons. items-center keeps
+                                 Reschedule/Cancel from stretching to match
+                                 the taller pill+button column when
+                                 meeting_url is set + > 15 min before start. */
+                              <div className="flex items-center gap-2 flex-wrap">
                                 {(() => {
                                   const startMs = b.rawScheduledAt
                                     ? new Date(b.rawScheduledAt).getTime()
@@ -8741,6 +8766,22 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     setView("scholarDashboard");
   };
   const messagesTabClick = role === "scholar" ? handleScholarTabClick : handleDashboardTabClick;
+  // Identity-row chrome the Messages views share with the dashboards.
+  // Pulls from the right source per role so signed-in users see their
+  // own name + avatar above the tab bar.
+  const messagesChrome = role === "scholar"
+    ? {
+        displayName: myScholar?.name || authedUser?.email,
+        displayInitials: myScholar?.avatar_initials,
+        displayGradient: myScholar?.avatar_gradient,
+        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); },
+      }
+    : {
+        displayName: authedProfile?.name || authedUser?.email,
+        displayInitials: authedProfile?.avatar_initials,
+        displayGradient: authedProfile?.avatar_gradient,
+        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setView("publicHome"); },
+      };
 
   if (view === "messagesInbox") {
     return <MessagesInbox
@@ -8756,6 +8797,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       onTabClick={messagesTabClick}
       savedScholarsCount={savedScholars.length}
       savedMosquesCount={savedMosqueIds?.size || 0}
+      {...messagesChrome}
     />;
   }
   if (view === "conversationView") return <ConversationView
@@ -8771,6 +8813,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     savedScholarsCount={savedScholars.length}
     savedMosquesCount={savedMosqueIds?.size || 0}
     messagesUnread={totalMessagesUnread}
+    {...messagesChrome}
   />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
