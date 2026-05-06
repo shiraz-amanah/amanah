@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
@@ -5747,6 +5747,430 @@ const DateTimePicker = ({ availability, bookings, selectedDate, selectedTime, on
     </div>
   );
 };
+
+// ==================== SCHOLAR ONBOARDING WIZARD ====================
+// 5-step wizard collecting wizard fields, persisted to sessionStorage
+// on every change so a refresh resumes mid-flow. On submit, posts to
+// scholar_applications via auth.js helper; status pages handle the
+// rest of the flow.
+const DBS_OPTIONS = [
+  { v: "enhanced", l: "Enhanced DBS", d: "Already have an Enhanced DBS certificate" },
+  { v: "basic", l: "Basic DBS", d: "Have a Basic DBS only" },
+  { v: "in_progress", l: "In progress", d: "Application submitted, waiting on result" },
+  { v: "none", l: "None yet", d: "Don't have one — happy to get one" },
+];
+
+const WIZARD_DRAFT_KEY = "scholarOnboardingDraft";
+
+const ScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogout }) => {
+  // Hydrate from sessionStorage if present
+  const initialForm = (() => {
+    try {
+      const raw = sessionStorage.getItem(WIZARD_DRAFT_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {
+      fullName: authedProfile?.name || "",
+      city: "",
+      languages: [],
+      avatarUrl: null,
+      ijazahSummary: "",
+      formalEducation: "",
+      yearsTeaching: "",
+      dbsStatus: "",
+      subjects: [],
+      packages: [
+        { name: "Taster", duration: "30 min", price: 25, desc: "Intro session to see if we're a fit" },
+        { name: "Standard", duration: "4 × 45 min", price: 90, desc: "Weekly sessions + progress notes" },
+        { name: "Intensive", duration: "12 weeks", price: 320, desc: "Full term programme" },
+      ],
+      bio: "",
+    };
+  })();
+
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState(initialForm);
+  const [languageInput, setLanguageInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+
+  // Persist on every form change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(form));
+    } catch {}
+  }, [form]);
+
+  const update = (patch) => setForm(prev => ({ ...prev, ...patch }));
+  const toggleLanguage = (lang) => {
+    setForm(prev => ({
+      ...prev,
+      languages: prev.languages.includes(lang) ? prev.languages.filter(l => l !== lang) : [...prev.languages, lang],
+    }));
+  };
+  const toggleSubject = (sub) => {
+    setForm(prev => ({
+      ...prev,
+      subjects: prev.subjects.includes(sub) ? prev.subjects.filter(s => s !== sub) : [...prev.subjects, sub],
+    }));
+  };
+
+  // Per-step validation
+  const canStep2 = !!(form.fullName.trim() && form.city.trim() && form.languages.length > 0);
+  const canStep3 = !!(form.dbsStatus); // years_teaching optional, ijazah/edu optional but encouraged
+  const canStep4 = !!(form.subjects.length > 0 && form.packages.length > 0 && form.bio.trim().length >= 30
+    && form.packages.every(p => p.name && p.duration && Number(p.price) > 0));
+  const canSubmit = canStep2 && canStep3 && canStep4;
+
+  const goNext = () => {
+    if (step === 2 && !canStep2) return;
+    if (step === 3 && !canStep3) return;
+    if (step === 4 && !canStep4) return;
+    setStep(s => Math.min(5, s + 1));
+  };
+  const goBack = () => setStep(s => Math.max(1, s - 1));
+  const jumpTo = (n) => setStep(n);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitError(null);
+    setSubmitting(true);
+    const { data, error } = await submitScholarApplication({
+      fullName: form.fullName.trim(),
+      city: form.city.trim(),
+      languages: form.languages,
+      avatarUrl: form.avatarUrl || null,
+      ijazahSummary: form.ijazahSummary.trim() || null,
+      formalEducation: form.formalEducation.trim() || null,
+      yearsTeaching: form.yearsTeaching ? Number(form.yearsTeaching) : null,
+      dbsStatus: form.dbsStatus,
+      subjects: form.subjects,
+      packages: form.packages,
+      bio: form.bio.trim(),
+    });
+    setSubmitting(false);
+    if (error) {
+      // Postgres unique-violation surfaces as code 23505 — duplicate
+      // pending app. Most other errors land here too; the message is
+      // surfaced inline.
+      const msg = error.code === "23505"
+        ? "You already have a pending application. Sign in again to see its status."
+        : (error.message || "Couldn't submit. Try again.");
+      setSubmitError(msg);
+      return;
+    }
+    try { sessionStorage.removeItem(WIZARD_DRAFT_KEY); } catch {}
+    onSubmitted(data);
+  };
+
+  const firstName = (form.fullName || authedProfile?.name || authedUser?.email || "").split(" ")[0] || "there";
+  const initials = (form.fullName || authedUser?.email || "??").trim().split(/\s+/).map(w => w[0]).join("").substring(0, 2).toUpperCase();
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 md:gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          </div>
+          {onLogout && (
+            <button onClick={onLogout} className="text-xs text-stone-500 hover:text-stone-900 inline-flex items-center gap-1.5">
+              <LogOut size={13} /> Sign out
+            </button>
+          )}
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        {/* Progress bar */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-stone-500">Step {step} of 5</span>
+            <span className="text-xs text-stone-500">{Math.round((step / 5) * 100)}%</span>
+          </div>
+          <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-900 transition-all duration-500" style={{ width: `${(step / 5) * 100}%` }} />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8">
+          {/* STEP 1 — Welcome */}
+          {step === 1 && (
+            <div>
+              <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {firstName}</h2>
+              <p className="text-sm text-stone-600 leading-relaxed mb-6">
+                Joining Amanah takes about 5 minutes. We'll ask about your teaching, qualifications, and services. After you submit, our team reviews within 24-48 hours.
+              </p>
+              <div className="grid md:grid-cols-3 gap-3 mb-6">
+                {[
+                  { i: User, t: "Tell us about you", d: "Name, city, languages" },
+                  { i: GraduationCap, t: "Show your qualifications", d: "Ijazah, education, DBS" },
+                  { i: HandCoins, t: "Set your services", d: "Subjects, packages, bio" },
+                ].map((c, idx) => {
+                  const Icon = c.i;
+                  return (
+                    <div key={idx} className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center mb-2">
+                        <Icon className="text-emerald-800" size={18} />
+                      </div>
+                      <p className="text-sm font-semibold text-stone-900">{c.t}</p>
+                      <p className="text-xs text-stone-600 mt-0.5">{c.d}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2 — About */}
+          {step === 2 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>About you</h2>
+              <p className="text-sm text-stone-500 mb-6">The basics parents will see at the top of your profile.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Full name</label>
+                  <input type="text" value={form.fullName} onChange={e => update({ fullName: e.target.value })} placeholder="e.g. Yusuf Al-Rahman" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">City</label>
+                  <input type="text" value={form.city} onChange={e => update({ city: e.target.value })} placeholder="e.g. Birmingham (or 'Online' if remote only)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Languages</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {["English", "Arabic", "Urdu", "Bengali", "Turkish", "Somali", "French"].map(lang => {
+                      const on = form.languages.includes(lang);
+                      return (
+                        <button key={lang} type="button" onClick={() => toggleLanguage(lang)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                          {lang}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={languageInput}
+                      onChange={e => setLanguageInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && languageInput.trim()) {
+                          e.preventDefault();
+                          toggleLanguage(languageInput.trim());
+                          setLanguageInput("");
+                        }
+                      }}
+                      placeholder="Other? Type and press Enter"
+                      className="flex-1 px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                    />
+                  </div>
+                  {form.languages.filter(l => !["English","Arabic","Urdu","Bengali","Turkish","Somali","French"].includes(l)).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {form.languages.filter(l => !["English","Arabic","Urdu","Bengali","Turkish","Somali","French"].includes(l)).map(l => (
+                        <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-md">
+                          {l}
+                          <button onClick={() => toggleLanguage(l)} className="hover:text-rose-600"><X size={11} /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Profile photo (optional)</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-base font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                      {initials || "?"}
+                    </div>
+                    <p className="text-xs text-stone-500">Photo upload arrives soon. Your initials show until then.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3 — Qualifications */}
+          {step === 3 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Qualifications</h2>
+              <p className="text-sm text-stone-500 mb-6">Helps parents and our verification team know you're trustworthy.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Ijazah summary <span className="text-stone-400">(optional)</span></label>
+                  <textarea value={form.ijazahSummary} onChange={e => update({ ijazahSummary: e.target.value })} rows={3} placeholder="What ijazah, scholarly permissions, or formal training do you have?" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                  <p className="text-xs text-stone-500 mt-1">{form.ijazahSummary.length} chars · ~200 is plenty</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Formal education <span className="text-stone-400">(optional)</span></label>
+                  <textarea value={form.formalEducation} onChange={e => update({ formalEducation: e.target.value })} rows={2} placeholder="Madrasah, university, or other formal study?" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Years teaching</label>
+                  <input type="number" min={0} max={60} value={form.yearsTeaching} onChange={e => update({ yearsTeaching: e.target.value })} placeholder="e.g. 8" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">DBS check status</label>
+                  <p className="text-xs text-stone-500 mb-3">A DBS (Disclosure and Barring Service) check is required to teach children in the UK. Tell us where you're at.</p>
+                  <div className="space-y-2">
+                    {DBS_OPTIONS.map(opt => (
+                      <button key={opt.v} type="button" onClick={() => update({ dbsStatus: opt.v })} className={`w-full text-left p-3 rounded-xl border transition-colors ${form.dbsStatus === opt.v ? "bg-emerald-50 border-emerald-400" : "bg-white border-stone-200 hover:border-stone-400"}`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${form.dbsStatus === opt.v ? "border-emerald-700 bg-emerald-700" : "border-stone-300"}`}>
+                            {form.dbsStatus === opt.v && <Check size={10} className="text-white" strokeWidth={3} />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-stone-900">{opt.l}</p>
+                            <p className="text-xs text-stone-500">{opt.d}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4 — Services */}
+          {step === 4 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Services & packages</h2>
+              <p className="text-sm text-stone-500 mb-6">What you teach and how parents can book you.</p>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Subjects offered</label>
+                  <p className="text-xs text-stone-500 mb-3">Pick everything you teach — parents filter by these.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {CATEGORIES.map(cat => {
+                      const on = form.subjects.includes(cat.id);
+                      return (
+                        <button key={cat.id} type="button" onClick={() => toggleSubject(cat.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-medium text-stone-700 uppercase tracking-wider">Packages</label>
+                    {form.packages.length < 4 && (
+                      <button type="button" onClick={() => update({ packages: [...form.packages, { name: "", duration: "", price: 0, desc: "" }] })} className="text-xs text-emerald-800 font-medium inline-flex items-center gap-1 hover:underline">
+                        <Plus size={12} /> Add package
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-500 mb-3">Up to 4. Edit names, durations, prices freely.</p>
+                  <div className="space-y-3">
+                    {form.packages.map((pkg, i) => (
+                      <div key={i} className="bg-stone-50 border border-stone-200 rounded-xl p-3 grid grid-cols-1 md:grid-cols-12 gap-2 items-start">
+                        <input type="text" value={pkg.name} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, name: e.target.value } : p) })} placeholder="Name (e.g. Standard)" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <input type="text" value={pkg.duration} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, duration: e.target.value } : p) })} placeholder="Duration (e.g. 4 × 45 min)" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <input type="number" min={0} value={pkg.price} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, price: Number(e.target.value) } : p) })} placeholder="£" className="md:col-span-2 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <input type="text" value={pkg.desc} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, desc: e.target.value } : p) })} placeholder="Short description" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <button type="button" onClick={() => update({ packages: form.packages.filter((_, j) => j !== i) })} disabled={form.packages.length === 1} className="md:col-span-1 text-stone-500 hover:text-rose-700 disabled:opacity-30 disabled:hover:text-stone-500 p-2 inline-flex justify-center" aria-label="Remove package">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Bio</label>
+                  <textarea value={form.bio} onChange={e => update({ bio: e.target.value })} rows={5} maxLength={2000} placeholder="How would you describe yourself to parents looking for a teacher? Mention your style, who you love teaching, and what makes you different." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed" />
+                  <p className="text-xs text-stone-500 mt-1">{form.bio.length} chars · aim for 100–500. Min 30 to continue.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5 — Review & submit */}
+          {step === 5 && (
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Review your application</h2>
+              <p className="text-sm text-stone-500 mb-6">Take a quick look. Tap any section to edit before submitting.</p>
+
+              <div className="space-y-3">
+                <ReviewSection title="About you" onEdit={() => jumpTo(2)}>
+                  <p><span className="text-stone-500">Name:</span> {form.fullName}</p>
+                  <p><span className="text-stone-500">City:</span> {form.city}</p>
+                  <p><span className="text-stone-500">Languages:</span> {form.languages.join(", ")}</p>
+                </ReviewSection>
+
+                <ReviewSection title="Qualifications" onEdit={() => jumpTo(3)}>
+                  <p><span className="text-stone-500">DBS:</span> {DBS_OPTIONS.find(o => o.v === form.dbsStatus)?.l || "—"}</p>
+                  {form.yearsTeaching && <p><span className="text-stone-500">Years teaching:</span> {form.yearsTeaching}</p>}
+                  {form.ijazahSummary && <p><span className="text-stone-500">Ijazah:</span> {form.ijazahSummary}</p>}
+                  {form.formalEducation && <p><span className="text-stone-500">Education:</span> {form.formalEducation}</p>}
+                </ReviewSection>
+
+                <ReviewSection title="Services" onEdit={() => jumpTo(4)}>
+                  <p><span className="text-stone-500">Subjects:</span> {form.subjects.map(id => CATEGORIES.find(c => c.id === id)?.name || id).join(", ")}</p>
+                  <p><span className="text-stone-500">Packages:</span></p>
+                  <ul className="ml-4 list-disc text-xs text-stone-700">
+                    {form.packages.map((p, i) => <li key={i}>{p.name} · {p.duration} · £{p.price}</li>)}
+                  </ul>
+                  <div>
+                    <span className="text-stone-500">Bio:</span>
+                    <p className="mt-1 text-stone-700 whitespace-pre-line">{form.bio}</p>
+                  </div>
+                </ReviewSection>
+              </div>
+
+              <p className="text-xs text-stone-500 leading-relaxed mt-6">By submitting, you confirm the information is accurate. Our team will review within 24-48 hours and email you when there's an update.</p>
+              {submitError && (
+                <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 inline-flex items-start gap-2">
+                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>{submitError}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Footer nav */}
+          <div className="flex items-center justify-between mt-6 pt-6 border-t border-stone-100">
+            {step > 1 ? (
+              <button onClick={goBack} disabled={submitting} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50 inline-flex items-center gap-1">
+                <ArrowLeft size={14} /> Back
+              </button>
+            ) : <span />}
+            {step < 5 ? (
+              <button
+                onClick={goNext}
+                disabled={(step === 2 && !canStep2) || (step === 3 && !canStep3) || (step === 4 && !canStep4)}
+                className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.01] disabled:hover:scale-100"
+              >
+                {step === 1 ? "Begin" : "Continue"} <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={!canSubmit || submitting}
+                className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.01] disabled:hover:scale-100"
+              >
+                {submitting ? "Submitting..." : <>Submit application <CheckCircle2 size={14} /></>}
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+const ReviewSection = ({ title, onEdit, children }) => (
+  <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
+    <div className="flex items-center justify-between mb-2">
+      <h4 className="text-sm font-semibold text-stone-900">{title}</h4>
+      <button onClick={onEdit} className="text-xs text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+        <FileText size={11} /> Edit
+      </button>
+    </div>
+    <div className="text-xs text-stone-700 space-y-1">{children}</div>
+  </div>
+);
 
 // ==================== SCHOLAR PENDING CLAIM ====================
 // Shown after a scholar successfully signs up but their auth user_id
