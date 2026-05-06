@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session I (scholar auth + read-only dashboard + meeting_url editor) — three code commits `40c39f8`, `37739c0` plus `migrations/014_scholar_dashboard_rls.sql` applied to prod. Scholars now share the parent Supabase auth pool; `scholars.user_id` linkage gates the new ScholarDashboard view (Bookings + Profile + Reviews + Messages + Account tabs). Inline meeting_url editor closes the Session E loop. RLS lets scholars SELECT/UPDATE their own bookings; column-level restriction trusted to the application. Next session: real claim flow (admin approval queue, email) is the obvious next step; mosques-to-Supabase still parked.
+> Last action: shipped Session J (scholar onboarding wizard + applications table + admin queue) — five code commits `d917705`, `a380442`, `a4a61f4`, `3f915df`, `11a05f0` plus `migrations/015_scholar_applications.sql` applied to prod. New scholars sign up → fill 5-step wizard → admin approves in panel → trigger creates scholars row with `status='pending_verification'` (hidden from public listings) → scholar's next sign-in routes to scholarVerificationPending until admin manually flips DBS/RTW/Ijazah flags. ImamRegister mock still untouched. Next session candidates: email notifications (submit / approve / reject), scholar profile editing, scholar availability editor, real admin RLS, photo upload via Supabase storage.
 
 ---
 
@@ -31,14 +31,17 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session G** ✅ — Parent dashboard end-to-end polish: nine commits closing every parent-facing parked item from C–F. ConversationView + MessagesInbox wrapped in PublicHeader + a shared `<DashboardTabBar>`; sign-in-after-logout returns to userDashboard; heart icon on campaign cards across PublicHome/AllCampaigns/CampaignDetail with `toggleCampaignSave` mirroring mosque saves; donation rows clickable through to campaign detail; `MOCK_USER_BOOKINGS` switched to Date.now()-relative offsets so demo exercises all four Join states; LeaveReview demo-mode guard (`scholar.id` starts with `demo-`); `updateNotifications` removed (canonical helper is `updateNotificationPreference`); "View all" categories button scroll-tos `#top-scholars`; bonus fix for the type-mismatch in "Causes I'm watching" saved-campaign id lookup. Confirmed via code inspection that `SCHOLAR_REVIEWS_DB` is keyed by integer ids and `scholar.id` is a UUID — reviews are silently empty for every real scholar on prod.
 - **Session H** ✅ — Reviews migration. New `reviews` table (UUID PK, FK to scholars/profiles/bookings, status enum, CHECK length 10-2000) with RLS (anon reads published, parents insert own, admin-only status changes via WITH CHECK) and a SECURITY DEFINER trigger that recomputes `scholars.rating + review_count` on every INSERT/UPDATE/DELETE. Seed: 9 sanitized reviews across 4 of 6 active scholars (1 exact name match, 3 first-name + topic-overlap as visual demo, 2 dropped per anti-fabrication). Read path: scholar detail uses `getReviewsForScholar` with loading skeleton; ReviewCard adapted for both Supabase and legacy mock shapes; "Verified booking" pill now gated on `bookingId != null`. Write path: LeaveReview submit calls `createReview()` with inline error + Posting state; demo guard preserved; `bookingId` threaded through from past-booking review buttons; ReviewSubmitted gains a "View on profile" CTA. Admin: new "Reviews" tab in AdminPanel between Flags and DBS — list / status filter / hide / publish, no pagination/bulk/search by design. `SCHOLAR_REVIEWS_DB` and `src/data/mockReviews.js` deleted.
 - **Session I** ✅ — Scholar auth + read-only dashboard + `meeting_url` editor. Scholars now share the parent Supabase auth pool; `scholars.user_id` linkage (existing column, no schema add) gates the new `ScholarDashboard` view. Migration 014 adds two RLS policies on `bookings` (SELECT + UPDATE where `scholar_id ∈ scholars where user_id=auth.uid()`). New auth.js helpers `getScholarByUserId` + `setBookingMeetingUrl` (with `https://` validation). New views: `scholarPendingClaim` (post-signup before SQL link) + `scholarDashboard`. Tabs: Bookings (default, with Upcoming + Past + Cancelled-collapsed sections + inline meeting_url editor), Profile (read-only, "editing comes soon"), Reviews (existing breakdown + cards via `getReviewsForScholar`), Messages (delegates to existing inbox view with `role="scholar"`), Account (email + linked-listing summary + sign out). Earnings derived client-side from `sum(amount_paid where completed)`. Audience drawer's "Scholar sign in" entry now routes through Supabase rather than the legacy mock imam-login flow.
+- **Session J** ✅ — Scholar onboarding wizard + applications table + admin approval queue. Migration 015 adds `scholar_applications` (UUID PK, FK to auth.users, full wizard payload, status enum pending|approved|rejected, partial unique index on user_id WHERE status='pending') with a SECURITY DEFINER BEFORE-UPDATE trigger that on pending→approved generates a slug (kebab-case + collision loop -2/-3) and INSERTs a `scholars` row with `status='pending_verification'` + all three dbs/rtw/ijazah_verified flags false. Six new auth.js helpers (submit/getMy/getAll/approve/reject + shaper). New 5-step `<ScholarOnboardingWizard>` with sessionStorage hydration: Welcome / About / Qualifications / Services (CATEGORIES.id chips so subjects map 1:1 to scholars.categories) / Review. Three new status pages (`scholarApplicationSubmitted`, `scholarApplicationRejected`, `scholarVerificationPending`) replace `ScholarPendingClaim`. `routeAuthedScholar` is now a five-branch tree based on scholar.status + application.status. Admin queue: new "Scholar applications" tab in AdminPanel with filter pills (Pending/Approved/Rejected/All + counts), list, detail view, approve modal (with consequence copy), reject modal (required reason min 10 chars), refetches on action with toast.
 
 ### Up next
 
-- **Real claim flow** — proper claim form (scholar requests linkage), admin review queue in AdminPanel, email notifications. Today admins SQL-link `scholars.user_id = '<auth-uid>'` manually. The most-obvious next step.
-- **Mosques-to-Supabase** (originally Session J) — unblocks the empty mosque-scholar affiliations from Session F, the scholar-message-button-on-detail wiring (TODO from Session D), and is a prerequisite for the deferred mosque-admin sessions.
-- **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only this session by design.
+- **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-this-session piece. Likely Resend or Supabase Auth email hooks + edge function.
+- **Real admin auth + admin RLS** — applications queue currently uses option (a) from Session J: SELECT + UPDATE both open to `authenticated` so the AdminPanel works without a DB-level admin role. Privacy concern: any authed user can read other users' wizard submissions and flip their status. Same pattern as the existing Reviews moderation, mosque queue, etc. Worth tightening before any third party gets admin access.
+- **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
-- **Real admin auth + admin RLS** — Session H's admin Reviews tab uses client-side `role === "admin"` gating. Needs DB-level enforcement before any third party gets admin access.
+- **Verification UI for admins** — flipping `dbs_verified`/`rtw_verified`/`ijazah_verified` + scholars.status from `pending_verification` to `active` is manual SQL today. Same future session as the admin-RLS work probably.
+- **Photo upload** — wizard has a placeholder; Supabase storage bucket isn't configured.
+- **Mosques-to-Supabase** (originally Session J in original roadmap) — unblocks empty mosque-scholar affiliations from Session F.
 
 Decide at the start of the next session — don't pre-commit here.
 
@@ -1802,11 +1805,321 @@ After 014 applied + a real scholar SQL-claimed:
   UserDashboard + DashboardTabBar + ScholarDashboard)
 - **NEW: Promote `bookings` UPDATE RLS to column-level** before
   adding any further scholar-side write surface
-- **NEW: Real claim flow** — see Up next
+- **NEW: Real claim flow** ✅ shipped Session J — wizard +
+  applications table + admin queue replace the SQL claim
 - **NEW: Scholar profile + availability editing**
-- **NEW: Scholar messages tab missing dashboard chrome** —
-  Session G's tab bar is parent-only; needs DashboardTabBar
-  parameterization to support both roles cleanly
+- **NEW: Scholar messages tab missing dashboard chrome** ✅
+  shipped Session I.5 (DashboardTabBar parameterized + identity
+  row + count persistence)
+
+---
+
+## Session J — Scholar onboarding wizard + applications table + admin queue ✅ (7 May 2026)
+
+**Goal:** kill Session I's manual SQL claim. Real scholars now
+sign up → fill 5-step wizard → submit → admin approves in panel
+→ trigger creates the scholars row with
+`status='pending_verification'` (hidden from public listings)
+→ scholar's next sign-in lands on a credentials-pending page →
+admin manually flips DBS/RTW/Ijazah flags + status='active' to
+go live (separate session). Existing claimed scholars (Yusuf et
+al., status='active') unaffected by every line of this session.
+
+### What shipped
+
+**Schema (015, Verbatim):**
+
+- `scholar_applications` table with the wizard payload — full_name,
+  city, languages text[], avatar_url, ijazah_summary, formal_education,
+  years_teaching, dbs_status (CHECK enhanced|basic|none|in_progress),
+  subjects text[] (CATEGORIES.id values), packages jsonb, bio,
+  status (CHECK pending|approved|rejected), reviewed_at, reviewed_by,
+  rejection_reason, created_scholar_id (linkback), created_at,
+  updated_at.
+- Partial unique index on (user_id) WHERE status='pending' enforces
+  one pending app per user. Rejected rows kept for audit; user can
+  submit a fresh pending row after rejection.
+- RLS option (a) per brief decision: SELECT to authenticated using
+  (true), INSERT user_id=auth.uid(), UPDATE to authenticated using
+  (true) with check (true). Privacy concern flagged at top of the
+  migration — any authed user can read/update other users' apps.
+  Real admin RLS is its own session; matches existing AdminPanel
+  pattern.
+- `handle_application_approval` SECURITY DEFINER BEFORE-UPDATE
+  trigger: on pending→approved, generates slug (lowercase + hyphenate
+  non-alphanumerics + trim, with -2/-3 collision loop in case two
+  scholars have the same name), INSERTs scholars row with
+  `status='pending_verification'` and all three dbs/rtw/ijazah_verified
+  flags false (defaults). Stamps reviewed_at + reviewed_by from
+  auth.uid(). On pending→rejected, just stamps reviewed_at +
+  reviewed_by + leaves rejection_reason in place.
+
+**`auth.js` helpers (5 + shaper):**
+
+- `submitScholarApplication(applicationData)` — INSERT pending row;
+  surfaces 23505 (duplicate pending) with a friendlier message
+- `getMyScholarApplication()` — latest application (any status) for
+  current user, maybeSingle
+- `getAllScholarApplications(statusFilter?)` — admin list with
+  optional status filter
+- `approveScholarApplication(applicationId)` — UPDATE status to
+  approved guarded by `.eq('status', 'pending')` for idempotency;
+  trigger handles slug + scholars row server-side
+- `rejectScholarApplication(applicationId, reason)` — UPDATE with
+  rejection_reason; min 10 chars validated client-side to mirror the
+  modal's UX
+
+**Wizard (`<ScholarOnboardingWizard>` component, ~425 lines):**
+
+5 steps with progress bar (1/5–5/5) + back/next + per-step
+validation + sessionStorage hydration on every form change so a
+refresh resumes mid-flow:
+
+- Step 1 — Welcome: Assalamu alaikum, [first name], "Joining
+  Amanah takes about 5 minutes" + 3 preview cards
+- Step 2 — About: full name (pre-filled from authedProfile),
+  city, languages (chip multi-select with free-text "Other"),
+  photo placeholder (initials avatar; storage bucket not
+  configured → parked)
+- Step 3 — Qualifications: ijazah summary (optional), formal
+  education (optional), years teaching (0-60), DBS status
+  (radio: Enhanced / Basic / In progress / None) with helper
+  copy explaining what DBS is
+- Step 4 — Services: subjects (CATEGORIES.id chips so the array
+  maps 1:1 to scholars.categories on approval), 1-4 packages
+  with name + duration + price + desc (3 placeholders provided),
+  bio (min 30 chars)
+- Step 5 — Review: read-only summary of all 4 prior steps in
+  cards, per-section "Edit" jumps back, submit CTA
+
+Submit posts via `submitScholarApplication`. On success, draft
+cleared from sessionStorage and onSubmitted callback routes to
+status page. On 23505 (duplicate pending), specific error
+surfaced inline. Other errors render generic rose error.
+
+**Three status pages:**
+
+- `<ScholarApplicationSubmitted>` — friendly amber Clock icon,
+  "Application submitted, our team will review within 24-48
+  hours", expandable summary of submitted answers, sign-out
+- `<ScholarApplicationRejected>` — rose XCircle, "Application
+  not approved", rejection reason in rose card, "Edit and
+  resubmit" CTA → routes back to scholarOnboarding (wizard
+  hydrates from any remaining draft, else starts blank — fresh
+  pending row inserted on resubmit)
+- `<ScholarVerificationPending>` — emerald CheckCircle2,
+  "Application approved", three credential rows (DBS / RTW /
+  Ijazah) showing Pending or Verified based on the live
+  scholars row's flags, "We'll be in touch within 5 working
+  days" copy
+
+`<ScholarPendingClaim>` (Session I's stub) deleted.
+
+**Routing tree (`routeAuthedScholar`):**
+
+```
+scholar row exists, status='active'                → scholarDashboard
+scholar row exists, status='pending_verification'  → scholarVerificationPending
+no scholar, latest application status='pending'    → scholarApplicationSubmitted
+no scholar, latest application status='rejected'   → scholarApplicationRejected
+no scholar, no application                         → scholarOnboarding (wizard)
+```
+
+The `approved` application state is transient (the trigger creates
+the scholars row in the same UPDATE), but the router treats it like
+'pending' as a defensive fallback.
+
+App-root state: new `myScholarApplication` populated by
+routeAuthedScholar AND the bootstrap useEffect probe so a hard
+refresh on the rejected/pending screens has data on first render.
+All eight logout closures (parent dashboard, scholar dashboard, all
+four scholar status pages, messagesChrome for both roles) now clear
+both `myScholar` and `myScholarApplication`.
+
+**Admin queue (`<AdminScholarApplications>` component):**
+
+- New "Scholar applications" tab in AdminSidebar between Scholar
+  queue and Campaigns.
+- List view: filter pills Pending (default) / Approved / Rejected /
+  All — each with live count from `getAllScholarApplications(null)`.
+  Filter switch refetches.
+- Detail view: three sections mirroring the wizard's structure
+  (About / Qualifications / Services). For approved apps shows the
+  created scholar listing's UUID. For rejected, shows reason in
+  rose card.
+- Approve modal: explains pending_verification semantics. Reject
+  modal: required textarea (min 10 chars). Both refetch on success
+  with toast.
+
+### Commits
+
+- `d917705` `feat(scholars): scholar_applications table + approval trigger (015)`
+- `a380442` `feat(scholars): auth.js helpers for scholar applications`
+- `a4a61f4` `feat(scholars): ScholarOnboardingWizard 5-step flow with sessionStorage hydration`
+- `3f915df` `feat(scholars): status pages + handleSignIn routing tree for application states`
+- `11a05f0` `feat(admin): Scholar applications moderation tab`
+- (this) `docs: NOTES.md — Session J complete`
+
+### Decisions
+
+- **Admin RLS option (a) — open SELECT/UPDATE to authenticated.**
+  Per Session J brief decision after the recon found there's no
+  `profiles.role` column or any DB-level admin concept. Existing
+  AdminPanel access is purely client-side `role === "admin"` set
+  by a legacy LoginScreen that accepts any credentials. Option (a)
+  matches that pattern. Privacy concern documented at the top of
+  the migration: any authed user can read other users' wizard
+  submissions and flip their status. Real admin RLS lives in its
+  own session that should also tighten Reviews moderation, mosque
+  queue, etc. — none of those have DB-level admin gates either.
+- **Newly-approved scholars hidden from public listings via
+  `status='pending_verification'`.** Verified the existing public
+  listing query (getScholars / getScholarsByCategory) filters
+  strictly on `status='active'`, so pending_verification correctly
+  excludes them. The single `verified` column the brief assumed
+  doesn't exist; instead three flags `dbs_verified`/`rtw_verified`/
+  `ijazah_verified` (all default false on insert) drive the badge
+  in transformScholar. Admin manually flips flags + status='active'
+  via SQL today; admin verification UI is its own session.
+- **`subjects` text[] holds CATEGORIES.id values directly.** Brief's
+  free-text subject list ("Qur'an for Kids, Tajweed, Hifz Programmes…")
+  would have created a parallel taxonomy. Using the existing 8
+  CATEGORIES ids (quran-kids, arabic, islamic-studies, hifz, revert,
+  nikah, janazah, counselling) means the wizard's subjects array
+  drops directly into scholars.categories on approval — no
+  translation, no drift.
+- **`packages` shape mirrors existing scholars.packages** — `{name,
+  duration, desc, price, popular?}`. Wizard provides 3 placeholder
+  packages; scholar can edit/add up to 4.
+- **Photo upload deferred.** Supabase storage bucket isn't
+  configured. Wizard shows initials avatar with explanatory copy.
+- **Slug collision strategy in trigger:** simple loop counts
+  collisions and appends -2, -3, etc. Edge case: empty slug after
+  regex (e.g. all-special-char names) defaults to 'scholar' before
+  collision counting. Tested mentally; wait on smoke for empirical
+  proof.
+- **Five-branch routing tree at handleSignIn.** Documented inline
+  with a comment block. Parallel queries (getScholarByUserId +
+  getMyScholarApplication) would be slightly faster but the brief
+  said "in parallel" optimistically — implemented sequentially since
+  the second only fires when the first returns null. Two roundtrips
+  for 1% of sign-ins isn't worth the Promise.all complication.
+- **ImamRegister + ImamDashboardView left untouched.** Recon
+  confirmed unreachable from audience drawer post-Session-I. Their
+  cleanup is its own deferred chore.
+- **Wizard helpers duplicated rather than shared with ImamRegister's
+  RegField/RegTagInput/RegUploadRow.** Inline JSX in the new
+  wizard reads cleaner for the chip-multiselect + radio + package
+  table patterns; shared helpers would force shape compromises.
+
+### Gotchas / things to watch
+
+- **Trust the application on admin actions.** `approveScholarApplication`
+  and `rejectScholarApplication` succeed for any authenticated user.
+  Promote to admin RLS before any third party gets admin access.
+- **Privacy leak on scholar_applications.** Same threat model.
+- **Trigger fires BEFORE UPDATE.** Slug generation + scholars
+  insert runs before the row is committed. If the scholars insert
+  fails (e.g. unique violation we didn't catch, or scholars CHECK
+  constraint), the application UPDATE rolls back — good. If the
+  trigger silently does nothing (e.g. status was already approved),
+  no scholars row is created — also good (the helper's
+  `.eq('status', 'pending')` guard catches double-clicks).
+- **`subjects` → `categories` rename only at the trigger boundary.**
+  The application table column is `subjects`, the scholars column
+  is `categories`. The trigger's INSERT maps `NEW.subjects → categories`.
+  If a future migration renames either, update the trigger.
+- **sessionStorage["scholarOnboardingDraft"] persists across
+  sessions** unless explicitly cleared. The wizard clears on
+  successful submit; on a fresh sign-up by a different user in the
+  same browser, the draft would hydrate with the previous user's
+  data. Edge case (typically wizard users wouldn't share a browser),
+  but flagging.
+- **No email notifications on submit/approve/reject.** Scholar gets
+  no email — they have to sign back in to see status change. Brief
+  was explicit this is out of scope. Likely first follow-up.
+- **`reviewed_by` populated from `auth.uid()` inside SECURITY DEFINER**
+  — this is the invoking user, not the function owner. Tested
+  mentally; verify in smoke that the reviewed_by UUID matches the
+  admin who actioned.
+
+### Smoke test plan (deployed-site walkthrough)
+
+After 015 applied:
+
+1. **New scholar sign-up:** fresh email via "Scholar sign in" path.
+   Lands on scholarOnboarding (wizard) — NOT the old SQL-claim
+   page.
+2. **Wizard flow:** walk all 5 steps. Continue button blocks on
+   missing required fields. At step 4, refresh page — wizard
+   resumes at step 4 with fields populated (sessionStorage
+   hydration).
+3. **Submit:** lands on scholarApplicationSubmitted with the
+   submitted answers expandable.
+4. **Sign out + back in as same scholar:** lands on
+   scholarApplicationSubmitted (status pending).
+5. **Sign in as admin:** AdminPanel → "Scholar applications" tab.
+   New pending app visible. Click into detail. All wizard fields
+   render correctly.
+6. **Approve:** modal → confirm. Toast. List refreshes; app moves
+   to Approved filter. Detail shows created_scholar_id.
+7. **Sign back in as approved scholar:** lands on
+   scholarVerificationPending (NOT scholarDashboard yet) — three
+   credentials show Pending.
+8. **Manual SQL:** flip dbs_verified/rtw_verified/ijazah_verified
+   to true and `status='active'` on that scholars row.
+9. **Sign in again:** now lands on scholarDashboard.
+10. **Public listings:** the new scholar appears in PublicHome's
+    Top-rated section + category filters once status='active'.
+    With status='pending_verification', they're invisible.
+11. **Existing scholar (Yusuf yusuf-test@gmail.com):** sign in →
+    straight to scholarDashboard. No wizard. No regression.
+12. **Rejection path:** new scholar #2 → wizard → submit. Admin
+    rejects with reason. Scholar signs back in → lands on
+    scholarApplicationRejected with reason visible. Click "Edit
+    and resubmit" → wizard → submits a fresh pending row.
+
+### Out of scope (per brief, not built)
+
+- Email notifications (submit / approve / reject / verification)
+- Photo upload
+- Re-applying that touches the previous rejected row (we INSERT
+  fresh; old rejected stays)
+- Admin re-reviewing previously approved/rejected apps (no undo)
+- Multi-admin auth
+- Wizard validation beyond required fields + reasonable lengths
+- Onboarding for mosques / orgs
+- Submission analytics
+- Rate-limiting submissions
+
+### Parked items resolved this session
+
+- ✅ Real claim flow (the highest item in Session I's "Up next")
+- ✅ ImamRegister legacy mock — confirmed dead-but-untouched, not
+  resolved-resolved but documented
+
+### Parked items that remain / new
+
+- App.jsx Phase 2 (component extraction)
+- Smoke-test suite
+- Dev/prod Supabase project split
+- Disintermediation prevention
+- `profiles.phone` / `profiles.email` audit
+- Vercel SPA fallback rewrite
+- MosqueDetail empty scholar affiliations (waits on mosque DB)
+- Drop `scholars_rating_backup` once stable
+- Real admin auth + admin RLS (Session J reinforces priority —
+  applications join Reviews / Mosque queue / Flag moderation in
+  client-side-only gating)
+- Two/three definitions of dashboard tabs
+- Promote bookings UPDATE RLS to column-level
+- Scholar profile + availability editing
+- **NEW: Email notifications for application events**
+- **NEW: Verification UI for admins** (flip the three flags +
+  status to active without SQL)
+- **NEW: Photo upload via Supabase storage** (wizard placeholder)
+- **NEW: ImamRegister + ImamDashboardView cleanup** — reachable
+  via no entry point now; deletable
 
 ---
 
