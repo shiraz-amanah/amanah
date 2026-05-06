@@ -3999,17 +3999,36 @@ const ReviewCard = ({ review, compact = false }) => {
 };
 
 // ==================== LEAVE REVIEW FLOW ====================
-const LeaveReview = ({ scholar, booking, onBack, onSubmit, onSignIn }) => {
+const LeaveReview = ({ scholar, booking, bookingId, onBack, onSubmit, onSignIn }) => {
   const [rating, setRating] = useState(0);
   const [text, setText] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   // Demo mode: PublicHome's "Leave a review" CTA passes a scholar with a
   // synthetic id like "demo-yusuf". Block submission so the eventual real
   // createReview() helper never sees a non-UUID and prompt the visitor to
   // sign in for a real review instead.
   const isDemo = typeof scholar?.id === "string" && scholar.id.startsWith("demo-");
+
+  const handleSubmit = async () => {
+    setSubmitError(null);
+    setSubmitting(true);
+    const { data, error } = await createReview({
+      scholarId: scholar.id,
+      bookingId: bookingId || null,
+      rating,
+      body: text,
+    });
+    setSubmitting(false);
+    if (error) {
+      setSubmitError(error.message || "Couldn't post your review. Try again.");
+      return;
+    }
+    onSubmit({ rating, text, tags: selectedTags, scholar, booking, dbReview: data });
+  };
 
   const availableTags = {
     5: ["Patient", "Knowledgeable", "Great with kids", "Punctual", "Engaging", "Clear explanations", "Encouraging"],
@@ -4139,10 +4158,17 @@ const LeaveReview = ({ scholar, booking, onBack, onSubmit, onSignIn }) => {
               </div>
             </div>
 
+            {submitError && (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4 text-xs text-rose-800 flex items-start gap-2">
+                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
             <div className="flex justify-between">
-              <button onClick={() => setStep(1)} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">Back</button>
-              <button onClick={() => onSubmit({ rating, text, tags: selectedTags, scholar, booking })} disabled={text.length < 10} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.02] disabled:hover:scale-100">
-                <Send size={14} /> Submit review
+              <button onClick={() => setStep(1)} disabled={submitting} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Back</button>
+              <button onClick={handleSubmit} disabled={text.length < 10 || submitting} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                {submitting ? "Posting..." : <><Send size={14} /> Submit review</>}
               </button>
             </div>
           </div>
@@ -4153,7 +4179,7 @@ const LeaveReview = ({ scholar, booking, onBack, onSubmit, onSignIn }) => {
 };
 
 // ==================== REVIEW SUBMITTED SUCCESS ====================
-const ReviewSubmitted = ({ review, onHome }) => (
+const ReviewSubmitted = ({ review, onHome, onViewScholar }) => (
   <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center" style={{ animation: "bounceIn 0.6s ease-out" }}>
       <div className="relative inline-block mb-5">
@@ -4171,9 +4197,16 @@ const ReviewSubmitted = ({ review, onHome }) => (
         </div>
         <p className="text-sm text-stone-700 italic line-clamp-3">"{review.text}"</p>
       </div>
-      <button onClick={onHome} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
-        Back to Amanah
-      </button>
+      <div className="flex flex-col gap-2">
+        {onViewScholar && (
+          <button onClick={onViewScholar} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
+            View on {review.scholar.name.split(" ").slice(-2).join(" ")}'s profile
+          </button>
+        )}
+        <button onClick={onHome} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors">
+          Back to Amanah
+        </button>
+      </div>
     </div>
     <style>{`@keyframes bounceIn { 0% { opacity: 0; transform: scale(0.9); } 50% { transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } } @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
   </div>
@@ -6319,7 +6352,7 @@ setBookings(transformed);
                               {!b.reviewLeft && (
                                 <>
                                   <span className="text-stone-300">·</span>
-                                  <button onClick={() => onReview(b.scholarId)} className="text-sm text-amber-700 font-medium hover:underline inline-flex items-center gap-1"><Star size={12} /> Leave a review</button>
+                                  <button onClick={() => onReview(b.scholarId, b.id)} className="text-sm text-amber-700 font-medium hover:underline inline-flex items-center gap-1"><Star size={12} /> Leave a review</button>
                                 </>
                               )}
                               {b.reviewLeft && (
@@ -7738,6 +7771,7 @@ export default function App() {
   const [launchedCampaign, setLaunchedCampaign] = useState(null);
   const [campaignCreatorType, setCampaignCreatorType] = useState("mosque");
   const [reviewScholar, setReviewScholar] = useState(null);
+  const [reviewBookingId, setReviewBookingId] = useState(null);
   const [submittedReview, setSubmittedReview] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -7947,9 +7981,13 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       const raw = await getScholarById(scholarId);
       if (raw) { setSelectedScholar(transformScholar(raw)); setView("scholarDetail"); }
     }}
-    onReview={async (scholarId) => {
+    onReview={async (scholarId, bookingId) => {
       const raw = await getScholarById(scholarId);
-      if (raw) { setReviewScholar(transformScholar(raw)); setView("leaveReview"); }
+      if (raw) {
+        setReviewScholar(transformScholar(raw));
+        setReviewBookingId(bookingId || null);
+        setView("leaveReview");
+      }
     }}
     onViewCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
     onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
@@ -7962,8 +8000,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     toggleMosqueSave={toggleMosqueSave}
     onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
   />;
-  if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} onBack={() => setView("publicHome")} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} onSignIn={handleSignIn} />;
-  if (view === "reviewSubmitted") return <ReviewSubmitted review={submittedReview} onHome={() => setView("publicHome")} />;
+  if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} bookingId={reviewBookingId} onBack={() => window.history.back()} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} onSignIn={handleSignIn} />;
+  if (view === "reviewSubmitted") return <ReviewSubmitted
+    review={submittedReview}
+    onHome={() => setView("publicHome")}
+    onViewScholar={submittedReview?.scholar ? () => { setSelectedScholar(submittedReview.scholar); setView("scholarDetail"); } : null}
+  />;
   const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
   const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
   const handleDashboardTabClick = (tabValue) => {
