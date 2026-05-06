@@ -841,25 +841,37 @@ const PublicHeader = ({ authedUser, authedProfile, onLogoClick, onSignIn }) => {
 };
 
 // ============== DASHBOARD TAB BAR ==============
-// Shared horizontal tab strip used across the parent-dashboard surfaces
-// (UserDashboard, MessagesInbox, ConversationView) so the parent always has
-// a visible nav and the user dashboard's tab values stay in one place.
+// Shared horizontal tab strip used across MessagesInbox + ConversationView
+// so signed-in users always have a visible nav and the dashboard's tab
+// values stay in one place. Role-aware — parent and scholar see different
+// tabs. UserDashboard + ScholarDashboard still ship their own inline tab
+// markup; future cleanup pass to consolidate tracked in NOTES.md.
 const DashboardTabBar = ({
+  role = "user",
   activeTab,
   onTabClick,
   upcomingBookingsCount = 0,
   savedScholarsCount = 0,
   savedMosquesCount = 0,
+  scholarReviewsCount = 0,
   messagesUnread = 0,
 }) => {
-  const tabs = [
-    { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookingsCount },
-    { v: "donations", l: "My giving", i: HandCoins, badge: null },
-    { v: "saved", l: "My scholars", i: Heart, badge: savedScholarsCount },
-    { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosquesCount },
-    { v: "messages", l: "Messages", i: MessageCircle, badge: messagesUnread },
-    { v: "account", l: "Account", i: Settings, badge: null },
-  ];
+  const tabs = role === "scholar"
+    ? [
+        { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookingsCount },
+        { v: "profile", l: "Profile", i: User, badge: null },
+        { v: "reviews", l: "Reviews", i: Star, badge: scholarReviewsCount || null },
+        { v: "messages", l: "Messages", i: MessageCircle, badge: messagesUnread },
+        { v: "account", l: "Account", i: Settings, badge: null },
+      ]
+    : [
+        { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookingsCount },
+        { v: "donations", l: "My giving", i: HandCoins, badge: null },
+        { v: "saved", l: "My scholars", i: Heart, badge: savedScholarsCount },
+        { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosquesCount },
+        { v: "messages", l: "Messages", i: MessageCircle, badge: messagesUnread },
+        { v: "account", l: "Account", i: Settings, badge: null },
+      ];
   return (
     <div className="bg-white border-b border-stone-200">
       <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 overflow-x-auto scrollbar-hide">
@@ -4279,6 +4291,7 @@ const MessagesInbox = ({
   upcomingBookingsCount,
   savedScholarsCount,
   savedMosquesCount,
+  scholarReviewsCount,
 }) => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -4291,7 +4304,7 @@ const MessagesInbox = ({
   });
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
-  const showDashboardTabs = role === "user" && !!onTabClick;
+  const showDashboardTabs = (role === "user" || role === "scholar") && !!onTabClick;
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -4304,11 +4317,13 @@ const MessagesInbox = ({
             onSignIn={onSignIn}
           />
           <DashboardTabBar
+            role={role}
             activeTab="messages"
             onTabClick={onTabClick}
             upcomingBookingsCount={upcomingBookingsCount}
             savedScholarsCount={savedScholarsCount}
             savedMosquesCount={savedMosquesCount}
+            scholarReviewsCount={scholarReviewsCount}
             messagesUnread={totalUnread}
           />
         </>
@@ -4409,6 +4424,7 @@ const ConversationView = ({
   upcomingBookingsCount,
   savedScholarsCount,
   savedMosquesCount,
+  scholarReviewsCount,
   messagesUnread = 0,
 }) => {
   // For demo conversations (no real conversation.id matching a UUID), keep
@@ -4548,7 +4564,7 @@ const ConversationView = ({
     setSending(false);
   };
  
-  const showDashboardTabs = role === "user" && !!onTabClick;
+  const showDashboardTabs = (role === "user" || role === "scholar") && !!onTabClick;
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -4561,11 +4577,13 @@ const ConversationView = ({
             onSignIn={onSignIn}
           />
           <DashboardTabBar
+            role={role}
             activeTab="messages"
             onTabClick={onTabClick}
             upcomingBookingsCount={upcomingBookingsCount}
             savedScholarsCount={savedScholarsCount}
             savedMosquesCount={savedMosquesCount}
+            scholarReviewsCount={scholarReviewsCount}
             messagesUnread={messagesUnread}
           />
         </>
@@ -8717,6 +8735,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     sessionStorage.setItem("dashboardTab", tabValue);
     setView("userDashboard");
   };
+  const handleScholarTabClick = (tabValue) => {
+    if (tabValue === "messages") return;
+    sessionStorage.setItem("scholarDashboardTab", tabValue);
+    setView("scholarDashboard");
+  };
+  const messagesTabClick = role === "scholar" ? handleScholarTabClick : handleDashboardTabClick;
 
   if (view === "messagesInbox") {
     return <MessagesInbox
@@ -8729,7 +8753,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       authedProfile={authedProfile}
       onSignIn={handleSignIn}
       onLogoClick={() => setView("publicHome")}
-      onTabClick={handleDashboardTabClick}
+      onTabClick={messagesTabClick}
       savedScholarsCount={savedScholars.length}
       savedMosquesCount={savedMosqueIds?.size || 0}
     />;
@@ -8743,7 +8767,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     authedProfile={authedProfile}
     onSignIn={handleSignIn}
     onLogoClick={() => setView("publicHome")}
-    onTabClick={handleDashboardTabClick}
+    onTabClick={messagesTabClick}
     savedScholarsCount={savedScholars.length}
     savedMosquesCount={savedMosqueIds?.size || 0}
     messagesUnread={totalMessagesUnread}
