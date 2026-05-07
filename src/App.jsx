@@ -7027,13 +7027,20 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 
   const isSignUp = mode === "signup";
   const isScholar = role === "scholar";
+  const isMosque = role === "mosque";
+  // Both scholar + mosque bypass the parent-flavoured "interest"
+  // step. They have their own dedicated post-auth surfaces (wizard
+  // / dashboard) so the marketplace-fit interest picker is irrelevant.
+  const skipsInterest = isScholar || isMosque;
 
   const handleSignUp = async () => {
     setError(null);
     setLoading(true);
-    // Scholars don't pick a parent-flavored "interest" — stash a marker
-    // instead so the post-signup user metadata reflects the entry path.
-    const interest = isScholar ? "scholar" : form.interest;
+    // Scholars + mosques don't pick a parent-flavored "interest" —
+    // stash a role-marker on auth metadata instead so post-auth
+    // routing has a fallback signal even if the scholars / mosques
+    // row hasn't been created yet (mid-wizard close-tab scenarios).
+    const interest = isScholar ? "scholar" : isMosque ? "mosque" : form.interest;
     const { data, error: authError } = await signUp(form.email, form.password, form.name, interest);
     if (authError) {
       setError(authError.message || "Something went wrong");
@@ -7071,20 +7078,20 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
         <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm">
           {isSignUp && step === 1 && (
             <>
-              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isScholar ? "Sign up as a scholar" : "Create your account"}</h2>
-              <p className="text-sm text-stone-500 mb-6">{isScholar ? "Teach, get hired, build your profile on Amanah." : "Book scholars, track your giving, save favourites."}</p>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isScholar ? "Sign up as a scholar" : isMosque ? "List your mosque on Amanah" : "Create your account"}</h2>
+              <p className="text-sm text-stone-500 mb-6">{isScholar ? "Teach, get hired, build your profile on Amanah." : isMosque ? "Apply for verification and reach the Muslim community across the UK." : "Book scholars, track your giving, save favourites."}</p>
               <div className="space-y-3">
-                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Your name" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={isMosque ? "Your name (the person applying)" : "Your name"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                {isScholar && error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
+                {skipsInterest && error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
                 <button
                   onClick={() => {
                     if (!form.name || !form.email || form.password.length < 6) return;
-                    if (isScholar) {
-                      // Scholars skip the parent-flavored "interest" picker —
-                      // submit directly. Post-auth, App routes them to the
-                      // pending-claim screen if their listing isn't linked.
+                    if (skipsInterest) {
+                      // Scholars + mosques skip the parent-flavored "interest"
+                      // picker — submit directly. Post-auth, App routes them
+                      // through routeAuthedScholar / routeAuthedMosque.
                       handleSignUp();
                     } else {
                       setStep(2);
@@ -7093,7 +7100,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
                   disabled={!form.name || !form.email || form.password.length < 6 || loading}
                   className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
                 >
-                  {isScholar
+                  {skipsInterest
                     ? (loading ? "Creating account..." : <>Create account <CheckCircle2 size={14} /></>)
                     : <>Continue <ArrowRight size={14} /></>}
                 </button>
@@ -7102,7 +7109,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
             </>
           )}
 
-          {isSignUp && !isScholar && step === 2 && (
+          {isSignUp && !skipsInterest && step === 2 && (
             <>
               <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {form.name.split(" ")[0]}</h2>
               <p className="text-sm text-stone-500 mb-6">What brings you to Amanah?</p>
@@ -7163,7 +7170,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
           </div>
         </div>
 
-        {!isScholar && (
+        {!skipsInterest && (
           <div className="mt-5 text-center text-xs text-stone-500">
             Are you a <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">scholar</button>? Different sign-in.
           </div>
@@ -7171,6 +7178,11 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
         {isScholar && (
           <div className="mt-5 text-center text-xs text-stone-500">
             Not a scholar? <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">Pick a different sign-in</button>.
+          </div>
+        )}
+        {isMosque && (
+          <div className="mt-5 text-center text-xs text-stone-500">
+            Not a mosque? <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">Pick a different sign-in</button>.
           </div>
         )}
       </div>
