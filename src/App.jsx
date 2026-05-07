@@ -595,6 +595,7 @@ useEffect(() => {
             <button onClick={() => onSignIn("imam")} className="hover:text-white">Become a Scholar</button>
             <a className="hover:text-white cursor-pointer">Safeguarding</a>
             <a className="hover:text-white cursor-pointer">About</a>
+            <button onClick={() => onSignIn("admin")} className="hover:text-white opacity-60">Admin</button>
           </div>
         </div>
       </footer>
@@ -9252,6 +9253,90 @@ const AdminPanel = ({ onExit }) => {
   );
 };
 
+// ==================== ADMIN LOGIN ====================
+// Dedicated admin sign-in surface. Visually distinct from UserAuth
+// (dark theme, no signup, no audience picker) so the entry path is
+// unambiguous: admins reach this only via the small footer link on
+// PublicHome. role='user' or role='scholar' users who somehow land
+// here and submit credentials are bounced by the App-level
+// onComplete handler with a "Not an admin account." toast — so this
+// component itself is purely UI; routing decisions live in App.
+const AdminLogin = ({ onBack, onComplete }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!email || !password) return;
+    setError(null);
+    setLoading(true);
+    const { error: authError } = await signIn(email, password);
+    if (authError) {
+      setError(authError.message || "Invalid email or password");
+      setLoading(false);
+      return;
+    }
+    // App's adminLogin onComplete handler verifies role + routes.
+    onComplete();
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-950 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="w-full max-w-md">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-400 hover:text-stone-200 mb-6">
+          <ArrowLeft size={14} /> Back to Amanah
+        </button>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-stone-100 mb-4 shadow-lg">
+            <ShieldCheck className="text-stone-900" size={22} />
+          </div>
+          <h1 className="text-3xl font-semibold text-white tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          <p className="text-[11px] text-stone-400 uppercase tracking-[0.2em] mt-2">Admin portal</p>
+        </div>
+        <div className="bg-stone-900 rounded-2xl border border-stone-800 p-6 md:p-8 shadow-2xl">
+          <h2 className="text-xl font-semibold text-white mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Sign in</h2>
+          <p className="text-sm text-stone-400 mb-6">Authorised administrators only.</p>
+          <div className="space-y-3">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              autoComplete="email"
+              className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-700 text-white placeholder-stone-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-900 outline-none text-sm"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              placeholder="Password"
+              autoComplete="current-password"
+              className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-700 text-white placeholder-stone-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-900 outline-none text-sm"
+            />
+            {error && (
+              <div className="p-3 bg-rose-950/40 border border-rose-900 rounded-lg text-xs text-rose-300">{error}</div>
+            )}
+            <button
+              onClick={submit}
+              disabled={loading || !email || !password}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-stone-700 disabled:text-stone-500 text-white py-3 rounded-xl text-sm font-medium transition-colors"
+            >
+              {loading ? "Signing in..." : "Sign in to admin"}
+            </button>
+          </div>
+        </div>
+        <p className="text-center text-xs text-stone-500 mt-5">
+          Not an admin?{" "}
+          <button onClick={onBack} className="text-stone-300 hover:text-white underline-offset-2 hover:underline">Return to Amanah</button>
+          .
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // ==================== GLOBAL TOAST ====================
 // App-level toast surface used for cross-cutting feedback (suspended
 // account, admin cross-path bounce, etc.) where the originating view
@@ -9542,6 +9627,16 @@ useEffect(() => {
 const handleSignIn = (r) => {
     console.log("[K-DIAG handleSignIn]", { r, authedUser: !!authedUser, authedProfileRole: authedProfile?.role, authedProfileSuspended: authedProfile?.suspended });
     if (r === "prayer") { setView("prayerHub"); return; }
+    if (r === "admin") {
+      // Footer "Admin" link. Already-authed admin lands directly on
+      // adminPanel (their natural home). Suspended admin → bounce.
+      // Otherwise → dedicated AdminLogin sign-in form.
+      if (authedUser && authedProfile?.role === "admin") {
+        if (authedProfile.suspended) { bounceSuspended(); return; }
+        setView("adminPanel"); return;
+      }
+      setView("adminLogin"); return;
+    }
     if (r === "user") {
       if (authedUser) {
         // Admin role short-circuits the parent/scholar branch — even
@@ -9872,6 +9967,20 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "mosqueRegister") return <MosqueRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); setView("registrationPending"); }} />;
   if (view === "imamRegister") return <ImamRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); setView("registrationPending"); }} />;
   if (view === "registrationPending") return <RegistrationPending type={registrationType} form={registeredProfile} onHome={() => setView("publicHome")} />;
+  if (view === "adminLogin") return <AdminLogin
+    onBack={() => setView("publicHome")}
+    onComplete={async () => {
+      // Phase-1-B placeholder: just route to adminPanel for now.
+      // Phase-1-C wires the real role check + bounce for non-admin.
+      const user = await getUser();
+      setAuthedUser(user);
+      if (user) {
+        const profile = await getProfile();
+        setAuthedProfile(profile);
+      }
+      setView("adminPanel");
+    }}
+  />;
   if (view === "adminPanel") return <AdminPanel onExit={() => setView("publicHome")} />;
   if (view === "mosqueDashboard") return <MosqueDashboard
     onLogout={() => setView("publicHome")}
