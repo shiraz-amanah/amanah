@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 2 shipped end-to-end (scholar applications real + verification UI). Migrations 019 + 020 applied to prod: admin SELECT/UPDATE on `scholar_applications` (additive over 015) + admin SELECT/UPDATE on `scholars` (needed for verification UI to read `pending_verification` rows; Phase 1 hadn't covered scholars despite the K-2 brief assuming so). Deleted duplicate "Scholar queue" sidebar tab + AdminScholarQueue + ADMIN_SCHOLAR_APPS mock — "Scholar applications" is the single source of truth now. Admin bootstrap auto-route: a reload lands an admin back on adminPanel rather than publicHome. New auth.js helpers `setScholarVerificationFlag(id, flag, value)` + `publishScholar(id)`. Verification UI in AdminScholarApplications detail view: three flag toggles (DBS/RTW/Ijazah) with optimistic update + per-flag saving indicators, "Mark fully verified & publish" button gated on all-three-true. Test fixture test2 verified end-to-end: pending_verification → admin flips three flags → publish → status=active → test2 sign-in routes to scholarDashboard → visible in public listings. 7 commits (`381a84a`, `dc51f86`, `0c78db7`, `a79ff4e`, `6ff709f`, `4c6e1da`, `6fd488b`). All 13 smoke tests green. Next: Phase 3 — reviews moderation admin gate (probe `pg_policies` for `reviews` first; depending on findings, additive admin override OR drop+rebuild against the existing 012 user-only UPDATE policy).
+> Last action: Session K Phase 3 shipped (reviews moderation admin gate). Migration 021 applied to prod: additive admin SELECT + UPDATE policies on `reviews`. Pre-021 probe of `pg_policies` confirmed the deployed policies matched 012 exactly with no admin awareness — meaning Session H's moderation UI was a silent no-op against prod since it shipped. K-3 fixed it: admin now sees all reviews regardless of status, hide/publish flips `reviews.status` correctly, trigger recomputes `scholars.rating + review_count`. yusuf-test still has edit ability on own reviews (regression preserved). Single commit (`b02103a`) — no code changes; auth.js helpers were already RLS-respecting. Session H block in this file annotated to reflect the silent-no-op caveat. Next: Phase 5 — All users tab (Phase 4 campaigns deferred). Migration 022 admin SELECT/UPDATE on `profiles` + auth.js helpers `listAllProfiles` / `setProfileRole` / `setProfileSuspended` + tab UI replacing the "coming in the next build" placeholder.
 
 ---
 
@@ -34,10 +34,11 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session J** ✅ — Scholar onboarding wizard + applications table + admin approval queue. Migration 015 adds `scholar_applications` (UUID PK, FK to auth.users, full wizard payload, status enum pending|approved|rejected, partial unique index on user_id WHERE status='pending') with a SECURITY DEFINER BEFORE-UPDATE trigger that on pending→approved generates a slug (kebab-case + collision loop -2/-3) and INSERTs a `scholars` row with `status='pending_verification'` + all three dbs/rtw/ijazah_verified flags false. Six new auth.js helpers (submit/getMy/getAll/approve/reject + shaper). New 5-step `<ScholarOnboardingWizard>` with sessionStorage hydration: Welcome / About / Qualifications / Services (CATEGORIES.id chips so subjects map 1:1 to scholars.categories) / Review. Three new status pages (`scholarApplicationSubmitted`, `scholarApplicationRejected`, `scholarVerificationPending`) replace `ScholarPendingClaim`. `routeAuthedScholar` is now a five-branch tree based on scholar.status + application.status. Admin queue: new "Scholar applications" tab in AdminPanel with filter pills (Pending/Approved/Rejected/All + counts), list, detail view, approve modal (with consequence copy), reject modal (required reason min 10 chars), refetches on action with toast.
 - **Session K Phase 1** ✅ — Real admin auth foundation. Migrations 017 (`profiles.role` + `profiles.suspended` + `public.is_admin/is_suspended` SECURITY DEFINER helpers) + 018 (seed shiraz to admin). Dedicated `<AdminLogin>` view (dark theme) reachable only via PublicHome footer "Admin" link. Cross-path enforcement: admin role users blocked from Parent/Scholar UserAuth paths with toast steering them to /admin; non-admins blocked from AdminLogin with "Not an admin account."; suspended admins toasted "Account has been suspended." `GlobalToast` infra at App root + `fullSignOut` helper consolidating signOut+state-clear. AdminPanel sidebar reads real `authedProfile.name`; Sign out fully clears Supabase session before routing. Phase 4 (campaigns admin queue) deferred to a future focused session because campaigns aren't a real Supabase table yet.
 - **Session K Phase 2** ✅ — Scholar applications real + verification UI. Migration 019 (admin SELECT/UPDATE on `scholar_applications`, additive over the open 015 policies) + 020 (admin SELECT/UPDATE on `scholars` — needed because Phase 1 didn't cover scholars despite the brief assuming so; without 020, getScholarById against a `pending_verification` row returns null for admin). Deleted duplicate "Scholar queue" sidebar tab + AdminScholarQueue component + ADMIN_SCHOLAR_APPS mock (locked decision A: "Scholar applications" is the single source of truth). Admin bootstrap auto-route added per user request mid-phase: a reload while inside the panel now lands back on adminPanel rather than publicHome (other roles unchanged). New auth.js helpers `setScholarVerificationFlag(id, flag, value)` (whitelisted to the three verified columns) + `publishScholar(id)` (idempotent-ish via `status='pending_verification'` WHERE guard). Verification UI in AdminScholarApplications detail: three checkbox toggles with optimistic update + per-flag in-flight saving badge + rollback on error, "Pending verification" amber pill or "Published" emerald pill, "Mark fully verified & publish" button gated on all-three-true and hidden once status='active'. Toggles stay editable post-publish so admin can revoke a flag later if needed.
+- **Session K Phase 3** ✅ — Reviews moderation admin gate. Migration 021 adds additive admin SELECT + UPDATE policies on `reviews`. Probe of `pg_policies` against prod confirmed the deployed policies matched 012 exactly (no admin awareness), meaning Session H's moderation UI had been a silent no-op since H shipped — `setReviewStatus` was RLS-denied and `getReviewsForModeration` could only see `published` rows. Admin moderation now works end-to-end: admin sees all reviews regardless of status, hide/publish actually flips `reviews.status`, the trigger from 012 recomputes `scholars.rating + review_count` correctly. No code changes — auth.js helpers were already RLS-respecting; they just needed RLS to allow them through. Session H block annotated to reflect the silent-no-op.
 
 ### Up next
 
-- **Session K Phase 3 — Reviews moderation admin gate.** Add admin RLS to `reviews` (next migration). Existing Session-H moderation UI in AdminPanel may need tightening depending on probe findings — need to read `pg_policies` for `reviews` first to know whether the existing UPDATE policy (with `with check (parent_id = auth.uid() and status = 'published')`) actually blocks admin moderation today. Either additive admin policies (if H worked via some undocumented prod policy) or replace-and-rebuild (drop the user UPDATE, add admin UPDATE).
+- **Session K Phase 5 — All users tab.** Phase 4 (campaigns admin queue) deferred. Migration 022 admin SELECT + UPDATE on `profiles`. New auth.js helpers `listAllProfiles({page, search, role, suspended})`, `setProfileRole(id, newRole)`, `setProfileSuspended(id, value)`. AllUsers tab UI replaces the "coming in the next build" placeholder: paginated list (50/page), search by name/email, role + suspended filters, per-row View / Change role (with confirm modal) / Suspend toggle. Self-action guard (admin can't change own role or suspend themselves). Suspension write-blocking on user tables stays parked for a follow-up.
 - **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
@@ -1303,6 +1304,19 @@ flagged in Session G. Three end-to-end outcomes:
 Plus: `scholars.rating` + `scholars.review_count` recomputed from
 real reviews via trigger.
 
+> **Caveat caught later (K-3 probe, 7 May 2026).** Outcome (3) above
+> shipped as UI but was a **silent no-op against prod** — the 012 RLS
+> policies didn't include any admin override, so `setReviewStatus`
+> from the AdminPanel was denied by RLS, and `getReviewsForModeration`
+> only ever returned published rows (admin couldn't see hidden ones
+> to begin with). The hide/publish buttons looked like they worked
+> because the toast fired regardless of the response. K-3's migration
+> 021 added admin SELECT + UPDATE policies and now moderation works
+> end-to-end. Session H predated K-1's real admin auth (when there was
+> no DB-level admin role), so it was never exercised against a real
+> `role='admin'` user — only against the legacy demo-creds login that
+> didn't carry a Supabase JWT at all.
+
 ### What shipped
 
 **Schema (012, Verbatim — first migration written under the
@@ -2540,6 +2554,95 @@ phase, became active during smoke):
   single admin themselves, and the worst case is a flag flip
   that needs to be re-clicked. The complexity wasn't worth it
   for this surface.
+
+---
+
+## Session K Phase 3 — Reviews moderation admin gate ✅ (7 May 2026)
+
+Single-commit phase. Pure schema change unlocking the moderation
+flow that has been silently broken since Session H shipped. The
+probe-before-code discipline from K-2 is what caught it.
+
+### What shipped
+
+- **Probe first** — `select policyname, cmd, qual, with_check from
+  pg_policies where tablename='reviews'` confirmed deployed
+  policies match `012_reviews.sql` exactly: 4 policies, none
+  admin-aware. UPDATE policy: `using (parent_id = auth.uid())
+  with check (parent_id = auth.uid() and status = 'published')`
+  — meaning even a review's author couldn't flip its own status
+  away from `published`, let alone an admin acting on someone
+  else's review.
+- **Migration 021** — additive admin SELECT + UPDATE policies on
+  `reviews`. PostgreSQL OR-combines policies for the same cmd, so
+  admin can read/update any row without weakening the user
+  policies (their WITH CHECK still bounds users to status=
+  'published' for self-edits). Same pattern as 019/020.
+- **No code changes.** AdminReviewsModeration was already wired
+  to `getReviewsForModeration` + `setReviewStatus` in auth.js;
+  both are RLS-respecting and started working the moment 021 +
+  PostgREST cache reload landed.
+- **Session H block annotated.** The Session H entry in this file
+  now flags that moderation outcome (3) shipped as UI but was a
+  silent no-op against prod because H predated K-1's real admin
+  auth and was never exercised against a `role='admin'` JWT.
+
+### Commits
+
+- `b02103a` schema(021): admin RLS on reviews
+
+1 commit.
+
+### Decisions
+
+- **Additive policies, not drop-and-rebuild.** Either approach
+  would have worked. Additive is simpler: admin gets a parallel
+  policy whose USING/WITH CHECK both reduce to `is_admin()`.
+  Non-admin behaviour stays exactly as 012 specified.
+- **No app-side change required.** Resisted the urge to add
+  defensive logging or fallback paths — the policies are the
+  fix, full stop.
+
+### Bug uncovered (worth its own callout)
+
+**Session H moderation has been a silent no-op since 6 May
+2026.** Hide / publish buttons would show a success toast (no
+guard in the UI for the empty `data` / `error.message=...`
+return shape from supabase-js when RLS denies). DB rows
+unchanged. Hidden reviews invisible to admin (the SELECT policy
+filtered them out). Caught only because K-3 ran the probe before
+writing migration code. Rule for future schema-touching phases:
+**probe `pg_policies` before assuming any prior session's RLS is
+deployed correctly**.
+
+### Smoke tests (all green)
+
+1. ✅ Admin → Reviews tab shows all reviews regardless of status.
+2. ✅ Hide a published review → status flips to hidden →
+   disappears from public scholar profile.
+3. ✅ Publish a hidden review back → reappears on public profile.
+4. ✅ Trigger from 012 still recomputes `scholars.rating +
+   review_count` correctly on each status flip.
+5. ✅ yusuf-test (non-admin) can still edit body/rating on own
+   reviews (regression — additive policies didn't weaken the
+   012 user UPDATE policy).
+
+### Lessons learned
+
+- **Probe-before-code is now a phase-zero step.** K-2 caught a
+  missing migration 020. K-3 caught a silent UI no-op. Both
+  found by `select * from pg_policies where tablename=...`
+  before writing anything. Worth doing for every phase that
+  touches RLS, not just the ones that feel risky.
+- **A green-looking toast doesn't mean the DB changed.**
+  AdminReviewsModeration's hide/publish handlers fire the toast
+  on `setReviewStatus` resolving without an exception — but
+  supabase-js returns `{data: null, error: {...}}` on RLS denial,
+  and the handler's branch checks `error.message` for display
+  copy without surfacing it. Rule: when wiring a Supabase
+  mutation to a UI action, always show errors inline (or at
+  least log them). Otherwise the smoke test for the action is
+  the only way to catch a silent denial.
 
 ---
 
