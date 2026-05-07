@@ -46,6 +46,8 @@ filenames.
 | 016 | `016_scholars_self_select.sql`         | Verbatim            | 7 May 2026         | NOTES.md Session J follow-up    |
 | 017 | `017_profiles_role.sql`                | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
 | 018 | `018_seed_admins.sql`                  | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
+| 019 | `019_scholar_applications_admin_rls.sql` | Verbatim          | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
+| 020 | `020_scholars_admin_rls.sql`           | Verbatim            | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
 
 ## Workflow
 
