@@ -8201,7 +8201,7 @@ const PrayerHub = ({ onBack, onSignIn }) => {
 
 // ==================== ADMIN PANEL ====================
 // Admin sidebar navigation
-const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onCloseMobile }) => {
+const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onCloseMobile, displayName }) => {
   const items = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
     { id: "mosques", label: "Mosque queue", icon: Building2, count: counts.mosques, urgent: counts.mosques > 0 },
@@ -8264,7 +8264,7 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
         <div className="px-3 py-4 border-t border-stone-800">
           <div className="px-3 py-2 mb-1">
             <p className="text-xs text-stone-400">Signed in as</p>
-            <p className="text-sm font-medium text-white">Yusuf Rahman</p>
+            <p className="text-sm font-medium text-white">{displayName || "Admin"}</p>
             <p className="text-xs text-stone-500">Platform admin</p>
           </div>
           <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-400 hover:text-white hover:bg-stone-900">
@@ -8277,7 +8277,7 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
 };
 
 // ===== Overview =====
-const AdminOverview = ({ onNavigate, counts }) => {
+const AdminOverview = ({ onNavigate, counts, displayName }) => {
   const stats = [
     { label: "Live scholars", value: 127, change: "+8 this week", trend: "up", color: "emerald" },
     { label: "Active mosques", value: 42, change: "+3 this week", trend: "up", color: "sky" },
@@ -8285,10 +8285,13 @@ const AdminOverview = ({ onNavigate, counts }) => {
     { label: "Platform GMV", value: "£48,210", change: "+£6,432 this week", trend: "up", color: "purple" }
   ];
 
+  // First name only for the greeting; falls back to "admin" if no name set.
+  const firstName = (displayName || "").trim().split(/\s+/)[0] || "admin";
+
   return (
     <div>
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Good morning, Yusuf</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Good morning, {firstName}</h1>
         <p className="text-sm md:text-base text-stone-600">Here's what needs your attention today.</p>
       </div>
 
@@ -9130,7 +9133,8 @@ const DetailRow = ({ label, value, multiline = false }) => (
 );
 
 // ===== Admin panel shell =====
-const AdminPanel = ({ onExit }) => {
+const AdminPanel = ({ authedProfile, onLogout }) => {
+  const displayName = authedProfile?.name || authedProfile?.email || "Admin";
   const [section, setSection] = useState("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mosqueApps, setMosqueApps] = useState(ADMIN_MOSQUE_APPS);
@@ -9187,10 +9191,11 @@ const AdminPanel = ({ onExit }) => {
       <AdminSidebar
         active={section}
         onNavigate={setSection}
-        onLogout={onExit}
+        onLogout={onLogout}
         counts={counts}
         mobileOpen={mobileNavOpen}
         onCloseMobile={() => setMobileNavOpen(false)}
+        displayName={displayName}
       />
 
       {/* Mobile top bar */}
@@ -9211,7 +9216,7 @@ const AdminPanel = ({ onExit }) => {
       </div>
 
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
-        {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} />}
+        {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
         {section === "mosques" && <AdminMosqueQueue apps={mosqueApps} onAction={handleMosqueAction} />}
         {section === "scholars" && <AdminScholarQueue apps={scholarApps} onAction={handleScholarAction} />}
         {section === "scholarApplications" && <AdminScholarApplications />}
@@ -10003,7 +10008,13 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       setView("adminPanel");
     }}
   />;
-  if (view === "adminPanel") return <AdminPanel onExit={() => setView("publicHome")} />;
+  if (view === "adminPanel") return <AdminPanel
+    authedProfile={authedProfile}
+    onLogout={async () => {
+      await fullSignOut();
+      setView("publicHome");
+    }}
+  />;
   if (view === "mosqueDashboard") return <MosqueDashboard
     onLogout={() => setView("publicHome")}
     onPublic={() => setView("publicHome")}
