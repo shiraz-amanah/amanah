@@ -9465,6 +9465,15 @@ useEffect(() => {
       if (user) {
         const profile = await getProfile();
         setAuthedProfile(profile);
+        // Admin auto-route: an admin who reloads while inside the
+        // panel should land back on adminPanel rather than be
+        // dumped on publicHome (their natural home is the panel,
+        // unlike scholars/parents who navigate from publicHome).
+        // Suspended admins stay on publicHome — clicking avatar or
+        // the footer Admin link will fire the bounce flow.
+        if (profile?.role === "admin" && !profile.suspended) {
+          setView("adminPanel");
+        }
         // Also probe for a scholar listing — drives avatar-click routing
         // and lets a returning scholar reload back into their dashboard.
         const scholar = await getScholarByUserId(user.id);
