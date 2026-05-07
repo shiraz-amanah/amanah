@@ -51,6 +51,9 @@ filenames.
 | 021 | `021_reviews_admin_rls.sql`            | Verbatim            | TBD (Session K-3)  | NOTES.md Session K Phase 3      |
 | 022 | `022_profiles_admin_rls.sql`           | Verbatim            | TBD (Session K-5)  | NOTES.md Session K Phase 5      |
 | 023 | `023_profiles_created_at.sql`          | Verbatim            | TBD (Session K-5)  | NOTES.md Session K Phase 5      |
+| 024 | `024_mosques_table.sql`                | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
+| 025 | `025_mosque_applications.sql`          | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
+| 026 | `026_seed_mosques.sql`                 | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 
 ## Workflow
 
