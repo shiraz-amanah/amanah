@@ -6362,6 +6362,135 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
   </div>
 );
 
+// ==================== MOSQUE APPLICATION STATUS PAGES ====================
+// Mirror of the scholar status pages above. Three views — submitted /
+// rejected / verification-pending — driving the post-auth routing
+// branches in routeAuthedMosque (commit 8 of K-6b).
+
+const MosqueApplicationSubmitted = ({ application, onPublic, onLogout }) => {
+  const [showSummary, setShowSummary] = useState(false);
+  return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-100 mb-4">
+            <Clock className="text-amber-700" size={24} />
+          </div>
+          <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application submitted</h2>
+          <p className="text-sm text-stone-700 leading-relaxed mb-5">
+            Thanks{application?.orgName ? ` for ${application.orgName}` : ""}. Our team will review your application within 24-48 hours. We'll email you when there's an update.
+          </p>
+        </div>
+        {application && (
+          <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4">
+            <button onClick={() => setShowSummary(s => !s)} className="w-full flex items-center justify-between text-left">
+              <span className="text-xs font-medium text-stone-700 uppercase tracking-wider">What you submitted</span>
+              <ChevronDown size={14} className={`text-stone-500 transition-transform ${showSummary ? "rotate-180" : ""}`} />
+            </button>
+            {showSummary && (
+              <div className="mt-3 pt-3 border-t border-stone-200 text-xs text-stone-700 space-y-1">
+                <p><span className="text-stone-500">Mosque:</span> {application.orgName}</p>
+                <p><span className="text-stone-500">City:</span> {application.city}{application.postcode ? ` · ${application.postcode}` : ""}</p>
+                <p><span className="text-stone-500">Services:</span> {(application.services || []).join(", ") || "—"}</p>
+                <p><span className="text-stone-500">Submitted:</span> {application.createdAt ? new Date(application.createdAt).toLocaleString("en-GB") : "just now"}</p>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="flex flex-col gap-2">
+          <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+            Browse Amanah while you wait
+          </button>
+          <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+            <LogOut size={14} /> Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MosqueApplicationRejected = ({ application, onReapply, onLogout, onPublic }) => (
+  <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rose-100 mb-4">
+          <XCircle className="text-rose-700" size={24} />
+        </div>
+        <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application not approved</h2>
+        <p className="text-sm text-stone-700 leading-relaxed mb-5">
+          Our team reviewed your application and weren't able to approve it this time.
+        </p>
+      </div>
+      {application?.rejectionReason && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-5">
+          <p className="text-xs font-medium text-rose-900 uppercase tracking-wider mb-1.5">Reason from our team</p>
+          <p className="text-sm text-rose-800 leading-relaxed">{application.rejectionReason}</p>
+        </div>
+      )}
+      <p className="text-xs text-stone-500 leading-relaxed mb-5">You're welcome to update your details and resubmit. A fresh application starts from the wizard.</p>
+      <div className="flex flex-col gap-2">
+        <button onClick={onReapply} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+          Edit and resubmit
+        </button>
+        <button onClick={onPublic} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors">
+          Browse Amanah
+        </button>
+        <button onClick={onLogout} className="w-full text-stone-500 hover:text-stone-700 py-2 text-sm inline-flex items-center justify-center gap-1.5">
+          <LogOut size={13} /> Sign out
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const MosqueVerificationPending = ({ mosque, onPublic, onLogout }) => (
+  <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
+      <div className="text-center mb-5">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-100 mb-4">
+          <CheckCircle2 className="text-emerald-700" size={24} />
+        </div>
+        <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application approved</h2>
+        <p className="text-sm text-stone-700 leading-relaxed">
+          {mosque?.name ? `${mosque.name}'s` : "Your mosque"} listing is created. Before it appears in public search, we need to verify a few things. We'll be in touch within 5 working days.
+        </p>
+      </div>
+
+      <div className="space-y-2 mb-5">
+        {[
+          { label: "Charity registration", verified: mosque?.charity_number_verified },
+          { label: "Mosque address", verified: mosque?.address_verified },
+          { label: "Safeguarding policy", verified: mosque?.safeguarding_confirmed },
+        ].map(check => (
+          <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200"}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${check.verified ? "bg-emerald-100" : "bg-white border border-stone-200"}`}>
+              {check.verified ? <CheckCircle2 className="text-emerald-700" size={16} /> : <Clock className="text-stone-400" size={14} />}
+            </div>
+            <p className="text-sm text-stone-900 flex-1">{check.label}</p>
+            <span className={`text-[10px] uppercase tracking-wider font-medium ${check.verified ? "text-emerald-700" : "text-stone-500"}`}>
+              {check.verified ? "Verified" : "Pending"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4 text-xs text-stone-600 leading-relaxed">
+        <span className="font-medium text-stone-800">What happens next:</span> our team will reach out to confirm the three checks above. Once all three are verified, your mosque goes live in public listings.
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+          Browse Amanah while you wait
+        </button>
+        <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+          <LogOut size={14} /> Sign out
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 // ==================== USER SIGN UP / LOGIN ====================
 const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchMode }) => {
   const [step, setStep] = useState(1);
