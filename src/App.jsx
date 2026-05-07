@@ -1342,26 +1342,20 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
           </section>
         )}
 
-        {/* Reviews */}
-        {mosque.mockReviews && mosque.mockReviews.length > 0 && (
-          <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Reviews</h2>
-            <div className="space-y-3">
-              {mosque.mockReviews.map((r, i) => (
-                <div key={i} className="border-b border-stone-100 pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-stone-900">{r.author}</p>
-                    <div className="flex items-center gap-0.5 text-amber-500">
-                      {Array.from({ length: r.rating }).map((_, idx) => <Star key={idx} size={11} fill="currentColor" />)}
-                    </div>
-                  </div>
-                  <p className="text-sm text-stone-700 leading-relaxed">{r.text}</p>
-                  <p className="text-xs text-stone-400 mt-1">{r.date}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Community reviews — empty-state until mosque reviews ship as a
+            real feature. Section always renders so the surface is visible
+            and the data shape isn't silently dropped. Pre-K-6a, this
+            block was conditional on mockReviews; transformMosque doesn't
+            populate that field, so the conditional would have hidden the
+            section entirely on the cutover. Empty-state instead is a
+            clearer signal the surface exists. */}
+        <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+          <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Community reviews</h2>
+          <div className="text-center py-6 text-stone-500">
+            <Star className="mx-auto text-stone-300 mb-2" size={20} />
+            <p className="text-sm">No reviews yet.</p>
+          </div>
+        </section>
       </div>
     </div>
   );
