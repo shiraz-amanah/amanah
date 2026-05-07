@@ -1,9 +1,3 @@
-export const ADMIN_MOSQUE_APPS = [
-  { id: "mosque-app-1", name: "Masjid Ar-Rahma", city: "Sheffield", postcode: "S2 4AA", charityNumber: "1193847", submittedDate: "2026-04-18", contactName: "Ismail Khan", contactRole: "Chairperson", contactPhone: "+44 7700 900301", safeguardingLead: "Aisha Begum", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "match", notes: "" },
-  { id: "mosque-app-2", name: "Darul Hikmah", city: "Cardiff", postcode: "CF10 1AA", charityNumber: "1167254", submittedDate: "2026-04-19", contactName: "Ahmed Saleh", contactRole: "Trustee", contactPhone: "+44 7700 900302", safeguardingLead: "Hafsa Ali", docs: { proofOfAddress: true, trusteeConfirmation: false }, charityCommissionStatus: "match", notes: "Trustee confirmation not yet uploaded" },
-  { id: "mosque-app-3", name: "Noor Islamic Centre", city: "Newcastle", postcode: "NE1 2AA", charityNumber: "1198888", submittedDate: "2026-04-20", contactName: "Bilal Rashid", contactRole: "Secretary", contactPhone: "+44 7700 900303", safeguardingLead: "Maryam Shah", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "nomatch", notes: "Charity Commission number not found — may be a new registration or typo" }
-];
-
 export const ADMIN_CAMPAIGN_APPS = [
   { id: "camp-app-1", title: "Urgent roof repair after storm damage", creator: "Masjid Al-Falah", city: "Portsmouth", goal: 18000, category: "Emergency Repair", submittedDate: "2026-04-20", creatorVerified: true, riskScore: "low" },
   { id: "camp-app-2", title: "Arabic summer camp for teenagers", creator: "Ustadh Khalid Mahmud", city: "Online", goal: 4500, category: "Course Creation", submittedDate: "2026-04-19", creatorVerified: true, riskScore: "low" },
