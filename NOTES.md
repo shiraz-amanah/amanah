@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 5 shipped (All users tab live in admin panel). Migrations 022 (admin SELECT + UPDATE on `profiles`) + 023 (added `profiles.created_at` — column didn't exist in prod despite 010 TODO migration describing it; caught when `listAllProfiles` returned 400 and the UI showed "0 total · No users match this view"). Three new auth.js helpers: `listAllProfiles` (paginated 50/page, debounced search, role + suspended filters), `setProfileRole` (whitelisted), `setProfileSuspended`. AdminAllUsers component replaces the placeholder: list with avatars + role/status pills, role dropdown + Suspend button per row, View modal, Confirm modal on role change with transition-aware copy, self-action guard with "You" badge. Pagination shows when count > 50. 4 commits (`4696db9`, `2209f96`, `ce41af9`, `47ccde1`). All smoke tests green post-fix. **Lesson learned this phase:** TODO migration files in `migrations/` describe intent, not deployed state. When code queries a column that "should" exist per the migration history, treat the migration as a suspect and probe `information_schema.columns` before assuming the bug is elsewhere. Logged in cross-cutting gotchas. Next: Phase 6 — mosques (biggest phase, ~20-25 commits). Scope plan to be surfaced in chat for review before any code lands.
+> Last action: Session K Phase 6a shipped (mosques schema + admin queue + public-surface migration). 15 commits + 1 NOTES update. Migrations 024 (mosques table with public/owner/admin RLS, three verification flags, partial-unique user_id index) + 025 (mosque_applications + approval trigger with created_mosque_id linkback) + 026 (seed 8 MOCK_MOSQUES rows). 11 new auth.js helpers (`getMosques`, `getMosqueBySlug`, `getMosqueById`, `getMosqueByUserId`, `getSavedMosques`, `getAllMosqueApplications`, `approveMosqueApplication`, `rejectMosqueApplication`, `setMosqueVerificationFlag`, `publishMosque`, plus `shapeMosqueApplication` shaper). New `<AdminMosqueApplications>` component (~400 lines, mirrors scholar applications) — sidebar "Mosque queue" renamed to "Mosque applications", legacy AdminMosqueQueue + mock + state deleted. Public surface fully migrated: PublicHome / MosquesListing / MosqueDetail / UserDashboard My Mosques all read from Supabase via new `transformMosque` adapter (`src/lib/mosqueTransform.js`). MosqueDetail's "Community reviews" section now shows empty-state instead of fabricated mockReviews. `savedMosques` lifted to App root mirroring savedScholars (atomic Set + Array sync in toggleMosqueSave). MOCK_MOSQUES export deleted. End-to-end smoke green: SQL-seeded test application → admin approves → trigger creates pending_verification mosques row + writes linkback → admin flips three flags → publish → status='active' → mosque appears in public listings immediately. Two observations parked for 6b: (1) `mosque_applications.created_mosque_id → mosques.id` FK is `on delete restrict`, admin delete UX needs handling; (2) wizard MUST collect lat/lng/photo_url/facilities/services or wizard-approved mosques will render broken on public listing. Next: Phase 6b — mosque sign-up flow + wizard + dashboard. Scope plan to be surfaced in chat before code lands.
 
 ---
 
@@ -36,10 +36,11 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session K Phase 2** ✅ — Scholar applications real + verification UI. Migration 019 (admin SELECT/UPDATE on `scholar_applications`, additive over the open 015 policies) + 020 (admin SELECT/UPDATE on `scholars` — needed because Phase 1 didn't cover scholars despite the brief assuming so; without 020, getScholarById against a `pending_verification` row returns null for admin). Deleted duplicate "Scholar queue" sidebar tab + AdminScholarQueue component + ADMIN_SCHOLAR_APPS mock (locked decision A: "Scholar applications" is the single source of truth). Admin bootstrap auto-route added per user request mid-phase: a reload while inside the panel now lands back on adminPanel rather than publicHome (other roles unchanged). New auth.js helpers `setScholarVerificationFlag(id, flag, value)` (whitelisted to the three verified columns) + `publishScholar(id)` (idempotent-ish via `status='pending_verification'` WHERE guard). Verification UI in AdminScholarApplications detail: three checkbox toggles with optimistic update + per-flag in-flight saving badge + rollback on error, "Pending verification" amber pill or "Published" emerald pill, "Mark fully verified & publish" button gated on all-three-true and hidden once status='active'. Toggles stay editable post-publish so admin can revoke a flag later if needed.
 - **Session K Phase 3** ✅ — Reviews moderation admin gate. Migration 021 adds additive admin SELECT + UPDATE policies on `reviews`. Probe of `pg_policies` against prod confirmed the deployed policies matched 012 exactly (no admin awareness), meaning Session H's moderation UI had been a silent no-op since H shipped — `setReviewStatus` was RLS-denied and `getReviewsForModeration` could only see `published` rows. Admin moderation now works end-to-end: admin sees all reviews regardless of status, hide/publish actually flips `reviews.status`, the trigger from 012 recomputes `scholars.rating + review_count` correctly. No code changes — auth.js helpers were already RLS-respecting; they just needed RLS to allow them through. Session H block annotated to reflect the silent-no-op.
 - **Session K Phase 5** ✅ — All users tab. Phase 4 (campaigns admin queue) deferred. Migration 022 (admin SELECT + UPDATE policies on `profiles`). Three new auth.js helpers: `listAllProfiles({page, search, role, suspended})` (50/page, debounced search on name+email via ILIKE through supabase-js `.or()`, returns `{data, count, error}`), `setProfileRole(id, newRole)` (whitelisted to user/scholar/admin), `setProfileSuspended(id, value)`. AllUsers tab UI replaces the placeholder: paginated list, role + status filter pills, per-row Eye-icon View modal + role dropdown + Suspend toggle. Self-action guard with "You" pill on the admin's own row, role dropdown + suspend disabled with explanatory title attributes. Confirm modal on role change with copy that varies by transition (elevation-to-admin, demotion-from-admin, plain user/scholar swap). **Mid-phase fix:** migration 023 added `profiles.created_at` — the column didn't exist in prod despite 010's TODO migration describing it; `listAllProfiles` selected/ordered by it and got a 400 from PostgREST, which surfaced as "0 total · No users match this view" in the UI. Backfilled existing rows to apply timestamp (acceptable pre-launch). Suspension write-blocking on user tables stays parked.
+- **Session K Phase 6a** ✅ — Mosques schema + admin queue + public-surface migration. Migrations 024 (mosques table — public/owner/admin RLS, three verification flags mirroring scholars, optional user_id with partial-unique index for claim flow), 025 (mosque_applications + approval trigger that mirrors 015 with created_mosque_id linkback), 026 (seed 8 MOCK_MOSQUES rows with status='active', user_id=null, all flags=true). Decided to follow scholar precedent: mosque accounts stay role='user', routing keys off mosques.user_id (no role enum change). Eleven new auth.js helpers (5 public reads + shaper + 5 admin/verification). New `<AdminMosqueApplications>` component (~400 lines, mirrors AdminScholarApplications): filter pills, list view, detail view with all wizard fields, approve/reject modals, verification panel for approved-with-mosque-row applications (3 flag toggles + publish CTA gated on all-three-true). Sidebar "Mosque queue" → "Mosque applications" rename. Legacy `<AdminMosqueQueue>` + ADMIN_MOSQUE_APPS mock + handler + counts refs all deleted. Public surface fully migrated to Supabase: PublicHome featured-4, MosquesListing (with distance sort), MosqueDetail (with empty-state "No reviews yet" replacing the previously-fabricated mockReviews), UserDashboard "My Mosques" tab. New `src/lib/mosqueTransform.js` snake→camel adapter (photo_url→photo, prayer_times→iqamaTimes, jumuah_time→jumuahTime, status→verified). `savedMosques` lifted to App root mirroring savedScholars; toggleMosqueSave updates Set + Array atomically. MOCK_MOSQUES export deleted (mockMosques.js shrunk 197→14 lines, NEARBY_MOSQUES still in for PrayerHub). End-to-end approve→trigger→verify→publish flow smoke-tested with a manually-seeded test application: trigger writes created_mosque_id linkback, verification toggles fire optimistic updates, publish flips status to active, mosque appears in public listings immediately. **Two observations captured in parked items:** (1) FK on `mosque_applications.created_mosque_id → mosques.id` is `on delete restrict` — admin delete UX in 6b will need to handle. (2) Wizard in 6b MUST collect lat/lng/photo_url/facilities/services or wizard-approved mosques will render with junk distance + no photo + empty facilities on public listing (proven by the cleanup smoke run with the SQL-seeded test mosque).
 
 ### Up next
 
-- **Session K Phase 6 — Mosques (real).** Biggest phase of the session (~20-25 commits). Schema for `mosques` + `mosque_applications` + RLS, mosque application wizard (public-facing), mosque dashboard (Profile / Donations / Messages / Account only — no Bookings or Reviews), admin queue, MOCK_MOSQUES → Supabase migration. Mosque becomes a fourth value on `profiles.role`. Scope plan surfaced in chat for review before code lands.
+- **Session K Phase 6b — Mosque sign-up flow + wizard + dashboard.** Audience drawer "Mosque" path → real Supabase auth via UserAuth (replaces legacy LoginScreen). New `<MosqueOnboardingWizard>` (5 steps mirroring scholar wizard) with sessionStorage hydration. Status views (mosqueApplicationSubmitted / mosqueApplicationRejected / mosqueVerificationPending). New `<MosqueDashboard>` replacing the legacy mock-driven one — Profile / Donations (empty state) / Messages / Account tabs only (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch tree mirroring routeAuthedScholar. Two new auth.js helpers: `submitMosqueApplication` + `getMyMosqueApplication`. Estimated ~15 commits. Scope plan to be surfaced in chat for review before any code lands. **Pre-reqs from 6a observations:** wizard must collect lat/lng/photo_url/facilities/services in addition to the brief's listed fields, or new mosques will render broken in public listings.
 - **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
@@ -2812,6 +2813,229 @@ Most of which was eliminating RLS as the suspect.
 
 ---
 
+## Session K Phase 6a — Mosques schema + admin queue + public migration ✅ (7 May 2026)
+
+First half of the mosques split (Phase 6 was originally a single
+phase in the master brief, split into 6a + 6b mid-K to checkpoint
+schema correctness before building the wizard + dashboard on
+top). Schema, helpers, admin queue, and the public-surface
+migration shipped here. Sign-up flow + wizard + new mosque
+dashboard are 6b.
+
+### What shipped
+
+- **Migration 024** — `mosques` table. Mirrors scholars shape:
+  status enum (pending_verification/active/inactive), three
+  verification flags (charity_number_verified, address_verified,
+  safeguarding_confirmed) per Q1, optional user_id with partial-
+  unique index `where user_id is not null` so seeded rows can
+  share null while claimed mosques enforce 1:1. RLS: public
+  SELECT on status='active', owner SELECT/UPDATE on
+  user_id=auth.uid(), admin SELECT/UPDATE via public.is_admin().
+  No INSERT policy — application-approval trigger uses SECURITY
+  DEFINER, seed runs as superuser. Schema includes
+  lat/lng/phone/email/facilities/jumuah_time/description/bio per
+  Q3 to preserve current public-component fields.
+- **Migration 025** — `mosque_applications` + approval trigger
+  `handle_mosque_application_approval`. Mirror of 015. Trigger
+  on UPDATE pending→approved generates kebab slug (with -2/-3
+  collision suffix), INSERTs mosques row with status=
+  'pending_verification' + flags=false, writes
+  `created_mosque_id` back to the application (amendment 3 from
+  scope review). Open SELECT/UPDATE to authenticated + self
+  INSERT + admin-aware additive policies.
+- **Migration 026** — seed 8 MOCK_MOSQUES rows into `mosques`
+  with status='active', user_id=null, all three flags=true.
+  ON CONFLICT (slug) DO NOTHING for re-run safety. Header
+  documents field mapping + rollback (`delete from mosques
+  where user_id is null;`). Apply gate: file shipped first, seed
+  SQL surfaced in chat for review before user applied to prod.
+- **`src/lib/mosqueTransform.js`** — snake→camel adapter
+  mirroring scholarTransform. Spreads original row, layers
+  aliases (photo_url→photo, prayer_times→iqamaTimes,
+  jumuah_time→jumuahTime, status='active'→verified) +
+  defaults for dropped fields (scholarIds=[], campaignId=null).
+- **Eleven new auth.js helpers** — five public reads
+  (`getMosques`, `getMosqueBySlug`, `getMosqueById`,
+  `getMosqueByUserId`, `getSavedMosques`) and five admin/
+  verification helpers (`getAllMosqueApplications`,
+  `approveMosqueApplication`, `rejectMosqueApplication`,
+  `setMosqueVerificationFlag`, `publishMosque`) plus the
+  `shapeMosqueApplication` shaper. Submit-side helpers
+  (`submitMosqueApplication`, `getMyMosqueApplication`)
+  deliberately deferred to 6b.
+- **`<AdminMosqueApplications>` component** — full mirror of
+  AdminScholarApplications. Filter pills (Pending / Approved /
+  Rejected / All + counts), list view, detail view exposing all
+  wizard fields (org name, city, postcode, address, charity
+  number, capacity, photo URL, prayer times, services, bio),
+  approve / reject modals (10-char min reason), verification
+  panel for approved-with-mosque-row applications. Verification
+  panel: 3 checkbox toggles with optimistic update + per-flag
+  saving badge + rollback, status pill (amber Pending /
+  emerald Published), "Mark fully verified & publish" button
+  gated on all-three-true and hidden once status='active'
+  (toggles stay editable so admin can revoke later). Reuses
+  ApplicationStatusPill / ApplicationDetailSection / DetailRow
+  from the scholar component.
+- **Sidebar rewire** — "Mosque queue" → "Mosque applications"
+  label. id stays "mosques" so adminPanel deep state isn't
+  busted. Count badge dropped from sidebar (the in-component
+  Pending pill is the source of truth, matching the scholar
+  applications tab). Legacy `<AdminMosqueQueue>` + Mock data +
+  state + handler + counts.mosques references all deleted.
+- **Public-surface migration** — four call sites cut over from
+  MOCK_MOSQUES to Supabase + transformMosque:
+    - PublicHome featured-4 (4 placeholder cards while loading)
+    - MosquesListing (6 placeholder cards while loading;
+      distance sort still works because lat/lng column names
+      match the legacy mock)
+    - MosqueDetail (mosque prop now arrives transformed; same
+      detail UI). Reviews section converted from
+      `mockReviews && length > 0` conditional to always-show
+      empty-state ("No reviews yet") so the section doesn't
+      silently disappear post-cutover.
+    - UserDashboard "My Mosques" tab — `savedMosques` lifted
+      to App root mirroring savedScholars; toggleMosqueSave
+      now updates Set + Array atomically with rollback.
+- **MOCK_MOSQUES deletion** — export removed from mockMosques.js
+  (197 → 14 lines). Import line in App.jsx narrowed to
+  NEARBY_MOSQUES (PrayerHub still uses it; that migration is
+  parked).
+
+### Commits
+
+- `6757a2d` schema(024): mosques table + RLS + indexes
+- `65b481b` schema(025): mosque_applications + RLS + approval trigger
+- `f48f59c` schema(026): seed MOCK_MOSQUES → mosques (8 rows)
+- `8ee5281` docs(migrations): index 024-026
+- `a3e7438` feat(auth): mosque public read helpers
+- `586e9c0` feat(auth): mosque admin queue + verification helpers
+- `d6d26aa` feat(admin): AdminMosqueApplications component
+- `d5cca61` chore(admin): rename + wire mosque tab to AdminMosqueApplications
+- `414c2ee` chore(admin): delete legacy AdminMosqueQueue + mock + state
+- `9b4200f` chore(admin): drop ADMIN_MOSQUE_APPS export from mockAdmin.js
+- `698ac16` feat(public): PublicHome featured mosques from Supabase
+- `f00b582` feat(public): MosquesListing from Supabase
+- `7fbf2c0` feat(public): MosqueDetail empty-state community reviews
+- `30a76b3` feat(user): My Mosques tab uses lifted savedMosques state
+- `b5602a1` chore: delete MOCK_MOSQUES — fully migrated to Supabase
+
+15 commits.
+
+### Decisions
+
+- **Split into 6a + 6b instead of single Phase 6.** Master brief
+  estimated Phase 6 at ~20-25 commits, single phase. Mid-scope
+  review pushed back: 28 commits is a lot for one checkpoint;
+  splitting buys a real gate after the schema + admin queue
+  before building the wizard + dashboard on top. 6a hit 15
+  commits (ahead of original 13 estimate by 2 — small dead-code
+  cleanup follow-up + one extra public-surface split). Worth
+  the discipline.
+- **Admin INSERT policy on mosques deferred.** Trigger is
+  SECURITY DEFINER, seed runs as superuser. No need for a
+  direct admin-create surface today; if one ships later, it
+  gets its own focused INSERT policy.
+- **Toggles stay editable post-publish.** "Mark fully verified
+  & publish" button hides once status='active', but the three
+  flag checkboxes remain interactive. Admin can revoke a flag
+  if e.g. a charity registration lapses, without needing SQL.
+- **Reviews section empty-state instead of silent hide.**
+  Pre-cutover, MosqueDetail rendered `mockReviews && length>0`
+  conditional — would have silently disappeared once
+  transformMosque omitted that field. Empty-state ("No reviews
+  yet") makes the surface visible without promising a feature
+  we don't have.
+- **Field-mapping table surfaced in chat before applying 026.**
+  Per scope-review amendment 5. Caught no issues but the
+  process itself was the value — both sides reviewed every
+  drop / map / null before SQL touched prod.
+
+### Bugs / observations captured for 6b
+
+- **`mosque_applications.created_mosque_id` FK is `on delete
+  restrict`.** Trying to delete a mosques row that has a
+  linkback application errors out. Surfaced during cleanup of
+  the smoke-test mosque. Admin delete UX in 6b will need to
+  either (a) cascade-delete the application alongside, (b)
+  null the linkback first, or (c) refuse and instruct admin
+  to handle in SQL. (a) is risky — losing the application
+  loses the audit trail. (b) keeps the application as
+  historical record with `created_mosque_id=null`. (c) leans
+  on admin discipline. Likely (b).
+- **Wizard MUST collect lat/lng/photo_url/facilities/services
+  in 6b.** The smoke-test SQL seed didn't populate these,
+  resulting in: junk distance (5984km from anywhere), no
+  photo, empty facilities. Wizard scope as-written in master
+  brief had services + photo_url but missed lat/lng and
+  facilities. Without geocoding these via the wizard,
+  approved mosques will render broken on public listings.
+  Three options for 6b:
+  1. Wizard collects address → geocode to lat/lng on submit
+     via a free service (Postcodes.io for UK works).
+  2. Wizard asks user to drop a pin on a map.
+  3. Punt geocoding to admin during verification (admin
+     looks up lat/lng manually before publishing).
+  Option 3 is least scope but pushes work to admin; option 1
+  is most user-friendly. Decide at 6b scope review.
+
+### Smoke tests (all green)
+
+Public surface:
+1. ✅ PublicHome featured 4 mosques load from Supabase.
+2. ✅ MosquesListing renders all 8. Distance sort works.
+3. ✅ MosqueDetail loads via slug; all fields render.
+4. ✅ "Community reviews" empty-state visible (no fabricated
+   reviews).
+5. ✅ Heart a mosque as parent; "My Mosques" tab shows it;
+   persists across sign-out/in.
+
+Admin surface:
+6. ✅ Sidebar reads "Mosque applications".
+7. ✅ AdminMosqueApplications loads with empty state initially.
+
+End-to-end approve→publish (manual SQL seed):
+8. ✅ Test application appeared as Pending after SQL insert.
+9. ✅ Approve → trigger creates pending_verification mosque +
+   writes created_mosque_id linkback (visible as emerald-box
+   UUID in detail view).
+10. ✅ Verification toggles fire optimistic updates, all three
+    work independently with per-flag saving badges.
+11. ✅ All three true → publish enables → click → toast →
+    pill flips green → mosques.status='active'.
+12. ✅ Test mosque appears in public Verified Mosques listing
+    immediately (the auto-refresh from getMosques on next
+    PublicHome render picks it up).
+
+Regressions:
+13. ✅ Scholar applications tab still works.
+14. ✅ Reviews moderation still works.
+15. ✅ All users tab still works.
+
+### Lessons learned
+
+- **15 commits feels manageable in a single phase given probe-
+  before-code + surface-seed-SQL-before-apply rituals.** No
+  mid-phase RLS surprises (probe was done at scope review),
+  no mid-phase migration-revisions needed. The 6a/6b split
+  was the right call — committing to the schema before
+  building the wizard caught the lat/lng/photo gap and the
+  FK restrict, both of which would have hurt 6b if surfaced
+  later.
+- **Optimistic UI for admin-only surfaces continues to work
+  fine.** Verification panel toggles flip instantly, rollback
+  on error is invisible to user when nothing goes wrong. No
+  conflict scenarios in single-admin mode.
+- **MOCK_MOSQUES → Supabase migration order matters.**
+  Schema first (024-025), seed second (026), then helpers,
+  then admin queue, then public surfaces, then mock deletion.
+  Each commit shippable on its own — no broken intermediate
+  states. The seeded rows let public surfaces keep working
+  through the cutover.
+
+---
+
 ## Cross-cutting gotchas
 
 ### Schema / migrations gotchas
@@ -2862,4 +3086,7 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **Tighten `scholar_applications` RLS.** Session J's policies (and Session K Phase 2's additive admin policies) leave SELECT + UPDATE open to all authenticated users for compatibility. Privacy concern flagged in 015's header still stands: any authed user can read other users' wizard submissions and flip status. Tightening = drop "Authenticated read all applications" + replace with "Users read own apps" + "Admins read all apps" (admin policies already in 019). Same for UPDATE. Defer until Phase 5+ users tab needs it.
 - **Suspended-write enforcement on user tables.** Phase 1 added `profiles.suspended` and the `public.is_suspended()` helper, but no per-table policy yet uses it. Phase 5+ will extend bookings/saves/messages/donations/reviews INSERT policies with `with check (not public.is_suspended())`. Until then, a suspended user is only blocked from re-entering admin panel; their other writes still go through.
 - **Campaign-creation flow status default.** When the campaigns table eventually lands, new campaigns should default to `status='pending'` and only become public after admin approval (locked decision E). Today the CreateCampaign flow calls a mock `setLaunchedCampaign` and never persists; this is fine until Phase K-4 ships.
+- **Mosque admin delete UX (FK restrict).** `mosque_applications.created_mosque_id → mosques.id` is `on delete restrict`. Surfaced during K-6a smoke-test cleanup. If admin ever needs to delete a published mosque, the linked application either has to be deleted first (loses audit trail) or its `created_mosque_id` set to null (keeps record). Likely the latter when a real admin-delete surface ships. No immediate action needed — admins use SQL today.
+- **NEARBY_MOSQUES (PrayerHub) still mock.** Smaller dataset (5 entries, different shape — denomination/distance/initials/gradient/languages). Drives only the PrayerHub surface. K-6a migrated MOCK_MOSQUES (the public listing dataset) but left this one alone. Migration belongs with whatever phase ships geolocation-driven nearby-mosque lookups for PrayerHub — not yet planned.
+- **MosqueDetail affiliated scholars empty until cross-link table ships.** Scholar↔mosque affiliations have been parked since Session F. K-6a migrated mosques to Supabase but didn't add the relationship. A `mosque_scholars` join table (or `scholars.mosque_id` if 1:N) is the next step when we want to render real affiliations. Until then, the section conditional `affiliatedScholars.length > 0` keeps it hidden.
 - **Disintermediation prevention** — scholars/parents going off-platform after first booking is a structural marketplace risk. Levers, ranked by effectiveness: (1) make the platform genuinely worth the cut — discovery, verification, scheduling, safeguarding, recordings — this is the only real defense; (2) hide contact details (email, phone) from cross-user views, reveal only post-booking or never; (3) extend message regex blocks to phone, email, social handles, and Zoom/Meet/Teams links — hard-block before first booking, soft-warn after; (4) anti-circumvention clause in ToS at launch; (5) lower commission on repeat bookings; (6) Path B (built-in video) for Session E reduces leakage surface dramatically — scholar and parent never need each other's contact details. Not blocking pre-launch but informs ToS drafting. Related: `profiles.phone` / `profiles.email` audit already flagged above.
