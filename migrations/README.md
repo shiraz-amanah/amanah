@@ -48,6 +48,7 @@ filenames.
 | 018 | `018_seed_admins.sql`                  | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
 | 019 | `019_scholar_applications_admin_rls.sql` | Verbatim          | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
 | 020 | `020_scholars_admin_rls.sql`           | Verbatim            | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
+| 021 | `021_reviews_admin_rls.sql`            | Verbatim            | TBD (Session K-3)  | NOTES.md Session K Phase 3      |
 
 ## Workflow
 
