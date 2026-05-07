@@ -844,3 +844,55 @@ export async function rejectScholarApplication(applicationId, reason) {
   if (error) return { error }
   return { data: shapeScholarApplication(data) }
 }
+
+// ============================================================================
+// Session K Phase 2 — Scholar verification (admin)
+// ============================================================================
+
+// Admin: flip a single verification flag on a scholars row.
+// `flag` is whitelisted to {dbs_verified, rtw_verified, ijazah_verified}
+// to keep this from being a generic "update any column" surface; if
+// the call site needs other columns later, add a focused helper for
+// each so the trust boundary stays tight. Returns the updated row
+// (raw snake_case) so the caller can recompute "all-three-true"
+// without an extra refetch.
+//
+// RLS: gated by migration 020's "Admins update all scholars" policy.
+export async function setScholarVerificationFlag(scholarId, flag, value) {
+  const allowed = ['dbs_verified', 'rtw_verified', 'ijazah_verified']
+  if (!allowed.includes(flag)) {
+    return { error: { message: `flag must be one of ${allowed.join(', ')}` } }
+  }
+  if (!scholarId) return { error: { message: 'scholarId required' } }
+  const { data, error } = await supabase
+    .from('scholars')
+    .update({ [flag]: !!value })
+    .eq('id', scholarId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+// Admin: publish a scholar — flips status from pending_verification
+// to active, making them visible in public listings. Caller is
+// responsible for confirming all three verified flags are true
+// before invoking; this helper does NOT re-check (the admin UI
+// disables the publish button when any flag is false).
+//
+// `.eq('status', 'pending_verification')` makes the call idempotent-
+// ish: if someone else already published the scholar between the
+// admin loading the panel and clicking publish, the update affects
+// zero rows and `data` is null. Caller treats that as a no-op.
+//
+// RLS: same as setScholarVerificationFlag.
+export async function publishScholar(scholarId) {
+  if (!scholarId) return { error: { message: 'scholarId required' } }
+  const { data, error } = await supabase
+    .from('scholars')
+    .update({ status: 'active' })
+    .eq('id', scholarId)
+    .eq('status', 'pending_verification')
+    .select()
+    .maybeSingle()
+  return { data, error }
+}
