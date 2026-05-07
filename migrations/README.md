@@ -54,6 +54,7 @@ filenames.
 | 024 | `024_mosques_table.sql`                | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 | 025 | `025_mosque_applications.sql`          | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 | 026 | `026_seed_mosques.sql`                 | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
+| 027 | `027_mosque_applications_geocode_facilities.sql` | Verbatim  | TBD (Session K-6b) | NOTES.md Session K Phase 6b     |
 
 ## Workflow
 
