@@ -9252,6 +9252,31 @@ const AdminPanel = ({ onExit }) => {
   );
 };
 
+// ==================== GLOBAL TOAST ====================
+// App-level toast surface used for cross-cutting feedback (suspended
+// account, admin cross-path bounce, etc.) where the originating view
+// is about to unmount or doesn't already own a toast slot. Auto-
+// dismisses after 4500ms; tapping the body dismisses early.
+//
+// Mounted at the App root alongside the active view (see renderView
+// at the end of App). Other surfaces with their own scoped toasts
+// (AdminPanel, AdminScholarApplications, etc.) are unaffected — this
+// is for messages the App router itself originates.
+const GlobalToast = ({ message, onDismiss }) => {
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(onDismiss, 4500);
+    return () => clearTimeout(t);
+  }, [message, onDismiss]);
+  if (!message) return null;
+  return (
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[calc(100%-2rem)] bg-stone-900 text-white px-5 py-3.5 rounded-xl shadow-2xl flex items-start gap-3 cursor-pointer" onClick={onDismiss}>
+      <Info size={16} className="text-amber-300 flex-shrink-0 mt-0.5" />
+      <span className="text-sm leading-snug font-medium">{message}</span>
+    </div>
+  );
+};
+
 // ==================== APP ROOT ====================
 export default function App() {
   const [view, setViewRaw] = useState("publicHome");
@@ -9485,21 +9510,32 @@ useEffect(() => {
   // Mock completed booking for the review flow
   const mockBooking = { package: "Standard", completedDate: "yesterday" };
   
-  // Suspended-user bounce — sign out, clear auth state, return to
-  // publicHome, and surface a message. Phase 1 only fires this for
-  // suspended admins (the only role that's RLS-relevant pre-Phase 5).
-  // Used a window.alert rather than building app-level toast infra
-  // for what's a corner-case path (admin demoted by another admin
-  // then tries to re-enter). Phase 5 broader-suspension enforcement
-  // will live in per-table RLS, not here.
-  const bounceSuspended = async () => {
+  // App-level toast surface — see GlobalToast component above.
+  // Used for cross-cutting messages originated by the App router.
+  const [globalToast, setGlobalToast] = useState(null);
+  const showToast = (msg) => setGlobalToast(msg);
+
+  // Full sign-out helper — used in three places now (logout buttons,
+  // suspended bounce, cross-path admin bounce). Clears everything
+  // auth-related so the next bootstrap starts cold. Caller decides
+  // where to setView next.
+  const fullSignOut = async () => {
     await signOut();
     setAuthedUser(null);
     setAuthedProfile(null);
     setMyScholar(null);
     setMyScholarApplication(null);
+  };
+
+  // Suspended-user bounce — sign out, return to publicHome, and
+  // surface a toast. Phase 1 only fires this for suspended admins
+  // (the only role that's RLS-relevant pre-Phase 5). Phase 5+
+  // broader-suspension enforcement will live in per-table RLS, not
+  // here.
+  const bounceSuspended = async () => {
+    await fullSignOut();
     setView("publicHome");
-    setTimeout(() => alert("Your account has been suspended. Contact support."), 50);
+    showToast("Your account has been suspended. Contact support.");
   };
 
   // Shared sign-in handler used by all public pages
@@ -9604,7 +9640,13 @@ const handleSignIn = (r) => {
     } else {
       setView("scholarOnboarding");
     }
-  };  if (view === "publicHome") return <PublicHome
+  };
+
+  // The view chain. Wrapped in a function so the App return can render
+  // <GlobalToast> alongside whichever view is active without having to
+  // mutate every individual return statement.
+  const renderView = () => {
+  if (view === "publicHome") return <PublicHome
     onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
     onSignIn={handleSignIn}
@@ -9868,4 +9910,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onHome={() => setView(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
   return null;
+  };
+
+  return (
+    <>
+      {renderView()}
+      <GlobalToast message={globalToast} onDismiss={() => setGlobalToast(null)} />
+    </>
+  );
 }
