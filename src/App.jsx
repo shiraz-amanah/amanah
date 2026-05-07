@@ -10807,6 +10807,16 @@ export default function App() {
   // the scholar-side routing branches in handleSignIn. Null means the
   // user hasn't applied yet → wizard.
   const [myScholarApplication, setMyScholarApplication] = useState(null);
+  // Mosque dashboard — set when a signed-in user has a mosques row
+  // pointing at them. Null otherwise. Mirrors myScholar shape; raw
+  // DB rows go through transformMosque before being stashed here so
+  // dashboard/detail components read camelCase aliases (photo,
+  // iqamaTimes, jumuahTime).
+  const [myMosque, setMyMosque] = useState(null);
+  // Latest mosque application for the authed user (any status). Drives
+  // the mosque-side routing branches in routeAuthedMosque. Null means
+  // the user hasn't applied yet → wizard.
+  const [myMosqueApplication, setMyMosqueApplication] = useState(null);
   // Counts surfaced in the scholar tab bar — lifted to App so they
   // persist across views (Messages tab unmounts the dashboard but the
   // tab bar still wants its badges). Refetched whenever myScholar
@@ -10984,14 +10994,24 @@ useEffect(() => {
         if (profile?.role === "admin" && !profile.suspended) {
           setView("adminPanel");
         }
-        // Also probe for a scholar listing — drives avatar-click routing
-        // and lets a returning scholar reload back into their dashboard.
-        const scholar = await getScholarByUserId(user.id);
-        if (scholar) setMyScholar(scholar);
-        // Probe for an application too so the rejected/pending status
-        // pages have data on first render after a hard refresh.
-        const application = await getMyScholarApplication();
-        if (application) setMyScholarApplication(application);
+        // Scholar + mosque probes are gated on `if (profile)` rather
+        // than `if (user)`. If getProfile() returned null (RLS denial,
+        // network blip, profile row missing) we don't follow up with
+        // table-specific probes that would also fail and pollute the
+        // console. The probes themselves return null on failure so a
+        // rejected query is graceful, but skipping when profile is
+        // null saves the round trip and keeps the scope tight.
+        if (profile) {
+          const scholar = await getScholarByUserId(user.id);
+          if (scholar) setMyScholar(scholar);
+          const application = await getMyScholarApplication();
+          if (application) setMyScholarApplication(application);
+
+          const mosque = await getMosqueByUserId(user.id);
+          if (mosque) setMyMosque(transformMosque(mosque));
+          const mosqueApp = await getMyMosqueApplication();
+          if (mosqueApp) setMyMosqueApplication(mosqueApp);
+        }
       }
     } catch (err) {
       console.error("Auth bootstrap failed:", err);
@@ -11097,12 +11117,18 @@ const handleSignIn = (r) => {
     if (r === "user") {
       if (authedUser) {
         // PublicHeader's avatar fires onSignIn("user") for any signed-in
-        // user. Route them to scholar surfaces if they have any scholar
-        // context: a linked listing, an application in flight, or a
-        // scholar signup intent stamped on their auth metadata. Without
-        // the metadata fallback, a scholar who signed up but closed
-        // the tab before submitting the wizard would land on the parent
-        // dashboard on their next avatar tap.
+        // user. Route them to scholar / mosque surfaces if they have
+        // role context (linked listing, application in flight, or a
+        // signup intent stamped on their auth metadata). Without the
+        // metadata fallback, someone who signed up but closed the tab
+        // mid-wizard would land on the parent dashboard on their next
+        // avatar tap.
+        if (myMosque) { setView("mosqueDashboard"); return; }
+        const isMosqueSignup = authedUser?.user_metadata?.interest === "mosque";
+        if (myMosqueApplication || isMosqueSignup) {
+          routeAuthedMosque(authedUser.id);
+          return;
+        }
         if (myScholar) { setView("scholarDashboard"); return; }
         const isScholarSignup = authedUser?.user_metadata?.interest === "scholar";
         if (myScholarApplication || isScholarSignup) {
@@ -11128,8 +11154,19 @@ const handleSignIn = (r) => {
       setUserAuthRole("scholar");
       setReturnView("scholarPostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
     }
-    // Mosque still uses the legacy LoginScreen + dummy creds — Phase 6
-    // replaces it with the same Supabase-auth flow.
+    if (r === "mosque") {
+      // Mosques use the same Supabase auth as parents/scholars. Post-
+      // auth we route through routeAuthedMosque's 5-branch tree.
+      if (authedUser) {
+        routeAuthedMosque(authedUser.id);
+        return;
+      }
+      setUserAuthRole("mosque");
+      setReturnView("mosquePostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
+    }
+    // Legacy LoginScreen fallthrough kept unreachable per K-6b
+    // amendment 3 — Phase 9 deletes. No 6b r value matches this
+    // line; the branches above cover every audience entry.
     setRole(r); setView("login");
   };
 
@@ -11180,6 +11217,55 @@ const handleSignIn = (r) => {
       setView("scholarApplicationRejected");
     } else {
       setView("scholarOnboarding");
+    }
+  };
+
+  // Mirror of routeAuthedScholar for mosques. Five-branch tree:
+  //   mosque row exists, status='active'                → mosqueDashboard
+  //   mosque row exists, status='pending_verification'  → mosqueVerificationPending
+  //   no mosque, application status='approved'          → mosqueVerificationPending
+  //                                                        (defensive: trigger
+  //                                                         already created the
+  //                                                         mosques row but RLS
+  //                                                         may be hiding it —
+  //                                                         owner SELECT policy
+  //                                                         from 024 covers this
+  //                                                         once the user_id is
+  //                                                         set, but stays
+  //                                                         defensive)
+  //   no mosque, application status='pending'           → mosqueApplicationSubmitted
+  //   no mosque, application status='rejected'          → mosqueApplicationRejected
+  //   no mosque, no application                         → mosqueOnboarding (wizard)
+  const routeAuthedMosque = async (userId) => {
+    const mosque = await getMosqueByUserId(userId);
+    if (mosque) {
+      const shaped = transformMosque(mosque);
+      setMyMosque(shaped);
+      if (mosque.status === "pending_verification") {
+        setView("mosqueVerificationPending");
+      } else {
+        setView("mosqueDashboard");
+      }
+      return;
+    }
+    const application = await getMyMosqueApplication();
+    if (!application) {
+      setMyMosqueApplication(null);
+      setView("mosqueOnboarding");
+      return;
+    }
+    setMyMosqueApplication(application);
+    if (application.status === "approved") {
+      // Trigger guarantees a mosques row exists when status='approved'.
+      // Defensive route to verification-pending if RLS is hiding it
+      // for any reason.
+      setView("mosqueVerificationPending");
+    } else if (application.status === "pending") {
+      setView("mosqueApplicationSubmitted");
+    } else if (application.status === "rejected") {
+      setView("mosqueApplicationRejected");
+    } else {
+      setView("mosqueOnboarding");
     }
   };
 
@@ -11260,6 +11346,11 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     if (returnView === "scholarPostAuth" && user) {
       // Scholar entry point — look up scholar link and route accordingly.
       await routeAuthedScholar(user.id);
+      return;
+    }
+    if (returnView === "mosquePostAuth" && user) {
+      // Mosque entry point — 5-branch tree mirroring scholar.
+      await routeAuthedMosque(user.id);
       return;
     }
     setView(returnView);
