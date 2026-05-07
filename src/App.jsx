@@ -6362,6 +6362,425 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
   </div>
 );
 
+// ==================== MOSQUE ONBOARDING WIZARD ====================
+// Mirror of <ScholarOnboardingWizard>. 5-step submission for mosque
+// applications. sessionStorage hydration via key
+// `mosqueOnboardingDraft`. On mount, if no draft is present and the
+// authed user has a previously-rejected application, pre-fills from
+// it (draft wins over server fetch — same precedence as scholar).
+//
+// Submit calls auth.js#submitMosqueApplication which geocodes the
+// postcode via Postcodes.io pre-insert. Geocode failure is non-
+// fatal (lat/lng=null on the application; admin sees a warning chip
+// in AdminMosqueApplications detail to backfill before publishing).
+// onSubmitted(application) callback passes the shaped application
+// back to the parent so it can update myMosqueApplication state +
+// route to mosqueApplicationSubmitted without a re-fetch.
+//
+// Fields the wizard does NOT collect (parked for mosque profile
+// editing follow-up): jumuah_time. mosque_applications schema
+// doesn't have a jumuah_time column either; only mosques does.
+// MosqueDetail conditionally renders the jumuah row, so a wizard-
+// approved mosque without it is graceful-degraded.
+
+const MOSQUE_SERVICES = [
+  { v: "five_prayers", l: "Five daily prayers" },
+  { v: "jumuah", l: "Jumu'ah (Friday)" },
+  { v: "taraweeh", l: "Taraweeh in Ramadan" },
+  { v: "eid_prayers", l: "Eid prayers" },
+  { v: "janazah", l: "Janazah service" },
+  { v: "marriage", l: "Nikah / marriage" },
+  { v: "classes_for_kids", l: "Quran / Islamic classes for kids" },
+  { v: "classes_for_adults", l: "Adult learning circles" },
+  { v: "reverts_support", l: "New Muslim support" },
+  { v: "food_bank", l: "Food bank / community meals" },
+  { v: "family_events", l: "Family events" },
+];
+
+const MOSQUE_FACILITIES = [
+  { v: "disability_access", l: "Disability access" },
+  { v: "parking", l: "Parking" },
+  { v: "womens_area", l: "Women's area" },
+  { v: "wudu_facilities", l: "Wudu facilities" },
+  { v: "first_aid", l: "First aid trained" },
+  { v: "defibrillator", l: "Defibrillator on site" },
+];
+
+const MOSQUE_WIZARD_DRAFT_KEY = "mosqueOnboardingDraft";
+
+// Lenient — let Postcodes.io be the real gate. Strict UK regex
+// rejects valid Crown Dependencies (Guernsey GY, Jersey JE) +
+// BFPO codes; false rejection is worse than graceful geocode
+// failure (which we already handle via the admin warning chip).
+const MOSQUE_POSTCODE_REGEX = /^[A-Z0-9\s]{5,8}$/i;
+
+const PRAYER_KEYS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+
+const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogout }) => {
+  const initialForm = {
+    orgName: "",
+    city: "",
+    postcode: "",
+    address: "",
+    registeredCharityNumber: "",
+    capacity: "",
+    photoUrl: "",
+    prayerTimes: { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" },
+    services: [],
+    facilities: [],
+    bio: "",
+  };
+
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState(initialForm);
+  const [hydrating, setHydrating] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+
+  // Hydrate: sessionStorage draft wins; else pre-fill from a prior
+  // rejected application if one exists.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = sessionStorage.getItem(MOSQUE_WIZARD_DRAFT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (!cancelled) {
+            setForm({ ...initialForm, ...parsed });
+            setHydrating(false);
+          }
+          return;
+        }
+      } catch {}
+      try {
+        const prior = await getMyMosqueApplication();
+        if (!cancelled && prior && prior.status === "rejected") {
+          setForm({
+            orgName: prior.orgName || "",
+            city: prior.city || "",
+            postcode: prior.postcode || "",
+            address: prior.address || "",
+            registeredCharityNumber: prior.registeredCharityNumber || "",
+            capacity: prior.capacity ?? "",
+            photoUrl: prior.photoUrl || "",
+            prayerTimes: prior.prayerTimes || { fajr: "", dhuhr: "", asr: "", maghrib: "", isha: "" },
+            services: prior.services || [],
+            facilities: prior.facilities || [],
+            bio: prior.bio || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to pre-fill from prior application:", err);
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist draft on every change, but only after hydration so we
+  // don't immediately overwrite the server pre-fill with empty form.
+  useEffect(() => {
+    if (hydrating) return;
+    try {
+      sessionStorage.setItem(MOSQUE_WIZARD_DRAFT_KEY, JSON.stringify(form));
+    } catch {}
+  }, [form, hydrating]);
+
+  const update = (patch) => setForm(prev => ({ ...prev, ...patch }));
+  const updatePrayer = (key, value) => setForm(prev => ({
+    ...prev,
+    prayerTimes: { ...prev.prayerTimes, [key]: value },
+  }));
+  const toggleService = (v) => setForm(prev => ({
+    ...prev,
+    services: prev.services.includes(v) ? prev.services.filter(s => s !== v) : [...prev.services, v],
+  }));
+  const toggleFacility = (v) => setForm(prev => ({
+    ...prev,
+    facilities: prev.facilities.includes(v) ? prev.facilities.filter(f => f !== v) : [...prev.facilities, v],
+  }));
+
+  // Per-step validation
+  const postcodeValid = MOSQUE_POSTCODE_REGEX.test(form.postcode.trim());
+  const photoValid = !form.photoUrl.trim() || form.photoUrl.trim().startsWith("https://");
+  // Prayer times: all-or-nothing. Either all 5 filled, or all 5 empty.
+  const prayerFilled = PRAYER_KEYS.filter(k => form.prayerTimes[k]?.trim()).length;
+  const prayerValid = prayerFilled === 0 || prayerFilled === 5;
+
+  const canStep2 = !!(form.orgName.trim() && form.city.trim() && form.address.trim() && postcodeValid);
+  const canStep3 = photoValid && prayerValid;
+  const canStep4 = !!(form.services.length > 0 && form.facilities.length > 0 && form.bio.trim().length >= 50);
+  const canSubmit = canStep2 && canStep3 && canStep4;
+
+  const goNext = () => {
+    if (step === 2 && !canStep2) return;
+    if (step === 3 && !canStep3) return;
+    if (step === 4 && !canStep4) return;
+    setStep(s => Math.min(5, s + 1));
+  };
+  const goBack = () => setStep(s => Math.max(1, s - 1));
+  const jumpTo = (n) => setStep(n);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitError(null);
+    setSubmitting(true);
+    // Build payload — strip empty prayer_times to null per all-or-
+    // nothing rule, normalize empty strings to null on optional
+    // fields, send services/facilities as-is.
+    const prayerTimes = prayerFilled === 5
+      ? PRAYER_KEYS.reduce((acc, k) => { acc[k] = form.prayerTimes[k].trim(); return acc; }, {})
+      : null;
+    const payload = {
+      orgName: form.orgName.trim(),
+      city: form.city.trim(),
+      postcode: form.postcode.trim(),
+      address: form.address.trim(),
+      registeredCharityNumber: form.registeredCharityNumber.trim() || null,
+      capacity: form.capacity ? Number(form.capacity) : null,
+      photoUrl: form.photoUrl.trim() || null,
+      prayerTimes,
+      services: form.services,
+      facilities: form.facilities,
+      bio: form.bio.trim(),
+    };
+    const { data, error } = await submitMosqueApplication(payload);
+    setSubmitting(false);
+    if (error) {
+      const msg = error.code === "23505"
+        ? "You already have a pending application. Sign in again to see its status."
+        : (error.message || "Couldn't submit. Try again.");
+      setSubmitError(msg);
+      return;
+    }
+    try { sessionStorage.removeItem(MOSQUE_WIZARD_DRAFT_KEY); } catch {}
+    onSubmitted(data);
+  };
+
+  const stepLabels = ["Welcome", "About", "Details", "Services", "Review"];
+
+  if (hydrating) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <p className="text-sm text-stone-400">Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 md:gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center">
+              <Building2 className="text-emerald-50" size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque application</p>
+              <p className="text-[11px] text-stone-500">Step {step} of 5 · {stepLabels[step - 1]}</p>
+            </div>
+          </div>
+          <button onClick={onLogout} className="text-xs text-stone-500 hover:text-stone-900 inline-flex items-center gap-1">
+            <LogOut size={12} /> Sign out
+          </button>
+        </div>
+        {/* Progress bar */}
+        <div className="h-1 bg-stone-100">
+          <div className="h-full bg-emerald-700 transition-all" style={{ width: `${(step / 5) * 100}%` }} />
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-5 md:px-6 py-8 md:py-10">
+        {/* Step 1: Welcome */}
+        {step === 1 && (
+          <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8">
+            <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>List your mosque on Amanah</h2>
+            <p className="text-sm text-stone-700 leading-relaxed mb-5">
+              Welcome{authedProfile?.name ? `, ${authedProfile.name.split(" ")[0]}` : ""}. We'll ask you a few things about your mosque, then our team reviews and verifies before it goes public. Most applications are reviewed within 24-48 hours.
+            </p>
+            <ul className="text-sm text-stone-700 space-y-2 mb-6">
+              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-700 mt-0.5 flex-shrink-0" /><span>Public listing in our verified mosques directory</span></li>
+              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-700 mt-0.5 flex-shrink-0" /><span>Profile page with prayer times, services, location</span></li>
+              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-700 mt-0.5 flex-shrink-0" /><span>Free to apply · no commission · just verification</span></li>
+            </ul>
+            <button onClick={() => setStep(2)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+              Begin <ArrowRight size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: About */}
+        {step === 2 && (
+          <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 space-y-4">
+            <h2 className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>About your mosque</h2>
+            <RegField label="Mosque name" value={form.orgName} onChange={(v) => update({ orgName: v })} placeholder="e.g. Masjid Al-Noor" />
+            <RegField label="City" value={form.city} onChange={(v) => update({ city: v })} placeholder="e.g. Birmingham" />
+            <div>
+              <RegField label="Postcode" value={form.postcode} onChange={(v) => update({ postcode: v })} placeholder="e.g. B12 0XS" hint="UK postcode. We use it to position your mosque on the map." />
+              {form.postcode && !postcodeValid && (
+                <p className="text-xs text-rose-700 mt-1">That doesn't look like a valid postcode.</p>
+              )}
+            </div>
+            <RegField label="Address" value={form.address} onChange={(v) => update({ address: v })} placeholder="Street + building name" />
+            <div className="flex justify-between pt-2">
+              <button onClick={goBack} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><ArrowLeft size={13} /> Back</button>
+              <button onClick={goNext} disabled={!canStep2} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                Continue <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Details */}
+        {step === 3 && (
+          <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 space-y-4">
+            <h2 className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Details</h2>
+            <p className="text-xs text-stone-500 -mt-2">All optional, but a few help applicants and worshippers.</p>
+            <RegField label="Registered charity number" value={form.registeredCharityNumber} onChange={(v) => update({ registeredCharityNumber: v })} placeholder="e.g. 1193847" hint="If your mosque is a registered charity in England/Wales, Scotland, or NI." />
+            <RegField label="Capacity" value={form.capacity} onChange={(v) => update({ capacity: v.replace(/[^0-9]/g, "") })} placeholder="e.g. 350" hint="Approximate jamāʿa capacity, in worshippers." />
+            <div>
+              <RegField label="Photo URL (https)" value={form.photoUrl} onChange={(v) => update({ photoUrl: v })} placeholder="https://..." hint="Paste a public URL. File upload comes later." />
+              {form.photoUrl && !photoValid && (
+                <p className="text-xs text-rose-700 mt-1">Photo URL must start with https://</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Prayer times (iqama)</label>
+              <p className="text-xs text-stone-500 mb-2">All five if you fill any. Leave all blank to skip.</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {PRAYER_KEYS.map(k => (
+                  <div key={k}>
+                    <label className="block text-[10px] uppercase tracking-wider text-stone-500 mb-1 font-medium">{k}</label>
+                    <input
+                      type="time"
+                      value={form.prayerTimes[k] || ""}
+                      onChange={e => updatePrayer(k, e.target.value)}
+                      className="w-full px-2 py-2 rounded-lg border border-stone-300 text-sm font-mono"
+                    />
+                  </div>
+                ))}
+              </div>
+              {!prayerValid && (
+                <p className="text-xs text-rose-700 mt-1">Fill all five times, or leave them all blank.</p>
+              )}
+            </div>
+            <div className="flex justify-between pt-2">
+              <button onClick={goBack} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><ArrowLeft size={13} /> Back</button>
+              <button onClick={goNext} disabled={!canStep3} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                Continue <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Services + Facilities + Bio */}
+        {step === 4 && (
+          <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 space-y-5">
+            <h2 className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Services & facilities</h2>
+            <div>
+              <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Services offered</label>
+              <p className="text-xs text-stone-500 mb-2">Pick all that apply. At least one required.</p>
+              <div className="flex flex-wrap gap-2">
+                {MOSQUE_SERVICES.map(s => {
+                  const on = form.services.includes(s.v);
+                  return (
+                    <button
+                      key={s.v}
+                      onClick={() => toggleService(s.v)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${on ? "bg-emerald-700 border-emerald-700 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-stone-400"}`}
+                    >
+                      {s.l}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Facilities</label>
+              <p className="text-xs text-stone-500 mb-2">Pick all that apply. At least one required.</p>
+              <div className="flex flex-wrap gap-2">
+                {MOSQUE_FACILITIES.map(f => {
+                  const on = form.facilities.includes(f.v);
+                  return (
+                    <button
+                      key={f.v}
+                      onClick={() => toggleFacility(f.v)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${on ? "bg-emerald-700 border-emerald-700 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-stone-400"}`}
+                    >
+                      {f.l}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">About your mosque</label>
+              <p className="text-xs text-stone-500 mb-2">Min 50 characters. Mention your community, programmes, history.</p>
+              <textarea
+                value={form.bio}
+                onChange={e => update({ bio: e.target.value })}
+                rows={5}
+                placeholder="e.g. Masjid Al-Noor has served the community since..."
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none"
+              />
+              <p className="text-xs text-stone-500 mt-1">{form.bio.trim().length} / 50 chars</p>
+            </div>
+            <div className="flex justify-between pt-2">
+              <button onClick={goBack} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><ArrowLeft size={13} /> Back</button>
+              <button onClick={goNext} disabled={!canStep4} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                Continue <ArrowRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Review */}
+        {step === 5 && (
+          <div className="space-y-4">
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8">
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Review and submit</h2>
+              <p className="text-sm text-stone-600 mb-5">Check the details below. Edit any section before submitting.</p>
+              <div className="space-y-3">
+                <ReviewSection title="About" onEdit={() => jumpTo(2)}>
+                  <p><span className="text-stone-500">Mosque:</span> {form.orgName}</p>
+                  <p><span className="text-stone-500">City:</span> {form.city}</p>
+                  <p><span className="text-stone-500">Postcode:</span> {form.postcode}</p>
+                  <p><span className="text-stone-500">Address:</span> {form.address}</p>
+                </ReviewSection>
+                <ReviewSection title="Details" onEdit={() => jumpTo(3)}>
+                  <p><span className="text-stone-500">Charity no.:</span> {form.registeredCharityNumber || "—"}</p>
+                  <p><span className="text-stone-500">Capacity:</span> {form.capacity || "—"}</p>
+                  <p><span className="text-stone-500">Photo:</span> {form.photoUrl || "—"}</p>
+                  <p><span className="text-stone-500">Prayer times:</span> {prayerFilled === 5 ? PRAYER_KEYS.map(k => `${k} ${form.prayerTimes[k]}`).join(" · ") : "—"}</p>
+                </ReviewSection>
+                <ReviewSection title="Services & facilities" onEdit={() => jumpTo(4)}>
+                  <p><span className="text-stone-500">Services:</span> {form.services.map(v => MOSQUE_SERVICES.find(s => s.v === v)?.l || v).join(", ")}</p>
+                  <p><span className="text-stone-500">Facilities:</span> {form.facilities.map(v => MOSQUE_FACILITIES.find(f => f.v === v)?.l || v).join(", ")}</p>
+                  <p className="whitespace-pre-line"><span className="text-stone-500">Bio:</span> {form.bio}</p>
+                </ReviewSection>
+              </div>
+            </div>
+            {submitError && (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-800">
+                {submitError}
+              </div>
+            )}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 flex justify-between items-center flex-wrap gap-3">
+              <button onClick={goBack} disabled={submitting} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1 disabled:opacity-50"><ArrowLeft size={13} /> Back</button>
+              <button onClick={handleSubmit} disabled={submitting || !canSubmit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+                {submitting ? "Submitting..." : <>Submit application <CheckCircle2 size={14} /></>}
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
 // ==================== MOSQUE APPLICATION STATUS PAGES ====================
 // Mirror of the scholar status pages above. Three views — submitted /
 // rejected / verification-pending — driving the post-auth routing
