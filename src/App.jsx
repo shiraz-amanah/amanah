@@ -595,7 +595,6 @@ useEffect(() => {
             <button onClick={() => onSignIn("imam")} className="hover:text-white">Become a Scholar</button>
             <a className="hover:text-white cursor-pointer">Safeguarding</a>
             <a className="hover:text-white cursor-pointer">About</a>
-            <button onClick={() => onSignIn("admin")} className="hover:text-white opacity-60">Admin</button>
           </div>
         </div>
       </footer>
@@ -1893,12 +1892,11 @@ const LoginScreen = ({ role, onLogin, onBack, onGoRegister, onSwitchRole }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
     <div className="w-full max-w-md">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}><ArrowLeft size={14} /> Back</button>
-      <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg"><ShieldCheck className="text-emerald-50" size={22} /></div><h1 className="text-3xl font-semibold text-stone-900 tracking-tight">Amanah</h1>{role === "admin" && <p className="text-xs text-stone-500 uppercase tracking-widest mt-2" style={{ fontFamily: "'Inter', sans-serif" }}>Admin Portal</p>}</div>
+      <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg"><ShieldCheck className="text-emerald-50" size={22} /></div><h1 className="text-3xl font-semibold text-stone-900 tracking-tight">Amanah</h1></div>
       <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-sm">
-        <h2 className="text-xl font-semibold text-stone-900 mb-1">{role === "mosque" ? "Mosque Sign In" : role === "admin" ? "Admin Sign In" : "Scholar Sign In"}</h2>
+        <h2 className="text-xl font-semibold text-stone-900 mb-1">{role === "mosque" ? "Mosque Sign In" : "Scholar Sign In"}</h2>
         <p className="text-sm text-stone-500 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}>
           {role === "mosque" ? "Sign in to manage your imams, run DBS checks, and post jobs." :
-           role === "admin" ? "Enter any details — this is a demo." :
            "Sign in to manage your availability, bookings and profile."}
         </p>
         <div className="space-y-4" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -1906,26 +1904,22 @@ const LoginScreen = ({ role, onLogin, onBack, onGoRegister, onSwitchRole }) => (
           <input type="password" placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
           <button onClick={onLogin} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]">Sign In</button>
         </div>
-        {role !== "admin" && (
-          <div className="mt-6 pt-6 border-t border-stone-100 text-center" style={{ fontFamily: "'Inter', sans-serif" }}>
-            <p className="text-sm text-stone-600 mb-2">
-              {role === "mosque" ? "Not registered yet?" : "New to Amanah?"}
-            </p>
-            <button onClick={onGoRegister} className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
-              {role === "mosque" ? "Register your masjid" : "Create a scholar profile"} <ArrowRight size={14} />
-            </button>
-          </div>
+        <div className="mt-6 pt-6 border-t border-stone-100 text-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+          <p className="text-sm text-stone-600 mb-2">
+            {role === "mosque" ? "Not registered yet?" : "New to Amanah?"}
+          </p>
+          <button onClick={onGoRegister} className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+            {role === "mosque" ? "Register your masjid" : "Create a scholar profile"} <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+      <div className="mt-5 text-center text-xs text-stone-500" style={{ fontFamily: "'Inter', sans-serif" }}>
+        {role === "mosque" ? (
+          <>Are you a scholar or imam? <button onClick={() => onSwitchRole("imam")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
+        ) : (
+          <>Are you a mosque? <button onClick={() => onSwitchRole("mosque")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
         )}
       </div>
-      {role !== "admin" && (
-        <div className="mt-5 text-center text-xs text-stone-500" style={{ fontFamily: "'Inter', sans-serif" }}>
-          {role === "mosque" ? (
-            <>Are you a scholar or imam? <button onClick={() => onSwitchRole("imam")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
-          ) : (
-            <>Are you a mosque? <button onClick={() => onSwitchRole("mosque")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
-          )}
-        </div>
-      )}
     </div>
   </div>
 );
@@ -9489,11 +9483,35 @@ useEffect(() => {
   // Mock completed booking for the review flow
   const mockBooking = { package: "Standard", completedDate: "yesterday" };
   
+  // Suspended-user bounce — sign out, clear auth state, return to
+  // publicHome, and surface a message. Phase 1 only fires this for
+  // suspended admins (the only role that's RLS-relevant pre-Phase 5).
+  // Used a window.alert rather than building app-level toast infra
+  // for what's a corner-case path (admin demoted by another admin
+  // then tries to re-enter). Phase 5 broader-suspension enforcement
+  // will live in per-table RLS, not here.
+  const bounceSuspended = async () => {
+    await signOut();
+    setAuthedUser(null);
+    setAuthedProfile(null);
+    setMyScholar(null);
+    setMyScholarApplication(null);
+    setView("publicHome");
+    setTimeout(() => alert("Your account has been suspended. Contact support."), 50);
+  };
+
   // Shared sign-in handler used by all public pages
 const handleSignIn = (r) => {
     if (r === "prayer") { setView("prayerHub"); return; }
     if (r === "user") {
       if (authedUser) {
+        // Admin role short-circuits the parent/scholar branch — even
+        // if the avatar tap came from a public page, an admin lands
+        // on adminPanel. Suspended admins are bounced.
+        if (authedProfile?.role === "admin") {
+          if (authedProfile.suspended) { bounceSuspended(); return; }
+          setView("adminPanel"); return;
+        }
         // PublicHeader's avatar fires onSignIn("user") for any signed-in
         // user. Route them to scholar surfaces if they have any scholar
         // context: a linked listing, an application in flight, or a
@@ -9512,6 +9530,8 @@ const handleSignIn = (r) => {
       // Picking "Parent or student" expresses intent to use the parent
       // dashboard. Default the post-auth destination there rather than
       // capturing whatever public page the user happened to be on.
+      // Admins use this same form (no separate admin sign-in surface);
+      // role routing happens in UserAuth onComplete.
       setUserAuthRole("user");
       setReturnView("userDashboard"); setUserAuthMode("login"); setView("userAuth"); return;
     }
@@ -9526,7 +9546,9 @@ const handleSignIn = (r) => {
       setUserAuthRole("scholar");
       setReturnView("scholarPostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
     }
-    // For mosque, admin - role-specific mock login
+    // Mosque still uses the legacy LoginScreen + dummy creds — Phase 6
+    // replaces it with the same Supabase-auth flow. "admin" no longer
+    // reaches this fallthrough as of Phase 1 (footer entry deleted).
     setRole(r); setView("login");
   };
 
@@ -9633,9 +9655,19 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
+    let profile = null;
     if (user) {
-      const profile = await getProfile();
+      profile = await getProfile();
       setAuthedProfile(profile);
+      // Admin role takes precedence over scholar/parent return-view
+      // routing — even if the auth view was opened from a scholar
+      // entry, an admin signs into the admin panel. Suspended admins
+      // are bounced.
+      if (profile?.role === "admin") {
+        if (profile.suspended) { await bounceSuspended(); return; }
+        setView("adminPanel");
+        return;
+      }
     }
     if (returnView === "scholarPostAuth" && user) {
       // Scholar entry point — look up scholar link and route accordingly.
@@ -9779,7 +9811,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
   if (view === "login") return <LoginScreen
     role={role}
-    onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : role === "admin" ? "adminPanel" : "imamDashboard")}
+    onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : "imamDashboard")}
     onBack={() => setView("publicHome")}
     onGoRegister={() => setView(role === "mosque" ? "mosqueRegister" : "imamRegister")}
     onSwitchRole={(newRole) => setRole(newRole)}
