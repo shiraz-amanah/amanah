@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
@@ -9201,6 +9201,412 @@ const DetailRow = ({ label, value, multiline = false }) => (
     <p className={`text-sm text-stone-900 ${multiline ? "whitespace-pre-line" : ""}`}>{value}</p>
   </div>
 );
+
+// ===== Mosque applications (real, from Supabase) =====
+// Mirror of AdminScholarApplications. List + filter pills + detail
+// view + approve/reject modals + verification panel for approved
+// applications. Reuses ApplicationStatusPill / ApplicationDetail-
+// Section / DetailRow defined above.
+//
+// 6a-only state: this component reads/writes via the helpers added
+// in commit 6 of this phase. It's not yet wired into the AdminPanel
+// router — commit 8a does that swap.
+const AdminMosqueApplications = () => {
+  const [filter, setFilter] = useState("pending");
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
+  const [selected, setSelected] = useState(null);
+  const [selectedMosque, setSelectedMosque] = useState(null);
+  const [mosqueLoading, setMosqueLoading] = useState(false);
+  const [flagSaving, setFlagSaving] = useState({});
+  const [publishLoading, setPublishLoading] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const refetch = async () => {
+    setLoading(true);
+    const [list, all] = await Promise.all([
+      getAllMosqueApplications(filter === "all" ? null : filter),
+      getAllMosqueApplications(null),
+    ]);
+    setApplications(list);
+    setCounts({
+      pending: all.filter(a => a.status === "pending").length,
+      approved: all.filter(a => a.status === "approved").length,
+      rejected: all.filter(a => a.status === "rejected").length,
+    });
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  // Fetch the linked mosques row whenever an approved application
+  // with a created_mosque_id is selected. RLS gate is migration 024's
+  // "Admins read all mosques" — without it getMosqueById against a
+  // pending_verification row returns null.
+  useEffect(() => {
+    let cancelled = false;
+    if (selected?.status === "approved" && selected?.createdMosqueId) {
+      setMosqueLoading(true);
+      setSelectedMosque(null);
+      getMosqueById(selected.createdMosqueId)
+        .then(m => { if (!cancelled) setSelectedMosque(m); })
+        .catch(err => { if (!cancelled) console.error("Failed to fetch mosque for verification:", err); })
+        .finally(() => { if (!cancelled) setMosqueLoading(false); });
+    } else {
+      setSelectedMosque(null);
+    }
+    return () => { cancelled = true; };
+  }, [selected?.id, selected?.status, selected?.createdMosqueId]);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleApprove = async () => {
+    if (!selected) return;
+    setActionError(null);
+    setActionLoading(true);
+    const { error } = await approveMosqueApplication(selected.id);
+    setActionLoading(false);
+    if (error) {
+      setActionError(error.message || "Couldn't approve. Try again.");
+      return;
+    }
+    setShowApproveModal(false);
+    setSelected(null);
+    showToast("Approved · mosque listing created");
+    refetch();
+  };
+
+  const handleReject = async () => {
+    if (!selected) return;
+    setActionError(null);
+    setActionLoading(true);
+    const { error } = await rejectMosqueApplication(selected.id, rejectReason);
+    setActionLoading(false);
+    if (error) {
+      setActionError(error.message || "Couldn't reject. Try again.");
+      return;
+    }
+    setShowRejectModal(false);
+    setSelected(null);
+    setRejectReason("");
+    showToast("Rejected");
+    refetch();
+  };
+
+  const closeRejectModal = () => {
+    setShowRejectModal(false);
+    setRejectReason("");
+    setActionError(null);
+  };
+
+  const handleFlagToggle = async (flag) => {
+    if (!selectedMosque) return;
+    const next = !selectedMosque[flag];
+    setFlagSaving(s => ({ ...s, [flag]: true }));
+    setSelectedMosque(s => ({ ...s, [flag]: next }));
+    const { data, error } = await setMosqueVerificationFlag(selectedMosque.id, flag, next);
+    setFlagSaving(s => ({ ...s, [flag]: false }));
+    if (error) {
+      setSelectedMosque(s => ({ ...s, [flag]: !next }));
+      showToast(error.message || "Couldn't save. Try again.");
+      return;
+    }
+    if (data) setSelectedMosque(data);
+  };
+
+  const handlePublish = async () => {
+    if (!selectedMosque) return;
+    if (!(selectedMosque.charity_number_verified && selectedMosque.address_verified && selectedMosque.safeguarding_confirmed)) return;
+    setPublishLoading(true);
+    const { data, error } = await publishMosque(selectedMosque.id);
+    setPublishLoading(false);
+    if (error) {
+      showToast(error.message || "Couldn't publish. Try again.");
+      return;
+    }
+    setSelectedMosque(s => ({ ...(data || s), status: "active" }));
+    showToast("Mosque published — now visible in public listings");
+  };
+
+  if (selected) {
+    return (
+      <div>
+        <button onClick={() => setSelected(null)} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5">
+          <ArrowLeft size={14} /> Back to applications
+        </button>
+        <div className="mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{selected.orgName}</h1>
+            <ApplicationStatusPill status={selected.status} />
+          </div>
+          <p className="text-stone-600 text-sm">
+            Submitted {new Date(selected.createdAt).toLocaleString("en-GB")}
+            {selected.reviewedAt && <> · Reviewed {new Date(selected.reviewedAt).toLocaleString("en-GB")}</>}
+          </p>
+        </div>
+
+        <div className="space-y-4 mb-6">
+          <ApplicationDetailSection title="About">
+            <DetailRow label="Organisation" value={selected.orgName} />
+            <DetailRow label="City" value={selected.city} />
+            <DetailRow label="Postcode" value={selected.postcode} />
+            <DetailRow label="Address" value={selected.address} multiline />
+          </ApplicationDetailSection>
+
+          <ApplicationDetailSection title="Details">
+            <DetailRow label="Registered charity number" value={selected.registeredCharityNumber || "—"} />
+            <DetailRow label="Capacity" value={selected.capacity ?? "—"} />
+            <DetailRow label="Photo URL" value={selected.photoUrl || "—"} />
+            {selected.prayerTimes ? (
+              <div className="mt-2">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5">Prayer times</p>
+                <ul className="text-xs text-stone-700 space-y-0.5">
+                  {["fajr","dhuhr","asr","maghrib","isha"].map(k => (
+                    <li key={k}>· {k.charAt(0).toUpperCase() + k.slice(1)}: {selected.prayerTimes[k] || "—"}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <DetailRow label="Prayer times" value="—" />
+            )}
+          </ApplicationDetailSection>
+
+          <ApplicationDetailSection title="Services">
+            <DetailRow label="Services offered" value={(selected.services || []).join(", ") || "—"} />
+            <DetailRow label="Bio" value={selected.bio || "—"} multiline />
+          </ApplicationDetailSection>
+
+          {selected.status === "rejected" && selected.rejectionReason && (
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+              <p className="text-xs font-medium text-rose-900 uppercase tracking-wider mb-1">Rejection reason</p>
+              <p className="text-sm text-rose-800 leading-relaxed">{selected.rejectionReason}</p>
+            </div>
+          )}
+
+          {selected.status === "approved" && selected.createdMosqueId && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+              <p className="text-xs font-medium text-emerald-900 uppercase tracking-wider mb-1">Mosque listing created</p>
+              <p className="text-sm text-emerald-800 font-mono break-all">{selected.createdMosqueId}</p>
+            </div>
+          )}
+
+          {/* Verification panel — only when approved + mosques row loaded */}
+          {selected.status === "approved" && selected.createdMosqueId && mosqueLoading && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <p className="text-sm text-stone-400 text-center py-4">Loading verification state...</p>
+            </div>
+          )}
+
+          {selected.status === "approved" && selectedMosque && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verification</h3>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    {selectedMosque.status === "active"
+                      ? "Live in public listings"
+                      : "Toggle each flag once you've verified the document/check, then publish."}
+                  </p>
+                </div>
+                {selectedMosque.status === "active" ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+                    <CheckCircle2 size={10} /> Published
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
+                    <AlertCircle size={10} /> Pending verification
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2 mb-4">
+                {[
+                  { flag: "charity_number_verified", label: "Charity number verified", hint: "Verified against the Charity Commission register (or equivalent if outside England/Wales)" },
+                  { flag: "address_verified", label: "Address verified", hint: "Confirmed the mosque physically operates at the listed address" },
+                  { flag: "safeguarding_confirmed", label: "Safeguarding confirmed", hint: "Mosque has a written safeguarding policy + designated lead" },
+                ].map(({ flag, label, hint }) => {
+                  const checked = !!selectedMosque[flag];
+                  const saving = !!flagSaving[flag];
+                  return (
+                    <label key={flag} className={`flex items-start gap-3 p-3 rounded-xl border ${checked ? "bg-emerald-50/40 border-emerald-200" : "bg-stone-50 border-stone-200"} ${saving ? "opacity-60" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={saving}
+                        onChange={() => handleFlagToggle(flag)}
+                        className="mt-0.5 w-4 h-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500 cursor-pointer disabled:cursor-wait"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-stone-900">{label}</p>
+                        <p className="text-xs text-stone-500 mt-0.5">{hint}</p>
+                      </div>
+                      {saving && <span className="text-[10px] text-stone-500 font-medium">Saving…</span>}
+                    </label>
+                  );
+                })}
+              </div>
+
+              {selectedMosque.status !== "active" && (() => {
+                const allTrue = selectedMosque.charity_number_verified && selectedMosque.address_verified && selectedMosque.safeguarding_confirmed;
+                return (
+                  <div className="pt-3 border-t border-stone-100">
+                    <button
+                      onClick={handlePublish}
+                      disabled={!allTrue || publishLoading}
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      {publishLoading ? (
+                        "Publishing..."
+                      ) : (
+                        <><CheckCircle2 size={14} /> Mark fully verified & publish</>
+                      )}
+                    </button>
+                    {!allTrue && (
+                      <p className="text-xs text-stone-500 mt-2 text-center">All three flags must be on before publishing.</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
+        {selected.status === "pending" && (
+          <div className="flex gap-2 flex-wrap pt-4 border-t border-stone-200">
+            <button onClick={() => setShowApproveModal(true)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
+              <CheckCircle2 size={14} /> Approve
+            </button>
+            <button onClick={() => setShowRejectModal(true)} className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
+              <XCircle size={14} /> Reject
+            </button>
+          </div>
+        )}
+
+        {showApproveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+            <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Approve {selected.orgName}?</h3>
+              <p className="text-sm text-stone-700 mb-5 leading-relaxed">This creates a public mosque listing in pending_verification status. The mosque admin can sign in and use their dashboard, but the listing won't appear in public listings until charity number / address / safeguarding are verified.</p>
+              {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowApproveModal(false)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+                <button onClick={handleApprove} disabled={actionLoading} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                  {actionLoading ? "Approving..." : <><CheckCircle2 size={14} /> Confirm approval</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showRejectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+            <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Reject {selected.orgName}'s application</h3>
+              <p className="text-sm text-stone-700 mb-3 leading-relaxed">Tell them why so they can fix and resubmit. Min 10 characters.</p>
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={4}
+                placeholder="e.g. Couldn't verify your charity number — please attach evidence next time."
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none mb-2"
+              />
+              <p className="text-xs text-stone-500 mb-3">{rejectReason.length} chars</p>
+              {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
+              <div className="flex justify-end gap-2">
+                <button onClick={closeRejectModal} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+                <button onClick={handleReject} disabled={actionLoading || rejectReason.trim().length < 10} className="bg-rose-700 hover:bg-rose-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                  {actionLoading ? "Rejecting..." : <><XCircle size={14} /> Confirm rejection</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {toast && (
+          <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+            <CheckCircle2 className="text-emerald-400" size={18} />
+            <span className="text-sm font-medium">{toast}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // List view
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque applications</h1>
+        <p className="text-stone-600">Review and approve mosque onboarding submissions.</p>
+      </div>
+
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {[
+          { v: "pending", l: "Pending", c: counts.pending },
+          { v: "approved", l: "Approved", c: counts.approved },
+          { v: "rejected", l: "Rejected", c: counts.rejected },
+          { v: "all", l: "All", c: counts.pending + counts.approved + counts.rejected },
+        ].map(f => (
+          <button
+            key={f.v}
+            onClick={() => setFilter(f.v)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${filter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+          >
+            {f.l}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${filter === f.v ? "bg-white/20" : "bg-stone-100"}`}>{f.c}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-stone-400 text-center py-8">Loading applications...</p>
+      ) : applications.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <Inbox className="mx-auto text-stone-300 mb-3" size={36} />
+          <p className="text-stone-600">No applications in this view.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          {applications.map((a, i) => (
+            <button
+              key={a.id}
+              onClick={() => setSelected(a)}
+              className={`w-full flex items-center gap-4 p-5 text-left hover:bg-stone-50 transition-colors ${i < applications.length - 1 ? "border-b border-stone-100" : ""}`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <p className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{a.orgName}</p>
+                  <ApplicationStatusPill status={a.status} />
+                </div>
+                <p className="text-xs text-stone-500">{a.city} · submitted {new Date(a.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+              </div>
+              <ChevronRight size={16} className="text-stone-400 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+          <CheckCircle2 className="text-emerald-400" size={18} />
+          <span className="text-sm font-medium">{toast}</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ===== All users (admin) =====
 // Replaces the "coming in the next build" placeholder. Paginated
