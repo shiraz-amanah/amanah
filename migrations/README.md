@@ -49,6 +49,7 @@ filenames.
 | 019 | `019_scholar_applications_admin_rls.sql` | Verbatim          | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
 | 020 | `020_scholars_admin_rls.sql`           | Verbatim            | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
 | 021 | `021_reviews_admin_rls.sql`            | Verbatim            | TBD (Session K-3)  | NOTES.md Session K Phase 3      |
+| 022 | `022_profiles_admin_rls.sql`           | Verbatim            | TBD (Session K-5)  | NOTES.md Session K Phase 5      |
 
 ## Workflow
 
