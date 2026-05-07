@@ -13,7 +13,7 @@ import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/sch
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
-import { ADMIN_MOSQUE_APPS, ADMIN_SCHOLAR_APPS, ADMIN_CAMPAIGN_APPS, ADMIN_FLAGS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
+import { ADMIN_MOSQUE_APPS, ADMIN_CAMPAIGN_APPS, ADMIN_FLAGS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
 
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
@@ -8205,7 +8205,6 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
   const items = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
     { id: "mosques", label: "Mosque queue", icon: Building2, count: counts.mosques, urgent: counts.mosques > 0 },
-    { id: "scholars", label: "Scholar queue", icon: Users, count: counts.scholars, urgent: counts.scholars > 0 },
     { id: "scholarApplications", label: "Scholar applications", icon: GraduationCap, count: null, urgent: false },
     { id: "campaigns", label: "Campaign queue", icon: HandCoins, count: counts.campaigns, urgent: counts.campaigns > 0 },
     { id: "flags", label: "Flags & reports", icon: Flag, count: counts.flags, urgent: counts.flags > 0, highlight: true },
@@ -8305,7 +8304,7 @@ const AdminOverview = ({ onNavigate, counts, displayName }) => {
             <div className="flex-1">
               <p className="text-sm font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{counts.flags + counts.mosques} items need review</p>
               <p className="text-sm text-stone-700">
-                {counts.flags > 0 && `${counts.flags} flagged reports, `}{counts.mosques > 0 && `${counts.mosques} mosque applications, `}{counts.scholars > 0 && `${counts.scholars} scholar applications, `}{counts.campaigns > 0 && `${counts.campaigns} campaigns pending approval`}
+                {counts.flags > 0 && `${counts.flags} flagged reports, `}{counts.mosques > 0 && `${counts.mosques} mosque applications, `}{counts.campaigns > 0 && `${counts.campaigns} campaigns pending approval`}
               </p>
             </div>
             <button onClick={() => onNavigate("flags")} className="bg-rose-700 hover:bg-rose-800 text-white text-sm font-medium px-4 py-2 rounded-lg whitespace-nowrap">Review flags</button>
@@ -8452,79 +8451,6 @@ const AdminMosqueQueue = ({ apps, onAction }) => (
               <button className="ml-auto text-stone-500 hover:text-stone-900 px-3 py-2 text-sm inline-flex items-center gap-1">
                 <Eye size={14} /> View full
               </button>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-// ===== Scholar queue =====
-const AdminScholarQueue = ({ apps, onAction }) => (
-  <div>
-    <div className="mb-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Scholar applications</h1>
-      <p className="text-stone-600">{apps.length} pending review</p>
-    </div>
-    <div className="space-y-3">
-      {apps.map(app => (
-        <div key={app.id} className="bg-white border border-stone-200 rounded-2xl p-5">
-          <div className="flex items-start gap-4 mb-4">
-            <Avatar scholar={app} size="md" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
-                <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{app.name}</h3>
-                <span className="text-xs text-stone-500">Submitted {app.submittedDate}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-stone-600 mb-3 flex-wrap">
-                <span className="flex items-center gap-1"><MapPin size={12} /> {app.city}</span>
-                <span>{app.madhhab}</span>
-                <span>{app.experience} years experience</span>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-2 mb-4">
-                <div className={`rounded-lg p-3 border ${app.docs.dbs ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] uppercase tracking-wider font-medium text-stone-700">Enhanced DBS</span>
-                    {app.docs.dbs ? <CheckCircle2 size={14} className="text-emerald-700" /> : <AlertCircle size={14} className="text-rose-600" />}
-                  </div>
-                  <p className="text-xs text-stone-700">{app.dbsReference || "Not yet provided"}</p>
-                </div>
-                <div className={`rounded-lg p-3 border ${app.docs.rtw ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] uppercase tracking-wider font-medium text-stone-700">Right to Work</span>
-                    {app.docs.rtw ? <CheckCircle2 size={14} className="text-emerald-700" /> : <AlertCircle size={14} className="text-rose-600" />}
-                  </div>
-                  <p className="text-xs text-stone-700">{app.docs.rtw ? "Share code verified" : "Missing"}</p>
-                </div>
-                <div className={`rounded-lg p-3 border ${app.docs.ijazah ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200"}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] uppercase tracking-wider font-medium text-stone-700">Ijazah</span>
-                    {app.docs.ijazah ? <CheckCircle2 size={14} className="text-emerald-700" /> : <Info size={14} className="text-stone-500" />}
-                  </div>
-                  <p className="text-xs text-stone-700">{app.ijazahInstitution || "Not provided (optional)"}</p>
-                </div>
-              </div>
-
-              {app.notes && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex gap-2 text-xs text-amber-900">
-                  <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                  <span>{app.notes}</span>
-                </div>
-              )}
-
-              <div className="flex gap-2 flex-wrap">
-                <button onClick={() => onAction("approve", app)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                  <CheckCircle2 size={14} /> Approve
-                </button>
-                <button onClick={() => onAction("request", app)} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                  <Mail size={14} /> Request info
-                </button>
-                <button onClick={() => onAction("reject", app)} className="bg-white border border-stone-300 hover:border-rose-300 hover:text-rose-700 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                  <XCircle size={14} /> Reject
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -9138,14 +9064,12 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const [section, setSection] = useState("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mosqueApps, setMosqueApps] = useState(ADMIN_MOSQUE_APPS);
-  const [scholarApps, setScholarApps] = useState(ADMIN_SCHOLAR_APPS);
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
   const [flags, setFlags] = useState(ADMIN_FLAGS);
   const [toast, setToast] = useState(null);
 
   const counts = {
     mosques: mosqueApps.length,
-    scholars: scholarApps.length,
     campaigns: campaignApps.length,
     flags: flags.length,
     dbs: ADMIN_DBS_ORDERS.length
@@ -9154,7 +9078,6 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const sectionTitle = {
     overview: "Overview",
     mosques: "Mosque queue",
-    scholars: "Scholar queue",
     scholarApplications: "Scholar applications",
     campaigns: "Campaign queue",
     flags: "Flags & reports",
@@ -9171,10 +9094,6 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
 
   const handleMosqueAction = (action, app) => {
     setMosqueApps(mosqueApps.filter(a => a.id !== app.id));
-    showToast(action === "approve" ? `${app.name} approved and live` : action === "reject" ? `${app.name} rejected` : `Info requested from ${app.name}`);
-  };
-  const handleScholarAction = (action, app) => {
-    setScholarApps(scholarApps.filter(a => a.id !== app.id));
     showToast(action === "approve" ? `${app.name} approved and live` : action === "reject" ? `${app.name} rejected` : `Info requested from ${app.name}`);
   };
   const handleCampaignAction = (action, app) => {
@@ -9204,7 +9123,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
-          {(counts.flags > 0 || counts.mosques > 0 || counts.scholars > 0) && (
+          {(counts.flags > 0 || counts.mosques > 0) && (
             <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
           )}
         </button>
@@ -9218,7 +9137,6 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
         {section === "mosques" && <AdminMosqueQueue apps={mosqueApps} onAction={handleMosqueAction} />}
-        {section === "scholars" && <AdminScholarQueue apps={scholarApps} onAction={handleScholarAction} />}
         {section === "scholarApplications" && <AdminScholarApplications />}
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
         {section === "flags" && <AdminFlags flags={flags} onAction={handleFlagAction} />}

@@ -4,12 +4,6 @@ export const ADMIN_MOSQUE_APPS = [
   { id: "mosque-app-3", name: "Noor Islamic Centre", city: "Newcastle", postcode: "NE1 2AA", charityNumber: "1198888", submittedDate: "2026-04-20", contactName: "Bilal Rashid", contactRole: "Secretary", contactPhone: "+44 7700 900303", safeguardingLead: "Maryam Shah", docs: { proofOfAddress: true, trusteeConfirmation: true }, charityCommissionStatus: "nomatch", notes: "Charity Commission number not found — may be a new registration or typo" }
 ];
 
-export const ADMIN_SCHOLAR_APPS = [
-  { id: "scholar-app-1", name: "Sulaiman Idris", initials: "SI", city: "Nottingham", avatarGradient: "from-teal-400 to-teal-700", submittedDate: "2026-04-17", madhhab: "Hanafi", experience: 9, docs: { dbs: true, rtw: true, ijazah: true }, dbsReference: "DBS/2026/4782", ijazahInstitution: "Darul Uloom Leicester", notes: "" },
-  { id: "scholar-app-2", name: "Ustadha Amina Yusuf", initials: "AY", city: "Online", avatarGradient: "from-rose-400 to-rose-700", submittedDate: "2026-04-18", madhhab: "Shafi'i", experience: 5, docs: { dbs: true, rtw: true, ijazah: false }, dbsReference: "DBS/2026/4819", ijazahInstitution: null, notes: "Self-taught with strong references — needs manual review" },
-  { id: "scholar-app-3", name: "Hafiz Junaid Mohammed", initials: "JM", city: "Walsall", avatarGradient: "from-indigo-400 to-indigo-700", submittedDate: "2026-04-19", madhhab: "Hanafi", experience: 3, docs: { dbs: false, rtw: true, ijazah: true }, dbsReference: null, ijazahInstitution: "Al-Azhar University", notes: "DBS still pending from umbrella body — ETA 2-3 days" }
-];
-
 export const ADMIN_CAMPAIGN_APPS = [
   { id: "camp-app-1", title: "Urgent roof repair after storm damage", creator: "Masjid Al-Falah", city: "Portsmouth", goal: 18000, category: "Emergency Repair", submittedDate: "2026-04-20", creatorVerified: true, riskScore: "low" },
   { id: "camp-app-2", title: "Arabic summer camp for teenagers", creator: "Ustadh Khalid Mahmud", city: "Online", goal: 4500, category: "Course Creation", submittedDate: "2026-04-19", creatorVerified: true, riskScore: "low" },
