@@ -9428,9 +9428,11 @@ useEffect(() => {
   (async () => {
     try {
       const user = await getUser();
+      console.log("[K-DIAG bootstrap] getUser →", { hasUser: !!user, userId: user?.id, email: user?.email });
       setAuthedUser(user);
       if (user) {
         const profile = await getProfile();
+        console.log("[K-DIAG bootstrap] getProfile →", { profile, role: profile?.role, suspended: profile?.suspended, profileKeys: profile ? Object.keys(profile) : null });
         setAuthedProfile(profile);
         // Also probe for a scholar listing — drives avatar-click routing
         // and lets a returning scholar reload back into their dashboard.
@@ -9502,6 +9504,7 @@ useEffect(() => {
 
   // Shared sign-in handler used by all public pages
 const handleSignIn = (r) => {
+    console.log("[K-DIAG handleSignIn]", { r, authedUser: !!authedUser, authedProfileRole: authedProfile?.role, authedProfileSuspended: authedProfile?.suspended });
     if (r === "prayer") { setView("prayerHub"); return; }
     if (r === "user") {
       if (authedUser) {
@@ -9509,6 +9512,7 @@ const handleSignIn = (r) => {
         // if the avatar tap came from a public page, an admin lands
         // on adminPanel. Suspended admins are bounced.
         if (authedProfile?.role === "admin") {
+          console.log("[K-DIAG handleSignIn] admin branch firing, suspended=", authedProfile.suspended);
           if (authedProfile.suspended) { bounceSuspended(); return; }
           setView("adminPanel"); return;
         }
@@ -9653,27 +9657,34 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onScholarUpdate={(updated) => setMyScholar(updated)}
   />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => setView("publicHome")} onComplete={async () => {
+    console.log("[K-DIAG userAuth.onComplete] entered", { returnView, userAuthRole });
     const user = await getUser();
+    console.log("[K-DIAG userAuth.onComplete] getUser →", { hasUser: !!user, userId: user?.id, email: user?.email });
     setAuthedUser(user);
     let profile = null;
     if (user) {
       profile = await getProfile();
+      console.log("[K-DIAG userAuth.onComplete] getProfile →", { profile, role: profile?.role, suspended: profile?.suspended, profileKeys: profile ? Object.keys(profile) : null });
       setAuthedProfile(profile);
       // Admin role takes precedence over scholar/parent return-view
       // routing — even if the auth view was opened from a scholar
       // entry, an admin signs into the admin panel. Suspended admins
       // are bounced.
       if (profile?.role === "admin") {
+        console.log("[K-DIAG userAuth.onComplete] admin branch firing, suspended=", profile.suspended);
         if (profile.suspended) { await bounceSuspended(); return; }
         setView("adminPanel");
         return;
       }
+      console.log("[K-DIAG userAuth.onComplete] admin branch SKIPPED — profile.role is", JSON.stringify(profile?.role));
     }
     if (returnView === "scholarPostAuth" && user) {
+      console.log("[K-DIAG userAuth.onComplete] routing to scholar");
       // Scholar entry point — look up scholar link and route accordingly.
       await routeAuthedScholar(user.id);
       return;
     }
+    console.log("[K-DIAG userAuth.onComplete] falling through to returnView=", returnView);
     setView(returnView);
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
