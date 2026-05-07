@@ -1047,6 +1047,9 @@ const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave }) => {
 const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, authedUser, authedProfile, onLogoClick, onSignIn }) => {
   const { coords, status, requestLocation } = useGeolocation();
   const [search, setSearch] = useState("");
+  // Real mosques from Supabase (replaces MOCK_MOSQUES.map shape).
+  const [rawMosques, setRawMosques] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Auto-request on mount (once)
   useEffect(() => {
@@ -1054,8 +1057,18 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Compute mosques with distance, sort by it (or alpha if no coords)
-  const mosques = MOCK_MOSQUES.map(m => ({
+  // Fetch active mosques on mount
+  useEffect(() => {
+    getMosques()
+      .then(data => setRawMosques(data.map(transformMosque)))
+      .catch(err => console.error("Failed to load mosques:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Compute mosques with distance, sort by it (or alpha if no coords).
+  // Both lat/lng and m.lat/m.lng work because the table column names
+  // match the legacy mock shape — no rename needed for distance calc.
+  const mosques = rawMosques.map(m => ({
     ...m,
     distance: coords ? haversineDistance(coords.lat, coords.lng, m.lat, m.lng) : null
   }));
@@ -1122,7 +1135,13 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
 
       {/* Grid */}
       <div className="max-w-6xl mx-auto px-5 md:px-6 pb-16">
-        {sorted.length === 0 ? (
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white border border-stone-200 rounded-2xl h-72 animate-pulse" />
+            ))}
+          </div>
+        ) : sorted.length === 0 ? (
           <div className="text-center py-16 text-stone-500">
             <p className="text-sm">No mosques match your search.</p>
           </div>
