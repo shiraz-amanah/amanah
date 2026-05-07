@@ -6492,7 +6492,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, toggleMosqueSave, onMosque }) => {  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("dashboardTab") || "bookings");
+  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque }) => {  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("dashboardTab") || "bookings");
   const setTab = (newTab) => { sessionStorage.setItem("dashboardTab", newTab); setTabRaw(newTab); };
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", city: "", phone: "" });
@@ -7218,7 +7218,7 @@ setBookings(transformed);
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {MOCK_MOSQUES.filter(m => savedMosqueIds.has(String(m.id))).map(m => (
+                {(savedMosques || []).map(m => (
                   <MosqueCard
                     key={m.id}
                     mosque={m}
@@ -10134,6 +10134,11 @@ export default function App() {
   const [savedCampaignIds, setSavedCampaignIds] = useState(new Set());
   const [savedMosqueIds, setSavedMosqueIds] = useState(new Set());
   const [savedScholars, setSavedScholars] = useState([]);
+  // Mosques mirror the scholar pattern now that they're real Supabase
+  // rows. Pre-K-6a, savedMosques was derived on-demand via
+  // MOCK_MOSQUES.filter — no separate state needed. Now we keep the
+  // Set + Array atomically in sync inside toggleMosqueSave.
+  const [savedMosques, setSavedMosques] = useState([]);
 
 useEffect(() => {
   getSaves()
@@ -10146,6 +10151,9 @@ useEffect(() => {
   getSavedScholars()
     .then(setSavedScholars)
     .catch(err => console.error("Failed to load saved scholars:", err));
+  getSavedMosques()
+    .then(data => setSavedMosques(data.map(transformMosque)))
+    .catch(err => console.error("Failed to load saved mosques:", err));
 }, [authedUser]);
 
 const toggleScholarSave = async (scholar) => {
@@ -10176,20 +10184,24 @@ const toggleScholarSave = async (scholar) => {
   const toggleMosqueSave = async (mosque) => {
     const idStr = String(mosque.id);
     if (savedMosqueIds.has(idStr)) {
-      // Un-save: optimistic remove
+      // Un-save: optimistic remove from both Set and array
       setSavedMosqueIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+      setSavedMosques(prev => prev.filter(m => String(m.id) !== idStr));
       const { error } = await removeSave('mosque', mosque.id);
       if (error) {
         // Roll back
         setSavedMosqueIds(prev => new Set([...prev, idStr]));
+        setSavedMosques(prev => [...prev, mosque]);
       }
     } else {
-      // Save: optimistic add
+      // Save: optimistic add to both Set and array
       setSavedMosqueIds(prev => new Set([...prev, idStr]));
+      setSavedMosques(prev => [...prev, mosque]);
       const { error } = await addSave('mosque', mosque.id);
       if (error) {
         // Roll back
         setSavedMosqueIds(prev => { const next = new Set(prev); next.delete(idStr); return next; });
+        setSavedMosques(prev => prev.filter(m => String(m.id) !== idStr));
       }
     }
   };
@@ -10569,6 +10581,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
     toggleScholarSave={toggleScholarSave}
     savedMosqueIds={savedMosqueIds}
+    savedMosques={savedMosques}
     toggleMosqueSave={toggleMosqueSave}
     onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
   />;
