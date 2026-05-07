@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 3 shipped (reviews moderation admin gate). Migration 021 applied to prod: additive admin SELECT + UPDATE policies on `reviews`. Pre-021 probe of `pg_policies` confirmed the deployed policies matched 012 exactly with no admin awareness — meaning Session H's moderation UI was a silent no-op against prod since it shipped. K-3 fixed it: admin now sees all reviews regardless of status, hide/publish flips `reviews.status` correctly, trigger recomputes `scholars.rating + review_count`. yusuf-test still has edit ability on own reviews (regression preserved). Single commit (`b02103a`) — no code changes; auth.js helpers were already RLS-respecting. Session H block in this file annotated to reflect the silent-no-op caveat. Next: Phase 5 — All users tab (Phase 4 campaigns deferred). Migration 022 admin SELECT/UPDATE on `profiles` + auth.js helpers `listAllProfiles` / `setProfileRole` / `setProfileSuspended` + tab UI replacing the "coming in the next build" placeholder.
+> Last action: Session K Phase 5 shipped (All users tab live in admin panel). Migrations 022 (admin SELECT + UPDATE on `profiles`) + 023 (added `profiles.created_at` — column didn't exist in prod despite 010 TODO migration describing it; caught when `listAllProfiles` returned 400 and the UI showed "0 total · No users match this view"). Three new auth.js helpers: `listAllProfiles` (paginated 50/page, debounced search, role + suspended filters), `setProfileRole` (whitelisted), `setProfileSuspended`. AdminAllUsers component replaces the placeholder: list with avatars + role/status pills, role dropdown + Suspend button per row, View modal, Confirm modal on role change with transition-aware copy, self-action guard with "You" badge. Pagination shows when count > 50. 4 commits (`4696db9`, `2209f96`, `ce41af9`, `47ccde1`). All smoke tests green post-fix. **Lesson learned this phase:** TODO migration files in `migrations/` describe intent, not deployed state. When code queries a column that "should" exist per the migration history, treat the migration as a suspect and probe `information_schema.columns` before assuming the bug is elsewhere. Logged in cross-cutting gotchas. Next: Phase 6 — mosques (biggest phase, ~20-25 commits). Scope plan to be surfaced in chat for review before any code lands.
 
 ---
 
@@ -35,10 +35,11 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session K Phase 1** ✅ — Real admin auth foundation. Migrations 017 (`profiles.role` + `profiles.suspended` + `public.is_admin/is_suspended` SECURITY DEFINER helpers) + 018 (seed shiraz to admin). Dedicated `<AdminLogin>` view (dark theme) reachable only via PublicHome footer "Admin" link. Cross-path enforcement: admin role users blocked from Parent/Scholar UserAuth paths with toast steering them to /admin; non-admins blocked from AdminLogin with "Not an admin account."; suspended admins toasted "Account has been suspended." `GlobalToast` infra at App root + `fullSignOut` helper consolidating signOut+state-clear. AdminPanel sidebar reads real `authedProfile.name`; Sign out fully clears Supabase session before routing. Phase 4 (campaigns admin queue) deferred to a future focused session because campaigns aren't a real Supabase table yet.
 - **Session K Phase 2** ✅ — Scholar applications real + verification UI. Migration 019 (admin SELECT/UPDATE on `scholar_applications`, additive over the open 015 policies) + 020 (admin SELECT/UPDATE on `scholars` — needed because Phase 1 didn't cover scholars despite the brief assuming so; without 020, getScholarById against a `pending_verification` row returns null for admin). Deleted duplicate "Scholar queue" sidebar tab + AdminScholarQueue component + ADMIN_SCHOLAR_APPS mock (locked decision A: "Scholar applications" is the single source of truth). Admin bootstrap auto-route added per user request mid-phase: a reload while inside the panel now lands back on adminPanel rather than publicHome (other roles unchanged). New auth.js helpers `setScholarVerificationFlag(id, flag, value)` (whitelisted to the three verified columns) + `publishScholar(id)` (idempotent-ish via `status='pending_verification'` WHERE guard). Verification UI in AdminScholarApplications detail: three checkbox toggles with optimistic update + per-flag in-flight saving badge + rollback on error, "Pending verification" amber pill or "Published" emerald pill, "Mark fully verified & publish" button gated on all-three-true and hidden once status='active'. Toggles stay editable post-publish so admin can revoke a flag later if needed.
 - **Session K Phase 3** ✅ — Reviews moderation admin gate. Migration 021 adds additive admin SELECT + UPDATE policies on `reviews`. Probe of `pg_policies` against prod confirmed the deployed policies matched 012 exactly (no admin awareness), meaning Session H's moderation UI had been a silent no-op since H shipped — `setReviewStatus` was RLS-denied and `getReviewsForModeration` could only see `published` rows. Admin moderation now works end-to-end: admin sees all reviews regardless of status, hide/publish actually flips `reviews.status`, the trigger from 012 recomputes `scholars.rating + review_count` correctly. No code changes — auth.js helpers were already RLS-respecting; they just needed RLS to allow them through. Session H block annotated to reflect the silent-no-op.
+- **Session K Phase 5** ✅ — All users tab. Phase 4 (campaigns admin queue) deferred. Migration 022 (admin SELECT + UPDATE policies on `profiles`). Three new auth.js helpers: `listAllProfiles({page, search, role, suspended})` (50/page, debounced search on name+email via ILIKE through supabase-js `.or()`, returns `{data, count, error}`), `setProfileRole(id, newRole)` (whitelisted to user/scholar/admin), `setProfileSuspended(id, value)`. AllUsers tab UI replaces the placeholder: paginated list, role + status filter pills, per-row Eye-icon View modal + role dropdown + Suspend toggle. Self-action guard with "You" pill on the admin's own row, role dropdown + suspend disabled with explanatory title attributes. Confirm modal on role change with copy that varies by transition (elevation-to-admin, demotion-from-admin, plain user/scholar swap). **Mid-phase fix:** migration 023 added `profiles.created_at` — the column didn't exist in prod despite 010's TODO migration describing it; `listAllProfiles` selected/ordered by it and got a 400 from PostgREST, which surfaced as "0 total · No users match this view" in the UI. Backfilled existing rows to apply timestamp (acceptable pre-launch). Suspension write-blocking on user tables stays parked.
 
 ### Up next
 
-- **Session K Phase 5 — All users tab.** Phase 4 (campaigns admin queue) deferred. Migration 022 admin SELECT + UPDATE on `profiles`. New auth.js helpers `listAllProfiles({page, search, role, suspended})`, `setProfileRole(id, newRole)`, `setProfileSuspended(id, value)`. AllUsers tab UI replaces the "coming in the next build" placeholder: paginated list (50/page), search by name/email, role + suspended filters, per-row View / Change role (with confirm modal) / Suspend toggle. Self-action guard (admin can't change own role or suspend themselves). Suspension write-blocking on user tables stays parked for a follow-up.
+- **Session K Phase 6 — Mosques (real).** Biggest phase of the session (~20-25 commits). Schema for `mosques` + `mosque_applications` + RLS, mosque application wizard (public-facing), mosque dashboard (Profile / Donations / Messages / Account only — no Bookings or Reviews), admin queue, MOCK_MOSQUES → Supabase migration. Mosque becomes a fourth value on `profiles.role`. Scope plan surfaced in chat for review before code lands.
 - **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
@@ -2646,7 +2647,178 @@ deployed correctly**.
 
 ---
 
+## Session K Phase 5 — All users tab ✅ (7 May 2026)
+
+Replaces the "coming in the next build" placeholder with a full
+admin-side users tab — search, filter, paginate, change role,
+suspend. Phase 4 (campaigns admin queue) is parked; this is
+sequentially next per the K master brief.
+
+### What shipped
+
+- **Migration 022** — admin SELECT + UPDATE policies on `profiles`.
+  SELECT is redundant with 006's open-to-authenticated policy but
+  documents intent; UPDATE is load-bearing (without it,
+  `setProfileRole` against another user is a silent RLS denial).
+  Same additive pattern as 019/020/021.
+- **Migration 023** — added `profiles.created_at timestamptz not
+  null default now()`. The column didn't exist in prod despite the
+  010 TODO migration in this directory inferring it from frontend
+  usage. `listAllProfiles` selects + orders by it, so without 023
+  the All users tab returned 400 from PostgREST and rendered as
+  "0 total · No users match this view." Existing 8 rows backfilled
+  to migration apply time (true signup time wasn't preserved
+  anywhere — acceptable pre-launch).
+- **Three auth.js helpers** —
+  - `listAllProfiles({page, search, role, suspended})`: 50/page
+    pagination via `.range()`, total count via `{count: 'exact'}`,
+    debounced search on `name` OR `email` via supabase-js `.or()`
+    using ILIKE, role + suspended filters. Returns
+    `{data, count, error}`.
+  - `setProfileRole(id, newRole)`: whitelisted to {user, scholar,
+    admin}.
+  - `setProfileSuspended(id, value)`: single-column update.
+  All three gated by 022's admin UPDATE policy.
+- **`AdminAllUsers` component** —
+  - Header shows total count.
+  - Search input (debounced 300ms) above filter pills (role:
+    All/Parents/Scholars/Admins; status: All/Active/Suspended).
+    Both filter sets reset to page 1 on change.
+  - List: one row per profile with avatar, name + role pill +
+    suspended badge, email + city, role dropdown, Suspend toggle,
+    Eye-icon View modal trigger.
+  - Self-action guard: profile.id === authedProfile.id row gets a
+    "You" pill, role dropdown disabled, Suspend button disabled,
+    `title` attributes explain why.
+  - Confirm modal on role change with transition-aware copy:
+    elevation-to-admin warning, demotion-from-admin warning, or
+    "next sign-in routes to..." for user/scholar swaps. Uses
+    AdminScholarApplications's scoped-toast pattern, not
+    GlobalToast.
+  - Pagination only renders when count > 50 (Previous / Next +
+    "Page X of Y" indicator).
+  - View modal: read-only display of all profile fields including
+    UUID, role, suspended state, city, phone, joined date.
+
+### Commits
+
+- `4696db9` schema(022): admin RLS on profiles
+- `2209f96` feat(auth): listAllProfiles + setProfileRole + setProfileSuspended
+- `ce41af9` feat(admin): All users tab — list + search + filters + actions
+- `47ccde1` schema(023): add profiles.created_at
+
+4 commits.
+
+### Decisions
+
+- **`created_at` backfill to apply time, not real signup time.**
+  True signup timestamp was never preserved on profiles and
+  isn't recoverable from auth.users for our existing rows.
+  Pre-launch the audience is test users; the lossy backfill is
+  acceptable. Future-proofing: any new column added now should
+  default at insert time, not patched in later.
+- **`listAllProfiles` returns raw snake_case rows.** Admin
+  surfaces don't pass these to public-facing components, so the
+  shaper indirection (snake → camel) used in scholars/messages
+  helpers isn't needed here. Keeps the helper simple.
+- **Suspend has no confirm modal; role change does.** Suspending
+  is reversible by toggling back. Role changes (especially to
+  admin) are higher-stakes and benefit from the deliberate
+  click-through. Matches the K master brief.
+- **Self-action guard in the UI, not the helper.** The auth.js
+  helpers don't enforce "can't change your own row" — that
+  policy lives in the component. Keeps helpers testable in
+  isolation (e.g. a future bulk-suspend script could call
+  `setProfileSuspended` against any id including the caller's,
+  if it had a real reason to). Trust boundary is the UI for
+  this surface.
+
+### The bug + fix
+
+`listAllProfiles` works correctly against a profiles table that
+has `created_at`. It doesn't against one that doesn't. The 010
+TODO migration in this directory describes a `created_at` column
+because frontend code (since the project's pre-Session-A days)
+uses it. But the prod profiles table never had the column —
+010 is a placeholder waiting on `pg_dump`, not a record of what
+actually deployed.
+
+Symptom: All users tab loaded, search and filters rendered, list
+showed "0 total · No users match this view." No errors shown to
+the user.
+
+Diagnosis path:
+
+1. RLS suspect — checked admin SELECT policy on profiles via
+   `pg_policies`: 022 was applied correctly.
+2. Direct table query — `select * from profiles` as postgres role
+   showed all 8 rows. So data exists.
+3. Frontend — opened browser DevTools Network tab, found the
+   PostgREST GET against `/rest/v1/profiles` returned 400 with
+   `column profiles.created_at does not exist`.
+4. Confirmed via `select column_name from information_schema.columns
+   where table_name='profiles' and table_schema='public';` — no
+   `created_at`.
+5. Migration 023 added the column.
+
+Time from "All users shows nothing" to fix-pushed: ~15 minutes.
+Most of which was eliminating RLS as the suspect.
+
+### Smoke tests (all green post-fix)
+
+1. ✅ Migration 023 applied; `created_at` column lands as
+   timestamptz with default now().
+2. ✅ All 8 existing rows backfilled to apply timestamp.
+3. ✅ All users tab renders 8 rows after hard refresh.
+4. ✅ Search "yusuf" narrows to matching rows. Clear → returns
+   to full set.
+5. ✅ Role filter Parents → only role='user'. Scholars → only
+   scholar. Admins → just shiraz with "You" pill.
+6. ✅ Status filter Suspended → empty. Active → all 8.
+7. ✅ Eye-icon → modal opens with full read-only profile.
+8. ✅ Self-row dropdown + suspend disabled; non-self enabled.
+9. ✅ Role change yusuf-test → scholar → confirm modal → toast
+   → list refetches with new role.
+10. ✅ Promote a user to admin → elevation-warning copy in modal
+    → confirm → user's next sign-in via /admin lands on
+    adminPanel.
+11. ✅ Suspend a test user → "Suspended" badge appears.
+    Unsuspend → badge gone.
+
+### Lessons learned
+
+- **TODO migration files describe intent, not deployed state.**
+  010_profiles_table_TODO.sql infers columns from frontend usage
+  but is explicitly marked TODO ("schema exists in production
+  but predates this directory; full DDL not recoverable"). The
+  inferred column list isn't authoritative — it's a placeholder
+  waiting on `pg_dump --schema-only`. Treating it as deployed
+  truth cost ~15 minutes here. Going forward: any TODO migration
+  is a suspect when its inferred columns are referenced by code
+  that isn't working. Logged as a cross-cutting gotcha.
+- **PostgREST schema cache trap is now well-documented; still
+  bites.** This phase had to remember `notify pgrst, 'reload
+  schema';` + hard refresh after both 022 and 023. Same trap as
+  Phase 1 (017). The cache reload is mandatory after every
+  schema change; a hard browser refresh is mandatory after every
+  cache reload. Both required, neither sufficient.
+- **Walking the stack DB → RLS → frontend is a cheap diagnostic
+  pattern.** Took ~5 minutes per layer to rule out and a clear
+  Network-tab error pinpointed the bug. Worth doing in this
+  order for any "the data isn't showing up" Supabase bug:
+  (1) does the data exist in the table at all? (2) does RLS let
+  me see it? (3) is the query actually firing? (4) is the
+  query actually correct?
+
+---
+
 ## Cross-cutting gotchas
+
+### Schema / migrations gotchas
+
+- **TODO migration files describe intent, not deployed state.** Files in `migrations/` marked `STATUS: TODO` are placeholders awaiting `pg_dump --schema-only` output; their inferred column lists come from reading frontend usage and may not match prod. When code queries a column that "should" exist per a TODO migration's inferred schema, treat the TODO file as a suspect — probe `information_schema.columns` to confirm the column actually landed before assuming the bug is elsewhere. Caught in K-5 when `listAllProfiles` queried `profiles.created_at` and got a 400 from PostgREST despite 010_profiles_table_TODO.sql describing the column.
+- **PostgREST schema cache trap.** Every migration that adds columns or policies needs `notify pgrst, 'reload schema';` AND a hard browser refresh. Both required, neither sufficient alone. The cache holds the schema view from PostgREST's last reload — new columns can't even be SELECTed (the column-expansion of `select=*` happens against the cached schema). Has bitten this session in Phase 1 (017), Phase 5 twice (022 RLS + 023 column add). Whenever a migration lands, the apply checklist is: (1) run the SQL, (2) run notify pgrst, (3) hard-refresh the browser.
+- **Diagnose "the data isn't showing" by walking DB → RLS → frontend.** (1) Does the data exist in the table at all? (2) Does RLS let me see it as my current role? (3) Is the query actually firing (Network tab)? (4) Is the query actually correct (Network response body)? About 5 minutes per layer; usually one of them surfaces the bug clearly. Don't start patching code until step 4 is positive.
 
 ### Find/replace gotchas
 
