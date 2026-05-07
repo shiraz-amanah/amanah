@@ -5,6 +5,7 @@ import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
+import { transformMosque } from "./lib/mosqueTransform";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
@@ -117,6 +118,9 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   // Real scholars from Supabase
   const [scholars, setScholars] = useState([]);
   const [scholarsLoading, setScholarsLoading] = useState(true);
+  // Real mosques from Supabase (replaces MOCK_MOSQUES.slice(0, 4))
+  const [mosques, setMosques] = useState([]);
+  const [mosquesLoading, setMosquesLoading] = useState(true);
 
 useEffect(() => {
   getScholars()
@@ -129,6 +133,10 @@ useEffect(() => {
     .finally(() => {
       setScholarsLoading(false);
     });
+  getMosques()
+    .then(data => setMosques(data.map(transformMosque)))
+    .catch(err => console.error("Failed to load mosques:", err))
+    .finally(() => setMosquesLoading(false));
 }, []);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -355,15 +363,21 @@ useEffect(() => {
   </div>
 
   <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    {MOCK_MOSQUES.slice(0, 4).map(m => (
-      <MosqueCard
-        key={m.id}
-        mosque={m}
-        onClick={() => onMosqueDetail && onMosqueDetail(m)}
-        isSaved={savedMosqueIds?.has?.(String(m.id))}
-        onToggleSave={toggleMosqueSave}
-      />
-    ))}
+    {mosquesLoading ? (
+      Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="bg-white border border-stone-200 rounded-2xl h-72 animate-pulse" />
+      ))
+    ) : (
+      mosques.slice(0, 4).map(m => (
+        <MosqueCard
+          key={m.id}
+          mosque={m}
+          onClick={() => onMosqueDetail && onMosqueDetail(m)}
+          isSaved={savedMosqueIds?.has?.(String(m.id))}
+          onToggleSave={toggleMosqueSave}
+        />
+      ))
+    )}
   </div>
 </section>
 
