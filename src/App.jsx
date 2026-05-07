@@ -2446,7 +2446,7 @@ const DBSStatusPill = ({ status }) => {
 // PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
 // MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
 // Phase 9 sweeps.
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic }) => {
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessages }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
   });
@@ -2508,15 +2508,22 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic }) => {
           ) : null}
         </div>
 
-        {/* Tabs */}
+        {/* Tabs. Messages is a route-switch tab (calls onOpenMessages
+            → setView('messagesInbox')) rather than rendering inline,
+            same pattern as scholar / parent dashboards. Active state
+            never lands on "messages" since the click navigates away
+            before setTab fires. */}
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto">
           {tabs.map(t => {
             const Icon = t.icon;
             const active = tab === t.v;
+            const handleClick = t.v === "messages"
+              ? () => onOpenMessages && onOpenMessages()
+              : () => setTab(t.v);
             return (
               <button
                 key={t.v}
-                onClick={() => setTab(t.v)}
+                onClick={handleClick}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${active ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
               >
                 <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l}</span>
@@ -2640,18 +2647,10 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic }) => {
           </div>
         )}
 
-        {tab === "messages" && (
-          <div>
-            <div className="mb-6">
-              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Messages</h2>
-              <p className="text-sm text-stone-600">Conversations with parents, scholars, and Amanah team.</p>
-            </div>
-            <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
-              <MessageCircle className="mx-auto text-stone-300 mb-3" size={36} />
-              <p className="text-stone-600 text-sm">Messages tab wiring lands in commit 8 of Phase 6b.</p>
-            </div>
-          </div>
-        )}
+        {/* tab === "messages" never matches — clicking the tab calls
+            onOpenMessages and switches view to messagesInbox. Block
+            kept absent on purpose; setTab is never invoked with
+            "messages" as the value. */}
 
         {tab === "account" && (
           <div>
@@ -11435,6 +11434,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     authedUser={authedUser}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
+    onOpenMessages={() => { setRole("mosque"); setView("messagesInbox"); }}
   />;
   // mosque={null} for now — routeAuthedMosque + myMosque state land
   // in commit 10. Until then, only the legacy LoginScreen path can
