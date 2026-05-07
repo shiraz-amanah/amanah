@@ -973,21 +973,44 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
   );
 };
 
+// Initials fallback when a mosque has no photo_url. First letter of
+// each of the first two name tokens, uppercase. Single-word names
+// fall back to the first two letters. Used by MosqueCard +
+// MosqueDetail when mosque.photo is null/empty (wizard-approved
+// mosques may legitimately not have a photo until the mosque admin
+// edits their profile).
+const getMosqueInitials = (mosque) => {
+  const name = (mosque?.name || '').trim();
+  if (!name) return 'M';
+  const parts = name.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+};
+
 // Mosque card with hover interactions
 const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave }) => {
+  const hasPhoto = !!mosque.photo;
   return (
     <div
       onClick={onClick}
       className="group relative bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-400 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1"
     >
-      {/* Photo header */}
+      {/* Photo header (or initials block when photo_url is null) */}
       <div className="relative h-40 bg-stone-100 overflow-hidden">
-        <img
-          src={mosque.photo}
-          alt={mosque.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={(e) => { e.target.style.display = 'none'; }}
-        />
+        {hasPhoto ? (
+          <img
+            src={mosque.photo}
+            alt={mosque.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center">
+            <span className="text-white text-4xl font-semibold tracking-wide" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              {getMosqueInitials(mosque)}
+            </span>
+          </div>
+        )}
         {/* Verified badge */}
         {mosque.verified && (
           <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
@@ -1193,14 +1216,22 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onLogoClick} onSignIn={onSignIn} />
-      {/* Hero with photo */}
+      {/* Hero with photo (or initials block when photo_url is null) */}
       <div className="relative h-72 md:h-96 bg-stone-900 overflow-hidden">
-        <img
-          src={mosque.photo}
-          alt={mosque.name}
-          className="w-full h-full object-cover opacity-90"
-          onError={(e) => { e.target.style.display = 'none'; }}
-        />
+        {mosque.photo ? (
+          <img
+            src={mosque.photo}
+            alt={mosque.name}
+            className="w-full h-full object-cover opacity-90"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center">
+            <span className="text-white text-7xl md:text-8xl font-semibold tracking-wide" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              {getMosqueInitials(mosque)}
+            </span>
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-stone-900/70 via-stone-900/20 to-transparent" />
 
         {/* Back button + save */}
