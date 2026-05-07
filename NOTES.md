@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 1 shipped end-to-end (real admin auth foundation). Migrations 017 + 018 applied to prod: `profiles.role` + `profiles.suspended` columns + `public.is_admin()` / `public.is_suspended()` helpers, shiraz@savecobradford.co.uk seeded as the sole admin. Admin signs in via a new dedicated `<AdminLogin>` view (dark theme) reachable only via the small "Admin" link in PublicHome footer. Cross-path enforcement live: admin role users blocked from Parent/Scholar UserAuth paths with toast steering them to /admin; non-admins blocked from AdminLogin; suspended admins bounced. App-level `<GlobalToast>` infra at App root + `fullSignOut` helper. AdminPanel sidebar reads real `authedProfile.name`; sign out fully clears Supabase session. 9 commits net (`ea94f66`, `8fe4783`, `99781d3`, `14ad1f9`, `1159dde`, `1a06613`, `ba08264`, `49e8643`, `799c47a`). All 9 smoke tests green. Phase 4 (campaigns admin queue) deferred to a future focused session — campaigns aren't a real Supabase table yet. Next: Phase 2 — admin RLS on `scholar_applications` (additive — migration 019), delete the duplicate "Scholar queue" sidebar tab, three-flag verification panel in the application detail view + `setScholarVerificationFlag` / `publishScholar` helpers.
+> Last action: Session K Phase 2 shipped end-to-end (scholar applications real + verification UI). Migrations 019 + 020 applied to prod: admin SELECT/UPDATE on `scholar_applications` (additive over 015) + admin SELECT/UPDATE on `scholars` (needed for verification UI to read `pending_verification` rows; Phase 1 hadn't covered scholars despite the K-2 brief assuming so). Deleted duplicate "Scholar queue" sidebar tab + AdminScholarQueue + ADMIN_SCHOLAR_APPS mock — "Scholar applications" is the single source of truth now. Admin bootstrap auto-route: a reload lands an admin back on adminPanel rather than publicHome. New auth.js helpers `setScholarVerificationFlag(id, flag, value)` + `publishScholar(id)`. Verification UI in AdminScholarApplications detail view: three flag toggles (DBS/RTW/Ijazah) with optimistic update + per-flag saving indicators, "Mark fully verified & publish" button gated on all-three-true. Test fixture test2 verified end-to-end: pending_verification → admin flips three flags → publish → status=active → test2 sign-in routes to scholarDashboard → visible in public listings. 7 commits (`381a84a`, `dc51f86`, `0c78db7`, `a79ff4e`, `6ff709f`, `4c6e1da`, `6fd488b`). All 13 smoke tests green. Next: Phase 3 — reviews moderation admin gate (probe `pg_policies` for `reviews` first; depending on findings, additive admin override OR drop+rebuild against the existing 012 user-only UPDATE policy).
 
 ---
 
@@ -33,10 +33,11 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session I** ✅ — Scholar auth + read-only dashboard + `meeting_url` editor. Scholars now share the parent Supabase auth pool; `scholars.user_id` linkage (existing column, no schema add) gates the new `ScholarDashboard` view. Migration 014 adds two RLS policies on `bookings` (SELECT + UPDATE where `scholar_id ∈ scholars where user_id=auth.uid()`). New auth.js helpers `getScholarByUserId` + `setBookingMeetingUrl` (with `https://` validation). New views: `scholarPendingClaim` (post-signup before SQL link) + `scholarDashboard`. Tabs: Bookings (default, with Upcoming + Past + Cancelled-collapsed sections + inline meeting_url editor), Profile (read-only, "editing comes soon"), Reviews (existing breakdown + cards via `getReviewsForScholar`), Messages (delegates to existing inbox view with `role="scholar"`), Account (email + linked-listing summary + sign out). Earnings derived client-side from `sum(amount_paid where completed)`. Audience drawer's "Scholar sign in" entry now routes through Supabase rather than the legacy mock imam-login flow.
 - **Session J** ✅ — Scholar onboarding wizard + applications table + admin approval queue. Migration 015 adds `scholar_applications` (UUID PK, FK to auth.users, full wizard payload, status enum pending|approved|rejected, partial unique index on user_id WHERE status='pending') with a SECURITY DEFINER BEFORE-UPDATE trigger that on pending→approved generates a slug (kebab-case + collision loop -2/-3) and INSERTs a `scholars` row with `status='pending_verification'` + all three dbs/rtw/ijazah_verified flags false. Six new auth.js helpers (submit/getMy/getAll/approve/reject + shaper). New 5-step `<ScholarOnboardingWizard>` with sessionStorage hydration: Welcome / About / Qualifications / Services (CATEGORIES.id chips so subjects map 1:1 to scholars.categories) / Review. Three new status pages (`scholarApplicationSubmitted`, `scholarApplicationRejected`, `scholarVerificationPending`) replace `ScholarPendingClaim`. `routeAuthedScholar` is now a five-branch tree based on scholar.status + application.status. Admin queue: new "Scholar applications" tab in AdminPanel with filter pills (Pending/Approved/Rejected/All + counts), list, detail view, approve modal (with consequence copy), reject modal (required reason min 10 chars), refetches on action with toast.
 - **Session K Phase 1** ✅ — Real admin auth foundation. Migrations 017 (`profiles.role` + `profiles.suspended` + `public.is_admin/is_suspended` SECURITY DEFINER helpers) + 018 (seed shiraz to admin). Dedicated `<AdminLogin>` view (dark theme) reachable only via PublicHome footer "Admin" link. Cross-path enforcement: admin role users blocked from Parent/Scholar UserAuth paths with toast steering them to /admin; non-admins blocked from AdminLogin with "Not an admin account."; suspended admins toasted "Account has been suspended." `GlobalToast` infra at App root + `fullSignOut` helper consolidating signOut+state-clear. AdminPanel sidebar reads real `authedProfile.name`; Sign out fully clears Supabase session before routing. Phase 4 (campaigns admin queue) deferred to a future focused session because campaigns aren't a real Supabase table yet.
+- **Session K Phase 2** ✅ — Scholar applications real + verification UI. Migration 019 (admin SELECT/UPDATE on `scholar_applications`, additive over the open 015 policies) + 020 (admin SELECT/UPDATE on `scholars` — needed because Phase 1 didn't cover scholars despite the brief assuming so; without 020, getScholarById against a `pending_verification` row returns null for admin). Deleted duplicate "Scholar queue" sidebar tab + AdminScholarQueue component + ADMIN_SCHOLAR_APPS mock (locked decision A: "Scholar applications" is the single source of truth). Admin bootstrap auto-route added per user request mid-phase: a reload while inside the panel now lands back on adminPanel rather than publicHome (other roles unchanged). New auth.js helpers `setScholarVerificationFlag(id, flag, value)` (whitelisted to the three verified columns) + `publishScholar(id)` (idempotent-ish via `status='pending_verification'` WHERE guard). Verification UI in AdminScholarApplications detail: three checkbox toggles with optimistic update + per-flag in-flight saving badge + rollback on error, "Pending verification" amber pill or "Published" emerald pill, "Mark fully verified & publish" button gated on all-three-true and hidden once status='active'. Toggles stay editable post-publish so admin can revoke a flag later if needed.
 
 ### Up next
 
-- **Session K Phase 2 — Scholar applications real + verification UI.** Admin RLS on `scholar_applications` (additive — existing open policies stay until tightened in a follow-up), delete the duplicate "Scholar queue" sidebar tab (Session J's "Scholar applications" is the single source of truth), three-flag verification panel in the application detail view (DBS/RTW/Ijazah toggles + "Mark fully verified & publish" CTA gated on all three true), `setScholarVerificationFlag` + `publishScholar` helpers in auth.js.
+- **Session K Phase 3 — Reviews moderation admin gate.** Add admin RLS to `reviews` (next migration). Existing Session-H moderation UI in AdminPanel may need tightening depending on probe findings — need to read `pg_policies` for `reviews` first to know whether the existing UPDATE policy (with `with check (parent_id = auth.uid() and status = 'published')`) actually blocks admin moderation today. Either additive admin policies (if H worked via some undocumented prod policy) or replace-and-rebuild (drop the user UPDATE, add admin UPDATE).
 - **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
@@ -2406,6 +2407,139 @@ running before any "but I just fixed that on prod" diagnosis.
   deploys from `origin/main`, not local. `git rev-list --left-
   right --count origin/main...HEAD` is a one-liner that catches
   the "committed but didn't push" trap.
+
+---
+
+## Session K Phase 2 — Scholar applications real + verification UI ✅ (7 May 2026)
+
+Wires the AdminScholarApplications detail view (Session J's
+infrastructure) into a complete approval-to-publish admin flow.
+Admin can now flip the three verified flags and publish a
+scholar entirely through the UI — no SQL needed.
+
+### What shipped
+
+- **Migration 019** — admin SELECT + UPDATE policies on
+  `scholar_applications`. Additive only (existing 015 open
+  policies stay), so behaviour for non-admin users is unchanged.
+  The admin policies establish the pattern for a future
+  tightening pass that would drop the open policies and leave
+  users-read-own + admins-read-all.
+- **Migration 020** — admin SELECT + UPDATE policies on
+  `scholars`. Phase 1 didn't actually add admin RLS on scholars
+  despite the K-2 brief assuming it had. Without 020,
+  `getScholarById` against a `pending_verification` row returns
+  null for an admin (the public policy filters on
+  `status='active'` and the self-select policy from 016 only
+  matches the scholar's own user_id). Catching this required
+  adding a migration not in the original brief.
+- **Scholar queue tab deleted** — sidebar item, AdminScholarQueue
+  component (~70 lines), ADMIN_SCHOLAR_APPS mock, related state
+  (scholarApps, handleScholarAction), counts.scholars references
+  in mobile bar urgent dot + overview banner copy. Locked
+  decision A: AdminScholarApplications is the single source of
+  truth.
+- **Admin bootstrap auto-route** — added per user request mid-
+  phase. Bootstrap effect now sets view='adminPanel' when
+  `role='admin'` AND `not suspended`. Suspended admins stay on
+  publicHome (their next action fires the existing bounceSuspended
+  flow). Other roles unchanged — scholar/parent still bootstrap
+  to publicHome and route on avatar.
+- **`setScholarVerificationFlag(scholarId, flag, value)` helper**
+  — flag is whitelisted to {dbs_verified, rtw_verified,
+  ijazah_verified}. Returns the updated row so the caller can
+  recompute "all-three-true" without a refetch. RLS gated by 020.
+- **`publishScholar(scholarId)` helper** — flips status to
+  `'active'`. WHERE clause guards against double-publish race
+  (`status='pending_verification'`); a re-publish after status
+  flipped elsewhere returns `{data: null, error: null}`, treated
+  as no-op by caller. Uses `.maybeSingle()` for that reason.
+- **Verification UI in AdminScholarApplications detail view** —
+  fetches the joined scholars row when application is approved
+  + has `created_scholar_id`. Three checkbox toggles (DBS /
+  Right to Work / Ijazah verified) with optimistic update +
+  rollback on error + per-flag in-flight saving badge.
+  "Pending verification" amber pill or "Published" emerald pill
+  at the top. "Mark fully verified & publish" button gated on
+  all-three-true; hidden when status='active' (toggles remain
+  editable so admin can revoke a flag later).
+
+### Commits
+
+- `381a84a` schema(019): admin RLS on scholar_applications
+- `dc51f86` schema(020): admin RLS on scholars
+- `0c78db7` docs(migrations): index 019 + 020
+- `a79ff4e` chore(admin): delete duplicate Scholar queue tab
+- `6ff709f` feat(admin): auto-route to adminPanel on bootstrap reload
+- `4c6e1da` feat(auth): setScholarVerificationFlag + publishScholar helpers
+- `6fd488b` feat(admin): verification UI in scholar application detail
+
+7 commits.
+
+### Decisions
+
+- **Migration 020 added unprompted.** The K-2 brief had a
+  comment `-- already covered by "Admins update all scholars"
+  from Phase 1 — but verify column-level`. Verification turned up
+  no such Phase 1 policy on scholars. Added 020 so the
+  verification UI could function. Documented in 020's header.
+- **Verification toggles stay editable post-publish.** Brief
+  implies the panel hides after publish. We keep toggles
+  editable so admin can revoke a flag (e.g. expired DBS) later
+  by un-checking it. Only the "publish" button hides since
+  status is already active. Future revoke flow (un-publish back
+  to pending_verification on flag-flip) is a separate UX
+  decision parked.
+- **Optimistic update with per-flag saving badge.** Toggles flip
+  instantly while the API call is in flight. Each flag has its
+  own saving marker so rapid toggling doesn't have one flag's
+  rollback race against another's. Errors surface in the
+  scoped AdminScholarApplications toast, not GlobalToast.
+- **publishScholar idempotency.** `.eq('status',
+  'pending_verification')` + `.maybeSingle()` means a double-
+  publish (if e.g. another admin published in between) is
+  silent no-op. Caller still updates local state to `active`
+  either way — the source of truth is the DB; we just defer the
+  optimistic write.
+
+### Smoke tests (all green)
+
+Probed end-to-end with test2 (pending_verification before
+phase, became active during smoke):
+
+1. ✅ Sidebar: "Scholar queue" gone. "Scholar applications" remains.
+2. ✅ Admin reload inside panel → lands on adminPanel.
+3. ✅ Parent/scholar reload → lands on publicHome (regression).
+4. ✅ Pending tab shows test1.
+5. ✅ Approved tab shows test2.
+6. ✅ test2 detail loads verification panel with three OFF
+   toggles + amber pill.
+7. ✅ Toggle DBS verified ON → publish disabled (1 of 3).
+8. ✅ Toggle all three ON → publish button enabled.
+9. ✅ Click publish → toast, pill flips green, button hides.
+10. ✅ test2 sign-in post-publish → scholarDashboard (not
+    VerificationPending).
+11. ✅ test2 visible in public listings.
+12. ✅ Toggling a flag OFF post-publish persists (admin can
+    revoke).
+13. ✅ Pending or rejected applications: no verification panel.
+
+### Lessons learned
+
+- **Verify briefs against actual prod state, not assumed prod
+  state.** The K-2 brief's "RLS already covered by Phase 1"
+  comment was wrong — Phase 1 had built only the helper
+  functions, not table-level admin RLS on `scholars`. Catching
+  this required a `select policyname from pg_policies where
+  tablename='scholars'` query before assuming the brief was
+  correct. Worth doing for every phase that depends on prior-
+  phase RLS state.
+- **Optimistic UI + rollback works fine for low-conflict admin
+  tools.** No need for fancy CRDT or transactional locking on
+  the verification toggles — the only concurrent admin is the
+  single admin themselves, and the worst case is a flag flip
+  that needs to be re-clicked. The complexity wasn't worth it
+  for this surface.
 
 ---
 
