@@ -13,7 +13,7 @@ import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/sch
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
-import { ADMIN_MOSQUE_APPS, ADMIN_CAMPAIGN_APPS, ADMIN_FLAGS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
+import { ADMIN_CAMPAIGN_APPS, ADMIN_FLAGS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
 
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
@@ -8295,16 +8295,16 @@ const AdminOverview = ({ onNavigate, counts, displayName }) => {
       </div>
 
       {/* Urgent queue alert */}
-      {(counts.flags > 0 || counts.mosques > 0) && (
+      {counts.flags > 0 && (
         <div className="bg-gradient-to-br from-rose-50 to-white border border-rose-200 rounded-2xl p-5 mb-6">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center flex-shrink-0">
               <AlertTriangle className="text-rose-700" size={20} />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{counts.flags + counts.mosques} items need review</p>
+              <p className="text-sm font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{counts.flags} items need review</p>
               <p className="text-sm text-stone-700">
-                {counts.flags > 0 && `${counts.flags} flagged reports, `}{counts.mosques > 0 && `${counts.mosques} mosque applications, `}{counts.campaigns > 0 && `${counts.campaigns} campaigns pending approval`}
+                {counts.flags > 0 && `${counts.flags} flagged reports`}{counts.campaigns > 0 && `, ${counts.campaigns} campaigns pending approval`}
               </p>
             </div>
             <button onClick={() => onNavigate("flags")} className="bg-rose-700 hover:bg-rose-800 text-white text-sm font-medium px-4 py-2 rounded-lg whitespace-nowrap">Review flags</button>
@@ -8374,90 +8374,6 @@ const AdminOverview = ({ onNavigate, counts, displayName }) => {
     </div>
   );
 };
-
-// ===== Mosque queue =====
-const AdminMosqueQueue = ({ apps, onAction }) => (
-  <div>
-    <div className="mb-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque applications</h1>
-      <p className="text-stone-600">{apps.length} pending review · sorted oldest first</p>
-    </div>
-    <div className="space-y-3">
-      {apps.map(app => (
-        <div key={app.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
-          <div className="p-5">
-            <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{app.name}</h3>
-                  {app.charityCommissionStatus === "match" ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
-                      <CheckCircle2 size={10} /> CC Match
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-full font-medium uppercase tracking-wider">
-                      <AlertTriangle size={10} /> CC Mismatch
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-stone-600">{app.city}, {app.postcode} · Charity no. {app.charityNumber}</p>
-              </div>
-              <span className="text-xs text-stone-500">Submitted {app.submittedDate}</span>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-3 mb-4">
-              <div className="bg-stone-50 rounded-lg p-3">
-                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Primary contact</p>
-                <p className="text-sm text-stone-900">{app.contactName}</p>
-                <p className="text-xs text-stone-600">{app.contactRole}</p>
-                <p className="text-xs text-stone-600">{app.contactPhone}</p>
-              </div>
-              <div className="bg-stone-50 rounded-lg p-3">
-                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Safeguarding lead</p>
-                <p className="text-sm text-stone-900">{app.safeguardingLead}</p>
-              </div>
-              <div className="bg-stone-50 rounded-lg p-3">
-                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2">Documents</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs">
-                    {app.docs.proofOfAddress ? <CheckCircle2 size={12} className="text-emerald-600" /> : <XCircle size={12} className="text-rose-500" />}
-                    <span className={app.docs.proofOfAddress ? "text-stone-700" : "text-rose-700"}>Proof of address</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    {app.docs.trusteeConfirmation ? <CheckCircle2 size={12} className="text-emerald-600" /> : <XCircle size={12} className="text-rose-500" />}
-                    <span className={app.docs.trusteeConfirmation ? "text-stone-700" : "text-rose-700"}>Trustee letter</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {app.notes && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex gap-2 text-xs text-amber-900">
-                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                <span>{app.notes}</span>
-              </div>
-            )}
-
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={() => onAction("approve", app)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                <CheckCircle2 size={14} /> Approve
-              </button>
-              <button onClick={() => onAction("request", app)} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                <Mail size={14} /> Request info
-              </button>
-              <button onClick={() => onAction("reject", app)} className="bg-white border border-stone-300 hover:border-rose-300 hover:text-rose-700 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                <XCircle size={14} /> Reject
-              </button>
-              <button className="ml-auto text-stone-500 hover:text-stone-900 px-3 py-2 text-sm inline-flex items-center gap-1">
-                <Eye size={14} /> View full
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
 
 // ===== Campaign queue =====
 const AdminCampaignQueue = ({ apps, onAction }) => (
@@ -9916,13 +9832,11 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const displayName = authedProfile?.name || authedProfile?.email || "Admin";
   const [section, setSection] = useState("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mosqueApps, setMosqueApps] = useState(ADMIN_MOSQUE_APPS);
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
   const [flags, setFlags] = useState(ADMIN_FLAGS);
   const [toast, setToast] = useState(null);
 
   const counts = {
-    mosques: mosqueApps.length,
     campaigns: campaignApps.length,
     flags: flags.length,
     dbs: ADMIN_DBS_ORDERS.length
@@ -9945,10 +9859,6 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleMosqueAction = (action, app) => {
-    setMosqueApps(mosqueApps.filter(a => a.id !== app.id));
-    showToast(action === "approve" ? `${app.name} approved and live` : action === "reject" ? `${app.name} rejected` : `Info requested from ${app.name}`);
-  };
   const handleCampaignAction = (action, app) => {
     setCampaignApps(campaignApps.filter(a => a.id !== app.id));
     showToast(action === "approve" ? `Campaign "${app.title}" launched` : action === "reject" ? `Campaign rejected` : `Changes requested`);
@@ -9976,7 +9886,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
-          {(counts.flags > 0 || counts.mosques > 0) && (
+          {counts.flags > 0 && (
             <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
           )}
         </button>
