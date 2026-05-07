@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
@@ -9202,6 +9202,309 @@ const DetailRow = ({ label, value, multiline = false }) => (
   </div>
 );
 
+// ===== All users (admin) =====
+// Replaces the "coming in the next build" placeholder. Paginated
+// list of profiles with name/email search + role/suspended filters,
+// per-row View / Change role / Suspend actions. Self-action guard
+// disables role + suspend controls on the admin's own row so they
+// can't accidentally lock themselves out (use SQL if you need to).
+//
+// State shape duality: the list rows here are raw DB shape (snake_
+// case) since they're never passed to public-facing components.
+// Keeping the round-trip simple — admin-only surfaces don't need
+// the camelCase shaping the public flows use.
+const AdminAllUsers = ({ authedProfile }) => {
+  const [profiles, setProfiles] = useState([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [suspendedFilter, setSuspendedFilter] = useState("all"); // all / active / suspended
+  const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState(null); // { profile, newRole }
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const PAGE_SIZE = 50;
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+
+  // Debounce the search input — refetch fires on the debounced value,
+  // not every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchDebounced(search);
+      setPage(1); // reset to page 1 when search changes
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [roleFilter, suspendedFilter]);
+
+  const refetch = async () => {
+    setLoading(true);
+    const suspended = suspendedFilter === "suspended" ? true : suspendedFilter === "active" ? false : null;
+    const { data, count: total } = await listAllProfiles({
+      page,
+      search: searchDebounced,
+      role: roleFilter,
+      suspended,
+    });
+    setProfiles(data);
+    setCount(total);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, searchDebounced, roleFilter, suspendedFilter]);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleRoleChangeRequest = (profile, newRole) => {
+    if (newRole === profile.role) return;
+    setActionError(null);
+    setPendingRoleChange({ profile, newRole });
+  };
+
+  const confirmRoleChange = async () => {
+    if (!pendingRoleChange) return;
+    setActionError(null);
+    setActionLoading(true);
+    const { error } = await setProfileRole(pendingRoleChange.profile.id, pendingRoleChange.newRole);
+    setActionLoading(false);
+    if (error) {
+      setActionError(error.message || "Couldn't change role. Try again.");
+      return;
+    }
+    showToast(`${pendingRoleChange.profile.name || "User"} is now ${pendingRoleChange.newRole}`);
+    setPendingRoleChange(null);
+    refetch();
+  };
+
+  const handleSuspendToggle = async (profile) => {
+    const next = !profile.suspended;
+    const { error } = await setProfileSuspended(profile.id, next);
+    if (error) {
+      showToast(error.message || "Couldn't update. Try again.");
+      return;
+    }
+    showToast(next ? `${profile.name || "User"} suspended` : `${profile.name || "User"} unsuspended`);
+    refetch();
+  };
+
+  const isSelf = (profile) => profile.id === authedProfile?.id;
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>All users</h1>
+        <p className="text-stone-600">{count} total · search and filter to find anyone on the platform.</p>
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 mb-4 space-y-3">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or email..."
+            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mr-1">Role</span>
+          {[
+            { v: "all", l: "All" },
+            { v: "user", l: "Parents" },
+            { v: "scholar", l: "Scholars" },
+            { v: "admin", l: "Admins" },
+          ].map((f) => (
+            <button
+              key={f.v}
+              onClick={() => setRoleFilter(f.v)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${roleFilter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+            >
+              {f.l}
+            </button>
+          ))}
+          <span className="text-[10px] uppercase tracking-wider text-stone-500 font-medium ml-3 mr-1">Status</span>
+          {[
+            { v: "all", l: "All" },
+            { v: "active", l: "Active" },
+            { v: "suspended", l: "Suspended" },
+          ].map((f) => (
+            <button
+              key={f.v}
+              onClick={() => setSuspendedFilter(f.v)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${suspendedFilter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+            >
+              {f.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-stone-400 text-center py-10">Loading users...</p>
+      ) : profiles.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <Users className="mx-auto text-stone-300 mb-3" size={36} />
+          <p className="text-stone-600">No users match this view.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          {profiles.map((p, i) => (
+            <div
+              key={p.id}
+              className={`flex items-center gap-3 p-4 ${i < profiles.length - 1 ? "border-b border-stone-100" : ""}`}
+            >
+              <Avatar scholar={{ avatar_initials: p.avatar_initials, avatar_gradient: p.avatar_gradient, name: p.name }} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-stone-900 truncate">{p.name || "(no name)"}</p>
+                  {isSelf(p) && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-medium uppercase tracking-wider">You</span>
+                  )}
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${p.role === "admin" ? "bg-stone-900 text-white border-stone-900" : p.role === "scholar" ? "bg-sky-50 text-sky-800 border-sky-200" : "bg-stone-50 text-stone-700 border-stone-200"}`}>
+                    {p.role}
+                  </span>
+                  {p.suspended && (
+                    <span className="text-[10px] px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 rounded-full font-medium uppercase tracking-wider">Suspended</span>
+                  )}
+                </div>
+                <p className="text-xs text-stone-500 truncate">{p.email || "(no email)"}{p.city ? ` · ${p.city}` : ""}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <select
+                  value={p.role}
+                  disabled={isSelf(p)}
+                  onChange={(e) => handleRoleChangeRequest(p, e.target.value)}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-stone-300 bg-white text-stone-700 disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed cursor-pointer"
+                  title={isSelf(p) ? "You can't change your own role" : "Change role"}
+                >
+                  <option value="user">user</option>
+                  <option value="scholar">scholar</option>
+                  <option value="admin">admin</option>
+                </select>
+                <button
+                  onClick={() => handleSuspendToggle(p)}
+                  disabled={isSelf(p)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${p.suspended ? "bg-emerald-700 hover:bg-emerald-800 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-rose-300 hover:text-rose-700"} disabled:bg-stone-50 disabled:text-stone-400 disabled:border-stone-200 disabled:cursor-not-allowed`}
+                  title={isSelf(p) ? "You can't suspend your own account" : p.suspended ? "Restore access" : "Suspend account"}
+                >
+                  {p.suspended ? "Unsuspend" : "Suspend"}
+                </button>
+                <button
+                  onClick={() => setViewing(p)}
+                  className="text-stone-500 hover:text-stone-900 px-2 py-1.5"
+                  title="View profile details"
+                >
+                  <Eye size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-stone-500">Page {page} of {totalPages} · {count} total</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1.5 rounded-lg border border-stone-300 text-xs text-stone-700 hover:border-stone-400 disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed disabled:hover:border-stone-300"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 rounded-lg border border-stone-300 text-xs text-stone-700 hover:border-stone-400 disabled:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed disabled:hover:border-stone-300"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* View profile modal */}
+      {viewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60" onClick={() => setViewing(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-5">
+              <Avatar scholar={{ avatar_initials: viewing.avatar_initials, avatar_gradient: viewing.avatar_gradient, name: viewing.name }} size="md" />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{viewing.name || "(no name)"}</h3>
+                <p className="text-xs text-stone-500 break-all">{viewing.email || "(no email)"}</p>
+              </div>
+              <button onClick={() => setViewing(null)} className="text-stone-400 hover:text-stone-700 -mt-1 -mr-1"><X size={18} /></button>
+            </div>
+            <div className="space-y-2 text-sm">
+              {[
+                { label: "ID", value: <span className="font-mono text-xs break-all">{viewing.id}</span> },
+                { label: "Role", value: viewing.role },
+                { label: "Suspended", value: viewing.suspended ? "Yes" : "No" },
+                { label: "City", value: viewing.city || "—" },
+                { label: "Phone", value: viewing.phone || "—" },
+                { label: "Joined", value: viewing.created_at ? new Date(viewing.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—" },
+              ].map((row) => (
+                <div key={row.label} className="flex items-start gap-3 py-1">
+                  <span className="text-[10px] uppercase tracking-wider text-stone-500 font-medium w-20 flex-shrink-0 mt-0.5">{row.label}</span>
+                  <span className="text-stone-900 flex-1">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm role change modal */}
+      {pendingRoleChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+          <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              Make {pendingRoleChange.profile.name || "this user"} {pendingRoleChange.newRole === "admin" ? "an admin" : `a ${pendingRoleChange.newRole}`}?
+            </h3>
+            <p className="text-sm text-stone-700 mb-5 leading-relaxed">
+              {pendingRoleChange.newRole === "admin"
+                ? "Admins have full access to the admin panel — applications, scholars, all users, settings. Only grant to people who need it."
+                : pendingRoleChange.profile.role === "admin"
+                ? "Demoting an admin removes their access to the admin panel and the ability to moderate or manage users."
+                : `Their next sign-in will route to the ${pendingRoleChange.newRole} dashboard.`}
+            </p>
+            {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendingRoleChange(null)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+              <button onClick={confirmRoleChange} disabled={actionLoading} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg">
+                {actionLoading ? "Saving..." : "Confirm change"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+          <CheckCircle2 className="text-emerald-400" size={18} />
+          <span className="text-sm font-medium">{toast}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ===== Admin panel shell =====
 const AdminPanel = ({ authedProfile, onLogout }) => {
   const displayName = authedProfile?.name || authedProfile?.email || "Admin";
@@ -9286,16 +9589,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
         {section === "flags" && <AdminFlags flags={flags} onAction={handleFlagAction} />}
         {section === "reviews" && <AdminReviewsModeration />}
         {section === "dbs" && <AdminDBSOrders orders={ADMIN_DBS_ORDERS} />}
-        {section === "users" && (
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>All users</h1>
-            <p className="text-stone-600 mb-8">Search, filter, and manage every account on the platform.</p>
-            <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
-              <Users className="mx-auto text-stone-300 mb-3" size={36} />
-              <p className="text-stone-600">Full user management — coming in the next build.</p>
-            </div>
-          </div>
-        )}
+        {section === "users" && <AdminAllUsers authedProfile={authedProfile} />}
         {section === "settings" && (
           <div>
             <h1 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Settings</h1>
