@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { MOCK_MOSQUES, NEARBY_MOSQUES } from "./data/mockMosques";
@@ -8776,6 +8776,17 @@ const AdminScholarApplications = () => {
   const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   // Detail view state
   const [selected, setSelected] = useState(null);
+  // Joined scholars row for the selected application — fetched when
+  // the application is approved + has a created_scholar_id. Drives
+  // the verification panel. Null when the panel doesn't apply
+  // (rejected / pending application, or fetch in progress).
+  const [selectedScholar, setSelectedScholar] = useState(null);
+  const [scholarLoading, setScholarLoading] = useState(false);
+  // Per-flag in-flight markers so each toggle disables independently
+  // while its update is pending — switching three flags fast doesn't
+  // let one flag's optimistic-rollback clobber another.
+  const [flagSaving, setFlagSaving] = useState({});
+  const [publishLoading, setPublishLoading] = useState(false);
   // Action modals
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -8804,9 +8815,62 @@ const AdminScholarApplications = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
+  // Fetch the linked scholars row whenever an approved application
+  // with a created_scholar_id is selected. Cleared on close. RLS
+  // (migration 020) is what lets admin SELECT pending_verification
+  // rows; without it getScholarById would return null.
+  useEffect(() => {
+    let cancelled = false;
+    if (selected?.status === "approved" && selected?.createdScholarId) {
+      setScholarLoading(true);
+      setSelectedScholar(null);
+      getScholarById(selected.createdScholarId)
+        .then(s => { if (!cancelled) setSelectedScholar(s); })
+        .catch(err => { if (!cancelled) console.error("Failed to fetch scholar for verification:", err); })
+        .finally(() => { if (!cancelled) setScholarLoading(false); });
+    } else {
+      setSelectedScholar(null);
+    }
+    return () => { cancelled = true; };
+  }, [selected?.id, selected?.status, selected?.createdScholarId]);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleFlagToggle = async (flag) => {
+    if (!selectedScholar) return;
+    const next = !selectedScholar[flag];
+    setFlagSaving(s => ({ ...s, [flag]: true }));
+    // Optimistic update so the toggle visibly flips immediately.
+    setSelectedScholar(s => ({ ...s, [flag]: next }));
+    const { data, error } = await setScholarVerificationFlag(selectedScholar.id, flag, next);
+    setFlagSaving(s => ({ ...s, [flag]: false }));
+    if (error) {
+      // Roll back.
+      setSelectedScholar(s => ({ ...s, [flag]: !next }));
+      showToast(error.message || "Couldn't save. Try again.");
+      return;
+    }
+    if (data) setSelectedScholar(data);
+  };
+
+  const handlePublish = async () => {
+    if (!selectedScholar) return;
+    if (!(selectedScholar.dbs_verified && selectedScholar.rtw_verified && selectedScholar.ijazah_verified)) return;
+    setPublishLoading(true);
+    const { data, error } = await publishScholar(selectedScholar.id);
+    setPublishLoading(false);
+    if (error) {
+      showToast(error.message || "Couldn't publish. Try again.");
+      return;
+    }
+    // publishScholar uses .maybeSingle() with a status='pending_verification'
+    // guard — data is null when somebody else already published. Either
+    // way we want the local row in 'active' state.
+    setSelectedScholar(s => ({ ...(data || s), status: "active" }));
+    showToast("Scholar published — now visible in public listings");
   };
 
   const handleApprove = async () => {
@@ -8904,6 +8968,86 @@ const AdminScholarApplications = () => {
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
               <p className="text-xs font-medium text-emerald-900 uppercase tracking-wider mb-1">Scholar listing created</p>
               <p className="text-sm text-emerald-800 font-mono break-all">{selected.createdScholarId}</p>
+            </div>
+          )}
+
+          {/* Verification panel — only when application is approved + scholars row loaded */}
+          {selected.status === "approved" && selected.createdScholarId && scholarLoading && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <p className="text-sm text-stone-400 text-center py-4">Loading verification state...</p>
+            </div>
+          )}
+
+          {selected.status === "approved" && selectedScholar && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verification</h3>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    {selectedScholar.status === "active"
+                      ? "Live in public listings"
+                      : "Toggle each flag once you've verified the document, then publish."}
+                  </p>
+                </div>
+                {selectedScholar.status === "active" ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+                    <CheckCircle2 size={10} /> Published
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
+                    <AlertCircle size={10} /> Pending verification
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2 mb-4">
+                {[
+                  { flag: "dbs_verified", label: "DBS verified", hint: "Enhanced DBS check or umbrella body confirmation" },
+                  { flag: "rtw_verified", label: "Right to Work verified", hint: "Share code or document confirmed" },
+                  { flag: "ijazah_verified", label: "Ijazah verified", hint: "Optional — only flip if confirmed (institution check)" },
+                ].map(({ flag, label, hint }) => {
+                  const checked = !!selectedScholar[flag];
+                  const saving = !!flagSaving[flag];
+                  return (
+                    <label key={flag} className={`flex items-start gap-3 p-3 rounded-xl border ${checked ? "bg-emerald-50/40 border-emerald-200" : "bg-stone-50 border-stone-200"} ${saving ? "opacity-60" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={saving}
+                        onChange={() => handleFlagToggle(flag)}
+                        className="mt-0.5 w-4 h-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500 cursor-pointer disabled:cursor-wait"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-stone-900">{label}</p>
+                        <p className="text-xs text-stone-500 mt-0.5">{hint}</p>
+                      </div>
+                      {saving && <span className="text-[10px] text-stone-500 font-medium">Saving…</span>}
+                    </label>
+                  );
+                })}
+              </div>
+
+              {selectedScholar.status !== "active" && (() => {
+                const allTrue = selectedScholar.dbs_verified && selectedScholar.rtw_verified && selectedScholar.ijazah_verified;
+                return (
+                  <div className="pt-3 border-t border-stone-100">
+                    <button
+                      onClick={handlePublish}
+                      disabled={!allTrue || publishLoading}
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      {publishLoading ? (
+                        "Publishing..."
+                      ) : (
+                        <><CheckCircle2 size={14} /> Mark fully verified & publish</>
+                      )}
+                    </button>
+                    {!allTrue && (
+                      <p className="text-xs text-stone-500 mt-2 text-center">All three flags must be on before publishing.</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
