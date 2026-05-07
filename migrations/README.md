@@ -44,6 +44,8 @@ filenames.
 | 014 | `014_scholar_dashboard_rls.sql`        | Verbatim            | 7 May 2026         | NOTES.md Session I              |
 | 015 | `015_scholar_applications.sql`         | Verbatim            | 7 May 2026         | NOTES.md Session J              |
 | 016 | `016_scholars_self_select.sql`         | Verbatim            | 7 May 2026         | NOTES.md Session J follow-up    |
+| 017 | `017_profiles_role.sql`                | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
+| 018 | `018_seed_admins.sql`                  | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
 
 ## Workflow
 
