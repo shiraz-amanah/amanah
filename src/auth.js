@@ -115,6 +115,75 @@ export async function getScholarByUserId(userId) {
   return data
 }
 
+// ============ MOSQUES (public reads) ============
+
+// Public list — status='active' only, ordered by city. Mosques
+// don't have a rating column the way scholars do, so we sort
+// alphabetically by city for stable list output. MosquesListing
+// re-sorts client-side by distance when geolocation is available.
+export async function getMosques() {
+  const { data, error } = await supabase
+    .from('mosques').select('*').eq('status', 'active').order('city', { ascending: true })
+  if (error) { console.error('Error fetching mosques:', error); return [] }
+  return data || []
+}
+
+// Single by slug — used for MosqueDetail route lookup.
+export async function getMosqueBySlug(slug) {
+  if (!slug) return null
+  const { data, error } = await supabase
+    .from('mosques').select('*').eq('slug', slug).maybeSingle()
+  if (error) { console.error('Error fetching mosque by slug:', error); return null }
+  return data
+}
+
+// Single by id — admin verification UI fetches by created_mosque_id
+// from the application row.
+export async function getMosqueById(id) {
+  if (!id) return null
+  const { data, error } = await supabase
+    .from('mosques').select('*').eq('id', id).maybeSingle()
+  if (error) { console.error('Error fetching mosque by id:', error); return null }
+  return data
+}
+
+// Used by the mosque sign-in flow (Phase 6b) to decide whether the
+// auth user has a claimed mosque listing. Returns null if the
+// user_id isn't linked to any mosque row — caller routes to the
+// onboarding wizard or pending status pages.
+export async function getMosqueByUserId(userId) {
+  if (!userId) return null
+  const { data, error } = await supabase
+    .from('mosques').select('*').eq('user_id', userId).maybeSingle()
+  if (error) { console.error('Error fetching mosque by user_id:', error); return null }
+  return data
+}
+
+// Mirrors getSavedScholars. Returns full mosque data for everything
+// the user has saved with item_type='mosque'. Filters to active so
+// a mosque that gets deactivated post-save doesn't render.
+export async function getSavedMosques() {
+  const user = await getUser()
+  if (!user) return []
+  const { data: saves, error: savesError } = await supabase
+    .from('saves')
+    .select('item_id')
+    .eq('user_id', user.id)
+    .eq('item_type', 'mosque')
+  if (savesError || !saves || saves.length === 0) return []
+  const ids = saves.map(s => s.item_id)
+  const { data: mosques, error: mosquesError } = await supabase
+    .from('mosques')
+    .select('*')
+    .in('id', ids)
+    .eq('status', 'active')
+  if (mosquesError) {
+    console.error('Error fetching saved mosques:', mosquesError)
+    return []
+  }
+  return mosques || []
+}
+
 // ============ BOOKINGS ============
 
 // Create a new booking
