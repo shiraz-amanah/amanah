@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: shipped Session J end-to-end (scholar onboarding wizard + applications table + admin queue) — five primary commits `d917705`, `a380442`, `a4a61f4`, `3f915df`, `11a05f0` + docs `8b2bd02` + three follow-up fixes from smoke testing `4ba42f6`, `50b7c41`, `4ce6988`. Two migrations applied to prod: `015_scholar_applications.sql` (table + trigger) + `016_scholars_self_select.sql` (additive RLS so a scholar can read their own pending_verification row). New scholars sign up → 5-step wizard → admin approves → trigger creates scholars row with `status='pending_verification'` (hidden from public listings) → scholar's next sign-in routes to `scholarVerificationPending` until admin manually flips DBS/RTW/Ijazah flags + status='active'. Test scholars live on prod: yusuf-test (claimed Yusuf Al-Rahman), test1 (pending application), test2 (status=pending_verification). Next session candidates: email notifications, real admin auth + admin RLS, photo uploads, scholar profile editing, verification UI for admins.
+> Last action: Session K Phase 1 shipped end-to-end (real admin auth foundation). Migrations 017 + 018 applied to prod: `profiles.role` + `profiles.suspended` columns + `public.is_admin()` / `public.is_suspended()` helpers, shiraz@savecobradford.co.uk seeded as the sole admin. Admin signs in via a new dedicated `<AdminLogin>` view (dark theme) reachable only via the small "Admin" link in PublicHome footer. Cross-path enforcement live: admin role users blocked from Parent/Scholar UserAuth paths with toast steering them to /admin; non-admins blocked from AdminLogin; suspended admins bounced. App-level `<GlobalToast>` infra at App root + `fullSignOut` helper. AdminPanel sidebar reads real `authedProfile.name`; sign out fully clears Supabase session. 9 commits net (`ea94f66`, `8fe4783`, `99781d3`, `14ad1f9`, `1159dde`, `1a06613`, `ba08264`, `49e8643`, `799c47a`). All 9 smoke tests green. Phase 4 (campaigns admin queue) deferred to a future focused session — campaigns aren't a real Supabase table yet. Next: Phase 2 — admin RLS on `scholar_applications` (additive — migration 019), delete the duplicate "Scholar queue" sidebar tab, three-flag verification panel in the application detail view + `setScholarVerificationFlag` / `publishScholar` helpers.
 
 ---
 
@@ -32,16 +32,16 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session H** ✅ — Reviews migration. New `reviews` table (UUID PK, FK to scholars/profiles/bookings, status enum, CHECK length 10-2000) with RLS (anon reads published, parents insert own, admin-only status changes via WITH CHECK) and a SECURITY DEFINER trigger that recomputes `scholars.rating + review_count` on every INSERT/UPDATE/DELETE. Seed: 9 sanitized reviews across 4 of 6 active scholars (1 exact name match, 3 first-name + topic-overlap as visual demo, 2 dropped per anti-fabrication). Read path: scholar detail uses `getReviewsForScholar` with loading skeleton; ReviewCard adapted for both Supabase and legacy mock shapes; "Verified booking" pill now gated on `bookingId != null`. Write path: LeaveReview submit calls `createReview()` with inline error + Posting state; demo guard preserved; `bookingId` threaded through from past-booking review buttons; ReviewSubmitted gains a "View on profile" CTA. Admin: new "Reviews" tab in AdminPanel between Flags and DBS — list / status filter / hide / publish, no pagination/bulk/search by design. `SCHOLAR_REVIEWS_DB` and `src/data/mockReviews.js` deleted.
 - **Session I** ✅ — Scholar auth + read-only dashboard + `meeting_url` editor. Scholars now share the parent Supabase auth pool; `scholars.user_id` linkage (existing column, no schema add) gates the new `ScholarDashboard` view. Migration 014 adds two RLS policies on `bookings` (SELECT + UPDATE where `scholar_id ∈ scholars where user_id=auth.uid()`). New auth.js helpers `getScholarByUserId` + `setBookingMeetingUrl` (with `https://` validation). New views: `scholarPendingClaim` (post-signup before SQL link) + `scholarDashboard`. Tabs: Bookings (default, with Upcoming + Past + Cancelled-collapsed sections + inline meeting_url editor), Profile (read-only, "editing comes soon"), Reviews (existing breakdown + cards via `getReviewsForScholar`), Messages (delegates to existing inbox view with `role="scholar"`), Account (email + linked-listing summary + sign out). Earnings derived client-side from `sum(amount_paid where completed)`. Audience drawer's "Scholar sign in" entry now routes through Supabase rather than the legacy mock imam-login flow.
 - **Session J** ✅ — Scholar onboarding wizard + applications table + admin approval queue. Migration 015 adds `scholar_applications` (UUID PK, FK to auth.users, full wizard payload, status enum pending|approved|rejected, partial unique index on user_id WHERE status='pending') with a SECURITY DEFINER BEFORE-UPDATE trigger that on pending→approved generates a slug (kebab-case + collision loop -2/-3) and INSERTs a `scholars` row with `status='pending_verification'` + all three dbs/rtw/ijazah_verified flags false. Six new auth.js helpers (submit/getMy/getAll/approve/reject + shaper). New 5-step `<ScholarOnboardingWizard>` with sessionStorage hydration: Welcome / About / Qualifications / Services (CATEGORIES.id chips so subjects map 1:1 to scholars.categories) / Review. Three new status pages (`scholarApplicationSubmitted`, `scholarApplicationRejected`, `scholarVerificationPending`) replace `ScholarPendingClaim`. `routeAuthedScholar` is now a five-branch tree based on scholar.status + application.status. Admin queue: new "Scholar applications" tab in AdminPanel with filter pills (Pending/Approved/Rejected/All + counts), list, detail view, approve modal (with consequence copy), reject modal (required reason min 10 chars), refetches on action with toast.
+- **Session K Phase 1** ✅ — Real admin auth foundation. Migrations 017 (`profiles.role` + `profiles.suspended` + `public.is_admin/is_suspended` SECURITY DEFINER helpers) + 018 (seed shiraz to admin). Dedicated `<AdminLogin>` view (dark theme) reachable only via PublicHome footer "Admin" link. Cross-path enforcement: admin role users blocked from Parent/Scholar UserAuth paths with toast steering them to /admin; non-admins blocked from AdminLogin with "Not an admin account."; suspended admins toasted "Account has been suspended." `GlobalToast` infra at App root + `fullSignOut` helper consolidating signOut+state-clear. AdminPanel sidebar reads real `authedProfile.name`; Sign out fully clears Supabase session before routing. Phase 4 (campaigns admin queue) deferred to a future focused session because campaigns aren't a real Supabase table yet.
 
 ### Up next
 
-- **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-this-session piece. Likely Resend or Supabase Auth email hooks + edge function.
-- **Real admin auth + admin RLS** — applications queue currently uses option (a) from Session J: SELECT + UPDATE both open to `authenticated` so the AdminPanel works without a DB-level admin role. Privacy concern: any authed user can read other users' wizard submissions and flip their status. Same pattern as the existing Reviews moderation, mosque queue, etc. Worth tightening before any third party gets admin access.
+- **Session K Phase 2 — Scholar applications real + verification UI.** Admin RLS on `scholar_applications` (additive — existing open policies stay until tightened in a follow-up), delete the duplicate "Scholar queue" sidebar tab (Session J's "Scholar applications" is the single source of truth), three-flag verification panel in the application detail view (DBS/RTW/Ijazah toggles + "Mark fully verified & publish" CTA gated on all three true), `setScholarVerificationFlag` + `publishScholar` helpers in auth.js.
+- **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
-- **Verification UI for admins** — flipping `dbs_verified`/`rtw_verified`/`ijazah_verified` + scholars.status from `pending_verification` to `active` is manual SQL today. Same future session as the admin-RLS work probably.
-- **Photo upload** — wizard has a placeholder; Supabase storage bucket isn't configured.
-- **Mosques-to-Supabase** (originally Session J in original roadmap) — unblocks empty mosque-scholar affiliations from Session F.
+- **Photo upload** — wizard has a placeholder; Supabase storage bucket isn't configured. Out of scope for Session K (text-URL fields only).
+- **Mosques-to-Supabase** — Phase 6 of Session K does this. Unblocks empty mosque-scholar affiliations from Session F.
 
 Decide at the start of the next session — don't pre-commit here.
 
@@ -2232,6 +2232,183 @@ After 015 applied:
 
 ---
 
+## Session K Phase 1 — Real admin auth ✅ (7 May 2026)
+
+First phase of a multi-day session making the admin panel real.
+Foundation: profiles.role + suspended columns, public.is_admin /
+is_suspended helpers, dedicated admin sign-in surface, cross-path
+enforcement. Phases 2–9 land in subsequent sittings.
+
+### Locked product model
+
+Admin is wholly separate from the public-facing roles (parent /
+scholar / mosque). Admins sign in via a dedicated entry, not the
+audience drawer. `role='admin'` users cannot use the parent or
+scholar sign-in form even with valid credentials — they get a
+toast pointing them to the Admin link.
+
+### What shipped
+
+- **Migration 017** — `profiles.role text default 'user' check
+  (user|scholar|admin)` + `profiles.suspended boolean default
+  false` + indexes (full on role, partial on suspended where true)
+  + `public.is_admin()` + `public.is_suspended()` (both SECURITY
+  DEFINER, stable, granted to authenticated; is_admin also to
+  anon for short-circuit). Helpers live in `public` schema, not
+  `auth`, because Supabase blocks CREATE FUNCTION in auth on some
+  hosting tiers and there's no upside.
+- **Migration 018** — promotes `shiraz@savecobradford.co.uk` to
+  `role='admin'`. Idempotent. Sole admin at K-launch; further
+  admins added by ad-hoc SQL update.
+- **GlobalToast infra** — App-level toast surface for cross-cutting
+  feedback the view router originates (suspended bounce, cross-
+  path bounce, non-admin via admin form). Auto-dismisses 4500ms;
+  tap to dismiss. Required wrapping the existing ~42-branch view
+  chain in a `renderView()` function so App's return can render
+  `<>{renderView()}<GlobalToast/></>`. Existing scoped toasts
+  (AdminPanel internal toasts etc.) unaffected.
+- **`fullSignOut` helper** — combines `signOut() +` clear of
+  `authedUser / authedProfile / myScholar / myScholarApplication`.
+  Used by suspended bounce, cross-path bounce, non-admin bounce,
+  and admin sidebar sign-out. Replaces the inline 5-line block
+  previously duplicated in 3+ places.
+- **`AdminLogin` view** — dedicated admin sign-in form. Dark theme
+  (bg-stone-950 + stone-900 card), no signup, no audience picker.
+  Visually unambiguous as the admin-only path. Reachable only via
+  the "Admin" link in PublicHome footer.
+- **PublicHome footer "Admin" link restored** — `onSignIn("admin")`
+  routes to the new `adminLogin` view (or directly to `adminPanel`
+  if already authed admin).
+- **Cross-path gating** —
+  - UserAuth onComplete (Parent/Scholar paths): admin role users
+    are bounced + signed out + toasted "Admin accounts must sign
+    in via the Admin link." Even valid admin credentials are
+    rejected via this path.
+  - AdminLogin onComplete: only `role='admin'` admitted.
+    `role='user'` / `'scholar'` are bounced + toasted "Not an
+    admin account." Suspended admins toasted "Your account has
+    been suspended. Contact support."
+  - handleSignIn restructured: an already-authed admin lands on
+    adminPanel from any audience entry (admin doesn't have a
+    parent/scholar dashboard; their natural home is adminPanel).
+- **AdminPanel real identity** — sidebar's "Signed in as" reads
+  `authedProfile.name` (falls back to email, then "Admin").
+  AdminOverview greeting: "Good morning, {firstName}". Sign-out
+  button calls `fullSignOut` + `setView('publicHome')`. Hardcoded
+  "Yusuf Rahman / Good morning, Yusuf" gone.
+
+### Commits
+
+In order:
+- `ea94f66` schema: profiles.role + suspended + is_admin/is_suspended helpers
+- `8fe4783` seed: promote shiraz@savecobradford.co.uk to admin
+- `99781d3` feat(admin): real admin auth + drop legacy LoginScreen entry
+- `14ad1f9` docs(migrations): index 017 + 018
+- `d954d49` diag(K-1): K-DIAG console.logs (later reverted)
+- `1159dde` feat(toast): app-level GlobalToast + fullSignOut helper
+- `1a06613` feat(admin): dedicated AdminLogin surface + footer entry
+- `ba08264` feat(admin): cross-path gating + role-aware adminLogin onComplete
+- `49e8643` feat(admin): real authedProfile identity + full sign-out from sidebar
+- `799c47a` revert(K-1): drop K-DIAG console.logs
+
+10 commits gross, 9 net (revert).
+
+### Decisions
+
+- **public.is_admin() not auth.is_admin().** Supabase blocks
+  CREATE FUNCTION in `auth` on some hosting tiers. Public is
+  universally writable, no downside. Subsequent-phase RLS
+  policies call `public.is_admin()`.
+- **Admin is a role, not an overlay.** A user is parent OR scholar
+  OR admin, not "admin who is also a parent." So cross-path
+  bounce is unconditional — even valid admin credentials submitted
+  via the parent form are rejected.
+- **Legacy LoginScreen kept for mosque only.** Mosque flow still
+  goes through it with dummy creds. Phase 6 replaces with Supabase
+  auth; Phase 9 deletes LoginScreen entirely. Admin/scholar
+  branches removed from it now.
+- **Already-authed admin always → adminPanel.** Avatar tap from
+  any page (including Parent or Scholar drawer entry) routes
+  authed admin to adminPanel. They have no other home.
+- **Suspended uses a real toast, not `alert()`.** Earlier draft
+  used `window.alert` for the corner case. Once we needed three
+  distinct cross-cutting messages (suspended, cross-path bounce,
+  non-admin via admin form), real toast infrastructure was
+  justified.
+
+### Bugs found mid-session
+
+**PostgREST schema cache miss after migration.** First smoke run
+showed the network response missing the new `role` / `suspended`
+columns even though `select id, email, role from profiles` returned
+them in SQL editor. Fix: `notify pgrst, 'reload schema';` in the
+SQL editor. PostgREST caches schema at startup and doesn't pick up
+`ALTER TABLE` until either a notify or its periodic auto-refresh
+(can be ~10 min). Worth running every time we add/drop a column.
+
+**Local commits not pushed to origin.** Second smoke failure was
+because the 4 admin-routing commits sat on local `main` but were
+never `git push`'d; Vercel was still deploying pre-K. Caught by
+`git rev-list --left-right --count origin/main...HEAD`. Worth
+running before any "but I just fixed that on prod" diagnosis.
+
+### Smoke tests (all green)
+
+1. ✅ PublicHome footer "Admin" link visible.
+2. ✅ Click → AdminLogin form (dark theme, distinct from UserAuth).
+3. ✅ Shiraz creds via AdminLogin → adminPanel. Sidebar shows
+   real name. AdminOverview greeting uses real first name.
+4. ✅ Sign out from sidebar → publicHome. Hard refresh does NOT
+   restore admin session (full Supabase signOut + state clear).
+5. ✅ Audience drawer → Parent → shiraz creds → bounce + toast.
+6. ✅ Audience drawer → Scholar → shiraz creds → bounce + toast.
+7. ✅ AdminLogin form → non-admin creds → bounce + toast.
+8. ✅ yusuf-test signs in via Parent → userDashboard (regression).
+9. ✅ yusuf-test signs in via Scholar → scholarDashboard
+   (regression).
+
+### Deferred to subsequent K-phases
+
+- Phase 2: Scholar applications + verification UI (next).
+- Phase 3: Reviews moderation admin RLS.
+- Phase 4: **DEFERRED to a future focused session.** Campaigns
+  table doesn't exist yet (still mock); the Phase-4 brief assumed
+  alter-table-add-status, but the work is actually create-table
+  + seed-from-mock + donations.campaign_id FK migration. Out of
+  scope for this session.
+- Phase 5: All users tab + role/suspend admin controls.
+- Phase 6: Mosques real (mirrors scholars — applications + dash +
+  verification).
+- Phase 7: Flags & reports (polymorphic).
+- Phase 8: DBS orders tracker.
+- Phase 9: Settings (read-only) + cleanup (LoginScreen,
+  ImamRegister, ImamDashboardView, remaining mock arrays).
+
+### Phase-1-internal items deferred
+
+- **Auto-route admin from bootstrap-on-reload.** Pattern today
+  matches scholar: reload lands on publicHome, avatar tap routes
+  to dashboard. Brief implied auto-route; we kept parity with
+  scholar bootstrap to keep cross-role consistency. Easy to flip
+  later if it becomes a usability complaint.
+- **Sidebar avatar removal.** Brief said "no avatar in admin
+  panel header." There wasn't one — only the ShieldCheck brand
+  mark, which stays.
+
+### Lessons learned
+
+- **Apply migrations BEFORE diagnosing the routing code.** The
+  first smoke run was wrongly diagnosed as a code logic bug. Once
+  we confirmed the migration was applied AND PostgREST cache was
+  refreshed, the routing worked first try. Verify the data-shape
+  change has reached the client before assuming the code is wrong.
+- **Verify `git push` ran before claiming a fix is live.** Vercel
+  deploys from `origin/main`, not local. `git rev-list --left-
+  right --count origin/main...HEAD` is a one-liner that catches
+  the "committed but didn't push" trap.
+
+---
+
 ## Cross-cutting gotchas
 
 ### Find/replace gotchas
@@ -2272,4 +2449,8 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **Vercel SPA fallback rewrite.** Deep links (e.g. /scholar/yusuf) on hard refresh probably 404 against Vercel's static-host rules. Verify and add `vercel.json` rewrite if so.
 - **MosqueDetail empty scholar affiliations.** Hardcoded to `[]` in Session F until the mosque DB migration replaces them with real wiring.
 - **Two definitions of dashboard tabs.** Session G extracted `<DashboardTabBar>` for the Messages views but kept UserDashboard's inline copy intact to keep the regression surface narrow. Adding/renaming a tab requires both. Worth merging in a follow-up.
+- **Phase K-4 deferred (campaigns).** `campaigns` doesn't exist as a Supabase table yet — public listings still render `MOCK_CAMPAIGNS` directly. Phase 4 of Session K (admin campaign queue + status enum) was originally planned as `alter table` + backfill, but is actually `create table` + seed-from-mock + `donations.campaign_id` migration (FK or stay-text). Punted to its own focused future session. Until then, the AdminCampaignQueue tab keeps mock data and toast-only handlers (same as pre-K).
+- **Tighten `scholar_applications` RLS.** Session J's policies (and Session K Phase 2's additive admin policies) leave SELECT + UPDATE open to all authenticated users for compatibility. Privacy concern flagged in 015's header still stands: any authed user can read other users' wizard submissions and flip status. Tightening = drop "Authenticated read all applications" + replace with "Users read own apps" + "Admins read all apps" (admin policies already in 019). Same for UPDATE. Defer until Phase 5+ users tab needs it.
+- **Suspended-write enforcement on user tables.** Phase 1 added `profiles.suspended` and the `public.is_suspended()` helper, but no per-table policy yet uses it. Phase 5+ will extend bookings/saves/messages/donations/reviews INSERT policies with `with check (not public.is_suspended())`. Until then, a suspended user is only blocked from re-entering admin panel; their other writes still go through.
+- **Campaign-creation flow status default.** When the campaigns table eventually lands, new campaigns should default to `status='pending'` and only become public after admin approval (locked decision E). Today the CreateCampaign flow calls a mock `setLaunchedCampaign` and never persists; this is fine until Phase K-4 ships.
 - **Disintermediation prevention** — scholars/parents going off-platform after first booking is a structural marketplace risk. Levers, ranked by effectiveness: (1) make the platform genuinely worth the cut — discovery, verification, scheduling, safeguarding, recordings — this is the only real defense; (2) hide contact details (email, phone) from cross-user views, reveal only post-booking or never; (3) extend message regex blocks to phone, email, social handles, and Zoom/Meet/Teams links — hard-block before first booking, soft-warn after; (4) anti-circumvention clause in ToS at launch; (5) lower commission on repeat bookings; (6) Path B (built-in video) for Session E reduces leakage surface dramatically — scholar and parent never need each other's contact details. Not blocking pre-launch but informs ToS drafting. Related: `profiles.phone` / `profiles.email` audit already flagged above.
