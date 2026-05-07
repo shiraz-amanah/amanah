@@ -8204,7 +8204,7 @@ const PrayerHub = ({ onBack, onSignIn }) => {
 const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onCloseMobile, displayName }) => {
   const items = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
-    { id: "mosques", label: "Mosque queue", icon: Building2, count: counts.mosques, urgent: counts.mosques > 0 },
+    { id: "mosques", label: "Mosque applications", icon: Building2, count: null, urgent: false },
     { id: "scholarApplications", label: "Scholar applications", icon: GraduationCap, count: null, urgent: false },
     { id: "campaigns", label: "Campaign queue", icon: HandCoins, count: counts.campaigns, urgent: counts.campaigns > 0 },
     { id: "flags", label: "Flags & reports", icon: Flag, count: counts.flags, urgent: counts.flags > 0, highlight: true },
@@ -9930,7 +9930,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
 
   const sectionTitle = {
     overview: "Overview",
-    mosques: "Mosque queue",
+    mosques: "Mosque applications",
     scholarApplications: "Scholar applications",
     campaigns: "Campaign queue",
     flags: "Flags & reports",
@@ -9989,7 +9989,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
 
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
-        {section === "mosques" && <AdminMosqueQueue apps={mosqueApps} onAction={handleMosqueAction} />}
+        {section === "mosques" && <AdminMosqueApplications />}
         {section === "scholarApplications" && <AdminScholarApplications />}
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
         {section === "flags" && <AdminFlags flags={flags} onAction={handleFlagAction} />}
