@@ -9543,11 +9543,9 @@ useEffect(() => {
   (async () => {
     try {
       const user = await getUser();
-      console.log("[K-DIAG bootstrap] getUser →", { hasUser: !!user, userId: user?.id, email: user?.email });
       setAuthedUser(user);
       if (user) {
         const profile = await getProfile();
-        console.log("[K-DIAG bootstrap] getProfile →", { profile, role: profile?.role, suspended: profile?.suspended, profileKeys: profile ? Object.keys(profile) : null });
         setAuthedProfile(profile);
         // Also probe for a scholar listing — drives avatar-click routing
         // and lets a returning scholar reload back into their dashboard.
@@ -9644,7 +9642,6 @@ useEffect(() => {
   // footer is allowed to view the AdminLogin form; the role check
   // happens after they submit credentials.
 const handleSignIn = (r) => {
-    console.log("[K-DIAG handleSignIn]", { r, authedUser: !!authedUser, authedProfileRole: authedProfile?.role, authedProfileSuspended: authedProfile?.suspended });
     if (r === "prayer") { setView("prayerHub"); return; }
 
     // Already-authed admin: any audience-drawer entry routes home to
@@ -9806,21 +9803,17 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onScholarUpdate={(updated) => setMyScholar(updated)}
   />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => setView("publicHome")} onComplete={async () => {
-    console.log("[K-DIAG userAuth.onComplete] entered", { returnView, userAuthRole });
     const user = await getUser();
-    console.log("[K-DIAG userAuth.onComplete] getUser →", { hasUser: !!user, userId: user?.id, email: user?.email });
     setAuthedUser(user);
     let profile = null;
     if (user) {
       profile = await getProfile();
-      console.log("[K-DIAG userAuth.onComplete] getProfile →", { profile, role: profile?.role, suspended: profile?.suspended });
       setAuthedProfile(profile);
       // Cross-path admin sign-in is forbidden by product decision: an
       // admin who submits credentials via the parent or scholar form
       // is bounced back with a toast steering them to the dedicated
       // /admin entry. Even valid admin credentials are rejected here.
       if (profile?.role === "admin") {
-        console.log("[K-DIAG userAuth.onComplete] admin via parent/scholar — bouncing");
         await fullSignOut();
         setView("publicHome");
         showToast("Admin accounts must sign in via the Admin link.");
@@ -9828,12 +9821,10 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       }
     }
     if (returnView === "scholarPostAuth" && user) {
-      console.log("[K-DIAG userAuth.onComplete] routing to scholar");
       // Scholar entry point — look up scholar link and route accordingly.
       await routeAuthedScholar(user.id);
       return;
     }
-    console.log("[K-DIAG userAuth.onComplete] falling through to returnView=", returnView);
     setView(returnView);
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
@@ -9982,17 +9973,14 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "adminLogin") return <AdminLogin
     onBack={() => setView("publicHome")}
     onComplete={async () => {
-      console.log("[K-DIAG adminLogin.onComplete] entered");
       const user = await getUser();
       setAuthedUser(user);
       if (!user) {
         // Shouldn't happen — AdminLogin only calls onComplete after
         // signIn succeeds. Stay on the form so the user retries.
-        console.warn("[K-DIAG adminLogin.onComplete] no user despite sign-in success");
         return;
       }
       const profile = await getProfile();
-      console.log("[K-DIAG adminLogin.onComplete] profile →", { role: profile?.role, suspended: profile?.suspended });
       setAuthedProfile(profile);
       if (profile?.role !== "admin") {
         // Non-admin used the admin form — bounce.
