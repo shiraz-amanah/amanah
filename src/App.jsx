@@ -9331,12 +9331,29 @@ const AdminMosqueApplications = () => {
           </p>
         </div>
 
+        {/* Geocode failure warning — surfaced when Postcodes.io
+            couldn't resolve the postcode at submit. Without lat/lng,
+            public listings will render junk distance after this
+            mosque ships. Admin should backfill via SQL before
+            approving (or fix the postcode and ask applicant to
+            resubmit). */}
+        {selected.lat == null && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-amber-700 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900">No location data</p>
+              <p className="text-xs text-amber-800 mt-0.5">Postcodes.io couldn't resolve "{selected.postcode}" at submit. Backfill lat/lng manually before publishing — public listings sort by distance and will render junk for this mosque otherwise.</p>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-4 mb-6">
           <ApplicationDetailSection title="About">
             <DetailRow label="Organisation" value={selected.orgName} />
             <DetailRow label="City" value={selected.city} />
             <DetailRow label="Postcode" value={selected.postcode} />
             <DetailRow label="Address" value={selected.address} multiline />
+            <DetailRow label="Coordinates" value={selected.lat != null ? `${selected.lat}, ${selected.lng}` : "—"} />
           </ApplicationDetailSection>
 
           <ApplicationDetailSection title="Details">
@@ -9359,6 +9376,7 @@ const AdminMosqueApplications = () => {
 
           <ApplicationDetailSection title="Services">
             <DetailRow label="Services offered" value={(selected.services || []).join(", ") || "—"} />
+            <DetailRow label="Facilities" value={(selected.facilities || []).join(", ") || "—"} />
             <DetailRow label="Bio" value={selected.bio || "—"} multiline />
           </ApplicationDetailSection>
 

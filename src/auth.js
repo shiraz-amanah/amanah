@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { geocodePostcode } from './lib/postcode'
 
 export async function signUp(email, password, name, interest) {
   const { data, error } = await supabase.auth.signUp({
@@ -980,11 +981,14 @@ function shapeMosqueApplication(row) {
     city: row.city,
     postcode: row.postcode,
     address: row.address,
+    lat: row.lat,
+    lng: row.lng,
     registeredCharityNumber: row.registered_charity_number,
     capacity: row.capacity,
     photoUrl: row.photo_url,
     prayerTimes: row.prayer_times,
     services: row.services || [],
+    facilities: row.facilities || [],
     bio: row.bio,
     reviewedAt: row.reviewed_at,
     reviewedBy: row.reviewed_by,
@@ -1092,6 +1096,97 @@ export async function publishMosque(mosqueId) {
     .select()
     .maybeSingle()
   return { data, error }
+}
+
+// ============================================================================
+// Session K Phase 6b — Mosque application submit + lookup
+// ============================================================================
+
+// Wizard submit — INSERT a new pending application for the current
+// user. Mirrors submitScholarApplication's defensive pattern: re-
+// checks the active session JUST before insert + handles the
+// {data:null, error:null} v2 client edge case.
+//
+// Pre-insert: geocodes the postcode via Postcodes.io. Failure is
+// non-fatal — null lat/lng is stored on the application; the 025
+// trigger carries it through to the new mosques row; admin sees a
+// warning chip in AdminMosqueApplications detail to prompt manual
+// backfill before publishing (otherwise public listings render
+// junk distances).
+//
+// Returns { data, error } where data is the shaped application.
+export async function submitMosqueApplication(applicationData) {
+  const user = await getUser()
+  if (!user) {
+    console.error('submitMosqueApplication: getUser returned null')
+    return { error: { message: 'Not signed in' } }
+  }
+  // Sanity-check the session — getUser can return cached user data
+  // even when the access token is gone. Without a session, the
+  // insert hits RLS as anon and silently fails.
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('submitMosqueApplication: no active session despite getUser returning a user', { userId: user.id })
+    return { error: { message: 'Your session expired. Sign in again and resubmit.' } }
+  }
+
+  // Geocode the postcode. Null on failure; admin warning chip
+  // surfaces the gap downstream.
+  const coords = await geocodePostcode(applicationData.postcode)
+
+  const payload = {
+    user_id: user.id,
+    status: 'pending',
+    org_name: applicationData.orgName,
+    city: applicationData.city,
+    postcode: applicationData.postcode,
+    address: applicationData.address,
+    registered_charity_number: applicationData.registeredCharityNumber || null,
+    capacity: applicationData.capacity ?? null,
+    photo_url: applicationData.photoUrl || null,
+    prayer_times: applicationData.prayerTimes || null,
+    services: applicationData.services || [],
+    bio: applicationData.bio,
+    // Geocoded lat/lng. Schema column names match (lat, lng on both
+    // mosques and mosque_applications? — let me re-check).
+    lat: coords?.lat ?? null,
+    lng: coords?.lng ?? null,
+    facilities: applicationData.facilities || [],
+  }
+  const { data, error } = await supabase
+    .from('mosque_applications')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) {
+    console.error('submitMosqueApplication insert failed:', error, { userId: user.id })
+    return { error }
+  }
+  if (!data) {
+    console.error('submitMosqueApplication: insert returned no data AND no error', { userId: user.id, hasSession: !!session })
+    return { error: { message: "Submission didn't save. Try signing out and back in, then resubmit." } }
+  }
+  return { data: shapeMosqueApplication(data) }
+}
+
+// Returns the most recent mosque application for the current user,
+// or null if none exists. Drives the post-auth routing branch in
+// routeAuthedMosque (analogous to getMyScholarApplication).
+export async function getMyMosqueApplication() {
+  const user = await getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('mosque_applications')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) {
+    console.error('Error fetching mosque application:', error)
+    return null
+  }
+  return shapeMosqueApplication(data)
 }
 
 // ============================================================================
