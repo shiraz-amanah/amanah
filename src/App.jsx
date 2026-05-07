@@ -11070,6 +11070,8 @@ useEffect(() => {
     setAuthedProfile(null);
     setMyScholar(null);
     setMyScholarApplication(null);
+    setMyMosque(null);
+    setMyMosqueApplication(null);
   };
 
   // Suspended-user bounce — sign out, return to publicHome, and
@@ -11297,33 +11299,55 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     authedUser={authedUser}
     authedProfile={authedProfile}
     onSubmitted={(app) => { setMyScholarApplication(app); setView("scholarApplicationSubmitted"); }}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "scholarApplicationSubmitted") return <ScholarApplicationSubmitted
     authedUser={authedUser}
     application={myScholarApplication}
     onPublic={() => setView("publicHome")}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "scholarApplicationRejected") return <ScholarApplicationRejected
     application={myScholarApplication}
     onReapply={() => setView("scholarOnboarding")}
     onPublic={() => setView("publicHome")}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "scholarVerificationPending") return <ScholarVerificationPending
     scholar={myScholar}
     authedUser={authedUser}
     onPublic={() => setView("publicHome")}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "scholarDashboard") return <ScholarDashboard
     scholar={myScholar}
     authedUser={authedUser}
     onPublic={() => setView("publicHome")}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onOpenMessages={() => { setRole("scholar"); setView("messagesInbox"); }}
     onScholarUpdate={(updated) => setMyScholar(updated)}
+  />;
+  if (view === "mosqueOnboarding") return <MosqueOnboardingWizard
+    authedUser={authedUser}
+    authedProfile={authedProfile}
+    onSubmitted={(app) => { setMyMosqueApplication(app); setView("mosqueApplicationSubmitted"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
+  />;
+  if (view === "mosqueApplicationSubmitted") return <MosqueApplicationSubmitted
+    application={myMosqueApplication}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
+  />;
+  if (view === "mosqueApplicationRejected") return <MosqueApplicationRejected
+    application={myMosqueApplication}
+    onReapply={() => setView("mosqueOnboarding")}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
+  />;
+  if (view === "mosqueVerificationPending") return <MosqueVerificationPending
+    mosque={myMosque}
+    onPublic={() => setView("publicHome")}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => setView("publicHome")} onComplete={async () => {
     const user = await getUser();
@@ -11359,7 +11383,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     profile={authedProfile}
     isDemo={!authedProfile}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
-    onLogout={async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onBookAgain={async (scholarId) => {
       if (!scholarId) {
@@ -11422,7 +11446,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         displayName: myScholar?.name || authedUser?.email,
         displayInitials: myScholar?.avatar_initials,
         displayGradient: myScholar?.avatar_gradient,
-        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); },
+        onLogout: async () => { await fullSignOut(); setView("publicHome"); },
         upcomingBookingsCount: scholarUpcomingCount,
         scholarReviewsCount: scholarReviewsCount,
       }
@@ -11430,7 +11454,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         displayName: authedProfile?.name || authedUser?.email,
         displayInitials: authedProfile?.avatar_initials,
         displayGradient: authedProfile?.avatar_gradient,
-        onLogout: async () => { await signOut(); setAuthedUser(null); setAuthedProfile(null); setMyScholar(null); setMyScholarApplication(null); setView("publicHome"); },
+        onLogout: async () => { await fullSignOut(); setView("publicHome"); },
       };
 
   if (view === "messagesInbox") {
@@ -11533,15 +11557,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     }}
   />;
   if (view === "mosqueDashboard") return <MosqueDashboard
-    mosque={null}
+    mosque={myMosque}
     authedUser={authedUser}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onOpenMessages={() => { setRole("mosque"); setView("messagesInbox"); }}
   />;
-  // mosque={null} for now — routeAuthedMosque + myMosque state land
-  // in commit 10. Until then, only the legacy LoginScreen path can
-  // hit this view, and the dashboard's empty state handles it.
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
     const newCheck = { id: Date.now(), candidateName: form.candidateName, candidateEmail: form.candidateEmail, dbs: { type: form.dbsLevel.charAt(0).toUpperCase() + form.dbsLevel.slice(1), status: "awaitingcandidate", date: "—" }, rtw: { status: form.includeRtw ? "awaitingcandidate" : "incomplete", date: "—" }, requestedDate: new Date().toISOString().split("T")[0] };
