@@ -967,6 +967,134 @@ export async function publishScholar(scholarId) {
 }
 
 // ============================================================================
+// Session K Phase 6a — Mosque applications + verification (admin)
+// ============================================================================
+
+function shapeMosqueApplication(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    userId: row.user_id,
+    status: row.status,
+    orgName: row.org_name,
+    city: row.city,
+    postcode: row.postcode,
+    address: row.address,
+    registeredCharityNumber: row.registered_charity_number,
+    capacity: row.capacity,
+    photoUrl: row.photo_url,
+    prayerTimes: row.prayer_times,
+    services: row.services || [],
+    bio: row.bio,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+    rejectionReason: row.rejection_reason,
+    createdMosqueId: row.created_mosque_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+// Admin queue list — mirrors getAllScholarApplications. RLS allows
+// any authenticated user to SELECT (open policy from 025); the
+// AdminMosqueApplications component is the access control today.
+// Tightening parked.
+export async function getAllMosqueApplications(statusFilter = null) {
+  let q = supabase
+    .from('mosque_applications')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (statusFilter && statusFilter !== 'all') q = q.eq('status', statusFilter)
+  const { data, error } = await q
+  if (error) {
+    console.error('Error fetching mosque applications:', error)
+    return []
+  }
+  return (data || []).map(shapeMosqueApplication)
+}
+
+// Admin: approve. Trigger from 025 handles mosques row creation +
+// slug + linkback. Returns the updated application with
+// created_mosque_id populated.
+export async function approveMosqueApplication(applicationId) {
+  if (!applicationId) return { error: { message: 'applicationId required' } }
+  const { data, error } = await supabase
+    .from('mosque_applications')
+    .update({ status: 'approved', updated_at: new Date().toISOString() })
+    .eq('id', applicationId)
+    .eq('status', 'pending')
+    .select()
+    .single()
+  if (error) return { error }
+  return { data: shapeMosqueApplication(data) }
+}
+
+// Admin: reject with required reason. Same min-10-chars rule as
+// rejectScholarApplication — gives the applicant something
+// actionable to fix.
+export async function rejectMosqueApplication(applicationId, reason) {
+  if (!applicationId) return { error: { message: 'applicationId required' } }
+  const trimmed = (reason || '').trim()
+  if (trimmed.length < 10) {
+    return { error: { message: 'Rejection reason must be at least 10 characters' } }
+  }
+  const { data, error } = await supabase
+    .from('mosque_applications')
+    .update({
+      status: 'rejected',
+      rejection_reason: trimmed,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', applicationId)
+    .eq('status', 'pending')
+    .select()
+    .single()
+  if (error) return { error }
+  return { data: shapeMosqueApplication(data) }
+}
+
+// Admin: flip a single verification flag on a mosques row. flag is
+// whitelisted to the three approved boolean columns
+// (charity_number_verified / address_verified / safeguarding_
+// confirmed). Same trust-surface posture as
+// setScholarVerificationFlag — focused helper per concern.
+//
+// RLS: gated by 024's "Admins update mosques".
+export async function setMosqueVerificationFlag(mosqueId, flag, value) {
+  const allowed = ['charity_number_verified', 'address_verified', 'safeguarding_confirmed']
+  if (!allowed.includes(flag)) {
+    return { error: { message: `flag must be one of ${allowed.join(', ')}` } }
+  }
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosques')
+    .update({ [flag]: !!value })
+    .eq('id', mosqueId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+// Admin: publish a mosque — flips status from pending_verification
+// to active, making it visible in public listings. Caller is
+// responsible for confirming all three flags are true (UI disables
+// the button when any flag is false). WHERE clause guards against
+// double-publish race; .maybeSingle() returns null data on no-op.
+//
+// RLS: same as setMosqueVerificationFlag.
+export async function publishMosque(mosqueId) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosques')
+    .update({ status: 'active' })
+    .eq('id', mosqueId)
+    .eq('status', 'pending_verification')
+    .select()
+    .maybeSingle()
+  return { data, error }
+}
+
+// ============================================================================
 // Session K Phase 5 — All users (admin)
 // ============================================================================
 
