@@ -9623,30 +9623,40 @@ useEffect(() => {
     showToast("Your account has been suspended. Contact support.");
   };
 
-  // Shared sign-in handler used by all public pages
+  // Shared sign-in handler used by all public pages.
+  //
+  // Audience entries (top-level r values):
+  //   "prayer"           → prayerHub (no auth)
+  //   "admin"            → AdminLogin form (or straight to adminPanel
+  //                        if already authed admin)
+  //   "user"             → parent path: userAuth or routed dashboard
+  //   "imam"|"scholar"   → scholar path: userAuth or routed dashboard
+  //   "mosque"           → legacy LoginScreen (Phase 6 replaces)
+  //
+  // Cross-cutting: an already-authed admin always lands on adminPanel
+  // regardless of which entry was tapped — admins don't have a
+  // parent/scholar/mosque dashboard. A non-admin tapping the Admin
+  // footer is allowed to view the AdminLogin form; the role check
+  // happens after they submit credentials.
 const handleSignIn = (r) => {
     console.log("[K-DIAG handleSignIn]", { r, authedUser: !!authedUser, authedProfileRole: authedProfile?.role, authedProfileSuspended: authedProfile?.suspended });
     if (r === "prayer") { setView("prayerHub"); return; }
-    if (r === "admin") {
-      // Footer "Admin" link. Already-authed admin lands directly on
-      // adminPanel (their natural home). Suspended admin → bounce.
-      // Otherwise → dedicated AdminLogin sign-in form.
-      if (authedUser && authedProfile?.role === "admin") {
-        if (authedProfile.suspended) { bounceSuspended(); return; }
-        setView("adminPanel"); return;
-      }
-      setView("adminLogin"); return;
+
+    // Already-authed admin: any audience-drawer entry routes home to
+    // adminPanel. Suspended admin bounces. Applies regardless of r so
+    // an admin who taps Parent/Scholar by mistake doesn't get an
+    // unexpected userDashboard / scholar router run.
+    if (authedUser && authedProfile?.role === "admin") {
+      if (authedProfile.suspended) { bounceSuspended(); return; }
+      setView("adminPanel"); return;
     }
+
+    // Footer Admin link (unauthed, or non-admin user clicking it).
+    // Role check happens in adminLogin onComplete after sign-in.
+    if (r === "admin") { setView("adminLogin"); return; }
+
     if (r === "user") {
       if (authedUser) {
-        // Admin role short-circuits the parent/scholar branch — even
-        // if the avatar tap came from a public page, an admin lands
-        // on adminPanel. Suspended admins are bounced.
-        if (authedProfile?.role === "admin") {
-          console.log("[K-DIAG handleSignIn] admin branch firing, suspended=", authedProfile.suspended);
-          if (authedProfile.suspended) { bounceSuspended(); return; }
-          setView("adminPanel"); return;
-        }
         // PublicHeader's avatar fires onSignIn("user") for any signed-in
         // user. Route them to scholar surfaces if they have any scholar
         // context: a linked listing, an application in flight, or a
@@ -9665,8 +9675,6 @@ const handleSignIn = (r) => {
       // Picking "Parent or student" expresses intent to use the parent
       // dashboard. Default the post-auth destination there rather than
       // capturing whatever public page the user happened to be on.
-      // Admins use this same form (no separate admin sign-in surface);
-      // role routing happens in UserAuth onComplete.
       setUserAuthRole("user");
       setReturnView("userDashboard"); setUserAuthMode("login"); setView("userAuth"); return;
     }
@@ -9682,8 +9690,7 @@ const handleSignIn = (r) => {
       setReturnView("scholarPostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
     }
     // Mosque still uses the legacy LoginScreen + dummy creds — Phase 6
-    // replaces it with the same Supabase-auth flow. "admin" no longer
-    // reaches this fallthrough as of Phase 1 (footer entry deleted).
+    // replaces it with the same Supabase-auth flow.
     setRole(r); setView("login");
   };
 
@@ -9801,19 +9808,19 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     let profile = null;
     if (user) {
       profile = await getProfile();
-      console.log("[K-DIAG userAuth.onComplete] getProfile →", { profile, role: profile?.role, suspended: profile?.suspended, profileKeys: profile ? Object.keys(profile) : null });
+      console.log("[K-DIAG userAuth.onComplete] getProfile →", { profile, role: profile?.role, suspended: profile?.suspended });
       setAuthedProfile(profile);
-      // Admin role takes precedence over scholar/parent return-view
-      // routing — even if the auth view was opened from a scholar
-      // entry, an admin signs into the admin panel. Suspended admins
-      // are bounced.
+      // Cross-path admin sign-in is forbidden by product decision: an
+      // admin who submits credentials via the parent or scholar form
+      // is bounced back with a toast steering them to the dedicated
+      // /admin entry. Even valid admin credentials are rejected here.
       if (profile?.role === "admin") {
-        console.log("[K-DIAG userAuth.onComplete] admin branch firing, suspended=", profile.suspended);
-        if (profile.suspended) { await bounceSuspended(); return; }
-        setView("adminPanel");
+        console.log("[K-DIAG userAuth.onComplete] admin via parent/scholar — bouncing");
+        await fullSignOut();
+        setView("publicHome");
+        showToast("Admin accounts must sign in via the Admin link.");
         return;
       }
-      console.log("[K-DIAG userAuth.onComplete] admin branch SKIPPED — profile.role is", JSON.stringify(profile?.role));
     }
     if (returnView === "scholarPostAuth" && user) {
       console.log("[K-DIAG userAuth.onComplete] routing to scholar");
@@ -9970,13 +9977,28 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "adminLogin") return <AdminLogin
     onBack={() => setView("publicHome")}
     onComplete={async () => {
-      // Phase-1-B placeholder: just route to adminPanel for now.
-      // Phase-1-C wires the real role check + bounce for non-admin.
+      console.log("[K-DIAG adminLogin.onComplete] entered");
       const user = await getUser();
       setAuthedUser(user);
-      if (user) {
-        const profile = await getProfile();
-        setAuthedProfile(profile);
+      if (!user) {
+        // Shouldn't happen — AdminLogin only calls onComplete after
+        // signIn succeeds. Stay on the form so the user retries.
+        console.warn("[K-DIAG adminLogin.onComplete] no user despite sign-in success");
+        return;
+      }
+      const profile = await getProfile();
+      console.log("[K-DIAG adminLogin.onComplete] profile →", { role: profile?.role, suspended: profile?.suspended });
+      setAuthedProfile(profile);
+      if (profile?.role !== "admin") {
+        // Non-admin used the admin form — bounce.
+        await fullSignOut();
+        setView("publicHome");
+        showToast("Not an admin account.");
+        return;
+      }
+      if (profile.suspended) {
+        await bounceSuspended();
+        return;
       }
       setView("adminPanel");
     }}
