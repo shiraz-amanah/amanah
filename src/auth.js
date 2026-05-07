@@ -896,3 +896,85 @@ export async function publishScholar(scholarId) {
     .maybeSingle()
   return { data, error }
 }
+
+// ============================================================================
+// Session K Phase 5 — All users (admin)
+// ============================================================================
+
+// Admin: paginated list of profiles with optional name/email search
+// and role/suspended filters. RLS gate is migration 022's "Admins
+// read all profiles". Returns { data, count, error } — count is the
+// total matching rows (not just this page) for pagination display.
+//
+// Pagination: 50/page hardcoded for now (consistent across the
+// admin All Users tab; no need to expose page size to the caller).
+// `page` is 1-indexed for caller convenience.
+//
+// Search: fuzzy match on name OR email via PostgreSQL ILIKE through
+// supabase-js's .or(). Email column may not be populated for every
+// profile (auth.users is the source of truth for email; profiles
+// mirrors it on signup) — search hits whichever rows actually have
+// the column populated.
+export async function listAllProfiles({ page = 1, search = '', role = null, suspended = null } = {}) {
+  const PAGE_SIZE = 50
+  const from = (Math.max(1, page) - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
+
+  let q = supabase
+    .from('profiles')
+    .select('id, email, name, city, phone, avatar_initials, avatar_gradient, role, suspended, created_at', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to)
+
+  const trimmed = (search || '').trim()
+  if (trimmed) {
+    // ILIKE escape: % and _ are wildcards. Strip them from user input
+    // so a search for "100%" doesn't match everything.
+    const safe = trimmed.replace(/[%_]/g, '')
+    q = q.or(`name.ilike.%${safe}%,email.ilike.%${safe}%`)
+  }
+  if (role && role !== 'all') q = q.eq('role', role)
+  if (suspended === true) q = q.eq('suspended', true)
+  else if (suspended === false) q = q.eq('suspended', false)
+
+  const { data, count, error } = await q
+  if (error) {
+    console.error('Error listing profiles:', error)
+    return { data: [], count: 0, error }
+  }
+  return { data: data || [], count: count || 0, error: null }
+}
+
+// Admin: change a user's role. Caller is responsible for not
+// changing their own role (the UI disables the dropdown for self).
+// Whitelisted to the three known role values.
+//
+// RLS: gated by 022's "Admins update profiles".
+export async function setProfileRole(profileId, newRole) {
+  const allowed = ['user', 'scholar', 'admin']
+  if (!allowed.includes(newRole)) {
+    return { error: { message: `role must be one of ${allowed.join(', ')}` } }
+  }
+  if (!profileId) return { error: { message: 'profileId required' } }
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ role: newRole })
+    .eq('id', profileId)
+    .select()
+    .single()
+  return { data, error }
+}
+
+// Admin: flip a user's suspended flag. Caller responsible for the
+// self-action guard (UI disables this for the admin's own row).
+// RLS: gated by 022's "Admins update profiles".
+export async function setProfileSuspended(profileId, suspended) {
+  if (!profileId) return { error: { message: 'profileId required' } }
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ suspended: !!suspended })
+    .eq('id', profileId)
+    .select()
+    .single()
+  return { data, error }
+}
