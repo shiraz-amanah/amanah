@@ -2427,148 +2427,257 @@ const DBSStatusPill = ({ status }) => {
   );
 };
 
-const MosqueDashboard = ({ onLogout, onPublic, checks, onOrderCheck, onViewImam, onStartCampaign, onOpenMessages, onPostJob }) => {
-  const [tab, setTab] = useState("directory");
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-
-  const filtered = IMAM_REGISTRY.filter(i => {
-    const matchesSearch = !search || i.name.toLowerCase().includes(search.toLowerCase()) || i.city.toLowerCase().includes(search.toLowerCase()) || i.specialties.some(s => s.toLowerCase().includes(search.toLowerCase()));
-    const matchesFilter = filter === "all" || (filter === "substitute" && (i.availability === "substitute" || i.availability === "both")) || (filter === "permanent" && (i.availability === "permanent" || i.availability === "both"));
-    return matchesSearch && matchesFilter;
+// New mosque dashboard — replaces the legacy mock-driven version
+// in place per Q7. Tabs locked from Q5: Profile / Donations /
+// Messages / Account (no Bookings or Reviews — mosques don't have
+// either feature today).
+//
+// This commit (K-6b commit 7) ships Profile / Donations / Account.
+// Messages tab added in commit 8.
+//
+// `mosque` prop: the user's claimed mosque object (raw DB shape
+// from getMosqueByUserId, transformed via transformMosque in the
+// router for camelCase aliases). Null when the route was hit via
+// the legacy LoginScreen path before commit 11 wires the new
+// router (graceful empty state).
+//
+// Legacy components the old dashboard called (MosqueImamDetail,
+// OrderCheck, JobsBoard, JobDetail, ApplyToJob, ApplicationSubmitted,
+// PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
+// MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
+// Phase 9 sweeps.
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic }) => {
+  const [tab, setTabRaw] = useState(() => {
+    try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
   });
-  const verifiedCount = IMAM_REGISTRY.filter(i => i.dbs.status === "verified" && i.rtw.status === "verified").length;
+  const setTab = (newTab) => {
+    try { sessionStorage.setItem("mosqueDashboardTab", newTab); } catch {}
+    setTabRaw(newTab);
+  };
+
+  if (!mosque) {
+    // Reachable from the legacy LoginScreen path until commit 11
+    // wires routeAuthedMosque. Graceful empty state instead of a
+    // blank screen.
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="max-w-lg w-full bg-white border border-stone-200 rounded-2xl p-8 text-center">
+          <Building2 className="mx-auto text-stone-300 mb-4" size={36} />
+          <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No mosque linked</h2>
+          <p className="text-sm text-stone-600 mb-5">Sign in via the Mosque path on the audience drawer to apply or access your mosque dashboard.</p>
+          <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
+            Browse Amanah
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { v: "profile", l: "Profile", icon: Building2 },
+    { v: "donations", l: "Donations", icon: HandCoins },
+    { v: "messages", l: "Messages", icon: MessageCircle },
+    { v: "account", l: "Account", icon: User },
+  ];
+
+  // Iqama keys for prayer-time render (matches MosqueDetail)
+  const iqamaKeys = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+  const iqamaLabels = { fajr: "Fajr", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" };
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button onClick={onPublic} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+        <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between gap-3">
+          <button onClick={onPublic} className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md">
+              <ShieldCheck className="text-emerald-50" size={18} />
+            </div>
             <div className="text-left">
-              <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-              <p className="text-xs text-stone-500">Masjid Al-Noor · Birmingham</p>
+              <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+              <p className="text-[11px] md:text-xs text-stone-500 truncate max-w-[40vw]">{mosque.name} · {mosque.city}</p>
             </div>
           </button>
-          <button onClick={onLogout} className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900"><LogOut size={15} /> Sign out</button>
+          {mosque.status === "active" ? (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+              <CheckCircle2 size={10} /> Live
+            </span>
+          ) : mosque.status === "pending_verification" ? (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
+              <AlertCircle size={10} /> Pending verification
+            </span>
+          ) : null}
         </div>
-        <div className="max-w-6xl mx-auto px-6 flex gap-1 border-t border-stone-100">
-          <button onClick={() => setTab("directory")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "directory" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
-            <span className="flex items-center gap-1.5"><Users size={14} /> Directory</span>
-          </button>
-          <button onClick={onOpenMessages} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors">
-            <span className="flex items-center gap-1.5"><MessageCircle size={14} /> Messages <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">1</span></span>
-          </button>
-          <button onClick={() => setTab("checks")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === "checks" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
-            <span className="flex items-center gap-1.5"><FileCheck size={14} /> My Checks {checks.length > 0 && <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{checks.length}</span>}</span>
-          </button>
+
+        {/* Tabs */}
+        <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto">
+          {tabs.map(t => {
+            const Icon = t.icon;
+            const active = tab === t.v;
+            return (
+              <button
+                key={t.v}
+                onClick={() => setTab(t.v)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${active ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
+              >
+                <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l}</span>
+              </button>
+            );
+          })}
         </div>
       </header>
 
-      {tab === "directory" && (
-        <main className="max-w-6xl mx-auto px-6 py-8">
-          <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+      <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10">
+        {tab === "profile" && (
+          <div className="space-y-4">
             <div>
-              <h2 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Imam Directory</h2>
-              <p className="text-stone-600">{verifiedCount} fully verified imams available · {IMAM_REGISTRY.length} total</p>
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Profile</h2>
+              <p className="text-sm text-stone-600">Read-only display of your mosque details. Editing comes in a follow-up release.</p>
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={onPostJob} className="inline-flex items-center gap-2 bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] shadow-lg shadow-emerald-900/20">
-                <Briefcase size={15} /> Post a job
-              </button>
-              <button onClick={onStartCampaign} className="inline-flex items-center gap-2 bg-white border border-amber-500 text-amber-700 hover:bg-amber-50 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
-                <HandCoins size={15} /> Start a campaign
-              </button>
-              <button onClick={onOrderCheck} className="inline-flex items-center gap-2 bg-white border border-emerald-900 text-emerald-900 hover:bg-emerald-50 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
-                <UserPlus size={15} /> Check someone not on Amanah
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-3 mb-6">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-              <input type="text" placeholder="Search by name, city, or specialty..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-            </div>
-            <div className="flex gap-2 bg-white border border-stone-300 rounded-xl p-1">
-              {[{ v: "all", l: "All" }, { v: "substitute", l: "Substitutes" }, { v: "permanent", l: "Permanent" }].map(f => (
-                <button key={f.v} onClick={() => setFilter(f.v)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f.v ? "bg-emerald-900 text-white" : "text-stone-600 hover:text-stone-900"}`}>{f.l}</button>
-              ))}
-            </div>
-          </div>
-          <div className="grid gap-3">
-            {filtered.map(imam => (
-              <div key={imam.id} onClick={() => onViewImam(imam)} className="bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-400 hover:shadow-lg cursor-pointer transition-all hover:-translate-y-0.5 group">
-                <div className="flex items-start gap-4">
-                  <Avatar scholar={imam} size="md" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{imam.name}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase tracking-wider">{imam.availability === "both" ? "Perm / Sub" : imam.availability}</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-stone-600 mb-2">
-                      <span className="flex items-center gap-1"><MapPin size={13} /> {imam.city}</span>
-                      <span>{imam.experience} yrs</span>
-                      <span>{imam.madhhab}</span>
-                      <span className="text-stone-900 font-medium">{imam.rate}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {imam.specialties.slice(0, 3).map(s => <span key={s} className="px-2 py-0.5 bg-stone-50 border border-stone-200 text-stone-600 text-xs rounded-md">{s}</span>)}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-stone-500">DBS:</span><DBSStatusPill status={imam.dbs.status} />
-                      <span className="text-xs text-stone-500 ml-2">RTW:</span><DBSStatusPill status={imam.rtw.status} />
-                    </div>
-                  </div>
-                  <ChevronRight className="text-stone-300 group-hover:text-emerald-700 mt-1 transition-colors" size={20} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
-      )}
 
-      {tab === "checks" && (
-        <main className="max-w-6xl mx-auto px-6 py-8">
-          <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My Checks</h2>
-              <p className="text-stone-600">DBS and Right to Work checks you've ordered</p>
+            {/* Hero card with photo or initials */}
+            <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+              <div className="relative h-44 md:h-56">
+                {mosque.photo ? (
+                  <img src={mosque.photo} alt={mosque.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center">
+                    <span className="text-white text-6xl font-semibold tracking-wide" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{getMosqueInitials(mosque)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-5 md:p-6">
+                <h3 className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{mosque.name}</h3>
+                <p className="text-sm text-stone-600 mt-0.5">{mosque.address}, {mosque.city} {mosque.postcode}</p>
+                {mosque.bio && <p className="text-sm text-stone-700 leading-relaxed mt-3">{mosque.bio}</p>}
+                {!mosque.bio && mosque.description && <p className="text-sm text-stone-700 leading-relaxed mt-3">{mosque.description}</p>}
+              </div>
             </div>
-            <button onClick={onOrderCheck} className="inline-flex items-center gap-2 bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] shadow-lg shadow-emerald-900/20">
-              <Plus size={15} /> New check
-            </button>
-          </div>
-          <div className="grid gap-3">
-            {checks.map(c => (
-              <div key={c.id} className="bg-white border border-stone-200 rounded-2xl p-5 hover:shadow-md transition-all">
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.candidateName}</h3>
-                    <p className="text-sm text-stone-600">{c.candidateEmail}</p>
-                  </div>
-                  <span className="text-xs text-stone-500">Ordered {c.requestedDate}</span>
+
+            {/* Contact + capacity card */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+              <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Contact & details</h3>
+              <div className="grid md:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Phone</p>
+                  <p className="text-sm text-stone-900">{mosque.phone || "—"}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="border border-stone-200 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs uppercase tracking-wider text-stone-500 font-medium">{c.dbs.type} DBS</span>
-                      <DBSStatusPill status={c.dbs.status} />
-                    </div>
-                    <p className="text-xs text-stone-600">{c.dbs.status === "verified" ? `Certificate dated ${c.dbs.date}` : "Awaiting police response"}</p>
-                  </div>
-                  <div className="border border-stone-200 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs uppercase tracking-wider text-stone-500 font-medium">Right to Work</span>
-                      <DBSStatusPill status={c.rtw.status} />
-                    </div>
-                    <p className="text-xs text-stone-600">{c.rtw.status === "verified" ? `Verified ${c.rtw.date}` : "Awaiting share code"}</p>
-                  </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Email</p>
+                  <p className="text-sm text-stone-900 break-all">{mosque.email || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Capacity</p>
+                  <p className="text-sm text-stone-900">{mosque.capacity ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Charity number</p>
+                  <p className="text-sm text-stone-900">{mosque.registered_charity_number || "—"}</p>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Prayer times */}
+            {mosque.iqamaTimes && (
+              <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Iqama times</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {iqamaKeys.map(k => (
+                    <div key={k}>
+                      <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{iqamaLabels[k]}</p>
+                      <p className="text-sm text-emerald-700 font-mono font-medium">{mosque.iqamaTimes[k] || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+                {mosque.jumuahTime && (
+                  <div className="mt-3 pt-3 border-t border-stone-100">
+                    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Jumu'ah</p>
+                    <p className="text-sm text-emerald-700 font-mono font-medium">{mosque.jumuahTime}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Services */}
+            {mosque.services && mosque.services.length > 0 && (
+              <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Services offered</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {mosque.services.map(s => (
+                    <span key={s} className="text-xs px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md">
+                      {(MOSQUE_SERVICES.find(x => x.v === s)?.l) || s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Facilities */}
+            {mosque.facilities && mosque.facilities.length > 0 && (
+              <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Facilities</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {mosque.facilities.map(f => (
+                    <span key={f} className="text-xs px-2 py-1 bg-stone-50 border border-stone-200 text-stone-700 rounded-md">
+                      {(MOSQUE_FACILITIES.find(x => x.v === f)?.l) || f}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </main>
-      )}
+        )}
+
+        {tab === "donations" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Donations</h2>
+              <p className="text-sm text-stone-600">Donations to your mosque will appear here once campaigns are enabled.</p>
+            </div>
+            <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+              <HandCoins className="mx-auto text-stone-300 mb-3" size={36} />
+              <p className="text-stone-600 text-sm max-w-md mx-auto">Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here.</p>
+            </div>
+          </div>
+        )}
+
+        {tab === "messages" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Messages</h2>
+              <p className="text-sm text-stone-600">Conversations with parents, scholars, and Amanah team.</p>
+            </div>
+            <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+              <MessageCircle className="mx-auto text-stone-300 mb-3" size={36} />
+              <p className="text-stone-600 text-sm">Messages tab wiring lands in commit 8 of Phase 6b.</p>
+            </div>
+          </div>
+        )}
+
+        {tab === "account" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Account</h2>
+              <p className="text-sm text-stone-600">Sign-in details and your mosque listing.</p>
+            </div>
+            <div className="space-y-3">
+              <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Signed in as</p>
+                <p className="text-sm text-stone-900 break-all">{authedUser?.email || "—"}</p>
+              </div>
+              <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1">Linked mosque</p>
+                <p className="text-sm text-stone-900">{mosque.name}</p>
+                <p className="text-xs text-stone-500 mt-0.5">/{mosque.slug}</p>
+              </div>
+              <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                <button onClick={onLogout} className="text-sm text-rose-700 hover:text-rose-800 font-medium inline-flex items-center gap-1.5">
+                  <LogOut size={14} /> Sign out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 };
@@ -11322,15 +11431,14 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     }}
   />;
   if (view === "mosqueDashboard") return <MosqueDashboard
-    onLogout={() => setView("publicHome")}
+    mosque={null}
+    authedUser={authedUser}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
-    checks={checks}
-    onOrderCheck={() => setView("orderCheck")}
-    onViewImam={(i) => { setSelectedImam(i); setView("mosqueImamDetail"); }}
-    onStartCampaign={() => { setCampaignCreatorType("mosque"); setView("createCampaign"); }}
-    onOpenMessages={() => { setRole("mosque"); setView("messagesInbox"); }}
-    onPostJob={() => setView("postJob")}
   />;
+  // mosque={null} for now — routeAuthedMosque + myMosque state land
+  // in commit 10. Until then, only the legacy LoginScreen path can
+  // hit this view, and the dashboard's empty state handles it.
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
     const newCheck = { id: Date.now(), candidateName: form.candidateName, candidateEmail: form.candidateEmail, dbs: { type: form.dbsLevel.charAt(0).toUpperCase() + form.dbsLevel.slice(1), status: "awaitingcandidate", date: "—" }, rtw: { status: form.includeRtw ? "awaitingcandidate" : "incomplete", date: "—" }, requestedDate: new Date().toISOString().split("T")[0] };
