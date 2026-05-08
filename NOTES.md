@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 6a shipped (mosques schema + admin queue + public-surface migration). 15 commits + 1 NOTES update. Migrations 024 (mosques table with public/owner/admin RLS, three verification flags, partial-unique user_id index) + 025 (mosque_applications + approval trigger with created_mosque_id linkback) + 026 (seed 8 MOCK_MOSQUES rows). 11 new auth.js helpers (`getMosques`, `getMosqueBySlug`, `getMosqueById`, `getMosqueByUserId`, `getSavedMosques`, `getAllMosqueApplications`, `approveMosqueApplication`, `rejectMosqueApplication`, `setMosqueVerificationFlag`, `publishMosque`, plus `shapeMosqueApplication` shaper). New `<AdminMosqueApplications>` component (~400 lines, mirrors scholar applications) — sidebar "Mosque queue" renamed to "Mosque applications", legacy AdminMosqueQueue + mock + state deleted. Public surface fully migrated: PublicHome / MosquesListing / MosqueDetail / UserDashboard My Mosques all read from Supabase via new `transformMosque` adapter (`src/lib/mosqueTransform.js`). MosqueDetail's "Community reviews" section now shows empty-state instead of fabricated mockReviews. `savedMosques` lifted to App root mirroring savedScholars (atomic Set + Array sync in toggleMosqueSave). MOCK_MOSQUES export deleted. End-to-end smoke green: SQL-seeded test application → admin approves → trigger creates pending_verification mosques row + writes linkback → admin flips three flags → publish → status='active' → mosque appears in public listings immediately. Two observations parked for 6b: (1) `mosque_applications.created_mosque_id → mosques.id` FK is `on delete restrict`, admin delete UX needs handling; (2) wizard MUST collect lat/lng/photo_url/facilities/services or wizard-approved mosques will render broken on public listing. Next: Phase 6b — mosque sign-up flow + wizard + dashboard. Scope plan to be surfaced in chat before code lands.
+> Last action: Session K Phase 6b shipped (mosque sign-up flow + wizard + dashboard). 14 commits. Migration 027 added mid-flight — `mosque_applications.lat` + `lng` + `facilities text[]` columns plus approval trigger replaced via `CREATE OR REPLACE FUNCTION` (preserves trigger binding) so geocoded fields thread through into the mosques row on approval. Two new auth.js helpers: `submitMosqueApplication` (Postcodes.io geocoding pipeline — lenient client-side regex `/^[A-Z0-9\s]{5,8}$/i` + server-side gate via Postcodes.io API + graceful null degradation, end-to-end verified Bradford BD9 6LH → 53.814835, -1.802964) + `getMyMosqueApplication` (source of truth for both rejected-app wizard hydration and `routeAuthedMosque` branch selection). Audience drawer "Mosque" path now routes through Supabase auth (`UserAuth role='mosque'`), replacing the legacy LoginScreen. New `<MosqueOnboardingWizard>` (5 steps: Welcome / About / Location & access / Prayer times / Review) with sessionStorage hydration and a hydrating gate that prevents persistence flash before the rejected-app draft loads — precedence is sessionStorage draft → server-side rejected app → blank initialForm. Three new status views (`mosqueApplicationSubmitted`, `mosqueApplicationRejected` with rendered admin reason and "Edit and resubmit" CTA, `mosqueVerificationPending` with 3 flag pills). New `<MosqueDashboard>` with Profile / Donations (empty state) / Messages / Account tabs (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch state machine mirrors `routeAuthedScholar`: no mosque + no app → wizard / pending app → submitted / rejected app → rejected with hydration / pending_verification mosque → holding / active mosque → dashboard. Bootstrap probe gating: `getMosqueByUserId` + `getMyMosqueApplication` only fire when `profile` exists. Sign-out parity fix (`3807b19`) caught during smoke regression check by visual comparison across the three dashboard headers — MosqueDashboard was missing the header LogOut icon present on parent + scholar; added next to the Live/Pending status pill, same fullSignOut handler. Mid-session bug 1 (BLOCKER, fixed in `76acbaa`): `ReferenceError: Can't find variable: getMyMosqueApplication` during bootstrap — commit `c8ab00e` added the call but missed the import-line update for `submitMosqueApplication` + `getMyMosqueApplication`. Mid-session bug 2 (FALSE ALARM, no code change): suspected `getSavedMosques` 22P02 turned out to be cascading from bug 1; empty-saves guard was already in place from 6a's `a3e7438`, and the saves table had zero stale non-UUID rows on probe. Smoke green end-to-end: approve path (sign-up → wizard → submit → admin approve → verify-pending → admin verifies + publishes → dashboard with all wizard fields rendered) and reject path (sign-up → wizard → submit → admin reject with reason → rejected view with reason → "Edit and resubmit" hydrates form, verified via SQL probe of identical org_name/city/postcode/address across rejected and pending rows for same user). Test fixtures cleanup applied post-smoke (delete order: mosque_applications → mosques → saves → profiles → auth.users; profiles_id_fkey delete_rule = NO ACTION required explicit profiles delete before auth.users); production seed (migration 026, 8 mosques) untouched. Parked for next phase: `jumuah_time` wizard gap (column not on mosque_applications, wizard-approved mosques permanently null until profile editor ships); two cross-path edge cases (mosque-via-parent, mosque-via-scholar audience flows — same shape as the existing scholar-via-parent, fix all three together in a future cross-path session). Next: Phase 7 — Flags & reports per master Session K brief.
 
 ---
 
@@ -37,10 +37,11 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session K Phase 3** ✅ — Reviews moderation admin gate. Migration 021 adds additive admin SELECT + UPDATE policies on `reviews`. Probe of `pg_policies` against prod confirmed the deployed policies matched 012 exactly (no admin awareness), meaning Session H's moderation UI had been a silent no-op since H shipped — `setReviewStatus` was RLS-denied and `getReviewsForModeration` could only see `published` rows. Admin moderation now works end-to-end: admin sees all reviews regardless of status, hide/publish actually flips `reviews.status`, the trigger from 012 recomputes `scholars.rating + review_count` correctly. No code changes — auth.js helpers were already RLS-respecting; they just needed RLS to allow them through. Session H block annotated to reflect the silent-no-op.
 - **Session K Phase 5** ✅ — All users tab. Phase 4 (campaigns admin queue) deferred. Migration 022 (admin SELECT + UPDATE policies on `profiles`). Three new auth.js helpers: `listAllProfiles({page, search, role, suspended})` (50/page, debounced search on name+email via ILIKE through supabase-js `.or()`, returns `{data, count, error}`), `setProfileRole(id, newRole)` (whitelisted to user/scholar/admin), `setProfileSuspended(id, value)`. AllUsers tab UI replaces the placeholder: paginated list, role + status filter pills, per-row Eye-icon View modal + role dropdown + Suspend toggle. Self-action guard with "You" pill on the admin's own row, role dropdown + suspend disabled with explanatory title attributes. Confirm modal on role change with copy that varies by transition (elevation-to-admin, demotion-from-admin, plain user/scholar swap). **Mid-phase fix:** migration 023 added `profiles.created_at` — the column didn't exist in prod despite 010's TODO migration describing it; `listAllProfiles` selected/ordered by it and got a 400 from PostgREST, which surfaced as "0 total · No users match this view" in the UI. Backfilled existing rows to apply timestamp (acceptable pre-launch). Suspension write-blocking on user tables stays parked.
 - **Session K Phase 6a** ✅ — Mosques schema + admin queue + public-surface migration. Migrations 024 (mosques table — public/owner/admin RLS, three verification flags mirroring scholars, optional user_id with partial-unique index for claim flow), 025 (mosque_applications + approval trigger that mirrors 015 with created_mosque_id linkback), 026 (seed 8 MOCK_MOSQUES rows with status='active', user_id=null, all flags=true). Decided to follow scholar precedent: mosque accounts stay role='user', routing keys off mosques.user_id (no role enum change). Eleven new auth.js helpers (5 public reads + shaper + 5 admin/verification). New `<AdminMosqueApplications>` component (~400 lines, mirrors AdminScholarApplications): filter pills, list view, detail view with all wizard fields, approve/reject modals, verification panel for approved-with-mosque-row applications (3 flag toggles + publish CTA gated on all-three-true). Sidebar "Mosque queue" → "Mosque applications" rename. Legacy `<AdminMosqueQueue>` + ADMIN_MOSQUE_APPS mock + handler + counts refs all deleted. Public surface fully migrated to Supabase: PublicHome featured-4, MosquesListing (with distance sort), MosqueDetail (with empty-state "No reviews yet" replacing the previously-fabricated mockReviews), UserDashboard "My Mosques" tab. New `src/lib/mosqueTransform.js` snake→camel adapter (photo_url→photo, prayer_times→iqamaTimes, jumuah_time→jumuahTime, status→verified). `savedMosques` lifted to App root mirroring savedScholars; toggleMosqueSave updates Set + Array atomically. MOCK_MOSQUES export deleted (mockMosques.js shrunk 197→14 lines, NEARBY_MOSQUES still in for PrayerHub). End-to-end approve→trigger→verify→publish flow smoke-tested with a manually-seeded test application: trigger writes created_mosque_id linkback, verification toggles fire optimistic updates, publish flips status to active, mosque appears in public listings immediately. **Two observations captured in parked items:** (1) FK on `mosque_applications.created_mosque_id → mosques.id` is `on delete restrict` — admin delete UX in 6b will need to handle. (2) Wizard in 6b MUST collect lat/lng/photo_url/facilities/services or wizard-approved mosques will render with junk distance + no photo + empty facilities on public listing (proven by the cleanup smoke run with the SQL-seeded test mosque).
+- **Session K Phase 6b** ✅ — Mosque sign-up flow + wizard + dashboard. Migration 027 added mid-flight (`mosque_applications.lat` + `lng` + `facilities text[]` + approval trigger replaced via `CREATE OR REPLACE FUNCTION` to thread these through into the mosques row on approval — preserves trigger binding without DROP/CREATE round-trip). Two new auth.js helpers: `submitMosqueApplication` (Postcodes.io geocoding pipeline — lenient client-side regex + server-side gate + graceful null degradation, end-to-end verified Bradford BD9 6LH → 53.814835, -1.802964; admin warning chip in detail view catches null lat/lng before publish) + `getMyMosqueApplication`. Audience drawer "Mosque" path now routes through Supabase auth (`UserAuth role='mosque'`), replacing legacy LoginScreen. New `<MosqueOnboardingWizard>` (5 steps: Welcome / About / Location & access / Prayer times / Review) with sessionStorage hydration + hydrating gate (precedence: sessionStorage draft → server-side rejected app → blank initialForm). Three new status views (mosqueApplicationSubmitted / mosqueApplicationRejected with reason + "Edit and resubmit" / mosqueVerificationPending with 3 flag pills). New `<MosqueDashboard>` with Profile / Donations (empty state) / Messages / Account tabs only (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch state machine mirrors `routeAuthedScholar`. Bootstrap probe gating: `getMosqueByUserId` + `getMyMosqueApplication` only fire when `profile` exists. Sign-out parity fix (3807b19) caught during smoke regression check by visual comparison across the three dashboard headers — header LogOut icon was missing from MosqueDashboard, added next to the Live/Pending status pill. **Mid-session bug 1 (BLOCKER, fixed in `76acbaa`):** ReferenceError on `getMyMosqueApplication` during bootstrap — commit `c8ab00e` added the call site but missed updating the App.jsx import line for both `submitMosqueApplication` + `getMyMosqueApplication`. **Mid-session bug 2 (FALSE ALARM):** suspected `getSavedMosques` 22P02 turned out to be cascading from bug 1; empty-saves guard already in place from 6a's `a3e7438`, saves table probed clean for stale non-UUID rows. Smoke green end-to-end on both approve and reject paths. Test fixtures purged post-smoke (delete order: mosque_applications → mosques → saves → profiles → auth.users; `profiles_id_fkey` delete_rule was `NO ACTION` so explicit profiles delete required before auth.users); production seed untouched. **Two parked items:** (1) `jumuah_time` wizard gap — column not on mosque_applications, wizard-approved mosques null until profile editor ships; (2) two cross-path edge cases (mosque-via-parent, mosque-via-scholar audience flows — same shape as existing scholar-via-parent, fix all three together in a future cross-path session). 14 commits.
 
 ### Up next
 
-- **Session K Phase 6b — Mosque sign-up flow + wizard + dashboard.** Audience drawer "Mosque" path → real Supabase auth via UserAuth (replaces legacy LoginScreen). New `<MosqueOnboardingWizard>` (5 steps mirroring scholar wizard) with sessionStorage hydration. Status views (mosqueApplicationSubmitted / mosqueApplicationRejected / mosqueVerificationPending). New `<MosqueDashboard>` replacing the legacy mock-driven one — Profile / Donations (empty state) / Messages / Account tabs only (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch tree mirroring routeAuthedScholar. Two new auth.js helpers: `submitMosqueApplication` + `getMyMosqueApplication`. Estimated ~15 commits. Scope plan to be surfaced in chat for review before any code lands. **Pre-reqs from 6a observations:** wizard must collect lat/lng/photo_url/facilities/services in addition to the brief's listed fields, or new mosques will render broken in public listings.
+- **Session K Phase 7 — Flags & reports** per master Session K brief. Scope plan to be surfaced in chat for review before any code lands.
 - **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
@@ -3036,6 +3037,244 @@ Regressions:
 
 ---
 
+## Session K Phase 6b — Mosque sign-up flow + wizard + dashboard ✅ (8 May 2026)
+
+Second half of the mosques split. Wizard, dashboard, status
+views, and the routing/UserAuth wiring shipped here. Migration
+027 added mid-flight to fix a column gap caught before the
+wizard surface landed. Sign-out header parity for the new
+MosqueDashboard caught during smoke regression check.
+
+### What shipped
+
+- **Migration 027** — `mosque_applications` schema patch. Adds
+  `lat`, `lng`, `facilities text[]` + replaces the approval
+  trigger function via `CREATE OR REPLACE FUNCTION` to thread
+  these through into the mosques row on approval. Trigger
+  binding survives intact (function replacement, not trigger
+  drop+recreate). Caught mid-flight when wizard scope review
+  noticed migration 025's column list omitted the geocoded
+  fields — without 027 every wizard-approved mosque would
+  have landed with null lat/lng (junk distance on listings).
+- **`submitMosqueApplication` + `getMyMosqueApplication`**
+  auth.js helpers — submit-side counterparts to 6a's getter
+  helpers. Submit serializes wizard payload, geocodes the
+  postcode via Postcodes.io API, INSERTs with status='pending'.
+  Getter is the source of truth for wizard hydration on
+  rejected-app re-entry and for routeAuthedMosque branch
+  selection. Plus an admin warning chip in
+  AdminMosqueApplications detail view, rendered when an
+  approved application's mosques row has null lat or lng —
+  catches null-geocode publishes before they hit production.
+- **Postcodes.io geocoding pipeline.** Lenient client-side
+  regex `/^[A-Z0-9\s]{5,8}$/i` flags malformed postcodes
+  early. Server-side gate via
+  `https://api.postcodes.io/postcodes/{postcode}` resolves UK
+  postcodes to lat/lng. Graceful null degradation if the API
+  fails or returns 404 — wizard submit still succeeds, admin
+  warning chip catches before publish. End-to-end verified:
+  Bradford BD9 6LH → 53.814835, -1.802964.
+- **`<MosqueOnboardingWizard>`** 5-step component. Steps:
+  Welcome / About (org_name + postcode + address + capacity +
+  charity#) / Location & access (photo URL + services +
+  facilities) / Prayer times (Iqama hours + Jumuah) / Review.
+  sessionStorage hydration mirrors scholar wizard. Hydrating
+  gate prevents persistence flash before the rejected-app
+  draft loads — see "Rejected-app hydration design pattern"
+  under Decisions.
+- **Mosque application status views.** Three new view
+  components mirror the scholar status views:
+  `mosqueApplicationSubmitted` (pending acknowledgement),
+  `mosqueApplicationRejected` (rendered admin reason + "Edit
+  and resubmit" CTA), `mosqueVerificationPending` (3 flag
+  pills + "We're verifying — you'll be notified" copy +
+  sign-out).
+- **`<MosqueDashboard>`.** Profile / Donations / Messages /
+  Account tabs. Bookings + Reviews dropped per Q5 of scope
+  review. Profile renders all wizard fields + 3 verification
+  flag pills + status pill. Donations: empty state until
+  donate-to-mosque flow lands. Messages: route-switch tab to
+  `messagesInbox` with `role='mosque'`. Account: linked email
+  + sign-out. Header: logo + mosque name/city + status pill.
+  Sign-out parity icon added in 3807b19.
+- **`UserAuth role='mosque'` support** (`bd83792`). Audience
+  drawer "Mosque" path now routes through Supabase auth,
+  mirroring the scholar path. Replaces the legacy LoginScreen.
+- **`routeAuthedMosque` 5-branch state machine** (`c8ab00e`).
+  Mirrors `routeAuthedScholar`. Branches: (1) no mosque + no
+  application → wizard, (2) pending application → submitted
+  view, (3) rejected application → rejected view (with
+  re-apply hydration), (4) mosque exists with
+  status='pending_verification' → holding view with 3 flag
+  pills, (5) mosque exists with status='active' → dashboard.
+  handleSignIn mosque branch routes role='user' authed users
+  with a linked mosque or application. Bootstrap probe
+  gating: `getMosqueByUserId` + `getMyMosqueApplication` run
+  only when `profile` exists (else skipped, avoiding
+  redundant 401/RLS misses for signed-out demo state).
+- **Sign-out header parity** (`3807b19`). Header LogOut icon
+  next to the Live/Pending status pill. Same `fullSignOut`
+  handler as the existing Account tab sign-out. Caught during
+  smoke regression check by visual comparison across the
+  three dashboard headers — see "Sign-out parity is a parity
+  item, not a feature" under Decisions.
+
+### Commits
+
+- `4be59d5` feat(public): MosqueCard + MosqueDetail photo fallback
+- `8b285de` schema(027): mosque_applications lat/lng/facilities + trigger update
+- `40e8c6a` docs(migrations): index 027
+- `6c92946` feat(auth): submitMosqueApplication + getMy + Postcodes.io geocode
+- `297f415` feat(public): mosque application status views
+- `9d4c52c` feat(public): <MosqueOnboardingWizard> 5-step component
+- `851e236` feat(mosque): new <MosqueDashboard> — Profile + Donations + Account
+- `0e6c890` feat(mosque): wire Messages tab with role='mosque'
+- `bd83792` feat(auth): UserAuth role='mosque' support
+- `c8ab00e` feat(routing): routeAuthedMosque + handleSignIn mosque branch + bootstrap probe gating
+- `fd264bd` feat(routing): wire mosque views in App router
+- `76acbaa` fix(import): add submitMosqueApplication + getMyMosqueApplication to App.jsx import
+- `3807b19` feat(mosque): header sign-out parity with parent + scholar dashboards
+- `<TBD>` docs(NOTES): Session K Phase 6b closure
+
+14 commits.
+
+### Decisions
+
+- **Schema 027 mid-flight catch.** Migration 025 (6a) defined
+  mosque_applications with the application-side fields but
+  omitted lat/lng/facilities — those existed only on the
+  mosques table per 024. Wizard scope review surfaced that the
+  approval trigger had no way to thread geocoded coordinates
+  from application → mosque, meaning every wizard-approved
+  mosque would have landed with null lat/lng (junk distance
+  on public listings). 027 adds the missing columns and
+  replaces the trigger function via `CREATE OR REPLACE
+  FUNCTION` to preserve trigger binding (no DROP TRIGGER +
+  CREATE TRIGGER round-trip). **Lesson:** TODO migration
+  files describe intent, not deployed state — and the same
+  applies to "complete" migrations whose column lists were
+  inferred from frontend usage. Validate column existence
+  against shipped schema before the wizard ships, not just
+  against the PR diff.
+- **Rejected-app hydration design pattern.** Wizard
+  initialForm precedence: sessionStorage draft → server-side
+  rejected application → blank initialForm. The hydrating
+  gate (a `hydrating` boolean + early-return spinner)
+  prevents persistence flash before async hydration
+  completes. Verified empirically via SQL probe of identical
+  org_name/city/postcode/address values across rejected
+  (08:59:48) and pending (09:02:34) rows for the same user —
+  proves wizard pre-fill worked, not retyped. Reusable for
+  any future re-apply surface.
+- **Sign-out parity is a parity item, not a feature.** The
+  mosque dashboard shipped without a header sign-out icon
+  (`851e236`). Caught during smoke regression check by visual
+  comparison across the three dashboard headers — parent +
+  scholar both have it, mosque didn't. Fixed in `3807b19`.
+  Filed as parity, not feature add — the bar is "match what
+  other dashboards do" unless there's a reason to diverge.
+  Future dashboard surfaces (e.g. organisation,
+  imam-as-tenant) should default to the same header pattern.
+
+### Bugs found mid-session
+
+- **Bug 1 (BLOCKER, fixed in `76acbaa`)** — `ReferenceError:
+  Can't find variable: getMyMosqueApplication` thrown twice
+  during bootstrap. Root cause: `c8ab00e` added the bootstrap
+  call (and `9d4c52c` added the wizard submit call to
+  `submitMosqueApplication`) but the import statement at the
+  top of App.jsx was never updated. Fix: added both helpers
+  to the import in a single commit. Commit body documents
+  bundling rationale (one missed-import root cause; splitting
+  would only have made bisection noisier and shipped a
+  known-broken wizard submit). **Lesson:** when adding a
+  bootstrap call to an existing useEffect, grep the import
+  line for the helper before assuming it's wired. The
+  bootstrap try/catch was suppressing the actual
+  ReferenceError into a generic "Auth bootstrap failed" log,
+  masking the root cause from initial diagnosis.
+- **Bug 2 (FALSE ALARM, no fix shipped)** — initial diagnosis
+  suggested `getSavedMosques` was 400ing with Postgres 22P02
+  because `id=in.()` was being sent for users with zero
+  mosque saves. Empty-saves guard at `src/auth.js:174`
+  (`if (savesError || !saves || saves.length === 0) return []`)
+  had landed in 6a's `a3e7438` — verified before any code
+  change. Data probe of `saves` table for stale non-UUID
+  `item_id` values returned 0 rows. Bug never reappeared
+  post-bug-1 fix; likely caused by the cascading auth
+  bootstrap failure (Bug 1) blowing up before
+  `getSavedMosques` was ever called, with the 22P02 from a
+  different request mistakenly attributed. **Lesson:** when
+  a console error follows a known auth-bootstrap crash, fix
+  the bootstrap first and re-test before patching downstream.
+  Don't fix a guard that's already in place.
+
+### Smoke tests (all green, 8 May 2026)
+
+End-to-end approve path:
+1. ✅ First sign-up via Mosque audience drawer → wizard launches.
+2. ✅ Wizard step 5 submit → application row inserted with geocoded lat/lng.
+3. ✅ Sign back in → routes to `mosqueApplicationSubmitted`.
+4. ✅ Admin approves → trigger creates `pending_verification` mosques row with lat/lng/facilities threaded through.
+5. ✅ Sign back in (post-approval) → `mosqueVerificationPending` holding page with 3 flag pills.
+6. ✅ Admin verifies all 3 flags + publishes → status='active', mosque appears in public listings at correct geo distance.
+7. ✅ Sign back in (post-publish) → `mosqueDashboard` with all wizard fields rendered.
+
+End-to-end reject path:
+8. ✅ Second test user sign-up → wizard → submit → admin reject with reason.
+9. ✅ Sign in → `mosqueApplicationRejected` with admin reason rendered.
+10. ✅ "Edit and resubmit" → wizard pre-filled from rejected application (verified via SQL probe: identical `org_name`/`city`/`postcode`/`address` across pending and rejected rows for same user).
+
+Regressions:
+11. ✅ Parent path (UserAuth → userDashboard) still works.
+12. ✅ Scholar path (UserAuth → scholarDashboard) still works.
+13. ✅ Admin path (AdminLogin → adminPanel) still works.
+14. ✅ Sign-out parity fix (`3807b19`) verified live on Vercel.
+
+Test fixtures cleanup applied post-smoke. Delete order
+required by FK rules: mosque_applications first (releases the
+`created_mosque_id → mosques.id` ON DELETE RESTRICT linkback)
+→ mosques → saves → **profiles** (required because
+`profiles_id_fkey` delete_rule = NO ACTION on prod, not
+CASCADE) → auth.users. Post-cleanup public listing showed 8
+mosques only — production seed (migration 026) untouched.
+Cross-reference reproducibility: full transcript at
+`/mnt/transcripts/2026-05-08-...` if a future session needs
+to re-validate.
+
+### Lessons learned
+
+- **Bootstrap probes need import-line discipline.** Adding a
+  new bootstrap call requires touching two lines in the same
+  commit: the call site AND the import statement. The Phase
+  6b commit (`c8ab00e`) split these — call site moved, import
+  didn't. Try/catch suppressed the ReferenceError into a
+  generic "Auth bootstrap failed" log, costing an iteration
+  to diagnose.
+- **Schema gaps are catchable mid-flight via `CREATE OR
+  REPLACE FUNCTION`.** 027 didn't require trigger drop /
+  recreate or any RLS change — function replacement preserves
+  the trigger binding. Cleaner than a sequenced migration
+  (which would have left the trigger pointing at the old
+  function for a window).
+- **Rejected-app hydration is a reusable pattern.** Same
+  shape as scholar wizard re-apply: precedence ordered by
+  recency (sessionStorage > server > blank), gated by a
+  hydrating boolean to prevent flash. Worth re-using for any
+  future re-apply surface.
+- **Smoke regression checks catch parity gaps.** The sign-out
+  parity fix surfaced from a visual cross-dashboard header
+  comparison, not from anyone clicking sign-out. Cheap to do
+  at session-end, expensive to ship inconsistent UX.
+- **FK delete_rule probe before destructive cleanup.**
+  Probing `information_schema.referential_constraints` for
+  the `profiles_id_fkey` delete_rule turned a 5-line "delete
+  test users" SQL into a 7-line "delete profiles too because
+  NO ACTION" SQL. Cheap probe, expensive failure mode (mid-
+  transaction FK violation that ROLLBACKs the whole cleanup).
+
+---
+
 ## Cross-cutting gotchas
 
 ### Schema / migrations gotchas
@@ -3089,4 +3328,6 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **Mosque admin delete UX (FK restrict).** `mosque_applications.created_mosque_id → mosques.id` is `on delete restrict`. Surfaced during K-6a smoke-test cleanup. If admin ever needs to delete a published mosque, the linked application either has to be deleted first (loses audit trail) or its `created_mosque_id` set to null (keeps record). Likely the latter when a real admin-delete surface ships. No immediate action needed — admins use SQL today.
 - **NEARBY_MOSQUES (PrayerHub) still mock.** Smaller dataset (5 entries, different shape — denomination/distance/initials/gradient/languages). Drives only the PrayerHub surface. K-6a migrated MOCK_MOSQUES (the public listing dataset) but left this one alone. Migration belongs with whatever phase ships geolocation-driven nearby-mosque lookups for PrayerHub — not yet planned.
 - **MosqueDetail affiliated scholars empty until cross-link table ships.** Scholar↔mosque affiliations have been parked since Session F. K-6a migrated mosques to Supabase but didn't add the relationship. A `mosque_scholars` join table (or `scholars.mosque_id` if 1:N) is the next step when we want to render real affiliations. Until then, the section conditional `affiliatedScholars.length > 0` keeps it hidden.
+- **`jumuah_time` wizard gap (K-6b).** `mosque_applications` has no `jumuah_time` column — 027 added lat/lng/facilities but not this. Wizard-approved mosques therefore land with `jumuah_time=NULL` permanently; public MosqueDetail's Jumuah row stays "TBC" until a profile-editor surface ships post-launch. Not urgent because the seeded production mosques (migration 026) all have `jumuah_time` populated, and admins can patch via SQL in the meantime.
+- **Mosque-via-parent and mosque-via-scholar cross-path edge cases (K-6b).** Two audience-drawer flows that aren't yet bounced consistently with the existing scholar-via-parent cross-path enforcement (K-1). Same shape as the scholar-via-parent edge — a user authed in one role landing on the wrong audience drawer entry. Fix all three together in a future cross-path session: single review surface, single test pass, avoids three separate one-off patches.
 - **Disintermediation prevention** — scholars/parents going off-platform after first booking is a structural marketplace risk. Levers, ranked by effectiveness: (1) make the platform genuinely worth the cut — discovery, verification, scheduling, safeguarding, recordings — this is the only real defense; (2) hide contact details (email, phone) from cross-user views, reveal only post-booking or never; (3) extend message regex blocks to phone, email, social handles, and Zoom/Meet/Teams links — hard-block before first booking, soft-warn after; (4) anti-circumvention clause in ToS at launch; (5) lower commission on repeat bookings; (6) Path B (built-in video) for Session E reduces leakage surface dramatically — scholar and parent never need each other's contact details. Not blocking pre-launch but informs ToS drafting. Related: `profiles.phone` / `profiles.email` audit already flagged above.
