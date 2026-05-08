@@ -4835,6 +4835,18 @@ const ConversationView = ({
   const [input, setInput] = useState("");
   const [showWarning, setShowWarning] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Phase 7 — per-message Report affordance.
+  // openMenuMessageId: which 3-dot menu is currently open (null = none).
+  // reportingMessage: the full message object backing the active <ReportModal>.
+  // reportedMessageIds: session-local Set of ids the user has flagged this
+  //   session — flips the 3-dot to inline "Reported — under review" text.
+  //   Set (not single state) because multiple distinct messages can be
+  //   reported in one conversation, unlike the per-instance scholar/mosque
+  //   /review pattern.
+  const [openMenuMessageId, setOpenMenuMessageId] = useState(null);
+  const [reportingMessage, setReportingMessage] = useState(null);
+  const [reportedMessageIds, setReportedMessageIds] = useState(new Set());
  
   // Initial fetch + realtime subscription + mark-read
   useEffect(() => {
@@ -5078,19 +5090,63 @@ const ConversationView = ({
                   {m.senderName && !isMe && (
                     <p className="text-[10px] text-stone-500 mb-0.5 ml-1">{m.senderName}</p>
                   )}
-                  <div className={`px-4 py-2.5 rounded-2xl ${isMe ? "bg-emerald-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""} ${m.pending ? "opacity-70" : ""}`}>
-                    {m.blurred ? (
-                      <div>
-                        <p className="text-sm leading-relaxed">{m.text}</p>
-                        <div className="mt-2 pt-2 border-t border-white/20 flex gap-1.5 items-center">
-                          <AlertTriangle size={11} className={isMe ? "text-amber-200" : "text-amber-600"} />
-                          <p className={`text-xs ${isMe ? "text-amber-100" : "text-amber-700"}`}>Contact details hidden by Amanah</p>
-                        </div>
+                  {(() => {
+                    // Phase 7 Report affordance gates. Only on real (Supabase)
+                    // messages from the OTHER user, not soft-deleted, when authed.
+                    // Demo messages don't have m.senderId, so isRealMessage gates
+                    // them out — submitting a flag with a Date.now() id would
+                    // 22P02 against the UUID column anyway.
+                    const isRealMessage = m.senderId !== undefined;
+                    const isDeleted = !!m.deletedAt;
+                    const isReported = reportedMessageIds.has(m.id);
+                    const canShowReportAction = !!authedUser && !isMe && isRealMessage && !isDeleted && !!m.id;
+                    const showReportSlot = canShowReportAction || (isReported && !isMe);
+                    return (
+                      <div className={`relative ${showReportSlot ? "pl-4 pr-9" : "px-4"} py-2.5 rounded-2xl ${isMe ? "bg-emerald-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""} ${m.pending ? "opacity-70" : ""}`}>
+                        {m.blurred ? (
+                          <div>
+                            <p className="text-sm leading-relaxed">{m.text}</p>
+                            <div className="mt-2 pt-2 border-t border-white/20 flex gap-1.5 items-center">
+                              <AlertTriangle size={11} className={isMe ? "text-amber-200" : "text-amber-600"} />
+                              <p className={`text-xs ${isMe ? "text-amber-100" : "text-amber-700"}`}>Contact details hidden by Amanah</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm leading-relaxed whitespace-pre-line">{m.text}</p>
+                        )}
+                        {showReportSlot && (
+                          <div className="absolute top-1 right-1">
+                            {isReported ? (
+                              <span className="text-[10px] uppercase tracking-wider italic text-stone-500 px-1">Reported</span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setOpenMenuMessageId(openMenuMessageId === m.id ? null : m.id)}
+                                  aria-label="Message actions"
+                                  className="p-1 text-stone-400 hover:text-stone-700 transition-colors"
+                                >
+                                  <MoreHorizontal size={14} />
+                                </button>
+                                {openMenuMessageId === m.id && (
+                                  <>
+                                    <div onClick={() => setOpenMenuMessageId(null)} className="fixed inset-0 z-30" />
+                                    <div className="absolute top-full right-0 mt-1 z-40 bg-white border border-stone-200 rounded-lg shadow-lg w-32 overflow-hidden">
+                                      <button
+                                        onClick={() => { setReportingMessage(m); setOpenMenuMessageId(null); }}
+                                        className="w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 inline-flex items-center gap-2"
+                                      >
+                                        <Flag size={12} /> Report
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-sm leading-relaxed whitespace-pre-line">{m.text}</p>
-                    )}
-                  </div>
+                    );
+                  })()}
                   {isMe && i === renderMessages.length - 1 && (
                     <span className="text-[10px] text-stone-400 mt-0.5 mr-1 flex items-center gap-0.5">
                       <CheckCheck size={10} /> {m.pending ? "Sending..." : "Delivered"}
@@ -5143,6 +5199,18 @@ const ConversationView = ({
           <p className="text-[10px] text-stone-400 text-center mt-2 hidden md:block">End-to-end encrypted · Contact info automatically hidden</p>
         </div>
       </div>
+      {reportingMessage && (
+        <ReportModal
+          subjectType="message"
+          subjectId={reportingMessage.id}
+          subjectPreview={(reportingMessage.body || reportingMessage.text || "").slice(0, 80) + ((reportingMessage.body || reportingMessage.text || "").length > 80 ? "…" : "")}
+          onClose={() => setReportingMessage(null)}
+          onSubmitted={() => {
+            setReportedMessageIds(prev => new Set(prev).add(reportingMessage.id));
+            setReportingMessage(null);
+          }}
+        />
+      )}
     </div>
   );
 };
