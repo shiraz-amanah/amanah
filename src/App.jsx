@@ -5021,7 +5021,6 @@ const ConversationView = ({
             </div>
             <p className="text-xs text-stone-500">{conversation.online ? "Active now" : conversation.counterparty.role}</p>
           </div>
-          <button className="text-stone-500 hover:text-stone-900 p-2"><MoreHorizontal size={18} /></button>
         </div>
  
         {/* Context strip — only when context exists */}
