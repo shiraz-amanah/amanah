@@ -2497,15 +2497,18 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
               <p className="text-[11px] md:text-xs text-stone-500 truncate max-w-[40vw]">{mosque.name} · {mosque.city}</p>
             </div>
           </button>
-          {mosque.status === "active" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
-              <CheckCircle2 size={10} /> Live
-            </span>
-          ) : mosque.status === "pending_verification" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
-              <AlertCircle size={10} /> Pending verification
-            </span>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {mosque.status === "active" ? (
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+                <CheckCircle2 size={10} /> Live
+              </span>
+            ) : mosque.status === "pending_verification" ? (
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
+                <AlertCircle size={10} /> Pending verification
+              </span>
+            ) : null}
+            {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
+          </div>
         </div>
 
         {/* Tabs. Messages is a route-switch tab (calls onOpenMessages
