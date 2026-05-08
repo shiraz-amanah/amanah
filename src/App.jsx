@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -1608,7 +1608,7 @@ useEffect(() => {
               ) : (
                 <div className="space-y-5">
                   {reviews.map(r => (
-                    <ReviewCard key={r.id} review={r} compact />
+                    <ReviewCard key={r.id} review={r} compact authedUser={authedUser} />
                   ))}
                 </div>
               )}
@@ -4120,7 +4120,132 @@ const RatingsBreakdown = ({ reviews }) => {
 // Individual review card
 // Accepts both legacy mock shape ({author, text, date, package, tags, reply})
 // and Supabase shape ({parent: {name}, body, createdAt, bookingId, ...}).
-const ReviewCard = ({ review, compact = false }) => {
+// ==================== REPORT MODAL ====================
+// Shared submit affordance for all four flaggable subject types
+// (review, scholar, mosque, message). Calls submitFlag from auth.js;
+// surfaces 23505 dedup as a neutral "already reported" panel rather
+// than an error banner. Safeguarding visually distinct (amber) — mirrors
+// the prominence the AdminFlags queue gives it.
+const ReportModal = ({ subjectType, subjectId, subjectPreview, onClose, onSubmitted }) => {
+  const [reason, setReason] = useState("");
+  const [details, setDetails] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [alreadyReported, setAlreadyReported] = useState(false);
+
+  const reasons = [
+    { v: "spam",           l: "Spam",           d: "Promotional or repetitive content" },
+    { v: "harassment",     l: "Harassment",     d: "Targeted abuse or threats" },
+    { v: "inappropriate",  l: "Inappropriate",  d: "Adult, violent, or otherwise unsuitable" },
+    { v: "misinformation", l: "Misinformation", d: "Factually wrong or misleading" },
+    { v: "safeguarding",   l: "Safeguarding",   d: "for child-safety concerns", safeguarding: true },
+    { v: "other",          l: "Other",          d: "Add details below (required)" },
+  ];
+
+  const detailsRequired = reason === "other";
+  const detailsTooLong = details.length > 1000;
+  const submitDisabled = !reason || (detailsRequired && !details.trim()) || detailsTooLong || submitting;
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    const { data, error: submitError } = await submitFlag({
+      subjectType,
+      subjectId,
+      reason,
+      details: details.trim() || null,
+    });
+    if (submitError) {
+      // Friendly 23505 from auth.js — render as neutral panel, not error.
+      if (submitError.message === "You've already reported this.") {
+        setAlreadyReported(true);
+      } else {
+        setError(submitError.message || "Couldn't submit report. Try again.");
+      }
+      setSubmitting(false);
+      return;
+    }
+    onSubmitted?.(data);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div onClick={onClose} className="absolute inset-0 bg-stone-950/60 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Report this {subjectType}</h3>
+            {subjectPreview && (
+              <p className="text-xs text-stone-500 mt-1 truncate" title={subjectPreview}>"{subjectPreview}"</p>
+            )}
+          </div>
+          <button onClick={onClose} aria-label="Close" className="p-1.5 -mr-1 -mt-1 text-stone-400 hover:text-stone-700 flex-shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+
+        {alreadyReported ? (
+          <div className="bg-stone-50 border border-stone-200 rounded-lg p-4">
+            <p className="text-sm text-stone-800 font-medium mb-1">You've already reported this.</p>
+            <p className="text-xs text-stone-600">Thanks for your vigilance — our team will review it.</p>
+            <div className="flex justify-end mt-4">
+              <button onClick={onClose} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-4 py-1.5 rounded-lg">Close</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-stone-700 mb-3">What's the reason for this report?</p>
+            <div className="space-y-2 mb-4">
+              {reasons.map(r => {
+                const isSelected = reason === r.v;
+                const baseBorder = r.safeguarding ? "border-amber-300 bg-amber-50/60" : "border-stone-200 bg-white";
+                const selectedBorder = r.safeguarding ? "border-amber-500 bg-amber-50" : "border-emerald-700 bg-emerald-50";
+                return (
+                  <label key={r.v} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? selectedBorder : `${baseBorder} hover:border-stone-300`}`}>
+                    <input type="radio" name="report-reason" value={r.v} checked={isSelected} onChange={() => setReason(r.v)} className="mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-stone-900">{r.l}</span>
+                        {r.safeguarding && (
+                          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-amber-200 text-amber-900 rounded font-semibold">Safeguarding</span>
+                        )}
+                      </div>
+                      <p className={`text-xs mt-0.5 ${r.safeguarding ? "text-amber-800" : "text-stone-500"}`}>{r.d}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="mb-4">
+              <textarea
+                value={details}
+                onChange={e => setDetails(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder={detailsRequired ? "Add details (required)" : "Add any context (optional)"}
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none"
+              />
+              <p className={`text-xs mt-1 ${detailsTooLong ? "text-rose-700" : "text-stone-500"}`}>{details.length}/1000 chars</p>
+            </div>
+
+            {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{error}</div>}
+
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+              <button onClick={handleSubmit} disabled={submitDisabled} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                {submitting ? "Submitting..." : <><Flag size={14} /> Submit report</>}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ReviewCard = ({ review, compact = false, authedUser = null }) => {
   // Adapter — prefer Supabase fields, fall back to legacy mock fields
   const authorName = review.parent?.name
     || review.author
@@ -4130,6 +4255,16 @@ const ReviewCard = ({ review, compact = false }) => {
   const dateLabel = review.createdAt ? relativeTime(review.createdAt) : review.date;
   const isVerifiedBooking = !!review.bookingId;
   const initial = isAnonymized ? "✦" : authorName[0];
+
+  // Phase 7 Report affordance — shown when authed AND not the review's
+  // own author. `reported` is session-local: flips the icon to inline
+  // "Reported — under review" text after a successful submit. No
+  // persistence — refreshing the page restores the icon (the next session
+  // can detect existing flags via getMyFlags if a persistent affordance
+  // is wanted later).
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reported, setReported] = useState(false);
+  const canReport = !!authedUser && review.parentId !== authedUser?.id && !!review.id;
 
   return (
     <div className={`${compact ? "pb-4 border-b border-stone-100 last:border-0 last:pb-0" : "bg-white border border-stone-200 rounded-2xl p-5"}`}>
@@ -4153,11 +4288,25 @@ const ReviewCard = ({ review, compact = false }) => {
                 </>}
               </div>
             </div>
-            {isVerifiedBooking && (
-              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium uppercase tracking-wider">
-                <CheckCircle2 size={9} /> Verified booking
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isVerifiedBooking && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium uppercase tracking-wider">
+                  <CheckCircle2 size={9} /> Verified booking
+                </span>
+              )}
+              {canReport && (reported ? (
+                <span className="text-[10px] uppercase tracking-wider text-stone-500 italic">Reported — under review</span>
+              ) : (
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  aria-label="Report this review"
+                  title="Report this review"
+                  className="p-1 text-stone-400 hover:text-rose-600 transition-colors"
+                >
+                  <Flag size={13} />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -4172,6 +4321,15 @@ const ReviewCard = ({ review, compact = false }) => {
           <p className="text-xs text-emerald-800 font-medium mb-0.5">Scholar replied</p>
           <p className="text-sm text-stone-700 italic leading-relaxed">{review.reply}</p>
         </div>
+      )}
+      {showReportModal && (
+        <ReportModal
+          subjectType="review"
+          subjectId={review.id}
+          subjectPreview={(text || "").slice(0, 80) + ((text || "").length > 80 ? "…" : "")}
+          onClose={() => setShowReportModal(false)}
+          onSubmitted={() => { setReported(true); setShowReportModal(false); }}
+        />
       )}
     </div>
   );
@@ -8656,7 +8814,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                   <RatingsBreakdown reviews={reviews} />
                 </div>
                 <div className="space-y-5">
-                  {reviews.map(r => <ReviewCard key={r.id} review={r} compact />)}
+                  {reviews.map(r => <ReviewCard key={r.id} review={r} compact authedUser={authedUser} />)}
                 </div>
               </div>
             )}
