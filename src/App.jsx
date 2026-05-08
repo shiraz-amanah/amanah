@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage } from "./auth";
-import { supabase } from "./supabaseClient";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -9507,45 +9506,26 @@ const AdminFlags = ({ authedProfile }) => {
         subjectsByType[f.subject_type].add(f.subject_id);
       });
 
-      const promises = [];
-      if (reporterIds.length > 0) {
-        promises.push(
-          supabase.from("profiles").select("id, name").in("id", reporterIds)
-            .then(r => ({ kind: "reporters", rows: r.data || [] }))
-        );
-      }
-      const tableMap = { scholar: "scholars", mosque: "mosques", review: "reviews", message: "messages" };
-      const selectMap = {
-        scholar: "id, name, city, status",
-        mosque:  "id, name, city, status",
-        review:  "id, body, scholar_id, status",
-        message: "id, body, sender_id, deleted_at",
-      };
-      for (const [type, idSet] of Object.entries(subjectsByType)) {
-        const ids = [...idSet];
-        promises.push(
-          supabase.from(tableMap[type]).select(selectMap[type]).in("id", ids)
-            .then(r => ({ kind: type, rows: r.data || [] }))
-        );
-      }
-      const results = await Promise.all(promises);
+      // Fire batched reporter + subject fetches in parallel via auth.js
+      // helpers (commit 7.5 refactor — replaces inline supabase queries).
+      const [reporters, subjects] = await Promise.all([
+        getReportersForFlags(reporterIds),
+        getSubjectsForFlags(subjectsByType),
+      ]);
       const newReporterCache = new Map(reporterCache);
       const newSubjectCache = new Map(subjectCache);
-      results.forEach(({ kind, rows }) => {
-        if (kind === "reporters") {
-          rows.forEach(p => newReporterCache.set(p.id, p));
-        } else {
-          rows.forEach(row => {
-            const key = `${kind}:${row.id}`;
-            if (kind === "scholar" || kind === "mosque") {
-              newSubjectCache.set(key, { title: row.name, excerpt: row.city || "", deleted: false, raw: row });
-            } else if (kind === "review") {
-              newSubjectCache.set(key, { title: "Review", excerpt: (row.body || "").slice(0, 120), deleted: false, raw: row });
-            } else if (kind === "message") {
-              newSubjectCache.set(key, { title: "Message", excerpt: (row.body || "").slice(0, 120), deleted: !!row.deleted_at, raw: row });
-            }
-          });
-        }
+      reporters.forEach(p => newReporterCache.set(p.id, p));
+      subjects.scholar.forEach(row => {
+        newSubjectCache.set(`scholar:${row.id}`, { title: row.name, excerpt: row.city || "", deleted: false, raw: row });
+      });
+      subjects.mosque.forEach(row => {
+        newSubjectCache.set(`mosque:${row.id}`, { title: row.name, excerpt: row.city || "", deleted: false, raw: row });
+      });
+      subjects.review.forEach(row => {
+        newSubjectCache.set(`review:${row.id}`, { title: "Review", excerpt: (row.body || "").slice(0, 120), deleted: false, raw: row });
+      });
+      subjects.message.forEach(row => {
+        newSubjectCache.set(`message:${row.id}`, { title: "Message", excerpt: (row.body || "").slice(0, 120), deleted: !!row.deleted_at, raw: row });
       });
       // Subjects that were referenced but didn't come back from the in() query
       // are deleted. Mark them so the detail view can hide the take-action
@@ -9624,24 +9604,6 @@ const AdminFlags = ({ authedProfile }) => {
     return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
   };
 
-  // Bulk-close all OPEN flags on the same subject in a single UPDATE. Per
-  // brief: "Don't loop client-side." Used after a subject-changing action
-  // (hide review / unpublish scholar / unpublish mosque / soft-delete
-  // message) so a subject with N reporter-flags resolves all N at once.
-  const bulkCloseOpenFlagsForSubject = async (subjectType, subjectId, resolutionAction) => {
-    return supabase
-      .from("flags")
-      .update({
-        status: "resolved",
-        resolution_action: resolutionAction,
-        resolved_by: authedProfile?.id || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("subject_type", subjectType)
-      .eq("subject_id", subjectId)
-      .eq("status", "open");
-  };
-
   const handleDismiss = async (flag) => {
     setActionInFlight("dismiss");
     const { error: e } = await setFlagStatus(flag.id, "dismissed", "none");
@@ -9685,8 +9647,8 @@ const AdminFlags = ({ authedProfile }) => {
       review: "hide_review", scholar: "unpublish_scholar",
       mosque: "unpublish_mosque", message: "soft_delete_message",
     };
-    const { error: bulkError } = await bulkCloseOpenFlagsForSubject(
-      flag.subject_type, flag.subject_id, resolutionMap[flag.subject_type]
+    const { error: bulkError } = await bulkResolveFlagsForSubject(
+      flag.subject_type, flag.subject_id, resolutionMap[flag.subject_type], authedProfile?.id || null
     );
     setActionInFlight(null);
     if (bulkError) {
@@ -9705,17 +9667,9 @@ const AdminFlags = ({ authedProfile }) => {
   const handleDismissAll = async (flag) => {
     // For deleted subjects: bulk-dismiss all surviving open flags.
     setActionInFlight("dismissAll");
-    const { error: e } = await supabase
-      .from("flags")
-      .update({
-        status: "dismissed",
-        resolution_action: "none",
-        resolved_by: authedProfile?.id || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("subject_type", flag.subject_type)
-      .eq("subject_id", flag.subject_id)
-      .eq("status", "open");
+    const { error: e } = await bulkDismissFlagsForSubject(
+      flag.subject_type, flag.subject_id, authedProfile?.id || null
+    );
     setActionInFlight(null);
     if (e) { showToast(e.message || "Failed to dismiss all", "error"); return; }
     showToast("All open flags dismissed");

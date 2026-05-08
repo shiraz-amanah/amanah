@@ -1550,3 +1550,155 @@ export async function softDeleteMessage(messageId) {
   }
   return { data }
 }
+
+// ============================================================================
+// Phase 7 — flags admin batched-fetch + bulk-update helpers
+// ============================================================================
+// Three helpers backing <AdminFlags>. Phase 7 commit 7 had these inline
+// in App.jsx as direct supabase queries; commit 7.5 extracts them here
+// to honour CLAUDE.md's "auth.js owns DB calls" working agreement.
+
+// Admin: batch-resolve subject rows for a flags list. Input is a sparse
+// keyed map (only subject types actually present need keys); each value
+// can be a Set or an Array of UUIDs. Output is dense — every subject
+// type key returns an array (possibly empty) so callers can index
+// without optional-chaining.
+//
+// Read-only batched fetch — no defensive guards. RLS gating: scholars +
+// reviews via 028's restored admin policies; mosques via 024; messages
+// via the existing Session-D policies (admin can SELECT all messages
+// because the broader profiles-open-authed-select policy covers it).
+//
+// One round-trip per type that has ids; types with no ids skip their
+// query entirely. All four fetches run in parallel via Promise.all.
+export async function getSubjectsForFlags(subjectsByType) {
+  const tableMap = { scholar: 'scholars', mosque: 'mosques', review: 'reviews', message: 'messages' }
+  const selectMap = {
+    scholar: 'id, name, city, status',
+    mosque:  'id, name, city, status',
+    review:  'id, body, scholar_id, status',
+    message: 'id, body, sender_id, deleted_at',
+  }
+  const promises = []
+  const types = []
+  for (const type of Object.keys(tableMap)) {
+    const idsRaw = subjectsByType?.[type]
+    if (!idsRaw) continue
+    const ids = Array.isArray(idsRaw) ? idsRaw : [...idsRaw]
+    if (ids.length === 0) continue
+    types.push(type)
+    promises.push(supabase.from(tableMap[type]).select(selectMap[type]).in('id', ids))
+  }
+  const results = await Promise.all(promises)
+  const out = { scholar: [], mosque: [], review: [], message: [] }
+  results.forEach((r, i) => {
+    if (r.error) {
+      console.error(`getSubjectsForFlags ${types[i]} fetch failed:`, r.error)
+      return
+    }
+    out[types[i]] = r.data || []
+  })
+  return out
+}
+
+// Admin: batch-resolve reporter profile names for a flags list. Input
+// is an array of UUIDs (or null/empty for either). Output is a flat
+// array of {id, name} — empty array on missing input or error.
+//
+// Read-only batched fetch — no defensive guards. RLS gating: profiles
+// admin SELECT via 022.
+export async function getReportersForFlags(reporterIds) {
+  if (!reporterIds || reporterIds.length === 0) return []
+  const { data, error } = await supabase.from('profiles').select('id, name').in('id', reporterIds)
+  if (error) {
+    console.error('getReportersForFlags fetch failed:', error)
+    return []
+  }
+  return data || []
+}
+
+// Admin: bulk-close all OPEN flags on a subject in one UPDATE. Used
+// after a subject-changing action (hide review / unpublish scholar /
+// unpublish mosque / soft-delete message) so a subject with N
+// reporter-flags resolves all N at once.
+//
+// Idempotent via .eq('status', 'open') — re-running only touches
+// flags that are still open. Flags already in resolved/dismissed
+// state are left alone (preserves their original resolution_action
+// for audit history).
+//
+// Defensive guards (getUser + getSession) per the 50b7c41 pattern
+// — admin actions are mutations, supabase-js can return
+// {data:null, error:null} on RLS denial / expired JWT.
+export async function bulkResolveFlagsForSubject(subjectType, subjectId, resolutionAction, adminProfileId) {
+  if (!subjectType || !subjectId) return { error: { message: 'subjectType and subjectId required' } }
+  const allowedActions = ['none', 'hide_review', 'unpublish_scholar', 'unpublish_mosque', 'soft_delete_message']
+  if (!allowedActions.includes(resolutionAction)) {
+    return { error: { message: `resolutionAction must be one of ${allowedActions.join(', ')}` } }
+  }
+
+  const user = await getUser()
+  if (!user) {
+    console.error('bulkResolveFlagsForSubject: getUser returned null', { subjectType, subjectId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('bulkResolveFlagsForSubject: no active session', { userId: user.id, subjectType, subjectId })
+    return { error: { message: 'Your session expired. Sign in again and retry.' } }
+  }
+
+  const { data, error } = await supabase
+    .from('flags')
+    .update({
+      status: 'resolved',
+      resolution_action: resolutionAction,
+      resolved_by: adminProfileId || user.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('subject_type', subjectType)
+    .eq('subject_id', subjectId)
+    .eq('status', 'open')
+  if (error) {
+    console.error('bulkResolveFlagsForSubject update failed:', error, { userId: user.id, subjectType, subjectId })
+    return { error }
+  }
+  return { data }
+}
+
+// Admin: bulk-dismiss all OPEN flags on a subject. Used by the
+// deleted-subject path in <AdminFlags> when there's no subject row to
+// take action against — admin can only dismiss the surviving open
+// flags. Same shape as bulkResolveFlagsForSubject; sets
+// resolution_action='none'.
+export async function bulkDismissFlagsForSubject(subjectType, subjectId, adminProfileId) {
+  if (!subjectType || !subjectId) return { error: { message: 'subjectType and subjectId required' } }
+
+  const user = await getUser()
+  if (!user) {
+    console.error('bulkDismissFlagsForSubject: getUser returned null', { subjectType, subjectId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('bulkDismissFlagsForSubject: no active session', { userId: user.id, subjectType, subjectId })
+    return { error: { message: 'Your session expired. Sign in again and retry.' } }
+  }
+
+  const { data, error } = await supabase
+    .from('flags')
+    .update({
+      status: 'dismissed',
+      resolution_action: 'none',
+      resolved_by: adminProfileId || user.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('subject_type', subjectType)
+    .eq('subject_id', subjectId)
+    .eq('status', 'open')
+  if (error) {
+    console.error('bulkDismissFlagsForSubject update failed:', error, { userId: user.id, subjectType, subjectId })
+    return { error }
+  }
+  return { data }
+}
