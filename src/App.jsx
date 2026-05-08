@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage } from "./auth";
+import { supabase } from "./supabaseClient";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -14,7 +15,7 @@ import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/sch
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
-import { ADMIN_CAMPAIGN_APPS, ADMIN_FLAGS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
+import { ADMIN_CAMPAIGN_APPS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
 
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
@@ -9452,55 +9453,495 @@ const AdminCampaignQueue = ({ apps, onAction }) => (
 );
 
 // ===== Flags =====
-const AdminFlags = ({ flags, onAction }) => (
-  <div>
-    <div className="mb-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Flags & reports</h1>
-      <p className="text-stone-600">User-submitted reports requiring action</p>
-    </div>
-    <div className="space-y-3">
-      {flags.map(f => {
-        const sevConfig = {
-          high: { bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-800", icon: AlertTriangle },
-          medium: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", icon: AlertCircle },
-          low: { bg: "bg-sky-50", border: "border-sky-200", text: "text-sky-800", icon: Info }
-        }[f.severity];
-        const SevIcon = sevConfig.icon;
-        return (
-          <div key={f.id} className={`bg-white border-l-4 border-y border-r ${sevConfig.border.replace("border-", "border-l-")} border-stone-200 rounded-2xl p-5`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-10 h-10 rounded-xl ${sevConfig.bg} flex items-center justify-center flex-shrink-0`}>
-                <SevIcon className={sevConfig.text} size={18} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${sevConfig.bg} ${sevConfig.text} border ${sevConfig.border}`}>{f.severity}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 uppercase tracking-wider font-medium">{f.type}</span>
-                  <span className="text-xs text-stone-500">· Reported {f.date}</span>
-                </div>
-                <h3 className="text-base font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{f.target}</h3>
-                {f.creator && <p className="text-xs text-stone-600 mb-1">{f.creator}</p>}
-                <p className="text-sm text-stone-700 mb-1">{f.reason}</p>
-                <p className="text-xs text-stone-500">Reported by: {f.reportedBy}</p>
-                <div className="flex gap-2 mt-4 flex-wrap">
-                  <button onClick={() => onAction("investigate", f)} className="bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                    <Eye size={14} /> Investigate
-                  </button>
-                  <button onClick={() => onAction("resolve", f)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
-                    <CheckCircle2 size={14} /> Mark resolved
-                  </button>
-                  <button onClick={() => onAction("escalate", f)} className="bg-white border border-stone-300 hover:border-stone-400 text-stone-700 px-4 py-2 rounded-lg text-sm font-medium">
-                    Escalate
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+// ============================================================================
+// Phase 7 — Flags & reports admin queue
+// ============================================================================
+// Polymorphic queue across scholar / mosque / review / message subject types.
+// Replaces the legacy ADMIN_FLAGS-mock placeholder. Subject + reporter
+// previews are batch-resolved on fetch (one round-trip per type, one for
+// reporters) and cached in Maps so the same subject with multiple flags
+// doesn't re-fetch. Filters (status / subjectType / safeguardingOnly) are
+// applied client-side from the in-memory population so status counts
+// always reflect the full set.
+const AdminFlags = ({ authedProfile }) => {
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [subjectTypeFilter, setSubjectTypeFilter] = useState("all");
+  const [safeguardingOnly, setSafeguardingOnly] = useState(false);
+
+  // Detail view + caches
+  const [selectedFlag, setSelectedFlag] = useState(null);
+  const [subjectFlags, setSubjectFlags] = useState([]);
+  const [subjectFlagsLoading, setSubjectFlagsLoading] = useState(false);
+  const [subjectCache, setSubjectCache] = useState(new Map());
+  const [reporterCache, setReporterCache] = useState(new Map());
+
+  // Action state
+  const [actionInFlight, setActionInFlight] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Fetch all flags + batch-resolve reporters and subjects. Filters are
+  // applied client-side in `filteredFlags` below; we pull the full set
+  // every time so status counts reflect the unfiltered population.
+  const loadAll = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getAllFlags();
+      setFlags(data);
+      if (data.length === 0) return;
+
+      const reporterIds = [...new Set(data.map(f => f.reporter_id).filter(Boolean))];
+      const subjectsByType = {};
+      data.forEach(f => {
+        if (!subjectsByType[f.subject_type]) subjectsByType[f.subject_type] = new Set();
+        subjectsByType[f.subject_type].add(f.subject_id);
+      });
+
+      const promises = [];
+      if (reporterIds.length > 0) {
+        promises.push(
+          supabase.from("profiles").select("id, name").in("id", reporterIds)
+            .then(r => ({ kind: "reporters", rows: r.data || [] }))
         );
-      })}
+      }
+      const tableMap = { scholar: "scholars", mosque: "mosques", review: "reviews", message: "messages" };
+      const selectMap = {
+        scholar: "id, name, city, status",
+        mosque:  "id, name, city, status",
+        review:  "id, body, scholar_id, status",
+        message: "id, body, sender_id, deleted_at",
+      };
+      for (const [type, idSet] of Object.entries(subjectsByType)) {
+        const ids = [...idSet];
+        promises.push(
+          supabase.from(tableMap[type]).select(selectMap[type]).in("id", ids)
+            .then(r => ({ kind: type, rows: r.data || [] }))
+        );
+      }
+      const results = await Promise.all(promises);
+      const newReporterCache = new Map(reporterCache);
+      const newSubjectCache = new Map(subjectCache);
+      results.forEach(({ kind, rows }) => {
+        if (kind === "reporters") {
+          rows.forEach(p => newReporterCache.set(p.id, p));
+        } else {
+          rows.forEach(row => {
+            const key = `${kind}:${row.id}`;
+            if (kind === "scholar" || kind === "mosque") {
+              newSubjectCache.set(key, { title: row.name, excerpt: row.city || "", deleted: false, raw: row });
+            } else if (kind === "review") {
+              newSubjectCache.set(key, { title: "Review", excerpt: (row.body || "").slice(0, 120), deleted: false, raw: row });
+            } else if (kind === "message") {
+              newSubjectCache.set(key, { title: "Message", excerpt: (row.body || "").slice(0, 120), deleted: !!row.deleted_at, raw: row });
+            }
+          });
+        }
+      });
+      // Subjects that were referenced but didn't come back from the in() query
+      // are deleted. Mark them so the detail view can hide the take-action
+      // button and offer "Dismiss all" instead.
+      const deletedTitles = { scholar: "(deleted scholar)", mosque: "(deleted mosque)", review: "(deleted review)", message: "(deleted message)" };
+      data.forEach(f => {
+        const key = `${f.subject_type}:${f.subject_id}`;
+        if (!newSubjectCache.has(key)) {
+          newSubjectCache.set(key, { title: deletedTitles[f.subject_type] || "(deleted)", excerpt: "", deleted: true, raw: null });
+        }
+      });
+      setReporterCache(newReporterCache);
+      setSubjectCache(newSubjectCache);
+    } catch (err) {
+      console.error("Failed to fetch flags:", err);
+      setError("Failed to load flags.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Detail view: load all flags on the selected subject (regardless of status).
+  useEffect(() => {
+    if (!selectedFlag) { setSubjectFlags([]); return; }
+    let cancelled = false;
+    setSubjectFlagsLoading(true);
+    getFlagsForSubject(selectedFlag.subject_type, selectedFlag.subject_id)
+      .then(data => { if (!cancelled) setSubjectFlags(data); })
+      .catch(err => { if (!cancelled) console.error("Failed to fetch subject flags:", err); })
+      .finally(() => { if (!cancelled) setSubjectFlagsLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedFlag?.id]);
+
+  const resolveSubject = (subjectType, subjectId) => {
+    const key = `${subjectType}:${subjectId}`;
+    return subjectCache.get(key) || { title: "(loading…)", excerpt: "", deleted: false, raw: null };
+  };
+  const getReporter = (id) => reporterCache.get(id);
+
+  const filteredFlags = flags.filter(f => {
+    if (statusFilter !== "all" && f.status !== statusFilter) return false;
+    if (subjectTypeFilter !== "all" && f.subject_type !== subjectTypeFilter) return false;
+    if (safeguardingOnly && f.reason !== "safeguarding") return false;
+    return true;
+  });
+
+  const counts = {
+    open:      flags.filter(f => f.status === "open").length,
+    resolved:  flags.filter(f => f.status === "resolved").length,
+    dismissed: flags.filter(f => f.status === "dismissed").length,
+    total:     flags.length,
+  };
+
+  const REASON_LABELS = {
+    spam: "Spam", harassment: "Harassment", inappropriate: "Inappropriate",
+    misinformation: "Misinformation", safeguarding: "Safeguarding", other: "Other",
+  };
+  const reasonPill = (reason) => {
+    const isSafeguarding = reason === "safeguarding";
+    const cls = isSafeguarding
+      ? "bg-amber-100 text-amber-900 border-amber-300"
+      : "bg-stone-100 text-stone-700 border-stone-200";
+    return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cls}`}>{REASON_LABELS[reason] || reason}</span>;
+  };
+  const statusPill = (status) => {
+    const cfg = {
+      open:      { bg: "bg-amber-50",   text: "text-amber-800",   border: "border-amber-200",   label: "Open" },
+      resolved:  { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", label: "Resolved" },
+      dismissed: { bg: "bg-stone-100",  text: "text-stone-700",   border: "border-stone-200",   label: "Dismissed" },
+    }[status] || { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-200", label: status };
+    return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
+  };
+
+  // Bulk-close all OPEN flags on the same subject in a single UPDATE. Per
+  // brief: "Don't loop client-side." Used after a subject-changing action
+  // (hide review / unpublish scholar / unpublish mosque / soft-delete
+  // message) so a subject with N reporter-flags resolves all N at once.
+  const bulkCloseOpenFlagsForSubject = async (subjectType, subjectId, resolutionAction) => {
+    return supabase
+      .from("flags")
+      .update({
+        status: "resolved",
+        resolution_action: resolutionAction,
+        resolved_by: authedProfile?.id || null,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("subject_type", subjectType)
+      .eq("subject_id", subjectId)
+      .eq("status", "open");
+  };
+
+  const handleDismiss = async (flag) => {
+    setActionInFlight("dismiss");
+    const { error: e } = await setFlagStatus(flag.id, "dismissed", "none");
+    setActionInFlight(null);
+    if (e) { showToast(e.message || "Failed to dismiss", "error"); return; }
+    showToast("Flag dismissed");
+    setSelectedFlag(null);
+    loadAll();
+  };
+
+  const handleResolveNoAction = async (flag) => {
+    setActionInFlight("resolve");
+    const { error: e } = await setFlagStatus(flag.id, "resolved", "none");
+    setActionInFlight(null);
+    if (e) { showToast(e.message || "Failed to resolve", "error"); return; }
+    showToast("Flag resolved (no action)");
+    setSelectedFlag(null);
+    loadAll();
+  };
+
+  const handleResolveWithAction = async (flag) => {
+    const subject = resolveSubject(flag.subject_type, flag.subject_id);
+    if (subject.deleted) return; // button hidden in this case
+    setActionInFlight("action");
+    let actionResult;
+    if (flag.subject_type === "review") {
+      actionResult = await setReviewStatus(flag.subject_id, "hidden");
+    } else if (flag.subject_type === "scholar") {
+      actionResult = await unpublishScholar(flag.subject_id);
+    } else if (flag.subject_type === "mosque") {
+      actionResult = await unpublishMosque(flag.subject_id);
+    } else if (flag.subject_type === "message") {
+      actionResult = await softDeleteMessage(flag.subject_id);
+    }
+    if (actionResult?.error) {
+      setActionInFlight(null);
+      showToast(actionResult.error.message || "Action failed", "error");
+      return;
+    }
+    const resolutionMap = {
+      review: "hide_review", scholar: "unpublish_scholar",
+      mosque: "unpublish_mosque", message: "soft_delete_message",
+    };
+    const { error: bulkError } = await bulkCloseOpenFlagsForSubject(
+      flag.subject_type, flag.subject_id, resolutionMap[flag.subject_type]
+    );
+    setActionInFlight(null);
+    if (bulkError) {
+      showToast("Subject action succeeded but bulk-close failed: " + bulkError.message, "error");
+      return;
+    }
+    const labels = {
+      review: "Review hidden", scholar: "Scholar unpublished",
+      mosque: "Mosque unpublished", message: "Message soft-deleted",
+    };
+    showToast(labels[flag.subject_type] + " · open flags resolved");
+    setSelectedFlag(null);
+    loadAll();
+  };
+
+  const handleDismissAll = async (flag) => {
+    // For deleted subjects: bulk-dismiss all surviving open flags.
+    setActionInFlight("dismissAll");
+    const { error: e } = await supabase
+      .from("flags")
+      .update({
+        status: "dismissed",
+        resolution_action: "none",
+        resolved_by: authedProfile?.id || null,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("subject_type", flag.subject_type)
+      .eq("subject_id", flag.subject_id)
+      .eq("status", "open");
+    setActionInFlight(null);
+    if (e) { showToast(e.message || "Failed to dismiss all", "error"); return; }
+    showToast("All open flags dismissed");
+    setSelectedFlag(null);
+    loadAll();
+  };
+
+  // ---------- DETAIL VIEW ----------
+  if (selectedFlag) {
+    const subject = resolveSubject(selectedFlag.subject_type, selectedFlag.subject_id);
+    const actionLabels = {
+      review: "Hide review", scholar: "Unpublish scholar",
+      mosque: "Unpublish mosque", message: "Soft-delete message",
+    };
+    return (
+      <div>
+        <button onClick={() => setSelectedFlag(null)} className="inline-flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 mb-4">
+          <ArrowLeft size={14} /> Back to flags
+        </button>
+
+        {/* Subject preview */}
+        <div className={`bg-white border ${subject.deleted ? "border-rose-200" : "border-stone-200"} rounded-2xl p-5 mb-5`}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 uppercase tracking-wider font-medium">{selectedFlag.subject_type}</span>
+            {subject.deleted && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 uppercase tracking-wider font-medium border border-rose-200">Subject deleted</span>
+            )}
+          </div>
+          <h2 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{subject.title}</h2>
+          {subject.raw && (selectedFlag.subject_type === "review" || selectedFlag.subject_type === "message") ? (
+            <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-line mt-2">{subject.raw.body}</p>
+          ) : subject.excerpt ? (
+            <p className="text-sm text-stone-600">{subject.excerpt}</p>
+          ) : null}
+        </div>
+
+        {/* Grouped flags on this subject */}
+        <div className="mb-5">
+          <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">
+            {subjectFlagsLoading ? "Loading flags…" : `${subjectFlags.length} flag${subjectFlags.length === 1 ? "" : "s"} on this subject`}
+          </h3>
+          <div className="space-y-2">
+            {subjectFlags.map(sf => {
+              const reporter = getReporter(sf.reporter_id);
+              return (
+                <div key={sf.id} className="bg-white border border-stone-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    {reasonPill(sf.reason)}
+                    {statusPill(sf.status)}
+                    <span className="text-xs text-stone-500">· {reporter?.name || "Unknown reporter"} · {relativeTime(sf.created_at)}</span>
+                  </div>
+                  {sf.details && (
+                    <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-line">{sf.details}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        {selectedFlag.status === "open" ? (
+          <div className="flex flex-wrap gap-2">
+            {subject.deleted ? (
+              <button
+                onClick={() => handleDismissAll(selectedFlag)}
+                disabled={!!actionInFlight}
+                className="bg-stone-700 hover:bg-stone-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5"
+              >
+                {actionInFlight === "dismissAll" ? "Dismissing…" : <><X size={14} /> Dismiss all open flags</>}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleDismiss(selectedFlag)}
+                  disabled={!!actionInFlight}
+                  className="bg-rose-50 hover:bg-rose-100 border border-rose-200 disabled:opacity-50 text-rose-800 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
+                >
+                  {actionInFlight === "dismiss" ? "Dismissing…" : <><X size={14} /> Dismiss</>}
+                </button>
+                <button
+                  onClick={() => handleResolveNoAction(selectedFlag)}
+                  disabled={!!actionInFlight}
+                  className="bg-stone-100 hover:bg-stone-200 border border-stone-200 disabled:opacity-50 text-stone-800 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
+                >
+                  {actionInFlight === "resolve" ? "Resolving…" : <><CheckCircle2 size={14} /> Resolve without action</>}
+                </button>
+                <button
+                  onClick={() => handleResolveWithAction(selectedFlag)}
+                  disabled={!!actionInFlight}
+                  className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
+                >
+                  {actionInFlight === "action" ? "Working…" : <><CheckSquare size={14} /> Resolve + {actionLabels[selectedFlag.subject_type]}</>}
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 text-sm text-stone-600">
+            This flag is already <strong>{selectedFlag.status}</strong>. Open flags on the same subject can still be acted on individually.
+          </div>
+        )}
+
+        {toast && (
+          <div className={`fixed bottom-6 right-6 ${toast.type === "error" ? "bg-rose-700" : "bg-stone-900"} text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50`}>
+            {toast.type === "error" ? <AlertCircle size={16} /> : <CheckCircle2 className="text-emerald-400" size={16} />}
+            <span className="text-sm font-medium">{toast.message}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---------- LIST VIEW ----------
+  return (
+    <div>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Flags & reports</h1>
+          <p className="text-stone-600">User-submitted reports across scholars, mosques, reviews, and messages.</p>
+        </div>
+        {counts.open > 0 && (
+          <span className="text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-medium uppercase tracking-wider whitespace-nowrap">{counts.open} open</span>
+        )}
+      </div>
+
+      {/* Status filter */}
+      <div className="flex gap-2 mb-3 flex-wrap">
+        {[
+          { v: "open",      l: "Open",      c: counts.open },
+          { v: "resolved",  l: "Resolved",  c: counts.resolved },
+          { v: "dismissed", l: "Dismissed", c: counts.dismissed },
+          { v: "all",       l: "All",       c: counts.total },
+        ].map(f => (
+          <button
+            key={f.v}
+            onClick={() => setStatusFilter(f.v)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${statusFilter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+          >
+            {f.l}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${statusFilter === f.v ? "bg-white/20" : "bg-stone-100"}`}>{f.c}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Subject-type filter */}
+      <div className="flex gap-2 mb-3 flex-wrap">
+        {[
+          { v: "all",     l: "All subjects" },
+          { v: "scholar", l: "Scholars" },
+          { v: "mosque",  l: "Mosques" },
+          { v: "review",  l: "Reviews" },
+          { v: "message", l: "Messages" },
+        ].map(f => (
+          <button
+            key={f.v}
+            onClick={() => setSubjectTypeFilter(f.v)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${subjectTypeFilter === f.v ? "bg-stone-900 text-white" : "bg-white border border-stone-300 text-stone-600 hover:border-stone-400"}`}
+          >
+            {f.l}
+          </button>
+        ))}
+      </div>
+
+      {/* Safeguarding toggle */}
+      <label className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border cursor-pointer mb-5 ${safeguardingOnly ? "bg-amber-50 border-amber-300" : "bg-white border-stone-300 hover:border-stone-400"}`}>
+        <input
+          type="checkbox"
+          checked={safeguardingOnly}
+          onChange={() => setSafeguardingOnly(v => !v)}
+        />
+        <span className={`text-xs font-medium ${safeguardingOnly ? "text-amber-900" : "text-stone-600"}`}>Show safeguarding only</span>
+      </label>
+
+      {error && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-stone-400 text-center py-8">Loading flags…</p>
+      ) : filteredFlags.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <Flag className="mx-auto text-stone-300 mb-3" size={32} />
+          <p className="text-stone-600">No flags match this view.</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+          {filteredFlags.map((f, i) => {
+            const subject = resolveSubject(f.subject_type, f.subject_id);
+            const reporter = getReporter(f.reporter_id);
+            return (
+              <button
+                key={f.id}
+                onClick={() => setSelectedFlag(f)}
+                className={`w-full text-left px-5 py-4 hover:bg-stone-50 transition-colors ${i > 0 ? "border-t border-stone-100" : ""}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 uppercase tracking-wider font-medium">{f.subject_type}</span>
+                      {reasonPill(f.reason)}
+                      {statusPill(f.status)}
+                    </div>
+                    <p className="text-sm font-medium text-stone-900 truncate">{subject.title}</p>
+                    {subject.excerpt && <p className="text-xs text-stone-500 truncate">{subject.excerpt}</p>}
+                    <p className="text-xs text-stone-500 mt-1">
+                      Reported by {reporter?.name || "(unknown)"} · {relativeTime(f.created_at)}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="text-stone-400 flex-shrink-0 mt-1" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 ${toast.type === "error" ? "bg-rose-700" : "bg-stone-900"} text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50`}>
+          {toast.type === "error" ? <AlertCircle size={16} /> : <CheckCircle2 className="text-emerald-400" size={16} />}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // ===== DBS orders =====
 const AdminDBSOrders = ({ orders }) => (
@@ -10868,12 +11309,23 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const [section, setSection] = useState("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
-  const [flags, setFlags] = useState(ADMIN_FLAGS);
+  const [openFlagsCount, setOpenFlagsCount] = useState(0);
   const [toast, setToast] = useState(null);
+
+  // Sidebar badge: open-flag count. AdminFlags owns its own list; this is
+  // a separate lightweight count fetch so the sidebar's "urgent" red dot
+  // reflects reality without coupling the two components.
+  useEffect(() => {
+    let cancelled = false;
+    getAllFlags({ status: "open" })
+      .then(data => { if (!cancelled) setOpenFlagsCount(data.length); })
+      .catch(err => console.error("Failed to fetch open flag count:", err));
+    return () => { cancelled = true; };
+  }, []);
 
   const counts = {
     campaigns: campaignApps.length,
-    flags: flags.length,
+    flags: openFlagsCount,
     dbs: ADMIN_DBS_ORDERS.length
   };
 
@@ -10897,10 +11349,6 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const handleCampaignAction = (action, app) => {
     setCampaignApps(campaignApps.filter(a => a.id !== app.id));
     showToast(action === "approve" ? `Campaign "${app.title}" launched` : action === "reject" ? `Campaign rejected` : `Changes requested`);
-  };
-  const handleFlagAction = (action, flag) => {
-    setFlags(flags.filter(f => f.id !== flag.id));
-    showToast(action === "resolve" ? `Flag resolved` : action === "escalate" ? `Flag escalated` : `Investigation opened`);
   };
 
   return (
@@ -10937,7 +11385,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
         {section === "mosques" && <AdminMosqueApplications />}
         {section === "scholarApplications" && <AdminScholarApplications />}
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
-        {section === "flags" && <AdminFlags flags={flags} onAction={handleFlagAction} />}
+        {section === "flags" && <AdminFlags authedProfile={authedProfile} />}
         {section === "reviews" && <AdminReviewsModeration />}
         {section === "dbs" && <AdminDBSOrders orders={ADMIN_DBS_ORDERS} />}
         {section === "users" && <AdminAllUsers authedProfile={authedProfile} />}
