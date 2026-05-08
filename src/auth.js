@@ -1270,3 +1270,168 @@ export async function setProfileSuspended(profileId, suspended) {
     .single()
   return { data, error }
 }
+
+// ============================================================================
+// Session K Phase 7 — Flags & reports
+// ============================================================================
+// Polymorphic table: subject_type ∈ {scholar,mosque,review,message}.
+// RLS gates from migration 028: users INSERT (with reporter_id=auth.uid()
+// WITH CHECK) and SELECT-own; admins SELECT-all + UPDATE.
+
+// User-facing: submit a new flag against a subject. Surfaces 23505 from
+// the partial-unique index on (reporter_id, subject_type, subject_id)
+// where status='open' as a friendly "already reported" message so the
+// caller can show inline feedback rather than a raw Postgres error.
+//
+// Defensive guards mirror submitScholarApplication (50b7c41 pattern):
+// getUser null check, getSession check, post-insert {data:null, error:null}
+// guard for the supabase-js v2 quirk on RLS-denied selects after insert.
+export async function submitFlag({ subjectType, subjectId, reason, details }) {
+  const user = await getUser()
+  if (!user) {
+    console.error('submitFlag: getUser returned null', { subjectType, subjectId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('submitFlag: no active session despite getUser returning a user', { userId: user.id, subjectType, subjectId })
+    return { error: { message: 'Your session expired. Sign in again and resubmit.' } }
+  }
+
+  const payload = {
+    reporter_id: user.id,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    reason,
+    details: details || null,
+  }
+  const { data, error } = await supabase
+    .from('flags')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) {
+    if (error.code === '23505') {
+      // Partial-unique index dedup: open flag already exists from this
+      // reporter on this subject. Friendly copy beats raw Postgres error.
+      return { error: { message: "You've already reported this." } }
+    }
+    console.error('submitFlag insert failed:', error, { userId: user.id, subjectType, subjectId })
+    return { error }
+  }
+  if (!data) {
+    console.error('submitFlag: insert returned no data AND no error', { userId: user.id, subjectType, subjectId, hasSession: !!session })
+    return { error: { message: "Submission didn't save. Try signing out and back in, then resubmit." } }
+  }
+  return { data }
+}
+
+// Returns the current user's flags across all subjects/statuses, newest
+// first. No UI surface in Phase 7 — exists for internal dedup checks
+// and a future flag-history tab.
+export async function getMyFlags() {
+  const user = await getUser()
+  if (!user) return []
+  const { data, error } = await supabase
+    .from('flags')
+    .select('*')
+    .eq('reporter_id', user.id)
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.error('Error fetching my flags:', error)
+    return []
+  }
+  return data || []
+}
+
+// Admin: list all flags with optional filters. RLS gate: 028's
+// "Admins read all flags". Order: created_at desc (matches the queue
+// view).
+//   status: 'open' | 'resolved' | 'dismissed' | 'all'  (default 'all')
+//   subjectType: 'scholar' | 'mosque' | 'review' | 'message' | 'all'
+//   safeguardingOnly: bool — filters to reason='safeguarding'.
+export async function getAllFlags({ status = 'all', subjectType = 'all', safeguardingOnly = false } = {}) {
+  let q = supabase
+    .from('flags')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (status && status !== 'all') q = q.eq('status', status)
+  if (subjectType && subjectType !== 'all') q = q.eq('subject_type', subjectType)
+  if (safeguardingOnly) q = q.eq('reason', 'safeguarding')
+  const { data, error } = await q
+  if (error) {
+    console.error('Error fetching all flags:', error)
+    return []
+  }
+  return data || []
+}
+
+// Admin: all flags on a single subject (regardless of status), newest
+// first. Drives the grouped detail view in <AdminFlags> — a subject can
+// accumulate multiple flags from multiple reporters and the admin
+// resolves them as a group.
+export async function getFlagsForSubject(subjectType, subjectId) {
+  if (!subjectType || !subjectId) return []
+  const { data, error } = await supabase
+    .from('flags')
+    .select('*')
+    .eq('subject_type', subjectType)
+    .eq('subject_id', subjectId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.error('Error fetching flags for subject:', error, { subjectType, subjectId })
+    return []
+  }
+  return data || []
+}
+
+// Admin: resolve or dismiss a flag. Records who acted and when.
+//
+// Idempotent via .eq('status','open') + .maybeSingle(): a double-click
+// on Resolve/Dismiss returns {data: null, error: null} instead of
+// erroring on zero rows. Caller treats null data as a no-op success
+// (flag was already closed by another action).
+//
+// Defensive guards (getUser + getSession) mirror submitFlag. The
+// post-mutation !data guard is intentionally absent here — null data
+// is the expected idempotent-success path, so flagging it as failure
+// would false-positive on benign double-clicks.
+export async function setFlagStatus(flagId, newStatus, resolutionAction) {
+  if (!flagId) return { error: { message: 'flagId required' } }
+  if (!['resolved', 'dismissed'].includes(newStatus)) {
+    return { error: { message: "newStatus must be 'resolved' or 'dismissed'" } }
+  }
+  const allowedActions = ['none', 'hide_review', 'unpublish_scholar', 'unpublish_mosque', 'soft_delete_message']
+  if (resolutionAction != null && !allowedActions.includes(resolutionAction)) {
+    return { error: { message: `resolutionAction must be one of ${allowedActions.join(', ')} or null` } }
+  }
+
+  const user = await getUser()
+  if (!user) {
+    console.error('setFlagStatus: getUser returned null', { flagId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('setFlagStatus: no active session despite getUser returning a user', { userId: user.id, flagId })
+    return { error: { message: 'Your session expired. Sign in again and retry.' } }
+  }
+
+  const { data, error } = await supabase
+    .from('flags')
+    .update({
+      status: newStatus,
+      resolution_action: resolutionAction || 'none',
+      resolved_by: user.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('id', flagId)
+    .eq('status', 'open')
+    .select()
+    .maybeSingle()
+  if (error) {
+    console.error('setFlagStatus update failed:', error, { userId: user.id, flagId })
+    return { error }
+  }
+  return { data }
+}
