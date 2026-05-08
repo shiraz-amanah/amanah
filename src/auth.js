@@ -1435,3 +1435,118 @@ export async function setFlagStatus(flagId, newStatus, resolutionAction) {
   }
   return { data }
 }
+
+// ============================================================================
+// Phase 7 — admin-action helpers (used by <AdminFlags> resolve-with-action)
+// ============================================================================
+// All three are admin-only mutations gated by RLS from migrations 024 (mosques)
+// and 028 Parts A + C (scholars + messages). Idempotency shape matches
+// setFlagStatus: .maybeSingle() so double-actions return {data: null, error:
+// null} rather than erroring. Defensive guards mirror submitFlag /
+// setFlagStatus per the 50b7c41 pattern.
+
+// Admin: take a published scholar back to pending_verification. Used by
+// <AdminFlags>'s "Unpublish scholar" resolve-with-action shortcut.
+//
+// Idempotent via .eq('status','active'): if another admin already
+// unpublished, returns {data: null, error: null} (no-op success).
+// Verification flags are NOT cleared — admin can flip them and re-publish
+// without re-verifying everything.
+export async function unpublishScholar(scholarId) {
+  if (!scholarId) return { error: { message: 'scholarId required' } }
+
+  const user = await getUser()
+  if (!user) {
+    console.error('unpublishScholar: getUser returned null', { scholarId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('unpublishScholar: no active session despite getUser returning a user', { userId: user.id, scholarId })
+    return { error: { message: 'Your session expired. Sign in again and retry.' } }
+  }
+
+  const { data, error } = await supabase
+    .from('scholars')
+    .update({ status: 'pending_verification' })
+    .eq('id', scholarId)
+    .eq('status', 'active')
+    .select()
+    .maybeSingle()
+  if (error) {
+    console.error('unpublishScholar update failed:', error, { userId: user.id, scholarId })
+    return { error }
+  }
+  return { data }
+}
+
+// Admin: same shape as unpublishScholar but against mosques.status. Used
+// by <AdminFlags>'s "Unpublish mosque" resolve-with-action shortcut.
+// Mosques admin RLS landed in 024 (no restoration needed unlike 020/021).
+export async function unpublishMosque(mosqueId) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+
+  const user = await getUser()
+  if (!user) {
+    console.error('unpublishMosque: getUser returned null', { mosqueId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('unpublishMosque: no active session despite getUser returning a user', { userId: user.id, mosqueId })
+    return { error: { message: 'Your session expired. Sign in again and retry.' } }
+  }
+
+  const { data, error } = await supabase
+    .from('mosques')
+    .update({ status: 'pending_verification' })
+    .eq('id', mosqueId)
+    .eq('status', 'active')
+    .select()
+    .maybeSingle()
+  if (error) {
+    console.error('unpublishMosque update failed:', error, { userId: user.id, mosqueId })
+    return { error }
+  }
+  return { data }
+}
+
+// Admin: soft-delete a message by stamping deleted_at = now(). Used by
+// <AdminFlags>'s "Soft-delete message" resolve-with-action shortcut.
+//
+// Deliberately NOT guarded on `deleted_at is null` — re-soft-deleting an
+// already-deleted message is a safe no-op at DB level (deleted_at just
+// gets refreshed to now()). A guard would false-positive on benign retry.
+// .maybeSingle() so a missing message id returns null cleanly rather than
+// erroring on zero rows.
+//
+// Note: this is the WRITE side. The READ side (getMessages, realtime
+// subscribe) needs to filter on deleted_at IS NULL for the soft-delete to
+// have any UI effect. If that filter is missing, file as parked — don't
+// expand scope into the messages read path here.
+export async function softDeleteMessage(messageId) {
+  if (!messageId) return { error: { message: 'messageId required' } }
+
+  const user = await getUser()
+  if (!user) {
+    console.error('softDeleteMessage: getUser returned null', { messageId })
+    return { error: { message: 'Not signed in' } }
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.error('softDeleteMessage: no active session despite getUser returning a user', { userId: user.id, messageId })
+    return { error: { message: 'Your session expired. Sign in again and retry.' } }
+  }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .select()
+    .maybeSingle()
+  if (error) {
+    console.error('softDeleteMessage update failed:', error, { userId: user.id, messageId })
+    return { error }
+  }
+  return { data }
+}
