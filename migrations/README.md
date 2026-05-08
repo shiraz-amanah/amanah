@@ -47,14 +47,15 @@ filenames.
 | 017 | `017_profiles_role.sql`                | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
 | 018 | `018_seed_admins.sql`                  | Verbatim            | TBD (Session K-1)  | NOTES.md Session K Phase 1      |
 | 019 | `019_scholar_applications_admin_rls.sql` | Verbatim          | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
-| 020 | `020_scholars_admin_rls.sql`           | Verbatim            | TBD (Session K-2)  | NOTES.md Session K Phase 2      |
-| 021 | `021_reviews_admin_rls.sql`            | Verbatim            | TBD (Session K-3)  | NOTES.md Session K Phase 3      |
+| 020 | `020_scholars_admin_rls.sql`           | Superseded by 028   | TBD (Session K-2)  | NOTES.md Session K Phase 2 → See 028 |
+| 021 | `021_reviews_admin_rls.sql`            | Superseded by 028   | TBD (Session K-3)  | NOTES.md Session K Phase 3 → See 028 |
 | 022 | `022_profiles_admin_rls.sql`           | Verbatim            | TBD (Session K-5)  | NOTES.md Session K Phase 5      |
 | 023 | `023_profiles_created_at.sql`          | Verbatim            | TBD (Session K-5)  | NOTES.md Session K Phase 5      |
 | 024 | `024_mosques_table.sql`                | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 | 025 | `025_mosque_applications.sql`          | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 | 026 | `026_seed_mosques.sql`                 | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 | 027 | `027_mosque_applications_geocode_facilities.sql` | Verbatim  | TBD (Session K-6b) | NOTES.md Session K Phase 6b     |
+| 028 | `028_flags_and_admin_rls.sql`          | Verbatim            | 8 May 2026         | Phase 7 flags table + RLS + indexes; restores admin RLS on scholars (originally 020) and reviews (originally 021); adds admin UPDATE on messages. |
 
 ## Workflow
 

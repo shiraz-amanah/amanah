@@ -1,5 +1,13 @@
--- STATUS: Verbatim
+-- STATUS: Superseded by 028
 -- Already applied: TBD (Session K Phase 2)
+--
+-- =============================================================================
+-- SUPERSEDED BY 028 — file authored but never applied to prod.
+-- pg_policies probe at K-7 pre-flight (8 May 2026) confirmed neither admin
+-- SELECT nor admin UPDATE policy on scholars existed. Restored via 028
+-- Part A using identical policy names + DDL. File retained as historical
+-- record. STATUS line above updated accordingly.
+-- =============================================================================
 --
 -- Adds admin-aware RLS policies to scholars. Additive only. Pre-K
 -- the table had:
