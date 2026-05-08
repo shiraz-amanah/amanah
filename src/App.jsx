@@ -1189,8 +1189,16 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
 
 // ============== MOSQUE DETAIL PAGE ==============
 
-const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSave, authedUser, authedProfile, onLogoClick, onSignIn }) => {
+const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSave, authedUser, authedProfile, onLogoClick, onSignIn, myMosque }) => {
   if (!mosque) return null;
+
+  // Phase 7 Report affordance — session-local. Hidden for unauthed users
+  // and for the mosque admin viewing their own listing (mosque.user_id is
+  // available via transformMosque's row spread; myMosque is the authoritative
+  // App-root state if the viewer claimed this mosque).
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reported, setReported] = useState(false);
+  const canReport = !!authedUser && mosque.user_id !== authedUser?.id && myMosque?.id !== mosque.id && !!mosque.id;
 
   const facilityLabels = {
     disability_access: { label: "Disability access", icon: "♿" },
@@ -1387,7 +1395,31 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
             <p className="text-sm">No reviews yet.</p>
           </div>
         </section>
+
+        {canReport && (
+          <div className="flex justify-center pt-2">
+            {reported ? (
+              <span className="text-xs text-stone-500 italic">Reported — under review</span>
+            ) : (
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-stone-500 hover:text-rose-600 transition-colors"
+              >
+                <Flag size={12} /> Report this mosque
+              </button>
+            )}
+          </div>
+        )}
       </div>
+      {showReportModal && (
+        <ReportModal
+          subjectType="mosque"
+          subjectId={mosque.id}
+          subjectPreview={mosque.name}
+          onClose={() => setShowReportModal(false)}
+          onSubmitted={() => { setReported(true); setShowReportModal(false); }}
+        />
+      )}
     </div>
   );
 };
@@ -1466,7 +1498,7 @@ useEffect(() => {
 };
 
 // ==================== SCHOLAR DETAIL ====================
-const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessage, onSignIn, authedUser, authedProfile }) => {
+const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessage, onSignIn, authedUser, authedProfile, myScholar }) => {
   // Start with the passed scholar, then refresh from DB for freshest data
   const [scholar, setScholar] = useState(initialScholar);
   const [selectedPkg, setSelectedPkg] = useState(initialScholar.packages.find(p => p.popular) || initialScholar.packages[1] || initialScholar.packages[0]);
@@ -1474,6 +1506,13 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
   // Real reviews from Supabase
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
+
+  // Phase 7 Report affordance — session-local state. Hidden when !authedUser
+  // or when the viewer's claimed scholar listing IS this scholar (myScholar
+  // gate prevents a claimed scholar from flagging their own profile).
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reported, setReported] = useState(false);
+  const canReport = !!authedUser && myScholar?.id !== scholar.id && !!scholar.id;
 
 useEffect(() => {
   if (!initialScholar.slug) return;
@@ -1582,6 +1621,20 @@ useEffect(() => {
                   );
                 })}
               </div>
+              {canReport && (
+                <div className="mt-4 pt-3 border-t border-stone-100 flex justify-end">
+                  {reported ? (
+                    <span className="text-xs text-stone-500 italic">Reported — under review</span>
+                  ) : (
+                    <button
+                      onClick={() => setShowReportModal(true)}
+                      className="inline-flex items-center gap-1.5 text-xs text-stone-500 hover:text-rose-600 transition-colors"
+                    >
+                      <Flag size={12} /> Report this scholar
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Reviews */}
@@ -1673,6 +1726,15 @@ useEffect(() => {
           </button>
         </div>
       </div>
+      {showReportModal && (
+        <ReportModal
+          subjectType="scholar"
+          subjectId={scholar.id}
+          subjectPreview={scholar.name}
+          onClose={() => setShowReportModal(false)}
+          onSubmitted={() => { setReported(true); setShowReportModal(false); }}
+        />
+      )}
     </div>
   );
 };
@@ -11668,9 +11730,9 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
-  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />; 
-  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => { 
-    /* TODO(scholars-real): getOrCreateDirectConversation(scholar.userId, ...) once scholars are linked to auth users */ setView("messagesInbox"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} myMosque={myMosque} />;
+  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => {
+    /* TODO(scholars-real): getOrCreateDirectConversation(scholar.userId, ...) once scholars are linked to auth users */ setView("messagesInbox"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} myScholar={myScholar} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
