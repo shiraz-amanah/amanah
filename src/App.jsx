@@ -2538,6 +2538,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
   const tabs = [
     { v: "profile", l: "Profile", icon: Building2 },
     { v: "donations", l: "Donations", icon: HandCoins },
+    { v: "dbs", l: "DBS", icon: FileCheck },
     { v: "messages", l: "Messages", icon: MessageCircle },
     { v: "account", l: "Account", icon: User },
   ];
@@ -2709,6 +2710,12 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
               <HandCoins className="mx-auto text-stone-300 mb-3" size={36} />
               <p className="text-stone-600 text-sm max-w-md mx-auto">Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here.</p>
             </div>
+          </div>
+        )}
+
+        {tab === "dbs" && (
+          <div>
+            <DBSOrderingPanel mosqueId={mosque?.id} />
           </div>
         )}
 
