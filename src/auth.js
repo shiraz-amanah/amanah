@@ -1702,3 +1702,187 @@ export async function bulkDismissFlagsForSubject(subjectType, subjectId, adminPr
   }
   return { data }
 }
+
+// ============================================================================
+// Session L — DBS orders (candidate side)
+// ============================================================================
+
+// Pricing — frozen at INSERT time in dbs_orders.amount_pence. Change requires
+// a new migration; existing rows keep historical pricing. Real Stripe in Q
+// will source these from a Stripe price object instead.
+export const DBS_PRICES_PENCE = {
+  basic: 2500,    // £25
+  enhanced: 5500, // £55
+}
+
+// snake_case → camelCase shaper. Mirrors shapeProfile / shapeMessage etc.
+// The optional `profiles` join is populated in commit 4's getAllDBSOrders
+// for the admin queue; candidate-side reads don't include it.
+function shapeDBSOrder(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    candidateUserId: row.candidate_user_id,
+    scholarId: row.scholar_id,
+    mosqueId: row.mosque_id,
+    level: row.level,
+    stage: row.stage,
+    paymentStatus: row.payment_status,
+    amountPence: row.amount_pence,
+    paymentReference: row.payment_reference,
+    orderedBy: row.ordered_by,
+    notes: row.notes,
+    certificateUrl: row.certificate_url,
+    disclosureSummary: row.disclosure_summary,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    paidAt: row.paid_at,
+    submittedAt: row.submitted_at,
+    issuedAt: row.issued_at,
+    cancelledAt: row.cancelled_at,
+    candidate: row.profiles ? shapeProfile(row.profiles) : null,
+  }
+}
+
+// Returns the candidate's currently-active order, or null. Active =
+// stage in (requested, paid, submitted, in_progress). The partial-unique
+// index dbs_orders_one_active_per_candidate_idx in 029 guarantees at most
+// one active order per candidate, so .maybeSingle() is correct.
+export async function getMyActiveDBSOrder() {
+  const user = await getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .select('*')
+    .eq('candidate_user_id', user.id)
+    .in('stage', ['requested', 'paid', 'submitted', 'in_progress'])
+    .maybeSingle()
+  if (error) {
+    console.error('getMyActiveDBSOrder failed:', error)
+    return null
+  }
+  return shapeDBSOrder(data)
+}
+
+// All of the candidate's orders (history + active), newest first. RLS
+// scopes to own rows.
+export async function getMyDBSOrders() {
+  const user = await getUser()
+  if (!user) return []
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .select('*')
+    .eq('candidate_user_id', user.id)
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.error('getMyDBSOrders failed:', error)
+    return []
+  }
+  return (data || []).map(shapeDBSOrder)
+}
+
+// Submit a new DBS order. Per L Critical-1 review, the mock-payment flow
+// inserts with paid fields directly — single round-trip, no chained
+// UPDATE (which would be RLS-blocked under the candidate cancel-only
+// UPDATE policy in 029). Real Stripe in Session Q will replace the
+// `mockPayment=true` branch with a server-side charge confirmation +
+// stage='paid' INSERT.
+//
+// Surfaces 23505 from dbs_orders_one_active_per_candidate_idx as friendly
+// "already in progress" copy.
+export async function submitDBSOrder({ level, scholarId = null, mosqueId = null, mockPayment = true }) {
+  if (!['basic', 'enhanced'].includes(level)) {
+    return { error: { message: "Level must be 'basic' or 'enhanced'" } }
+  }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: { message: 'Your session expired. Sign in again and retry.' } }
+
+  const insertRow = {
+    candidate_user_id: user.id,
+    scholar_id: scholarId,
+    mosque_id: mosqueId,
+    level,
+    amount_pence: DBS_PRICES_PENCE[level],
+    ordered_by: user.id,
+  }
+  if (mockPayment) {
+    insertRow.stage = 'paid'
+    insertRow.payment_status = 'paid'
+    insertRow.paid_at = new Date().toISOString()
+    insertRow.payment_reference = `mock_${Date.now()}`
+  }
+
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .insert(insertRow)
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
+      return { error: { message: 'You already have a DBS order in progress. Cancel it first if you want to start a new one.', code: '23505' } }
+    }
+    console.error('submitDBSOrder failed:', error, { userId: user.id, level })
+    return { error }
+  }
+  return { data: shapeDBSOrder(data) }
+}
+
+// Mock payment wrapper. UI calls this from the "Pay" button so the loading
+// copy ("Processing payment...") matches the user's mental model. The seam
+// is preserved for Session Q to slot real Stripe into without changing the
+// component contract — body becomes submit-then-charge there.
+export async function processDBSPayment({ level, scholarId = null, mosqueId = null }) {
+  await new Promise(r => setTimeout(r, 800))
+  return submitDBSOrder({ level, scholarId, mosqueId, mockPayment: true })
+}
+
+// Candidate cancel. RLS in 029 enforces stage in (requested, paid) at
+// USING + stage='cancelled' at WITH CHECK, so direct API attempts to
+// cancel a submitted order will RLS-deny. The pre-check probe here
+// surfaces a friendly message instead of a raw RLS error.
+//
+// If payment_status was 'paid' at cancel time, marks 'refunded' (mock —
+// real refund waits for Session Q's Stripe integration).
+export async function cancelMyDBSOrder(orderId) {
+  if (!orderId) return { error: { message: 'orderId required' } }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: { message: 'Your session expired. Sign in again and retry.' } }
+
+  const { data: current, error: probeErr } = await supabase
+    .from('dbs_orders')
+    .select('payment_status, stage')
+    .eq('id', orderId)
+    .single()
+  if (probeErr) {
+    console.error('cancelMyDBSOrder probe failed:', probeErr, { userId: user.id, orderId })
+    return { error: probeErr }
+  }
+  if (!['requested', 'paid'].includes(current.stage)) {
+    return { error: { message: 'Order has already been submitted to DBS. Contact support to cancel.' } }
+  }
+
+  const updates = {
+    stage: 'cancelled',
+    cancelled_at: new Date().toISOString(),
+  }
+  if (current.payment_status === 'paid') {
+    updates.payment_status = 'refunded'
+  }
+
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .update(updates)
+    .eq('id', orderId)
+    .select()
+    .single()
+  if (error) {
+    console.error('cancelMyDBSOrder update failed:', error, { userId: user.id, orderId })
+    return { error }
+  }
+  return { data: shapeDBSOrder(data) }
+}
