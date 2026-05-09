@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -10254,7 +10254,7 @@ const AdminFlags = ({ authedProfile }) => {
 // Session L commits 8–9. Self-fetches on mount; filters client-side
 // per K-7 <AdminFlags> pattern. Detail view + stage transitions land
 // in commit 9.
-const AdminDBSOrders = () => {
+const AdminDBSOrders = ({ initialDetailOrderId = null }) => {
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
@@ -10262,7 +10262,15 @@ const AdminDBSOrders = () => {
   const [levelFilter, setLevelFilter] = useState("all");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [selectedOrderId, setSelectedOrderId] = useState(initialDetailOrderId);
+
+  // Sync selectedOrderId from prop changes (K-2 deep-link from
+  // AdminScholarApplications cross-reference). Component unmounts
+  // when section flips away from "dbs", so the useState initializer
+  // covers fresh mounts; this effect handles the stay-mounted case.
+  useEffect(() => {
+    if (initialDetailOrderId) setSelectedOrderId(initialDetailOrderId);
+  }, [initialDetailOrderId]);
 
   const handleOrderUpdate = (updated) => {
     setAllOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
@@ -10828,7 +10836,7 @@ const AdminReviewsModeration = () => {
 };
 
 // ===== Scholar applications (real, from Supabase) =====
-const AdminScholarApplications = () => {
+const AdminScholarApplications = ({ onOpenDBSOrder }) => {
   const [filter, setFilter] = useState("pending");
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10853,6 +10861,11 @@ const AdminScholarApplications = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [toast, setToast] = useState(null);
+  // K-2 cross-reference (Session L commit 10): latest DBS order for
+  // the selected application's candidate, surfaced above the
+  // verification toggles. Manual flag flip stays canonical.
+  const [latestDBSOrder, setLatestDBSOrder] = useState(null);
+  const [latestDBSLoading, setLatestDBSLoading] = useState(false);
 
   const refetch = async () => {
     setLoading(true);
@@ -10892,6 +10905,24 @@ const AdminScholarApplications = () => {
     }
     return () => { cancelled = true; };
   }, [selected?.id, selected?.status, selected?.createdScholarId]);
+
+  // Fetch the candidate's latest DBS order. Surfaced above the
+  // verification toggles for audit-trail context. Mirrors the
+  // scholar-fetch effect above.
+  useEffect(() => {
+    let cancelled = false;
+    if (selected?.userId) {
+      setLatestDBSLoading(true);
+      setLatestDBSOrder(null);
+      getLatestDBSOrderForCandidate(selected.userId)
+        .then(o => { if (!cancelled) setLatestDBSOrder(o); })
+        .catch(err => { if (!cancelled) console.error("Failed to fetch latest DBS order:", err); })
+        .finally(() => { if (!cancelled) setLatestDBSLoading(false); });
+    } else {
+      setLatestDBSOrder(null);
+    }
+    return () => { cancelled = true; };
+  }, [selected?.userId]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -11056,6 +11087,32 @@ const AdminScholarApplications = () => {
                   <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
                     <AlertCircle size={10} /> Pending verification
                   </span>
+                )}
+              </div>
+
+              {/* K-2 cross-reference (Session L commit 10): latest DBS
+                  order for this candidate, surfaced as audit-trail
+                  context above the manual flag toggles. Click-through
+                  opens AdminDBSOrders detail. */}
+              <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-3">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5">Latest DBS order</p>
+                {latestDBSLoading ? (
+                  <p className="text-xs text-stone-500">Loading…</p>
+                ) : latestDBSOrder ? (
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-sm text-stone-900">
+                      {latestDBSOrder.level === "enhanced" ? "Enhanced" : "Basic"} · {stageLabel(latestDBSOrder.stage)}
+                      {latestDBSOrder.issuedAt ? ` · ${new Date(latestDBSOrder.issuedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                    </p>
+                    <button
+                      onClick={() => onOpenDBSOrder?.(latestDBSOrder.id)}
+                      className="text-xs font-medium text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1"
+                    >
+                      View order <ArrowRight size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-stone-500 italic">No DBS orders yet — scholar can self-serve from their dashboard.</p>
                 )}
               </div>
 
@@ -11995,6 +12052,11 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
   const [openFlagsCount, setOpenFlagsCount] = useState(0);
   const [toast, setToast] = useState(null);
+  // K-2 → AdminDBSOrders deep-link target (Session L commit 10).
+  // Set when admin clicks "View order" inside the K-2 verification
+  // panel cross-reference; consumed by AdminDBSOrders' useState
+  // initializer + sync useEffect on next render.
+  const [dbsDetailOrderId, setDbsDetailOrderId] = useState(null);
 
   // Sidebar badge: open-flag count. AdminFlags owns its own list; this is
   // a separate lightweight count fetch so the sidebar's "urgent" red dot
@@ -12066,11 +12128,15 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
         {section === "mosques" && <AdminMosqueApplications />}
-        {section === "scholarApplications" && <AdminScholarApplications />}
+        {section === "scholarApplications" && (
+          <AdminScholarApplications
+            onOpenDBSOrder={(orderId) => { setDbsDetailOrderId(orderId); setSection("dbs"); }}
+          />
+        )}
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
         {section === "flags" && <AdminFlags authedProfile={authedProfile} />}
         {section === "reviews" && <AdminReviewsModeration />}
-        {section === "dbs" && <AdminDBSOrders />}
+        {section === "dbs" && <AdminDBSOrders initialDetailOrderId={dbsDetailOrderId} />}
         {section === "users" && <AdminAllUsers authedProfile={authedProfile} />}
         {section === "settings" && (
           <div>
