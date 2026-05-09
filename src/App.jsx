@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -10262,6 +10262,11 @@ const AdminDBSOrders = () => {
   const [levelFilter, setLevelFilter] = useState("all");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+
+  const handleOrderUpdate = (updated) => {
+    setAllOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -10340,6 +10345,11 @@ const AdminDBSOrders = () => {
     { v: "enhanced", l: "Enhanced" },
   ];
 
+  const selectedOrder = selectedOrderId ? allOrders.find(o => o.id === selectedOrderId) : null;
+  if (selectedOrder) {
+    return <AdminDBSOrderDetail order={selectedOrder} onBack={() => setSelectedOrderId(null)} onUpdate={handleOrderUpdate} />;
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -10402,7 +10412,7 @@ const AdminDBSOrders = () => {
           {filtered.map(o => {
             const isRefunded = o.paymentStatus === "refunded";
             return (
-              <div key={o.id} className="bg-white border border-stone-200 rounded-xl p-4 flex items-center gap-3 hover:bg-stone-50">
+              <button key={o.id} onClick={() => setSelectedOrderId(o.id)} className="w-full text-left bg-white border border-stone-200 rounded-xl p-4 flex items-center gap-3 hover:bg-stone-50 hover:border-stone-300 cursor-pointer">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-stone-900 truncate">{o.candidate?.name || "—"}</p>
                   <p className="text-xs text-stone-500 truncate">{o.candidate?.email || "—"}</p>
@@ -10417,11 +10427,262 @@ const AdminDBSOrders = () => {
                 </div>
                 <p className="text-xs text-stone-500 hidden md:block w-20 text-right">{formatRelative(o.createdAt)}</p>
                 <ChevronRight size={16} className="text-stone-300 flex-shrink-0" />
-              </div>
+              </button>
             );
           })}
         </div>
       )}
+    </div>
+  );
+};
+
+// ===== DBS order detail (admin) =====
+// Session L commit 9. Detail surface for a single dbs_orders row.
+// Receives the resolved shaped row from <AdminDBSOrders>; field
+// saves replace via onUpdate(updated) without round-trip refetches.
+// Free-dropdown stage transitions per L review amendment 4 — no
+// direction validation. Confirm modal gates issued / issued_with_
+// disclosure / cancelled (all three feel irreversible to the
+// candidate).
+const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
+  const [pendingStage, setPendingStage] = useState(null);
+  const [stageSaving, setStageSaving] = useState(false);
+  const [stageError, setStageError] = useState(null);
+  const [showStageConfirm, setShowStageConfirm] = useState(false);
+
+  const [certUrlInput, setCertUrlInput] = useState(order.certificateUrl || "");
+  const [certUrlSaving, setCertUrlSaving] = useState(false);
+  const [certUrlError, setCertUrlError] = useState(null);
+
+  const [disclosureInput, setDisclosureInput] = useState(order.disclosureSummary || "");
+  const [disclosureSaving, setDisclosureSaving] = useState(false);
+  const [disclosureError, setDisclosureError] = useState(null);
+
+  const [notesInput, setNotesInput] = useState(order.notes || "");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesError, setNotesError] = useState(null);
+
+  const formatPrice = (pence) => `£${(pence / 100).toFixed(0)}`;
+  const formatDate = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+
+  const requiresConfirm = (s) => ["issued", "issued_with_disclosure", "cancelled"].includes(s);
+
+  const handleStageSave = () => {
+    if (!pendingStage || pendingStage === order.stage) return;
+    if (requiresConfirm(pendingStage)) { setShowStageConfirm(true); return; }
+    fireStageUpdate();
+  };
+
+  const fireStageUpdate = async () => {
+    setStageSaving(true);
+    setStageError(null);
+    setShowStageConfirm(false);
+    const { data, error } = await setDBSOrderStage(order.id, pendingStage);
+    setStageSaving(false);
+    if (error) {
+      setStageError(error.message || "Couldn't save stage. Try again.");
+      return;
+    }
+    if (data) onUpdate(data);
+    setPendingStage(null);
+  };
+
+  const handleCertUrlSave = async () => {
+    setCertUrlSaving(true);
+    setCertUrlError(null);
+    const { data, error } = await setDBSOrderCertificateUrl(order.id, certUrlInput);
+    setCertUrlSaving(false);
+    if (error) { setCertUrlError(error.message || "Couldn't save URL."); return; }
+    if (data) onUpdate(data);
+  };
+
+  const handleDisclosureSave = async () => {
+    setDisclosureSaving(true);
+    setDisclosureError(null);
+    const { data, error } = await setDBSOrderDisclosureSummary(order.id, disclosureInput);
+    setDisclosureSaving(false);
+    if (error) { setDisclosureError(error.message || "Couldn't save summary."); return; }
+    if (data) onUpdate(data);
+  };
+
+  const handleNotesSave = async () => {
+    setNotesSaving(true);
+    setNotesError(null);
+    const { data, error } = await setDBSOrderNotes(order.id, notesInput);
+    setNotesSaving(false);
+    if (error) { setNotesError(error.message || "Couldn't save notes."); return; }
+    if (data) onUpdate(data);
+  };
+
+  const stageOptions = [
+    { v: "requested", l: "Requested" },
+    { v: "paid", l: "Paid" },
+    { v: "submitted", l: "Submitted" },
+    { v: "in_progress", l: "In progress" },
+    { v: "issued", l: "Issued" },
+    { v: "issued_with_disclosure", l: "Issued with disclosure" },
+    { v: "cancelled", l: "Cancelled" },
+  ];
+
+  const showCertUrl = ["issued", "issued_with_disclosure"].includes(order.stage);
+  const showDisclosure = order.stage === "issued_with_disclosure";
+  const isRefunded = order.stage === "cancelled" && order.paymentStatus === "refunded";
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4">
+        <ArrowLeft size={14} /> Back to orders
+      </button>
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-6 mb-4">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              {order.candidate?.name || "Unknown candidate"}
+            </h1>
+            <p className="text-sm text-stone-600 break-all">{order.candidate?.email || "—"}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-stone-600">
+              <span>{order.level === "enhanced" ? "Enhanced DBS" : "Basic DBS"}</span>
+              <span>·</span>
+              <span>{formatPrice(order.amountPence)}{order.paymentStatus === "paid" ? " paid" : order.paymentStatus === "refunded" ? " refunded" : ""}</span>
+              {order.paymentReference && <><span>·</span><span className="font-mono">{order.paymentReference}</span></>}
+              {order.scholarId && <><span>·</span><span>Scholar context</span></>}
+              {order.mosqueId && <><span>·</span><span>Mosque context</span></>}
+            </div>
+          </div>
+          <StagePill stage={order.stage} />
+        </div>
+
+        <div className="mb-4">
+          <StageTimeline stage={order.stage} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-stone-600">
+          <p>Ordered: {formatDate(order.createdAt)}</p>
+          {order.paidAt && <p>Paid: {formatDate(order.paidAt)}</p>}
+          {order.submittedAt && <p>Submitted: {formatDate(order.submittedAt)}</p>}
+          {order.issuedAt && <p>Issued: {formatDate(order.issuedAt)}</p>}
+          {order.cancelledAt && <p>Cancelled: {formatDate(order.cancelledAt)}</p>}
+        </div>
+
+        {isRefunded && (
+          <div className="mt-3 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700">
+            Refunded {formatPrice(order.amountPence)} on {formatDate(order.cancelledAt)} (mock — real refund processes via Stripe in Session Q).
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+        <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Stage</p>
+        <div className="flex gap-2 items-start flex-wrap">
+          <select
+            value={pendingStage || order.stage}
+            onChange={e => { setPendingStage(e.target.value); setStageError(null); }}
+            disabled={stageSaving}
+            className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50"
+          >
+            {stageOptions.map(opt => <option key={opt.v} value={opt.v}>{opt.l}</option>)}
+          </select>
+          <button
+            onClick={handleStageSave}
+            disabled={stageSaving || !pendingStage || pendingStage === order.stage}
+            className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+          >
+            {stageSaving ? "Saving..." : "Save stage"}
+          </button>
+        </div>
+        {stageError && <p className="text-xs text-rose-700 mt-2">{stageError}</p>}
+        <p className="text-[11px] italic text-stone-500 mt-3">Stage transitions aren't validated for direction. Use notes for audit corrections.</p>
+      </div>
+
+      {showStageConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+          <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              Mark this order as {stageOptions.find(o => o.v === pendingStage)?.l}?
+            </h3>
+            <p className="text-sm text-stone-700 mb-5 leading-relaxed">
+              {pendingStage === "issued" && "The candidate will see this as Issued. Set the certificate URL below to give them a downloadable link."}
+              {pendingStage === "issued_with_disclosure" && "The candidate will see a generic 'returned with disclosures' message. Use the summary field below for your own records."}
+              {pendingStage === "cancelled" && "The order is closed. Refund handling is admin-side via cancelMyDBSOrder semantics; mid-stage admin refund flow lands in Session Q."}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowStageConfirm(false)} disabled={stageSaving} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+              <button onClick={fireStageUpdate} disabled={stageSaving} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg">{stageSaving ? "Saving..." : "Confirm"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCertUrl && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+          <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Certificate URL</p>
+          <div className="flex gap-2 items-start">
+            <input
+              type="text"
+              value={certUrlInput}
+              onChange={e => { setCertUrlInput(e.target.value); setCertUrlError(null); }}
+              placeholder="https://..."
+              disabled={certUrlSaving}
+              className="flex-1 px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50"
+            />
+            <button
+              onClick={handleCertUrlSave}
+              disabled={certUrlSaving}
+              className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+            >
+              {certUrlSaving ? "Saving..." : "Save"}
+            </button>
+          </div>
+          {certUrlError && <p className="text-xs text-rose-700 mt-2">{certUrlError}</p>}
+        </div>
+      )}
+
+      {showDisclosure && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+          <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Disclosure summary (admin only)</p>
+          <textarea
+            value={disclosureInput}
+            onChange={e => { setDisclosureInput(e.target.value); setDisclosureError(null); }}
+            placeholder="Internal notes on the disclosures returned by DBS. Candidate sees a generic message; this is for the platform team's records."
+            disabled={disclosureSaving}
+            rows={4}
+            className="w-full px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 resize-y"
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={handleDisclosureSave}
+              disabled={disclosureSaving}
+              className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+            >
+              {disclosureSaving ? "Saving..." : "Save summary"}
+            </button>
+            {disclosureError && <p className="text-xs text-rose-700">{disclosureError}</p>}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+        <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Internal notes</p>
+        <textarea
+          value={notesInput}
+          onChange={e => { setNotesInput(e.target.value); setNotesError(null); }}
+          placeholder="Called candidate, awaiting documents / DBS submission delayed by Royal Mail / etc."
+          disabled={notesSaving}
+          rows={3}
+          className="w-full px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 resize-y"
+        />
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            onClick={handleNotesSave}
+            disabled={notesSaving}
+            className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+          >
+            {notesSaving ? "Saving..." : "Save notes"}
+          </button>
+          {notesError && <p className="text-xs text-rose-700">{notesError}</p>}
+        </div>
+      </div>
     </div>
   );
 };
