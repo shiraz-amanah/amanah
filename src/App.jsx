@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject } from "./auth";
+import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -8548,6 +8548,347 @@ setBookings(transformed);
           </div>
         )}
       </main>
+    </div>
+  );
+};
+
+// ==================== DBS ORDERING PANEL (shared) ====================
+// Used by <ScholarDashboard> + <MosqueDashboard> DBS tabs. Self-contained:
+// fetches own data, manages own modal, no toast — state changes ARE the
+// feedback (active order appears, modal closes, history updates).
+// Session L commit 5 of 11.
+
+const stageLabel = (stage) => ({
+  requested: "Requested",
+  paid: "Paid",
+  submitted: "Submitted",
+  in_progress: "In progress",
+  issued: "Issued",
+  issued_with_disclosure: "Issued with disclosure",
+  cancelled: "Cancelled",
+}[stage] || stage);
+
+const StagePill = ({ stage }) => {
+  const map = {
+    requested: { bg: "bg-stone-100", text: "text-stone-700", label: "Requested" },
+    paid: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Paid" },
+    submitted: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Submitted" },
+    in_progress: { bg: "bg-amber-50", text: "text-amber-700", label: "In progress" },
+    issued: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Issued" },
+    issued_with_disclosure: { bg: "bg-amber-100", text: "text-amber-800", label: "With disclosure" },
+    cancelled: { bg: "bg-stone-100", text: "text-stone-600", label: "Cancelled" },
+  };
+  const s = map[stage] || map.requested;
+  return <span className={`text-[10px] uppercase tracking-wider font-medium px-2 py-1 rounded-full ${s.bg} ${s.text}`}>{s.label}</span>;
+};
+
+const StageTimeline = ({ stage }) => {
+  if (stage === "cancelled") {
+    return (
+      <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 text-center">
+        <p className="text-sm text-stone-600 font-medium">Order cancelled</p>
+      </div>
+    );
+  }
+  if (stage === "issued_with_disclosure") {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+        <p className="text-sm text-amber-800 font-medium">Issued with disclosures — under review</p>
+      </div>
+    );
+  }
+  const stages = ["requested", "paid", "submitted", "in_progress", "issued"];
+  const labels = ["Ordered", "Paid", "Submitted", "In progress", "Issued"];
+  const currentIdx = stages.indexOf(stage);
+  return (
+    <div className="flex items-center gap-1">
+      {stages.map((s, i) => (
+        <div key={s} className="flex items-center flex-1 min-w-0">
+          <div className="flex flex-col items-center flex-shrink-0 w-12">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${i <= currentIdx ? "bg-emerald-700 text-white" : "bg-stone-200 text-stone-500"}`}>
+              {i < currentIdx ? <CheckCircle2 size={14} /> : <span className="text-xs font-semibold">{i + 1}</span>}
+            </div>
+            <p className="text-[9px] uppercase tracking-wider mt-1 text-center text-stone-600 truncate w-full">{labels[i]}</p>
+          </div>
+          {i < stages.length - 1 && <div className={`flex-1 h-0.5 mx-1 mb-5 ${i < currentIdx ? "bg-emerald-700" : "bg-stone-200"}`}></div>}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [allOrders, setAllOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+  const [orderingLevel, setOrderingLevel] = useState(null);
+  const [paying, setPaying] = useState(false);
+  const [orderError, setOrderError] = useState(null);
+
+  const refresh = async () => {
+    const [active, all] = await Promise.all([getMyActiveDBSOrder(), getMyDBSOrders()]);
+    setActiveOrder(active);
+    setAllOrders(all);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([getMyActiveDBSOrder(), getMyDBSOrders()])
+      .then(([active, all]) => {
+        if (cancelled) return;
+        setActiveOrder(active);
+        setAllOrders(all);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setFetchError(err?.message || "Couldn't load DBS orders.");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const blockedByDisclosure = !activeOrder && allOrders[0]?.stage === "issued_with_disclosure";
+  const pastOrders = allOrders.filter(o => activeOrder?.id !== o.id);
+
+  const formatPrice = (pence) => `£${(pence / 100).toFixed(0)}`;
+  const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+
+  const handlePay = async () => {
+    if (!orderingLevel) return;
+    setPaying(true);
+    setOrderError(null);
+    const { data, error } = await processDBSPayment({ level: orderingLevel, scholarId, mosqueId });
+    setPaying(false);
+    if (error) {
+      setOrderError(error.message || "Couldn't process payment. Try again.");
+      return;
+    }
+    setActiveOrder(data);
+    setOrderingLevel(null);
+    setOrderError(null);
+    refresh();
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancellingOrderId) return;
+    setCancelLoading(true);
+    setCancelError(null);
+    const { error } = await cancelMyDBSOrder(cancellingOrderId);
+    setCancelLoading(false);
+    if (error) {
+      setCancelError(error.message || "Couldn't cancel. Try again.");
+      return;
+    }
+    setActiveOrder(null);
+    setCancellingOrderId(null);
+    refresh();
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        <div className="h-7 bg-stone-200 rounded animate-pulse w-1/3"></div>
+        <div className="h-4 bg-stone-100 rounded animate-pulse w-2/3"></div>
+        <div className="h-32 bg-stone-100 rounded-2xl animate-pulse"></div>
+        <div className="h-32 bg-stone-100 rounded-2xl animate-pulse"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800">{fetchError}</div>;
+  }
+
+  const renderLevelPicker = () => (
+    <div className="grid sm:grid-cols-2 gap-3">
+      {[
+        { level: "basic", title: "Basic DBS", priceLabel: "£25", summary: "Identity + unspent convictions. Fast turnaround." },
+        { level: "enhanced", title: "Enhanced DBS", priceLabel: "£55", summary: "Full check including children's and vulnerable groups list. Required for working with children." },
+      ].map(({ level, title, priceLabel, summary }) => (
+        <button
+          key={level}
+          onClick={() => { setOrderingLevel(level); setOrderError(null); }}
+          className="text-left bg-white border border-stone-200 hover:border-emerald-400 hover:shadow-md transition-all rounded-2xl p-5"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <ShieldCheck className="text-emerald-700" size={20} />
+            <span className="text-lg font-semibold text-stone-900">{priceLabel}</span>
+          </div>
+          <p className="text-sm font-semibold text-stone-900 mb-1">{title}</p>
+          <p className="text-xs text-stone-600 leading-relaxed mb-3">{summary}</p>
+          <span className="text-xs font-medium text-emerald-700 inline-flex items-center gap-1">
+            Order {level === "basic" ? "Basic" : "Enhanced"} <ArrowRight size={12} />
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderHistoryCard = (order) => {
+    const expanded = expandedOrderId === order.id;
+    const isRefunded = order.paymentStatus === "refunded";
+    return (
+      <div key={order.id} className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setExpandedOrderId(expanded ? null : order.id)}
+          className="w-full p-4 text-left flex items-center justify-between gap-3 hover:bg-stone-50"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-stone-900">
+              {order.level === "enhanced" ? "Enhanced" : "Basic"} DBS · {stageLabel(order.stage)}
+            </p>
+            <p className="text-xs text-stone-500 mt-0.5">Ordered {formatDate(order.createdAt)} · {formatPrice(order.amountPence)}{isRefunded ? " refunded" : ""}</p>
+          </div>
+          <ChevronDown size={16} className={`text-stone-400 transition-transform flex-shrink-0 ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded && (
+          <div className="border-t border-stone-100 px-4 py-3 text-xs text-stone-600 space-y-1">
+            {order.paidAt && <p>Paid: {formatDate(order.paidAt)}</p>}
+            {order.submittedAt && <p>Submitted to DBS: {formatDate(order.submittedAt)}</p>}
+            {order.issuedAt && <p>Issued: {formatDate(order.issuedAt)}</p>}
+            {order.cancelledAt && <p>Cancelled: {formatDate(order.cancelledAt)}</p>}
+            {order.certificateUrl && order.stage === "issued" && (
+              <p className="pt-1"><a href={order.certificateUrl} target="_blank" rel="noreferrer" className="text-emerald-700 underline">View certificate</a></p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderActiveDetail = () => {
+    const cancellable = ["requested", "paid"].includes(activeOrder.stage);
+    const inCancelConfirm = cancellingOrderId === activeOrder.id;
+    return (
+      <div className="bg-white border border-stone-200 rounded-2xl p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-1">Active order</p>
+            <h3 className="text-lg font-semibold text-stone-900">{activeOrder.level === "enhanced" ? "Enhanced" : "Basic"} DBS check</h3>
+            <p className="text-xs text-stone-500 mt-0.5">Ordered {formatDate(activeOrder.createdAt)} · {formatPrice(activeOrder.amountPence)}{activeOrder.paymentStatus === "paid" ? " paid" : ""}{activeOrder.paymentReference ? ` · ${activeOrder.paymentReference}` : ""}</p>
+          </div>
+          <StagePill stage={activeOrder.stage} />
+        </div>
+        <StageTimeline stage={activeOrder.stage} />
+        {activeOrder.stage === "issued" && activeOrder.certificateUrl && (
+          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm">
+            <FileCheck size={14} className="text-emerald-700 flex-shrink-0" />
+            <a href={activeOrder.certificateUrl} target="_blank" rel="noreferrer" className="text-emerald-700 font-medium underline">View certificate</a>
+          </div>
+        )}
+        {cancellable && !inCancelConfirm && (
+          <button
+            onClick={() => { setCancellingOrderId(activeOrder.id); setCancelError(null); }}
+            className="mt-4 text-xs text-stone-500 hover:text-rose-600 underline"
+          >
+            Cancel order
+          </button>
+        )}
+        {inCancelConfirm && (
+          <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+            <p className="text-sm text-rose-900 mb-3">Cancel this order? You'll be refunded {formatPrice(activeOrder.amountPence)}.</p>
+            {cancelError && <p className="text-xs text-rose-700 mb-2">{cancelError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setCancellingOrderId(null); setCancelError(null); }}
+                disabled={cancelLoading}
+                className="px-3 py-1.5 text-xs font-medium text-stone-700 bg-white border border-stone-300 rounded-md hover:border-stone-400 disabled:opacity-50"
+              >No, keep order</button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={cancelLoading}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 rounded-md inline-flex items-center gap-1"
+              >{cancelLoading ? "Cancelling..." : <><XCircle size={12} /> Yes, cancel</>}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDisclosureBranch = () => {
+    const order = allOrders[0];
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={18} className="text-amber-700 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-900 mb-1">Your check has been returned with disclosures</p>
+            <p className="text-xs text-amber-800 leading-relaxed">Our team is reviewing — we'll be in touch. Ordered {formatDate(order.createdAt)} · {order.level === "enhanced" ? "Enhanced" : "Basic"} · {formatPrice(order.amountPence)}.</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderModal = () => {
+    if (!orderingLevel) return null;
+    const priceLabel = formatPrice(DBS_PRICES_PENCE[orderingLevel]);
+    const titleLabel = orderingLevel === "enhanced" ? "Enhanced" : "Basic";
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
+        <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
+          <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Order {titleLabel} DBS — {priceLabel}</h3>
+          <p className="text-sm text-stone-700 mb-4 leading-relaxed">
+            {orderingLevel === "enhanced"
+              ? "Full check including the children's and vulnerable groups list. Required for working with children. Mock payment for now — real Stripe coming soon."
+              : "Identity + unspent convictions check. Mock payment for now — real Stripe coming soon."}
+          </p>
+          {orderError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{orderError}</div>}
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setOrderingLevel(null); setOrderError(null); }} disabled={paying} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
+            <button onClick={handlePay} disabled={paying} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+              {paying ? "Processing payment..." : <><CreditCard size={14} /> Pay {priceLabel}</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>DBS check</h2>
+        <p className="text-sm text-stone-600">Required for working with children and vulnerable groups. Order once, use across Amanah.</p>
+      </div>
+
+      {activeOrder && renderActiveDetail()}
+
+      {!activeOrder && blockedByDisclosure && (
+        <>
+          {renderDisclosureBranch()}
+          {pastOrders.length > 1 && (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wider text-stone-500 font-medium">Order history</p>
+              {pastOrders.slice(1).map(renderHistoryCard)}
+            </div>
+          )}
+        </>
+      )}
+
+      {!activeOrder && !blockedByDisclosure && (
+        <>
+          {pastOrders.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wider text-stone-500 font-medium">Order history</p>
+              {pastOrders.map(renderHistoryCard)}
+            </div>
+          )}
+          {renderLevelPicker()}
+        </>
+      )}
+
+      {renderModal()}
     </div>
   );
 };
