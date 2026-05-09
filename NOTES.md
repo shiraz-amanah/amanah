@@ -41,26 +41,29 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 
 - **Session K Phase 7** ✅ — Flags & reports. Migration 028 bundled four concerns: Parts A + B restore K-2 admin RLS on scholars (originally 020) and K-3 admin RLS on reviews (originally 021) — pre-flight pg_policies probe surfaced both had been committed + noted-as-shipped but never applied to prod (silent RLS no-ops running 24+ hours each); Part C adds admin UPDATE on messages (new for softDeleteMessage); Part D ships polymorphic `flags` table (subject_type ∈ {scholar,mosque,review,message}) + RLS + indexes + partial-unique dedup index. Eight new auth.js helpers (5 flag CRUD + 3 admin-action shortcuts unpublishScholar/unpublishMosque/softDeleteMessage). Four user-facing Report affordances using shared `<ReportModal>`: ReviewCard Flag icon, PublicScholarDetail + PublicMosqueDetail Report link, ConversationView per-message 3-dot on incoming bubbles. New `<AdminFlags>` queue with status + subject-type + safeguarding filters, grouped detail, three resolve/dismiss/action shortcuts with bulk-close UPDATE on sibling open flags. AdminFlags refactored to drop App.jsx supabase-direct imports (`3d3fb85`). Session D dead-UI MoreHorizontal removed from conversation header (`a726f03`). Closure drops ADMIN_FLAGS mock + reverts a diagnostic console.log push that turned out to confirm no actual bug. Smoke green on all 24 brief steps; step 18 PASS A confirmed `getMessages` filters `deleted_at IS NULL`. Two cross-cutting gotchas filed (migration shipped ≠ applied; saved-query-with-no-body Success ambiguity); K-2 + K-3 entries annotated; Phase 8 — DBS orders is up next.
 
-### Up next
+### Post-Session-K roadmap (Sessions L–Q)
 
-- **Phase 8 — DBS orders.** Currently mock (`ADMIN_DBS_ORDERS` in `mockAdmin.js`); needs real Supabase table + admin queue + status enum. Last admin-side mock surface remaining post-K-7.
-- **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
-- **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
-- **Scholar availability editor** — currently empty/missing for real scholars.
-- **Photo upload** — wizard has a placeholder; Supabase storage bucket isn't configured. Out of scope for Session K (text-URL fields only).
-- **Mosques-to-Supabase** — Phase 6 of Session K does this. Unblocks empty mosque-scholar affiliations from Session F.
+**Roadmap rationale.** Sessions L–Q reflect a product reframing: Amanah is a marketplace for parent-scholar discovery + booking AND an operational platform for mosques (HR, DBS, rotas, events, donations). The mosque-side features create network effects: mosques run their operations on Amanah → real local content (events, verified staff) → parents engage more → loop closes. L sequenced first as smallest, ships cleanest, validates DBS infrastructure. M sequenced next as the highest-leverage feature for actual mosque adoption. Total: ~65 commits across 6 focused sessions, paced by available bandwidth.
 
-Decide at the start of the next session — don't pre-commit here.
+- **Session L — DBS orders core.** `dbs_orders` Supabase table + admin queue + scholar self-serve UI (existing approved scholars order their own DBS through dashboard). Mock payment via `processDBSPayment()` stub. Admin marks lifecycle stages: requested | paid | submitted | in_progress | issued | issued_with_disclosure | cancelled. Level enum: basic | enhanced. K-2 verification UI cross-references order audit trail; manual flag flip in K-2 stays canonical. `ADMIN_DBS_ORDERS` mock removed at session close. ~10 commits. Closes the last admin-side mock surface.
+- **Session M — Mosque staff management (HR app foundation).** New `mosque_staff` table, mosque dashboard "Team" tab, two onboarding paths: (1) mosque types staff details directly + creates account on their behalf, (2) email invite linking to the wizard for staff to fill themselves. Per-staff `publicly_listed` boolean toggle on mosque dashboard. Closes Session J's parked Email notifications by shipping the invite email infrastructure (Resend or Supabase Auth hooks). ~15 commits. Highest-leverage session for mosque engagement — without this, mosques have no operational reason to use the dashboard.
+- **Session N — Mosque rotas.** Prayer lead rota (5 daily prayers + Jummah) and classroom/teaching rotas. Recurring schedule modeling, staff assignment from the M-shipped staff list, public-display surface on mosque detail page. Depends on M (need staff records to assign). ~12 commits.
+- **Session O — Events calendar.** Mosque dashboard event creation (Friday lectures, kids' classes, community events), public PublicHome events feed (geo-sorted, similar to mosques featured-4), event detail page, optional RSVP. No M dependency — can ship in any order relative to N. ~10 commits. Closes the platform's "what's happening near me" loop.
+- **Session P — DBS as signup gate + international scholar tier.** Two policy-shaped changes that depend on L's infrastructure: (a) UK scholars can't reach `status='active'` without a clean DBS — admin approves application intent → scholar prompted to order DBS → status flips to active only on issued; (b) international scholar tier with reference-based verification, flagged adult-students-only (skip safeguarding-heavy DBS, add explicit "International scholar — verified via references" pill, restrict bookings to 18+ students). DBS-with-disclosure handled case-by-case by admin, not auto-rejected. ~8 commits.
+- **Session Q — Stripe.** Real payments unblock donations + DBS payment + future scholar payouts. Replaces `processDonation()` and `processDBSPayment()` mock stubs. Backfills both flows simultaneously. ~10 commits. No upstream dependency — can ship after L if pressure to monetise mounts.
 
-### Deferred — mosque admin features (originally C–G)
+### Deferred — mosque admin features (originally tracked C–G)
 
-- **Session F** — Mosque dashboard editing (Profile, Prayer times Iqama editor, location switcher for multi-location orgs)
-- **Session G** — Events/programs (mosque dashboard CRUD + "What's happening" section on mosque detail)
-- **Session H** — Home page "What's happening near you" aggregated events feed
-- **Session I** — Donate-to-mosque flow (`processDonation()` abstraction, Gift Aid checkbox, anonymous toggle)
-- **Session J** — Supabase migration for mosques (`mosques`, `mosque_admins`, `mosque_events` tables) + Aladhan API for Adhan times
-
-> **Note:** Session J (mosque DB migration) likely wants to come *before* F. Otherwise F's "Profile editor" is editing static client data that doesn't persist anywhere. Decide when we get there — same trade-off we hit at the end of Session B.
+The original C–G mosque-admin track has been superseded:
+- Mosque DB migration → done in Session K-6a/6b
+- Mosque dashboard core → done in Session K-6b
+- Events / "what's happening near you" → absorbed into Session O
+- Donate-to-mosque flow → unblocks in Session Q (Stripe)
+- Aladhan API for adhan times → still parked, separate infrastructure
+  session whenever geolocation-driven prayer-time accuracy matters
+- Mosque dashboard per-feature editors → see "Scholar profile editing"
+  parked item above for the equivalent on the scholar side; both
+  likely ship in the same post-Q editor session
 
 ---
 
@@ -3682,3 +3685,7 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **AdminFlags sidebar badge stale-on-action (K-7).** The open-flag count badge in AdminPanel sidebar is fetched on mount and doesn't decrement when the admin takes a flag action. Refresh shows the correct count. Real, observed during K-7 smoke. Either lift open-count to AdminPanel state and decrement on flag action, or refetch on tab switch. Not blocking.
 - **Realtime subscription doesn't cover UPDATE events (K-7).** `subscribeToMessages` listens for INSERT only. An admin soft-delete during an active user session won't surface live — user sees the message vanish on next mount/refresh. Currently benign because admin moderation happens async to user sessions, but matters if real-time soft-deletes ever become a UX expectation. Fix: extend the realtime filter to include UPDATE on `deleted_at`.
 - **Per-message 3-dot click target is ~16x16 (K-7).** 14px Lucide MoreHorizontal icon + 1px button padding = ~16x16 hit target. Functional but small, especially on mobile. Bump button padding to 2–3px for an easier click without changing the visual footprint. Filed during the K-7 click-target false-alarm post-mortem.
+- **Email notifications for application events** (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function. → Resolves in Session M (invite email infrastructure ships there alongside mosque staff onboarding).
+- **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update. → Likely ships in a post-Q editor session bundled with mosque dashboard per-feature editors (per the new "Deferred — mosque admin features" section).
+- **Scholar availability editor** — currently the booking flow uses `DEFAULT_AVAILABILITY` constants from `src/data/scheduleDefaults.js` for every scholar. Real per-scholar availability requires schema (`availability` JSONB column on `scholars` OR a separate `scholar_availability` table modeling weekly recurring slots + exceptions) plus a scholar dashboard editor surface. Likely a focused session of its own, or bundled with the post-Q editor session if the schema turns out to be small.
+- **Photo upload via Supabase storage** — wizard placeholders in `<ScholarOnboardingWizard>` and `<MosqueOnboardingWizard>` show initials avatars; both have explanatory copy that storage isn't configured yet. Multiple downstream features depend on it (profile editors per the Scholar profile editing item above; future event images per Session O). One-shot infrastructure session: configure the bucket, add an upload helper to `auth.js`, replace the two wizard placeholders, document the pattern. Should ship before any of the editor sessions since they'll want it.
