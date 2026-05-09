@@ -417,6 +417,7 @@ function shapeProfile(p) {
   return {
     id: p.id,
     name: p.name,
+    email: p.email,
     avatarInitials: p.avatar_initials,
     avatarGradient: p.avatar_gradient,
   }
