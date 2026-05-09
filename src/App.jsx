@@ -532,7 +532,7 @@ useEffect(() => {
             <p className="text-stone-700 mb-6 text-lg leading-relaxed">There are plenty of places to find a teacher. There aren't many where you know they're safe around your children.</p>
             <div className="space-y-4">
               {[
-                { icon: ShieldCheck, t: "Every scholar DBS-checked", d: "Enhanced DBS and Right to Work verified before listing." },
+                { icon: ShieldCheck, t: "Every scholar DBS-checked", d: "Enhanced DBS verified before listing." },
                 { icon: GraduationCap, t: "Qualifications verified", d: "Ijazahs and institutional training checked in person." },
                 { icon: Award, t: "Real reviews only", d: "Every review from a verified booking. No fakes." }
               ].map(item => {
@@ -6729,7 +6729,6 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
       <div className="space-y-2 mb-5">
         {[
           { label: "Enhanced DBS check", verified: scholar?.dbs_verified },
-          { label: "Right to Work in the UK", verified: scholar?.rtw_verified },
           { label: "Ijazah / Qualifications", verified: scholar?.ijazah_verified },
         ].map(check => (
           <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200"}`}>
@@ -6745,7 +6744,7 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
       </div>
 
       <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-4 text-xs text-stone-600 leading-relaxed">
-        <span className="font-medium text-stone-800">What happens next:</span> we'll email you to arrange document checks. Once all three are verified, your profile goes live and parents can book you.
+        <span className="font-medium text-stone-800">What happens next:</span> we'll email you to arrange document checks. Once both are verified, your profile goes live and parents can book you.
       </div>
 
       <div className="flex flex-col gap-2">
@@ -8866,7 +8865,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <h3 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholar?.name}</h3>
-                    {scholar?.dbs_verified && scholar?.rtw_verified && scholar?.ijazah_verified && (
+                    {scholar?.dbs_verified && scholar?.ijazah_verified && (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-medium">
                         <ShieldCheck size={11} /> Verified
                       </span>
@@ -10185,7 +10184,7 @@ const AdminScholarApplications = () => {
 
   const handlePublish = async () => {
     if (!selectedScholar) return;
-    if (!(selectedScholar.dbs_verified && selectedScholar.rtw_verified && selectedScholar.ijazah_verified)) return;
+    if (!(selectedScholar.dbs_verified && selectedScholar.ijazah_verified)) return;
     setPublishLoading(true);
     const { data, error } = await publishScholar(selectedScholar.id);
     setPublishLoading(false);
@@ -10330,7 +10329,6 @@ const AdminScholarApplications = () => {
               <div className="space-y-2 mb-4">
                 {[
                   { flag: "dbs_verified", label: "DBS verified", hint: "Enhanced DBS check or umbrella body confirmation" },
-                  { flag: "rtw_verified", label: "Right to Work verified", hint: "Share code or document confirmed" },
                   { flag: "ijazah_verified", label: "Ijazah verified", hint: "Optional — only flip if confirmed (institution check)" },
                 ].map(({ flag, label, hint }) => {
                   const checked = !!selectedScholar[flag];
@@ -10355,7 +10353,7 @@ const AdminScholarApplications = () => {
               </div>
 
               {selectedScholar.status !== "active" && (() => {
-                const allTrue = selectedScholar.dbs_verified && selectedScholar.rtw_verified && selectedScholar.ijazah_verified;
+                const allTrue = selectedScholar.dbs_verified && selectedScholar.ijazah_verified;
                 return (
                   <div className="pt-3 border-t border-stone-100">
                     <button
@@ -10370,7 +10368,7 @@ const AdminScholarApplications = () => {
                       )}
                     </button>
                     {!allTrue && (
-                      <p className="text-xs text-stone-500 mt-2 text-center">All three flags must be on before publishing.</p>
+                      <p className="text-xs text-stone-500 mt-2 text-center">Both flags must be on before publishing.</p>
                     )}
                   </div>
                 );
@@ -10395,7 +10393,7 @@ const AdminScholarApplications = () => {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60">
             <div className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-md w-full p-6">
               <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Approve {selected.fullName}?</h3>
-              <p className="text-sm text-stone-700 mb-5 leading-relaxed">This creates a public scholar listing in pending_verification status. The scholar can sign in and use their dashboard, but parents won't see them in listings until DBS / RTW / Ijazah are verified.</p>
+              <p className="text-sm text-stone-700 mb-5 leading-relaxed">This creates a public scholar listing in pending_verification status. The scholar can sign in and use their dashboard, but parents won't see them in listings until DBS / Ijazah are verified.</p>
               {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowApproveModal(false)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>

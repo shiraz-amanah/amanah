@@ -18,7 +18,6 @@ export const transformScholar = (dbScholar) => {
     gender: dbScholar.gender,
     dbsVerified: dbScholar.dbs_verified,
     dbsDate: dbScholar.dbs_verified_date,
-    rtwVerified: dbScholar.rtw_verified,
     ijazahVerified: dbScholar.ijazah_verified,
     online: dbScholar.is_online,
     rating: Number(dbScholar.rating) || 0,
@@ -27,7 +26,7 @@ export const transformScholar = (dbScholar) => {
     students: dbScholar.students_taught || 0,
     packages: dbScholar.packages || [],
     acceptsBookings: dbScholar.accepts_bookings,
-    verified: dbScholar.dbs_verified && dbScholar.rtw_verified && dbScholar.ijazah_verified,
+    verified: dbScholar.dbs_verified && dbScholar.ijazah_verified,
     // Static fallbacks for fields not in DB yet
     nextAvailable: "Today",
   };

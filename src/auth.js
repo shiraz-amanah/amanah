@@ -920,16 +920,16 @@ export async function rejectScholarApplication(applicationId, reason) {
 // ============================================================================
 
 // Admin: flip a single verification flag on a scholars row.
-// `flag` is whitelisted to {dbs_verified, rtw_verified, ijazah_verified}
+// `flag` is whitelisted to {dbs_verified, ijazah_verified}
 // to keep this from being a generic "update any column" surface; if
 // the call site needs other columns later, add a focused helper for
 // each so the trust boundary stays tight. Returns the updated row
-// (raw snake_case) so the caller can recompute "all-three-true"
+// (raw snake_case) so the caller can recompute "all-flags-true"
 // without an extra refetch.
 //
 // RLS: gated by migration 020's "Admins update all scholars" policy.
 export async function setScholarVerificationFlag(scholarId, flag, value) {
-  const allowed = ['dbs_verified', 'rtw_verified', 'ijazah_verified']
+  const allowed = ['dbs_verified', 'ijazah_verified']
   if (!allowed.includes(flag)) {
     return { error: { message: `flag must be one of ${allowed.join(', ')}` } }
   }
