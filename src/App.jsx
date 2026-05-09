@@ -9013,6 +9013,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
     { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
     { v: "profile", l: "Profile", i: User, badge: null },
     { v: "reviews", l: "Reviews", i: Star, badge: reviews.length || null },
+    { v: "dbs", l: "DBS", i: FileCheck, badge: null },
     { v: "messages", l: "Messages", i: MessageCircle, badge: null },
     { v: "account", l: "Account", i: Settings, badge: null },
   ];
@@ -9287,6 +9288,12 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === "dbs" && (
+          <div>
+            <DBSOrderingPanel scholarId={scholar?.id} />
           </div>
         )}
 
