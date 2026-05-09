@@ -5100,6 +5100,17 @@ const ConversationView = ({
                     const isReported = reportedMessageIds.has(m.id);
                     const canShowReportAction = !!authedUser && !isMe && isRealMessage && !isDeleted && !!m.id;
                     const showReportSlot = canShowReportAction || (isReported && !isMe);
+                    console.log("[3-dot gate]", {
+                      hasAuth: !!authedUser,
+                      isMe,
+                      isRealMessage,
+                      isDeleted,
+                      hasId: !!m.id,
+                      canShowReportAction,
+                      mFrom: m.from,
+                      hasSenderIdCamel: m.senderId !== undefined,
+                      hasSenderIdSnake: m.sender_id !== undefined,
+                    });
                     return (
                       <div className={`relative ${showReportSlot ? "pl-4 pr-9" : "px-4"} py-2.5 rounded-2xl ${isMe ? "bg-emerald-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""} ${m.pending ? "opacity-70" : ""}`}>
                         {m.blurred ? (
