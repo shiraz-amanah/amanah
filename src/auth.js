@@ -1886,3 +1886,191 @@ export async function cancelMyDBSOrder(orderId) {
   }
   return { data: shapeDBSOrder(data) }
 }
+
+// ============================================================================
+// Session L — DBS orders (admin side)
+// ============================================================================
+
+// Admin queue list. RLS-gated to admins via 029's "Admins read all DBS
+// orders" policy. The `profiles:dbs_orders_candidate_user_id_fkey` alias
+// matches Postgres's default FK constraint name (verified post-029-apply
+// via pg_constraint probe). shapeDBSOrder maps row.profiles → camelCase
+// `candidate` field so callers can use order.candidate.name without
+// snake_case leakage.
+//
+// Search hits profiles.name + profiles.email (K-5 listAllProfiles pattern).
+// Empty-match early return avoids the 22P02 from .in('id', []) — same
+// fix shape as K-6a's getSavedMosques empty-saves guard.
+export async function getAllDBSOrders({ stage = null, level = null, search = null } = {}) {
+  let query = supabase
+    .from('dbs_orders')
+    .select('*, profiles:dbs_orders_candidate_user_id_fkey(id, name, email)')
+    .order('created_at', { ascending: false })
+
+  if (stage) query = query.eq('stage', stage)
+  if (level) query = query.eq('level', level)
+
+  if (search) {
+    const { data: profiles, error: searchErr } = await supabase
+      .from('profiles')
+      .select('id')
+      .or(`name.ilike.%${search}%,email.ilike.%${search}%`)
+    if (searchErr) {
+      console.error('getAllDBSOrders search probe failed:', searchErr, { search })
+      return { data: [], error: searchErr }
+    }
+    const ids = (profiles || []).map(p => p.id)
+    if (ids.length === 0) return { data: [], error: null }
+    query = query.in('candidate_user_id', ids)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('getAllDBSOrders failed:', error, { stage, level, search })
+    return { data: [], error }
+  }
+  return { data: (data || []).map(shapeDBSOrder), error: null }
+}
+
+// Latest DBS order for a specific candidate. Used by commit 10's K-2
+// verification panel cross-reference ("Latest DBS: Enhanced · Issued ·
+// 12 Apr 2026") above the flag toggles. Returns null if the candidate
+// has no orders yet — caller renders the "scholar can self-serve" copy
+// in that case.
+export async function getLatestDBSOrderForCandidate(candidateUserId) {
+  if (!candidateUserId) return null
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .select('*')
+    .eq('candidate_user_id', candidateUserId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) {
+    console.error('getLatestDBSOrderForCandidate failed:', error, { candidateUserId })
+    return null
+  }
+  return shapeDBSOrder(data)
+}
+
+// Admin: advance order through lifecycle. Validates stage value
+// client-side for friendlier errors (DB CHECK in 029 is the backstop).
+// Free-dropdown admin (L-review amendment 4) means transitions can go
+// backwards too; <stage>_at tracks the MOST RECENT transition into that
+// stage, not the first. Acceptable at single-admin scale.
+export async function setDBSOrderStage(orderId, newStage) {
+  if (!orderId) return { error: { message: 'orderId required' } }
+  const validStages = ['requested', 'paid', 'submitted', 'in_progress', 'issued', 'issued_with_disclosure', 'cancelled']
+  if (!validStages.includes(newStage)) {
+    return { error: { message: `Invalid stage: ${newStage}` } }
+  }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: { message: 'Your session expired. Sign in again and retry.' } }
+
+  const updates = { stage: newStage }
+  switch (newStage) {
+    case 'paid':
+      updates.paid_at = new Date().toISOString()
+      break
+    case 'submitted':
+      updates.submitted_at = new Date().toISOString()
+      break
+    case 'issued':
+    case 'issued_with_disclosure':
+      updates.issued_at = new Date().toISOString()
+      break
+    case 'cancelled':
+      updates.cancelled_at = new Date().toISOString()
+      break
+    // 'requested' + 'in_progress' have no dedicated timestamp by design
+  }
+
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .update(updates)
+    .eq('id', orderId)
+    .select()
+    .single()
+  if (error) {
+    console.error('setDBSOrderStage failed:', error, { userId: user.id, orderId, newStage })
+    return { error }
+  }
+  return { data: shapeDBSOrder(data) }
+}
+
+// Admin: write certificate URL after issue. Validates https:// prefix
+// when a value is present; null/empty clears the field. Admin pastes a
+// hosted-PDF / Drive / Dropbox link — file upload via Supabase storage
+// waits for the dedicated photo-upload session (see parked items).
+export async function setDBSOrderCertificateUrl(orderId, url) {
+  if (!orderId) return { error: { message: 'orderId required' } }
+  const trimmed = (url || '').trim()
+  if (trimmed && !trimmed.startsWith('https://')) {
+    return { error: { message: 'Certificate URL must start with https://' } }
+  }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: { message: 'Your session expired. Sign in again and retry.' } }
+
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .update({ certificate_url: trimmed || null })
+    .eq('id', orderId)
+    .select()
+    .single()
+  if (error) {
+    console.error('setDBSOrderCertificateUrl failed:', error, { userId: user.id, orderId })
+    return { error }
+  }
+  return { data: shapeDBSOrder(data) }
+}
+
+// Admin: write disclosure summary text. Surfaced in detail view only when
+// stage = 'issued_with_disclosure'. Candidate sees a generic "returned
+// with disclosures, our team is reviewing" copy — never the summary
+// itself. Free-form text; null/empty clears.
+export async function setDBSOrderDisclosureSummary(orderId, summary) {
+  if (!orderId) return { error: { message: 'orderId required' } }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: { message: 'Your session expired. Sign in again and retry.' } }
+
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .update({ disclosure_summary: summary || null })
+    .eq('id', orderId)
+    .select()
+    .single()
+  if (error) {
+    console.error('setDBSOrderDisclosureSummary failed:', error, { userId: user.id, orderId })
+    return { error }
+  }
+  return { data: shapeDBSOrder(data) }
+}
+
+// Admin: write internal notes. Always-visible textarea in detail view,
+// admin-only via RLS. Useful for "called candidate, awaiting response"
+// / "DBS submission delayed by Royal Mail" / etc. Null/empty clears.
+export async function setDBSOrderNotes(orderId, notes) {
+  if (!orderId) return { error: { message: 'orderId required' } }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: { message: 'Your session expired. Sign in again and retry.' } }
+
+  const { data, error } = await supabase
+    .from('dbs_orders')
+    .update({ notes: notes || null })
+    .eq('id', orderId)
+    .select()
+    .single()
+  if (error) {
+    console.error('setDBSOrderNotes failed:', error, { userId: user.id, orderId })
+    return { error }
+  }
+  return { data: shapeDBSOrder(data) }
+}
