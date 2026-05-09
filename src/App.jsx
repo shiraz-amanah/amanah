@@ -14,7 +14,7 @@ import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/sch
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
-import { ADMIN_CAMPAIGN_APPS, ADMIN_DBS_ORDERS } from "./data/mockAdmin";
+import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
 // Avatar from initials + gradient
 const Avatar = ({ scholar, size = "md" }) => {
@@ -10251,63 +10251,180 @@ const AdminFlags = ({ authedProfile }) => {
 };
 
 // ===== DBS orders =====
-const AdminDBSOrders = ({ orders }) => (
-  <div>
-    <div className="mb-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>DBS check orders</h1>
-      <p className="text-stone-600">Live pipeline of checks processing through our umbrella body partner</p>
-    </div>
+// Session L commits 8–9. Self-fetches on mount; filters client-side
+// per K-7 <AdminFlags> pattern. Detail view + stage transitions land
+// in commit 9.
+const AdminDBSOrders = () => {
+  const [allOrders, setAllOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const [stageFilter, setStageFilter] = useState("all");
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-    <div className="grid grid-cols-4 gap-3 mb-6">
-      {[
-        { label: "Ordered this month", value: "26", color: "bg-stone-900" },
-        { label: "In progress", value: "12", color: "bg-amber-500" },
-        { label: "Completed this week", value: "8", color: "bg-emerald-700" },
-        { label: "Failed/returned", value: "1", color: "bg-rose-500" }
-      ].map(s => (
-        <div key={s.label} className="bg-white border border-stone-200 rounded-2xl p-4">
-          <div className={`w-2 h-2 rounded-full ${s.color} mb-2`}></div>
-          <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{s.value}</p>
-          <p className="text-xs text-stone-500 mt-0.5">{s.label}</p>
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getAllDBSOrders({})
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) setFetchError(error.message || "Couldn't load DBS orders.");
+        else setAllOrders(data || []);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setFetchError(err?.message || "Couldn't load DBS orders.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim().toLowerCase()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const stageCounts = {
+    all: allOrders.length,
+    requested: allOrders.filter(o => o.stage === "requested").length,
+    paid: allOrders.filter(o => o.stage === "paid").length,
+    submitted: allOrders.filter(o => o.stage === "submitted").length,
+    in_progress: allOrders.filter(o => o.stage === "in_progress").length,
+    issued: allOrders.filter(o => o.stage === "issued").length,
+    issued_with_disclosure: allOrders.filter(o => o.stage === "issued_with_disclosure").length,
+    cancelled: allOrders.filter(o => o.stage === "cancelled").length,
+  };
+  const levelCounts = {
+    all: allOrders.length,
+    basic: allOrders.filter(o => o.level === "basic").length,
+    enhanced: allOrders.filter(o => o.level === "enhanced").length,
+  };
+
+  const filtered = allOrders.filter(o => {
+    if (stageFilter !== "all" && o.stage !== stageFilter) return false;
+    if (levelFilter !== "all" && o.level !== levelFilter) return false;
+    if (debouncedSearch) {
+      const name = (o.candidate?.name || "").toLowerCase();
+      const email = (o.candidate?.email || "").toLowerCase();
+      if (!name.includes(debouncedSearch) && !email.includes(debouncedSearch)) return false;
+    }
+    return true;
+  });
+
+  const formatPrice = (pence) => `£${(pence / 100).toFixed(0)}`;
+  const formatRelative = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  const stagePills = [
+    { v: "all", l: "All" },
+    { v: "requested", l: "Requested" },
+    { v: "paid", l: "Paid" },
+    { v: "submitted", l: "Submitted" },
+    { v: "in_progress", l: "In progress" },
+    { v: "issued", l: "Issued" },
+    { v: "issued_with_disclosure", l: "Disclosure" },
+    { v: "cancelled", l: "Cancelled" },
+  ];
+  const levelPills = [
+    { v: "all", l: "All levels" },
+    { v: "basic", l: "Basic" },
+    { v: "enhanced", l: "Enhanced" },
+  ];
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>DBS check orders</h1>
+        <p className="text-stone-600">{loading ? "Loading…" : `${allOrders.length} total · ${filtered.length} match this view.`}</p>
+      </div>
+
+      <div className="mb-4">
+        <div className="relative max-w-md">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            placeholder="Search by candidate name or email…"
+            className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600"
+          />
         </div>
-      ))}
-    </div>
+      </div>
 
-    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-stone-50 border-b border-stone-200">
-          <tr>
-            <th className="text-left text-xs uppercase tracking-wider text-stone-500 font-medium px-5 py-3">Candidate</th>
-            <th className="text-left text-xs uppercase tracking-wider text-stone-500 font-medium px-5 py-3">Ordered by</th>
-            <th className="text-left text-xs uppercase tracking-wider text-stone-500 font-medium px-5 py-3">Type</th>
-            <th className="text-left text-xs uppercase tracking-wider text-stone-500 font-medium px-5 py-3">Stage</th>
-            <th className="text-left text-xs uppercase tracking-wider text-stone-500 font-medium px-5 py-3">Progress</th>
-            <th className="text-left text-xs uppercase tracking-wider text-stone-500 font-medium px-5 py-3">Ordered</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map(o => (
-            <tr key={o.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-              <td className="px-5 py-4 text-stone-900 font-medium">{o.candidate}</td>
-              <td className="px-5 py-4 text-stone-700">{o.mosque}</td>
-              <td className="px-5 py-4"><span className="text-[10px] px-2 py-0.5 bg-stone-100 rounded-full uppercase tracking-wider font-medium text-stone-700">{o.type}</span></td>
-              <td className="px-5 py-4 text-stone-700">{o.stage}</td>
-              <td className="px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-24 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${o.progress === 100 ? "bg-emerald-600" : "bg-amber-500"}`} style={{ width: `${o.progress}%` }}></div>
-                  </div>
-                  <span className="text-xs text-stone-500">{o.progress}%</span>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {stagePills.map(p => (
+          <button
+            key={p.v}
+            onClick={() => setStageFilter(p.v)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full border ${stageFilter === p.v ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}
+          >
+            {p.l} <span className={`ml-1 ${stageFilter === p.v ? "text-emerald-100" : "text-stone-500"}`}>{stageCounts[p.v]}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        {levelPills.map(p => (
+          <button
+            key={p.v}
+            onClick={() => setLevelFilter(p.v)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full border ${levelFilter === p.v ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}
+          >
+            {p.l} <span className={`ml-1 ${levelFilter === p.v ? "text-stone-300" : "text-stone-500"}`}>{levelCounts[p.v]}</span>
+          </button>
+        ))}
+      </div>
+
+      {fetchError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-rose-800 mb-4">{fetchError}</div>
+      )}
+
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => <div key={i} className="h-16 bg-stone-100 rounded-xl animate-pulse"></div>)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <FileCheck className="mx-auto text-stone-300 mb-3" size={32} />
+          <p className="text-stone-600">No DBS orders match this view.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(o => {
+            const isRefunded = o.paymentStatus === "refunded";
+            return (
+              <div key={o.id} className="bg-white border border-stone-200 rounded-xl p-4 flex items-center gap-3 hover:bg-stone-50">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-stone-900 truncate">{o.candidate?.name || "—"}</p>
+                  <p className="text-xs text-stone-500 truncate">{o.candidate?.email || "—"}</p>
                 </div>
-              </td>
-              <td className="px-5 py-4 text-stone-500 text-xs">{o.orderedDate}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                <span className="text-[10px] uppercase tracking-wider font-medium px-2 py-0.5 bg-stone-100 text-stone-700 rounded-full hidden sm:inline">
+                  {o.level === "enhanced" ? "Enhanced" : "Basic"}
+                </span>
+                <StagePill stage={o.stage} />
+                <div className="text-right hidden md:block">
+                  <p className="text-sm text-stone-900">{formatPrice(o.amountPence)}</p>
+                  {isRefunded && <p className="text-[10px] text-stone-500">Refunded</p>}
+                </div>
+                <p className="text-xs text-stone-500 hidden md:block w-20 text-right">{formatRelative(o.createdAt)}</p>
+                <ChevronRight size={16} className="text-stone-300 flex-shrink-0" />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // ===== Reviews moderation =====
 const AdminReviewsModeration = () => {
@@ -11632,7 +11749,6 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
   const counts = {
     campaigns: campaignApps.length,
     flags: openFlagsCount,
-    dbs: ADMIN_DBS_ORDERS.length
   };
 
   const sectionTitle = {
@@ -11693,7 +11809,7 @@ const AdminPanel = ({ authedProfile, onLogout }) => {
         {section === "campaigns" && <AdminCampaignQueue apps={campaignApps} onAction={handleCampaignAction} />}
         {section === "flags" && <AdminFlags authedProfile={authedProfile} />}
         {section === "reviews" && <AdminReviewsModeration />}
-        {section === "dbs" && <AdminDBSOrders orders={ADMIN_DBS_ORDERS} />}
+        {section === "dbs" && <AdminDBSOrders />}
         {section === "users" && <AdminAllUsers authedProfile={authedProfile} />}
         {section === "settings" && (
           <div>
