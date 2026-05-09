@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 7 (Flags & reports) shipped. 9 user/admin commits (fe73bfc..a726f03) live on prod, plus the closure commit dropping the ADMIN_FLAGS mock + reverting the diagnostic console.log + writing this section. Migration 028 bundled four concerns: Parts A + B restore K-2 admin RLS on scholars (originally 020) and K-3 admin RLS on reviews (originally 021) — pre-flight `pg_policies` probe surfaced that 020 + 021 had been authored, committed to `migrations/`, and noted as "shipped" in K-2/K-3 closures, but never applied to prod (silent RLS no-ops running 24+ hours each); Part C adds admin UPDATE on messages (new for `softDeleteMessage`); Part D ships the polymorphic `flags` table + RLS + indexes (`subject_type` ∈ {scholar, mosque, review, message}, CHECK-locked enums for `reason` and `resolution_action`, partial-unique dedup index on `(reporter_id, subject_type, subject_id)` WHERE `status='open'`, `flags_other_requires_details` CHECK forces details when `reason='other'`). Eight new auth.js helpers (5 flag CRUD + 3 admin-action shortcuts) plus four queue-internal helpers from the 7.5 refactor. Four user-facing affordances all using a shared `<ReportModal>`: `<ReviewCard>` Flag icon in meta row; `<PublicScholarDetail>` + `<PublicMosqueDetail>` Report link in trust cluster; `<ConversationView>` per-message 3-dot on incoming bubbles only, gated by `isRealMessage` (m.senderId !== undefined). New `<AdminFlags>` queue replaces the ADMIN_FLAGS-mock placeholder: status + subject-type + safeguarding filters with live counts, grouped detail showing all flags on the same `(subject_type, subject_id)`, three actions (Dismiss / Resolve without action / Resolve + take action) with bulk-close UPDATE on sibling open flags. AdminFlags supabase-direct queries refactored into four auth.js helpers in `3d3fb85` to restore CLAUDE.md's "App.jsx never touches Supabase directly" convention. Dead-UI MoreHorizontal removed from conversation header (`a726f03`) — Session D legacy that confounded smoke testing of the new bubble 3-dot. Bug 1 (DISCOVERY): pre-flight pg_policies probe found 020 + 021 never applied to prod despite paper trail — fixed in 028 Parts A + B. Likely root cause: Supabase SQL editor's saved-query feature returns the same "Success. No rows returned" banner for successful CREATE POLICY and empty/overwritten query body. Bug 2 (CLICK-TARGET FALSE ALARM): per-message 3-dot reported broken; diagnostic console.log to prod (`6ff1220`, reverted in closure) confirmed all gate variables correct; real cause was the dead-UI header MoreHorizontal that smoke tester kept clicking. Smoke green on all 24 brief steps. Step 18 PASS A — `getMessages` in `auth.js:532` filters `deleted_at IS NULL`. Two new cross-cutting gotchas: "Migration file shipped ≠ applied to prod" + "Saved-query-with-no-body returns indistinguishable Success". Three new parked items: AdminFlags sidebar badge stale-on-action; realtime subscription doesn't cover UPDATE events; per-message 3-dot click target ~16x16. K-2 + K-3 entries annotated with never-applied discovery + 028 restoration. Next: Phase 8 — DBS orders. Currently mock (`ADMIN_DBS_ORDERS` in `mockAdmin.js`); needs real Supabase table + admin queue + status enum.
+> Last action: Session L (DBS orders core) shipped. 12 work commits + 1 closure = 13 total. `e142267` (UI RTW drop) → `4d363e6` (shapeProfile email fix) live on prod. Migration 029 bundled two concerns: Part A drops `scholars.rtw_verified` (scholars are independent contractors; RTW applies to mosque staff in Session M), Part B creates `dbs_orders` table + 5 RLS policies + partial-unique active-order index + lifecycle CHECK enums. Eleven new auth.js helpers (5 candidate-side + 6 admin-side) + DBS_PRICES_PENCE constant. New `<DBSOrderingPanel>` shared component (5 render branches, 10 useState) wired into `<ScholarDashboard>` DBS tab; mosque-side tab reverted mid-smoke (Bug 4) — mosques aren't people, can't have DBS, reintroduces in Session M with staff candidate semantics. New `<AdminDBSOrders>` queue + detail view replaces 57-line ADMIN_DBS_ORDERS mock — 8 stage filters + 3 level filters + debounced search, full lifecycle controls (stage dropdown, certificate URL with https:// validation, disclosure summary, internal notes, refund indicator). K-2 verification panel surfaces latest DBS order via `getLatestDBSOrderForCandidate` with click-through to AdminDBSOrders detail (`dbsDetailOrderId` lifted to `<AdminPanel>`). Five bugs caught — three pre-apply via surface review (Critical-1 RLS gap on chained submit→pay, Critical-2 NOT NULL + SET NULL contradiction, missing `getAllDBSOrders` import bundled into commit 9), two mid-smoke (Bug 4 mosque tab semantic mismatch, Bug 5 shapeProfile dropping email). NOTIFY pgrst + 5-probe + hard-refresh is now firm protocol after every CREATE migration; 029's apply checklist footer block is the canonical template. Smoke incomplete: candidate-side steps 1-10 ran against wrong account, steps 14-19 partially validated (list view confirmed post-email-fix), steps 20-27 untested — flag for Session M start. Next: Session M (mosque staff management + email invite infrastructure + reintroduce mosque-side DBS for staff).
 
 ---
 
@@ -40,12 +40,13 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session K Phase 6b** ✅ — Mosque sign-up flow + wizard + dashboard. Migration 027 added mid-flight (`mosque_applications.lat` + `lng` + `facilities text[]` + approval trigger replaced via `CREATE OR REPLACE FUNCTION` to thread these through into the mosques row on approval — preserves trigger binding without DROP/CREATE round-trip). Two new auth.js helpers: `submitMosqueApplication` (Postcodes.io geocoding pipeline — lenient client-side regex + server-side gate + graceful null degradation, end-to-end verified Bradford BD9 6LH → 53.814835, -1.802964; admin warning chip in detail view catches null lat/lng before publish) + `getMyMosqueApplication`. Audience drawer "Mosque" path now routes through Supabase auth (`UserAuth role='mosque'`), replacing legacy LoginScreen. New `<MosqueOnboardingWizard>` (5 steps: Welcome / About / Location & access / Prayer times / Review) with sessionStorage hydration + hydrating gate (precedence: sessionStorage draft → server-side rejected app → blank initialForm). Three new status views (mosqueApplicationSubmitted / mosqueApplicationRejected with reason + "Edit and resubmit" / mosqueVerificationPending with 3 flag pills). New `<MosqueDashboard>` with Profile / Donations (empty state) / Messages / Account tabs only (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch state machine mirrors `routeAuthedScholar`. Bootstrap probe gating: `getMosqueByUserId` + `getMyMosqueApplication` only fire when `profile` exists. Sign-out parity fix (3807b19) caught during smoke regression check by visual comparison across the three dashboard headers — header LogOut icon was missing from MosqueDashboard, added next to the Live/Pending status pill. **Mid-session bug 1 (BLOCKER, fixed in `76acbaa`):** ReferenceError on `getMyMosqueApplication` during bootstrap — commit `c8ab00e` added the call site but missed updating the App.jsx import line for both `submitMosqueApplication` + `getMyMosqueApplication`. **Mid-session bug 2 (FALSE ALARM):** suspected `getSavedMosques` 22P02 turned out to be cascading from bug 1; empty-saves guard already in place from 6a's `a3e7438`, saves table probed clean for stale non-UUID rows. Smoke green end-to-end on both approve and reject paths. Test fixtures purged post-smoke (delete order: mosque_applications → mosques → saves → profiles → auth.users; `profiles_id_fkey` delete_rule was `NO ACTION` so explicit profiles delete required before auth.users); production seed untouched. **Two parked items:** (1) `jumuah_time` wizard gap — column not on mosque_applications, wizard-approved mosques null until profile editor ships; (2) two cross-path edge cases (mosque-via-parent, mosque-via-scholar audience flows — same shape as existing scholar-via-parent, fix all three together in a future cross-path session). 14 commits.
 
 - **Session K Phase 7** ✅ — Flags & reports. Migration 028 bundled four concerns: Parts A + B restore K-2 admin RLS on scholars (originally 020) and K-3 admin RLS on reviews (originally 021) — pre-flight pg_policies probe surfaced both had been committed + noted-as-shipped but never applied to prod (silent RLS no-ops running 24+ hours each); Part C adds admin UPDATE on messages (new for softDeleteMessage); Part D ships polymorphic `flags` table (subject_type ∈ {scholar,mosque,review,message}) + RLS + indexes + partial-unique dedup index. Eight new auth.js helpers (5 flag CRUD + 3 admin-action shortcuts unpublishScholar/unpublishMosque/softDeleteMessage). Four user-facing Report affordances using shared `<ReportModal>`: ReviewCard Flag icon, PublicScholarDetail + PublicMosqueDetail Report link, ConversationView per-message 3-dot on incoming bubbles. New `<AdminFlags>` queue with status + subject-type + safeguarding filters, grouped detail, three resolve/dismiss/action shortcuts with bulk-close UPDATE on sibling open flags. AdminFlags refactored to drop App.jsx supabase-direct imports (`3d3fb85`). Session D dead-UI MoreHorizontal removed from conversation header (`a726f03`). Closure drops ADMIN_FLAGS mock + reverts a diagnostic console.log push that turned out to confirm no actual bug. Smoke green on all 24 brief steps; step 18 PASS A confirmed `getMessages` filters `deleted_at IS NULL`. Two cross-cutting gotchas filed (migration shipped ≠ applied; saved-query-with-no-body Success ambiguity); K-2 + K-3 entries annotated; Phase 8 — DBS orders is up next.
+- **Session L** ✅ — DBS orders core. Migration 029 drops `scholars.rtw_verified` (Part A) + creates `dbs_orders` table with 5 RLS policies, partial-unique active-order index, 7-stage lifecycle CHECK, candidate_user_id required + scholar_id/mosque_id optional polymorphic context (Part B). 11 auth.js helpers + DBS_PRICES_PENCE constant. New `<DBSOrderingPanel>` shared component (10 useState, 5 render branches incl. issued-with-disclosure UX gate) wired into `<ScholarDashboard>` DBS tab. New `<AdminDBSOrders>` queue + detail view replaces ADMIN_DBS_ORDERS mock — 8 stage filters, 3 level filters, debounced search, free-dropdown stage transitions per L review amendment 4 with confirm modal on issued/issued_with_disclosure/cancelled. K-2 verification panel surfaces latest DBS order via dbsDetailOrderId state lifted to `<AdminPanel>`. RTW dropped from K-2 UI (3 toggles → 2) + scholarTransform + ScholarVerificationPending + PublicHome trust copy. Critical-1 amendment shipped insert-with-paid in single round-trip (chained submit→pay would have been RLS-blocked); Critical-2 amendment dropped NOT NULL on ordered_by (NOT NULL + ON DELETE SET NULL is contradictory). Mosque DBS tab reverted mid-smoke (Bug 4: mosques aren't people; Session M reintroduces with staff semantics). shapeProfile email omission caught mid-smoke (Bug 5: admin DBS list rendered candidate email as "—"). NOTIFY pgrst + 5-probe + hard-refresh codified as firm protocol. Smoke incomplete — flag for Session M start. 12 work commits + closure = 13 total.
 
 ### Post-Session-K roadmap (Sessions L–Q)
 
 **Roadmap rationale.** Sessions L–Q reflect a product reframing: Amanah is a marketplace for parent-scholar discovery + booking AND an operational platform for mosques (HR, DBS, rotas, events, donations). The mosque-side features create network effects: mosques run their operations on Amanah → real local content (events, verified staff) → parents engage more → loop closes. L sequenced first as smallest, ships cleanest, validates DBS infrastructure. M sequenced next as the highest-leverage feature for actual mosque adoption. Total: ~65 commits across 6 focused sessions, paced by available bandwidth.
 
-- **Session L — DBS orders core.** `dbs_orders` Supabase table + admin queue + scholar self-serve UI (existing approved scholars order their own DBS through dashboard). Mock payment via `processDBSPayment()` stub. Admin marks lifecycle stages: requested | paid | submitted | in_progress | issued | issued_with_disclosure | cancelled. Level enum: basic | enhanced. K-2 verification UI cross-references order audit trail; manual flag flip in K-2 stays canonical. `ADMIN_DBS_ORDERS` mock removed at session close. ~10 commits. Closes the last admin-side mock surface.
+- **Session L — DBS orders core** ✅ — shipped 9 May 2026 (13 commits, see Shipped list above + closure section below). Mosque-side DBS punted to Session M with staff semantics (mosque DBS tab reverted mid-smoke; Bug 4).
 - **Session M — Mosque staff management (HR app foundation).** New `mosque_staff` table, mosque dashboard "Team" tab, two onboarding paths: (1) mosque types staff details directly + creates account on their behalf, (2) email invite linking to the wizard for staff to fill themselves. Per-staff `publicly_listed` boolean toggle on mosque dashboard. Closes Session J's parked Email notifications by shipping the invite email infrastructure (Resend or Supabase Auth hooks). ~15 commits. Highest-leverage session for mosque engagement — without this, mosques have no operational reason to use the dashboard.
 - **Session N — Mosque rotas.** Prayer lead rota (5 daily prayers + Jummah) and classroom/teaching rotas. Recurring schedule modeling, staff assignment from the M-shipped staff list, public-display surface on mosque detail page. Depends on M (need staff records to assign). ~12 commits.
 - **Session O — Events calendar.** Mosque dashboard event creation (Friday lectures, kids' classes, community events), public PublicHome events feed (geo-sorted, similar to mosques featured-4), event detail page, optional RSVP. No M dependency — can ship in any order relative to N. ~10 commits. Closes the platform's "what's happening near me" loop.
@@ -2563,6 +2564,10 @@ phase, became active during smoke):
   that needs to be re-clicked. The complexity wasn't worth it
   for this surface.
 
+### Annotation (post-L, 9 May 2026)
+
+Session L commit 1 (`e142267`) dropped scholars.rtw_verified from the K-2 verification UI; commit 2 (`c1111c5`, migration 029 Part A) dropped the column from the schema. Scholars are independent contractors on Amanah, not employees — RTW (Right to Work) applies only to employees. Mosque staff DO need RTW; that flag lives on `mosque_staff` (Session M), not scholars. The K-2 verification panel now renders two flag toggles (DBS + Ijazah) instead of three; the "all-three-true" publish gate is now "all-two-true"; auth.js setScholarVerificationFlag whitelist trimmed to `{dbs_verified, ijazah_verified}`. K-2 verification panel also gains a "Latest DBS order" cross-reference block above the toggles (commit 10, `78065b2`) with click-through to `<AdminDBSOrders>` detail.
+
 ### Annotation (post-K-7, 8 May 2026)
 
 K-7 pre-flight `pg_policies where tablename='scholars'` probe returned no `is_admin()`-aware policies. Migration 020 was authored and committed to `migrations/` (and noted as shipped in this section's commits list) but never applied to prod. K-2's verification UI was a silent RLS no-op between 7 May 2026 and 8 May 2026 — `getScholarById` against `pending_verification` rows returned null for admin (the public policy filters `status='active'` and 016's self-select policy only matches the scholar's own user_id), and the verification toggles were RLS-denied. Restored via migration 028 Part A on 8 May 2026 with `DROP POLICY IF EXISTS` guards in case 020 had partially landed. The auth.js helpers and AdminScholarApplications UI shipped in K-2 needed no changes. Likely root cause: the Supabase SQL editor's saved-query feature returns the same `Success. No rows returned` banner for a successful CREATE POLICY and an empty / overwritten query body — see the new "Saved-query-with-no-body returns indistinguishable Success" gotcha.
@@ -3621,6 +3626,412 @@ Cross-cutting (18–24):
 - Per-message 3-dot click target is ~16x16 (14px icon + 1px
   padding). Functional but small; bump padding to 2–3px for
   easier tap targets on mobile.
+
+---
+
+## Session L — DBS orders core ✅ (9 May 2026)
+
+First post-K product session. Replaces the last admin-side mock
+surface (ADMIN_DBS_ORDERS) with a Supabase-backed dbs_orders table
++ candidate self-serve UI + admin queue with full lifecycle
+management. Drops scholars.rtw_verified per the "scholars are
+independent contractors" framing — RTW now lives only with
+mosque_staff (Session M). K-2 verification panel surfaces latest
+DBS order as audit-trail context above the manual flag toggles.
+
+12 commits + 1 closure = 13 total. Five bugs caught — three pre-
+apply via surface review, two mid-smoke. Smoke pass incomplete;
+flag for Session M start.
+
+### What shipped
+
+- **Migration 029** — bundles two concerns: Part A drops
+  `scholars.rtw_verified` (scholars are contractors); Part B
+  creates `dbs_orders` table + 5 RLS policies + indexes.
+  Polymorphic candidate context (candidate_user_id required +
+  scholar_id/mosque_id optional). CHECK-locked enums (level:
+  basic|enhanced; stage: 7-state lifecycle; payment_status:
+  unpaid|paid|refunded). Partial-unique index
+  dbs_orders_one_active_per_candidate_idx enforces one active
+  order per candidate. ordered_by NULLABLE per L Critical-2
+  review.
+
+- **DBS_PRICES_PENCE constant** — basic 2500p / enhanced 5500p.
+  Frozen at INSERT into amount_pence. Real Stripe in Q sources
+  from a Stripe price object instead.
+
+- **shapeDBSOrder helper** — snake → camel; optional profiles
+  join shaped to `candidate` field for admin queue rendering.
+
+- **Five candidate-side helpers in auth.js** —
+  getMyActiveDBSOrder, getMyDBSOrders, submitDBSOrder({level,
+  scholarId?, mosqueId?, mockPayment=true}), processDBSPayment
+  (thin wrapper: 800ms simulated delay → submitDBSOrder with
+  mockPayment=true), cancelMyDBSOrder. Critical-1 amendment:
+  insert-with-paid in single round-trip — chained submit→pay
+  would have been RLS-blocked by candidate cancel-only UPDATE
+  policy.
+
+- **Six admin-side helpers in auth.js** — getAllDBSOrders({
+  stage?, level?, search?}) with profiles FK join via
+  dbs_orders_candidate_user_id_fkey alias,
+  getLatestDBSOrderForCandidate, setDBSOrderStage (populates
+  appropriate timestamp by stage), setDBSOrderCertificateUrl
+  (https:// prefix validation), setDBSOrderDisclosureSummary,
+  setDBSOrderNotes. All four mutations carry getUser +
+  getSession defensive guards per K-7's 50b7c41 pattern.
+
+- **`<DBSOrderingPanel>` shared component** (~342 LoC) — used
+  by `<ScholarDashboard>`. Five render branches: loading
+  skeleton; active-order detail with `<StageTimeline>` 5-stage
+  horizontal stepper + cancel inline confirmation; issued-with-
+  disclosure UX gate (no order-entry CTA); empty-state two-card
+  level picker; history-only with re-order picker. Order modal
+  flow: pick level → confirm → "Pay" → processDBSPayment →
+  success closes modal + active order appears. State-as-feedback
+  (no internal toast). Modal stays open with inline 23505 error
+  on duplicate.
+
+- **DBS tab in `<ScholarDashboard>`** — between Reviews and
+  Messages. Tab order: Bookings · Profile · Reviews · DBS ·
+  Messages · Account. Renders `<DBSOrderingPanel
+  scholarId={scholar?.id} />`.
+
+- **`<AdminDBSOrders>` queue + filters + detail** — replaces
+  57-line ADMIN_DBS_ORDERS mock. Self-fetches via
+  getAllDBSOrders, filters client-side per K-7 `<AdminFlags>`
+  pattern. 8 stage pills + 3 level pills + debounced 300ms
+  search on candidate name/email. List rows surface candidate
+  identity + level badge + stage pill + amount (with refunded
+  subscript) + relative date. Click → `<AdminDBSOrderDetail>`
+  with full lifecycle controls: stage dropdown, certificate URL
+  input, disclosure summary textarea, internal notes textarea,
+  refund indicator. Confirm modal gates issued /
+  issued_with_disclosure / cancelled transitions. Free-dropdown
+  admin per L review amendment 4 — direction note: "Stage
+  transitions aren't validated for direction. Use notes for
+  audit corrections."
+
+- **K-2 verification panel cross-reference** —
+  `<AdminScholarApplications>` detail view fetches
+  getLatestDBSOrderForCandidate when an approved application
+  is opened, renders "Latest DBS order: Enhanced · Issued ·
+  12 Apr 2026 · [View order →]" above the verification flag
+  toggles. Click-through deep-links into `<AdminDBSOrders>`
+  detail via dbsDetailOrderId state lifted to `<AdminPanel>`.
+  Manual flag flip in K-2 stays canonical — DBS order surfacing
+  is audit context, not a gate.
+
+- **RTW dropped from K-2 verification UI** (commit 1, pre-
+  migration) — three toggles → two (DBS + Ijazah). Removed from
+  setScholarVerificationFlag whitelist, scholarTransform
+  adapter, ScholarVerificationPending pill list, ScholarDashboard
+  verified-pill gate, AdminScholarApplications publish gate +
+  allTrue + copy + approve modal copy. PublicHome trust copy
+  ("Enhanced DBS verified before listing") updated.
+
+- **Mosque DBS tab reverted mid-smoke** (commit 11, `3e4e56d`).
+  Initial commit 7 wired DBS tab into MosqueDashboard. Smoke
+  caught the product-semantic mismatch: a mosque isn't a person
+  and can't have a DBS check. Reverted via direct edit. Panel +
+  helpers + scholar-side wiring all stayed. Session M will
+  reintroduce mosque-side DBS through the staff management flow
+  with proper candidate semantics.
+
+- **shapeProfile email fix** (commit 12, `4d363e6`). Admin DBS
+  orders list rendered candidate email as "—" because
+  shapeProfile's return object dropped `email` on the floor.
+  One-line fix added `email: p.email`. **Surface widening:**
+  every consumer of shapeProfile now sees email; pre-launch
+  audit pass needed.
+
+### Commits (12 + closure)
+
+- `e142267` refactor(scholars): drop rtw_verified from K-2 verification UI
+- `c1111c5` schema(029): dbs_orders table + drop scholars.rtw_verified
+- `4f047a6` feat(auth): DBS order helpers — candidate side
+- `490d4f3` feat(auth): DBS order helpers — admin side
+- `7ea0aa9` feat(dbs): <DBSOrderingPanel> shared component
+- `0165aa1` feat(scholars): DBS tab in ScholarDashboard
+- `e4430e6` feat(mosques): DBS tab in MosqueDashboard (REVERTED in 3e4e56d)
+- `2531e5c` feat(admin): <AdminDBSOrders> queue list + filters
+- `eb2b522` feat(admin): <AdminDBSOrders> detail view + stage transitions
+- `78065b2` feat(admin): K-2 verification panel surfaces latest DBS order
+- `3e4e56d` revert(mosques): remove premature DBS tab from MosqueDashboard
+- `4d363e6` fix(profiles): include email in shapeProfile return
+- `<TBD>` chore: Session L closure — drop ADMIN_DBS_ORDERS mock + NOTES update
+
+13 commits.
+
+### Bugs found mid-session
+
+- **Bug 1 (CAUGHT IN SURFACE REVIEW, fixed pre-apply)** —
+  Critical-1 RLS bug: brief's chained submitDBSOrder +
+  processDBSPayment two-step would have been RLS-blocked by the
+  candidate cancel-only UPDATE policy on dbs_orders (USING stage
+  in (requested,paid), WITH CHECK stage='cancelled' — the
+  requested→paid transition fails the WITH CHECK). Fixed via
+  amendment to insert-with-paid in single round-trip — INSERT
+  with stage='paid' + payment_status='paid' + paid_at +
+  payment_reference set in one shot. processDBSPayment becomes
+  thin wrapper preserving the seam for Stripe in Q. Caught in
+  pre-flight surface review of commit 3 helpers.
+
+- **Bug 2 (CAUGHT IN SURFACE REVIEW, fixed pre-apply)** —
+  Critical-2 schema bug: brief's `ordered_by uuid not null
+  references profiles(id) on delete set null` is contradictory.
+  ON DELETE SET NULL would set the column to NULL on profile
+  delete, violating NOT NULL and rolling back the delete. Fixed
+  by dropping NOT NULL — audit-field semantics OK with null
+  after profile deletion (orphaned but preserved); INSERT policy
+  still enforces ordered_by = auth.uid() so live writes can't
+  slip through with null. Caught in pre-flight surface review of
+  migration 029.
+
+- **Bug 3 (CAUGHT POST-COMMIT 8, fixed in commit 9)** —
+  getAllDBSOrders was used in commit 8's `<AdminDBSOrders>`
+  mount fetch but never added to the App.jsx import line. Build
+  passes (Vite doesn't statically resolve cross-module imports);
+  runtime would have ReferenceError'd on first DBS tab click.
+  Bundled fix into commit 9's import additions (5 helpers added
+  in one update). Inert until push since commits 8+9 ship
+  together. Process lesson: surface reviews must verify both
+  lucide icons AND auth.js helpers — commit 8's review verified
+  the former, missed the latter.
+
+- **Bug 4 (CAUGHT MID-SMOKE, reverted in commit 11)** — initial
+  commit 7 (`e4430e6`) wired a DBS tab into MosqueDashboard.
+  Smoke step 11-13 surfaced the product-semantic mismatch: a
+  mosque isn't a person and can't have a DBS check. The tab let
+  mosque admins order their own DBS attached to mosque_id
+  context — mechanically valid but meaningless UX. Reverted via
+  direct edit (`3e4e56d`); panel + helpers + scholar-side
+  wiring all stayed. Session M will reintroduce mosque-side DBS
+  through the staff management flow with proper candidate
+  semantics. Lesson: "user-facing surface" reviews need a
+  product-semantic axis in addition to technical correctness.
+
+- **Bug 5 (CAUGHT MID-SMOKE, fixed in commit 12)** — admin DBS
+  orders list rendered candidate email as "—" instead of the
+  actual email. SQL FK join was correct (verified directly via
+  Supabase: profiles.email populates fine). Bug was that
+  shapeProfile dropped `email` on the floor before returning —
+  its consumer in shapeDBSOrder called shapeProfile(row.profiles)
+  which produced { id, name, avatarInitials, avatarGradient }
+  with no email field, so order.candidate.email was undefined.
+  One-line fix in commit 12 (`4d363e6`) added `email: p.email`.
+  **Surface widening: every consumer of shapeProfile now sees
+  email.** Inert at conversation participants since no view reads
+  `participant.profile.email`, but a one-pass audit before public
+  launch is warranted.
+
+### Decisions
+
+- **Insert-with-paid in single round-trip (Critical-1 amendment).**
+  Brief's two-step (INSERT then UPDATE to paid) would have been
+  RLS-blocked by the candidate cancel-only UPDATE policy. Self-
+  serve INSERT policy doesn't constrain stage / payment_status,
+  so the helper picks them. Real Stripe in Q replaces the
+  `mockPayment=true` branch with a server-side charge confirmation
+  + stage='paid' INSERT.
+
+- **ordered_by NULLABLE (Critical-2 amendment).** NOT NULL + ON
+  DELETE SET NULL is contradictory. INSERT policy enforces
+  ordered_by = auth.uid() so live writes can't slip through with
+  null; audit-field semantics OK with null after profile deletion.
+
+- **UI-first commit ordering.** Commit 1 dropped RTW from the UI
+  BEFORE migration 029 dropped the column in commit 2. Reverse
+  ordering would have left a runtime-broken window where the UI
+  queried a column that no longer existed. K-7's `cbfab20`
+  (helpers shipped before any UI references) established the
+  pattern.
+
+- **Free-dropdown admin (L review amendment 4).** No direction
+  validation on stage transitions. Admin can go backwards (e.g.,
+  issued → in_progress for mistake corrections). Direction note
+  copy in detail view: "Stage transitions aren't validated for
+  direction. Use notes for audit corrections." Simpler than
+  state-machine validation; trust admin + audit via notes.
+
+- **Confirm modal on issued / issued_with_disclosure /
+  cancelled.** All three feel irreversible to the candidate.
+  Other transitions fire immediately without confirm.
+
+- **Polymorphic candidate context.** dbs_orders.candidate_user_id
+  required (the person the check is FOR); scholar_id and
+  mosque_id optional org context. Schema accommodates Session
+  M's mosque-orders-for-staff (separate ordered_by field).
+
+- **Client-side filtering in AdminDBSOrders.** Mirrors K-7
+  `<AdminFlags>`: fetch all once, filter client-side. Server-side
+  filter args on getAllDBSOrders stay available for future
+  paginated views.
+
+- **Sidebar count badge dropped.** DBS lifecycle has no clear
+  "needs attention" stage like K-7 flags' "open". Defining one
+  is product policy not just code; revisit when a real admin
+  tells us what number helps.
+
+- **State-as-feedback in `<DBSOrderingPanel>`.** No internal
+  toast. Modal closes on success → active order card appears
+  on panel → that's the success signal. Failure stays inline
+  with friendly copy. Simpler component contract.
+
+- **Issued-with-disclosure UX gate.** Schema's partial-unique
+  index allows new orders post-IWD (it's not in the "active"
+  stage list). UI suppresses the order-entry CTA pending admin
+  manual review per brief smoke step 15. UX gate, not schema
+  gate.
+
+- **Direct mock payment vs Stripe-API-shape.** Chose direct (the
+  helper sets paid fields at INSERT) because Stripe replacement
+  in Q is the seam — processDBSPayment becomes a real charge
+  call, submitDBSOrder accepts the confirmed-charge fields.
+  Mocking Stripe's exact shape now would be premature.
+
+### Smoke incomplete
+
+The 27-step smoke plan ran partially. Findings:
+
+- **Steps 1-10 (candidate self-serve happy path) — INCOMPLETE.**
+  Test orders during smoke went to the wrong account (Yusuf
+  test account, not Shiraz admin). The candidate-side flow
+  wasn't validated end-to-end against an intentional persona.
+- **Steps 11-13 (mosque dashboard DBS tab) — RESULT: tab pulled.**
+  Surfaced Bug 4 (product-semantic mismatch); reverted in
+  commit 11.
+- **Steps 14-19 (admin queue side) — PARTIALLY VALIDATED.** List
+  view confirmed working (post Bug 5 fix). Detail view + stage
+  transitions + certificate URL save + disclosure summary save
+  + notes save not exercised end-to-end.
+- **Steps 20-27 (cross-references, RLS regression, K-2 cross-
+  reference, closure verification) — UNTESTED.**
+
+**Action item for Session M start:** run a full smoke pass
+against L's surfaces before building staff management on top.
+Specifically validate:
+- Candidate ordering flow end-to-end with a fresh test user
+  (start from empty DBS state, order Enhanced, verify active
+  order card)
+- Cancel flow (from paid stage → cancelled + refunded)
+- Admin stage transitions end-to-end (paid → submitted →
+  issued; certificate URL save)
+- Disclosure path (issued_with_disclosure → admin writes summary
+  → candidate sees generic copy)
+- K-2 cross-reference click-through (open scholar app detail →
+  Latest DBS order block populates → click "View order" →
+  lands in AdminDBSOrders detail)
+- RLS regression (parent + signed-out users can't see DBS orders
+  via DevTools console)
+
+### Lessons learned
+
+- **Pre-flight surface review caught two schema bugs before
+  migration apply.** Critical-1 (RLS gap on chained submit→pay)
+  and Critical-2 (NOT NULL + SET NULL contradiction) both
+  surfaced from reading the brief's SQL + helper code together.
+  Worth the cadence cost — a runtime crash post-deploy or a
+  failed migration apply costs more than 15 minutes of structured
+  review.
+
+- **Helpers-first ordering (Phase 6b lesson) — but surface reviews
+  must verify both axes.** Commit 8's `<AdminDBSOrders>` used
+  getAllDBSOrders which wasn't in the import line. Surface review
+  verified lucide-react icons but didn't separately verify
+  auth.js helpers. New rule: every component-touching commit's
+  surface review checks both import sources independently.
+
+- **NOTIFY pgrst + 5-probe + hard-refresh is now firm protocol
+  after every CREATE migration.** K-7's "migration shipped ≠
+  applied to prod" lesson reinforced — caught immediately in 029
+  because we ran the full verification (information_schema.columns
+  for column-level, pg_policies for RLS, pg_indexes for indexes,
+  pg_constraint for FK names, information_schema.tables for
+  table-level), would have been a 400-fest in commit 3 otherwise.
+  The 029 apply checklist footer block is now the canonical
+  template.
+
+- **Free-dropdown admin simpler than state-machine validation.**
+  State machines look principled but bring config drift, edge
+  case prolif, and "why can't I do X?" support tickets. Trust
+  admin + use notes for audit. Worth re-applying anywhere admin
+  is the only writer.
+
+- **Insert-with-paid has no failure window vs chained two-step.**
+  Two-step had a race (order created in 'requested' state but
+  payment fails → orphan) AND an RLS gap (candidate can't UPDATE
+  to 'paid' under cancel-only policy). Single round-trip is
+  structurally simpler — order doesn't exist until it's paid.
+
+- **Sidebar count badges are product-policy decisions, not just
+  code.** K-7 flags' "open" count works because "open = needs
+  attention" is unambiguous. DBS doesn't have such a stage.
+  Defer until a real admin tells you what number would help;
+  don't invent product semantics in service of UI symmetry.
+
+- **Smoke methodology: verify which account is signed in at
+  each smoke step.** The Yusuf-vs-Shiraz confusion that left
+  steps 1-10 incomplete would have been caught earlier with
+  explicit "signed in as: <persona>" notation at each step.
+  Bake into future smoke step lists.
+
+- **shapeProfile email omission: when adding fields to a shaper,
+  audit all consumers.** shapeProfile is called from at least
+  shapeDBSOrder (commit 3) and shapeConversation (Session D).
+  Adding email widens the surface across both. The K-2 admin
+  panel, conversation participants, scholar listings, etc. —
+  pre-launch pass needed to confirm no view leaks email where
+  it shouldn't.
+
+- **Product-semantic axis in surface reviews.** Bug 4 (mosque
+  DBS tab) was technically correct — schema accepted the row,
+  RLS allowed it, UI rendered it. But mosques aren't people; the
+  affordance was nonsensical. Future surface reviews should
+  explicitly ask "does this affordance make sense for the
+  persona using it?" not just "does it work?"
+
+### Out of scope / parked
+
+From commit 10's edge cases:
+- **dbsDetailOrderId not reset post-handoff.** Stale prop on the
+  "click same order twice from K-2" path. Punted unless real
+  admin reports.
+- **Latest-DBS display in K-2 stale after admin transitions
+  stage in DBS section.** Window-focus refetch if it matters
+  later.
+- **Mock payment race / Retry-payment CTA.** Re-emerges in Q
+  with real Stripe (where charge can fail post-order-creation).
+- **Linked-listing click-through from `<AdminDBSOrderDetail>`
+  to public scholar/mosque pages.** Punted to future polish.
+
+From L brief Out-of-scope:
+- Mosque-orders-DBS-for-staff (Session M) — tab reverted in
+  commit 11; reintroduces with proper staff candidate semantics.
+- Email notifications on stage changes (Session M ships email
+  infra).
+- DBS-as-wizard-signup-gate (Session P).
+- International scholar tier (Session P).
+- Real Stripe payments (Session Q).
+- File upload of certificates (deferred to dedicated photo-upload
+  session).
+- Bulk admin actions.
+- Pagination in admin queue.
+- DBS renewal / expiry tracking (DBS checks expire after ~3
+  years; future feature).
+- Notifications to scholars on stage changes.
+
+New parked items from L:
+- **Smoke pass needed at start of Session M** before building
+  staff management on top. Specifically the 6 sub-steps in
+  Smoke incomplete above.
+- **shapeProfile email surface widening** — pre-launch audit
+  pass on every consumer to confirm no view leaks email where
+  it shouldn't.
+- **Issued-with-disclosure UX gate is schema-decoupled.** Schema
+  allows new orders post-IWD; UI suppresses CTA pending manual
+  review. If admin policy changes (e.g., auto-allow re-order
+  after N days), the UI gate needs re-evaluation.
 
 ---
 
