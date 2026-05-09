@@ -56,6 +56,7 @@ filenames.
 | 026 | `026_seed_mosques.sql`                 | Verbatim            | TBD (Session K-6a) | NOTES.md Session K Phase 6a     |
 | 027 | `027_mosque_applications_geocode_facilities.sql` | Verbatim  | TBD (Session K-6b) | NOTES.md Session K Phase 6b     |
 | 028 | `028_flags_and_admin_rls.sql`          | Verbatim            | 8 May 2026         | Phase 7 flags table + RLS + indexes; restores admin RLS on scholars (originally 020) and reviews (originally 021); adds admin UPDATE on messages. |
+| 029 | `029_dbs_orders_and_drop_rtw.sql`      | Verbatim            | TBD (Session L)    | Session L; drops `scholars.rtw_verified` (scholars are independent contractors); creates `dbs_orders` table + RLS + partial-unique active-order index. |
 
 ## Workflow
 
