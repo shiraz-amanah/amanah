@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action: Session K Phase 6b shipped (mosque sign-up flow + wizard + dashboard). 14 commits. Migration 027 added mid-flight — `mosque_applications.lat` + `lng` + `facilities text[]` columns plus approval trigger replaced via `CREATE OR REPLACE FUNCTION` (preserves trigger binding) so geocoded fields thread through into the mosques row on approval. Two new auth.js helpers: `submitMosqueApplication` (Postcodes.io geocoding pipeline — lenient client-side regex `/^[A-Z0-9\s]{5,8}$/i` + server-side gate via Postcodes.io API + graceful null degradation, end-to-end verified Bradford BD9 6LH → 53.814835, -1.802964) + `getMyMosqueApplication` (source of truth for both rejected-app wizard hydration and `routeAuthedMosque` branch selection). Audience drawer "Mosque" path now routes through Supabase auth (`UserAuth role='mosque'`), replacing the legacy LoginScreen. New `<MosqueOnboardingWizard>` (5 steps: Welcome / About / Location & access / Prayer times / Review) with sessionStorage hydration and a hydrating gate that prevents persistence flash before the rejected-app draft loads — precedence is sessionStorage draft → server-side rejected app → blank initialForm. Three new status views (`mosqueApplicationSubmitted`, `mosqueApplicationRejected` with rendered admin reason and "Edit and resubmit" CTA, `mosqueVerificationPending` with 3 flag pills). New `<MosqueDashboard>` with Profile / Donations (empty state) / Messages / Account tabs (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch state machine mirrors `routeAuthedScholar`: no mosque + no app → wizard / pending app → submitted / rejected app → rejected with hydration / pending_verification mosque → holding / active mosque → dashboard. Bootstrap probe gating: `getMosqueByUserId` + `getMyMosqueApplication` only fire when `profile` exists. Sign-out parity fix (`3807b19`) caught during smoke regression check by visual comparison across the three dashboard headers — MosqueDashboard was missing the header LogOut icon present on parent + scholar; added next to the Live/Pending status pill, same fullSignOut handler. Mid-session bug 1 (BLOCKER, fixed in `76acbaa`): `ReferenceError: Can't find variable: getMyMosqueApplication` during bootstrap — commit `c8ab00e` added the call but missed the import-line update for `submitMosqueApplication` + `getMyMosqueApplication`. Mid-session bug 2 (FALSE ALARM, no code change): suspected `getSavedMosques` 22P02 turned out to be cascading from bug 1; empty-saves guard was already in place from 6a's `a3e7438`, and the saves table had zero stale non-UUID rows on probe. Smoke green end-to-end: approve path (sign-up → wizard → submit → admin approve → verify-pending → admin verifies + publishes → dashboard with all wizard fields rendered) and reject path (sign-up → wizard → submit → admin reject with reason → rejected view with reason → "Edit and resubmit" hydrates form, verified via SQL probe of identical org_name/city/postcode/address across rejected and pending rows for same user). Test fixtures cleanup applied post-smoke (delete order: mosque_applications → mosques → saves → profiles → auth.users; profiles_id_fkey delete_rule = NO ACTION required explicit profiles delete before auth.users); production seed (migration 026, 8 mosques) untouched. Parked for next phase: `jumuah_time` wizard gap (column not on mosque_applications, wizard-approved mosques permanently null until profile editor ships); two cross-path edge cases (mosque-via-parent, mosque-via-scholar audience flows — same shape as the existing scholar-via-parent, fix all three together in a future cross-path session). Next: Phase 7 — Flags & reports per master Session K brief.
+> Last action: Session K Phase 7 (Flags & reports) shipped. 9 user/admin commits (fe73bfc..a726f03) live on prod, plus the closure commit dropping the ADMIN_FLAGS mock + reverting the diagnostic console.log + writing this section. Migration 028 bundled four concerns: Parts A + B restore K-2 admin RLS on scholars (originally 020) and K-3 admin RLS on reviews (originally 021) — pre-flight `pg_policies` probe surfaced that 020 + 021 had been authored, committed to `migrations/`, and noted as "shipped" in K-2/K-3 closures, but never applied to prod (silent RLS no-ops running 24+ hours each); Part C adds admin UPDATE on messages (new for `softDeleteMessage`); Part D ships the polymorphic `flags` table + RLS + indexes (`subject_type` ∈ {scholar, mosque, review, message}, CHECK-locked enums for `reason` and `resolution_action`, partial-unique dedup index on `(reporter_id, subject_type, subject_id)` WHERE `status='open'`, `flags_other_requires_details` CHECK forces details when `reason='other'`). Eight new auth.js helpers (5 flag CRUD + 3 admin-action shortcuts) plus four queue-internal helpers from the 7.5 refactor. Four user-facing affordances all using a shared `<ReportModal>`: `<ReviewCard>` Flag icon in meta row; `<PublicScholarDetail>` + `<PublicMosqueDetail>` Report link in trust cluster; `<ConversationView>` per-message 3-dot on incoming bubbles only, gated by `isRealMessage` (m.senderId !== undefined). New `<AdminFlags>` queue replaces the ADMIN_FLAGS-mock placeholder: status + subject-type + safeguarding filters with live counts, grouped detail showing all flags on the same `(subject_type, subject_id)`, three actions (Dismiss / Resolve without action / Resolve + take action) with bulk-close UPDATE on sibling open flags. AdminFlags supabase-direct queries refactored into four auth.js helpers in `3d3fb85` to restore CLAUDE.md's "App.jsx never touches Supabase directly" convention. Dead-UI MoreHorizontal removed from conversation header (`a726f03`) — Session D legacy that confounded smoke testing of the new bubble 3-dot. Bug 1 (DISCOVERY): pre-flight pg_policies probe found 020 + 021 never applied to prod despite paper trail — fixed in 028 Parts A + B. Likely root cause: Supabase SQL editor's saved-query feature returns the same "Success. No rows returned" banner for successful CREATE POLICY and empty/overwritten query body. Bug 2 (CLICK-TARGET FALSE ALARM): per-message 3-dot reported broken; diagnostic console.log to prod (`6ff1220`, reverted in closure) confirmed all gate variables correct; real cause was the dead-UI header MoreHorizontal that smoke tester kept clicking. Smoke green on all 24 brief steps. Step 18 PASS A — `getMessages` in `auth.js:532` filters `deleted_at IS NULL`. Two new cross-cutting gotchas: "Migration file shipped ≠ applied to prod" + "Saved-query-with-no-body returns indistinguishable Success". Three new parked items: AdminFlags sidebar badge stale-on-action; realtime subscription doesn't cover UPDATE events; per-message 3-dot click target ~16x16. K-2 + K-3 entries annotated with never-applied discovery + 028 restoration. Next: Phase 8 — DBS orders. Currently mock (`ADMIN_DBS_ORDERS` in `mockAdmin.js`); needs real Supabase table + admin queue + status enum.
 
 ---
 
@@ -39,9 +39,11 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 - **Session K Phase 6a** ✅ — Mosques schema + admin queue + public-surface migration. Migrations 024 (mosques table — public/owner/admin RLS, three verification flags mirroring scholars, optional user_id with partial-unique index for claim flow), 025 (mosque_applications + approval trigger that mirrors 015 with created_mosque_id linkback), 026 (seed 8 MOCK_MOSQUES rows with status='active', user_id=null, all flags=true). Decided to follow scholar precedent: mosque accounts stay role='user', routing keys off mosques.user_id (no role enum change). Eleven new auth.js helpers (5 public reads + shaper + 5 admin/verification). New `<AdminMosqueApplications>` component (~400 lines, mirrors AdminScholarApplications): filter pills, list view, detail view with all wizard fields, approve/reject modals, verification panel for approved-with-mosque-row applications (3 flag toggles + publish CTA gated on all-three-true). Sidebar "Mosque queue" → "Mosque applications" rename. Legacy `<AdminMosqueQueue>` + ADMIN_MOSQUE_APPS mock + handler + counts refs all deleted. Public surface fully migrated to Supabase: PublicHome featured-4, MosquesListing (with distance sort), MosqueDetail (with empty-state "No reviews yet" replacing the previously-fabricated mockReviews), UserDashboard "My Mosques" tab. New `src/lib/mosqueTransform.js` snake→camel adapter (photo_url→photo, prayer_times→iqamaTimes, jumuah_time→jumuahTime, status→verified). `savedMosques` lifted to App root mirroring savedScholars; toggleMosqueSave updates Set + Array atomically. MOCK_MOSQUES export deleted (mockMosques.js shrunk 197→14 lines, NEARBY_MOSQUES still in for PrayerHub). End-to-end approve→trigger→verify→publish flow smoke-tested with a manually-seeded test application: trigger writes created_mosque_id linkback, verification toggles fire optimistic updates, publish flips status to active, mosque appears in public listings immediately. **Two observations captured in parked items:** (1) FK on `mosque_applications.created_mosque_id → mosques.id` is `on delete restrict` — admin delete UX in 6b will need to handle. (2) Wizard in 6b MUST collect lat/lng/photo_url/facilities/services or wizard-approved mosques will render with junk distance + no photo + empty facilities on public listing (proven by the cleanup smoke run with the SQL-seeded test mosque).
 - **Session K Phase 6b** ✅ — Mosque sign-up flow + wizard + dashboard. Migration 027 added mid-flight (`mosque_applications.lat` + `lng` + `facilities text[]` + approval trigger replaced via `CREATE OR REPLACE FUNCTION` to thread these through into the mosques row on approval — preserves trigger binding without DROP/CREATE round-trip). Two new auth.js helpers: `submitMosqueApplication` (Postcodes.io geocoding pipeline — lenient client-side regex + server-side gate + graceful null degradation, end-to-end verified Bradford BD9 6LH → 53.814835, -1.802964; admin warning chip in detail view catches null lat/lng before publish) + `getMyMosqueApplication`. Audience drawer "Mosque" path now routes through Supabase auth (`UserAuth role='mosque'`), replacing legacy LoginScreen. New `<MosqueOnboardingWizard>` (5 steps: Welcome / About / Location & access / Prayer times / Review) with sessionStorage hydration + hydrating gate (precedence: sessionStorage draft → server-side rejected app → blank initialForm). Three new status views (mosqueApplicationSubmitted / mosqueApplicationRejected with reason + "Edit and resubmit" / mosqueVerificationPending with 3 flag pills). New `<MosqueDashboard>` with Profile / Donations (empty state) / Messages / Account tabs only (Bookings + Reviews dropped per Q5). `routeAuthedMosque` 5-branch state machine mirrors `routeAuthedScholar`. Bootstrap probe gating: `getMosqueByUserId` + `getMyMosqueApplication` only fire when `profile` exists. Sign-out parity fix (3807b19) caught during smoke regression check by visual comparison across the three dashboard headers — header LogOut icon was missing from MosqueDashboard, added next to the Live/Pending status pill. **Mid-session bug 1 (BLOCKER, fixed in `76acbaa`):** ReferenceError on `getMyMosqueApplication` during bootstrap — commit `c8ab00e` added the call site but missed updating the App.jsx import line for both `submitMosqueApplication` + `getMyMosqueApplication`. **Mid-session bug 2 (FALSE ALARM):** suspected `getSavedMosques` 22P02 turned out to be cascading from bug 1; empty-saves guard already in place from 6a's `a3e7438`, saves table probed clean for stale non-UUID rows. Smoke green end-to-end on both approve and reject paths. Test fixtures purged post-smoke (delete order: mosque_applications → mosques → saves → profiles → auth.users; `profiles_id_fkey` delete_rule was `NO ACTION` so explicit profiles delete required before auth.users); production seed untouched. **Two parked items:** (1) `jumuah_time` wizard gap — column not on mosque_applications, wizard-approved mosques null until profile editor ships; (2) two cross-path edge cases (mosque-via-parent, mosque-via-scholar audience flows — same shape as existing scholar-via-parent, fix all three together in a future cross-path session). 14 commits.
 
+- **Session K Phase 7** ✅ — Flags & reports. Migration 028 bundled four concerns: Parts A + B restore K-2 admin RLS on scholars (originally 020) and K-3 admin RLS on reviews (originally 021) — pre-flight pg_policies probe surfaced both had been committed + noted-as-shipped but never applied to prod (silent RLS no-ops running 24+ hours each); Part C adds admin UPDATE on messages (new for softDeleteMessage); Part D ships polymorphic `flags` table (subject_type ∈ {scholar,mosque,review,message}) + RLS + indexes + partial-unique dedup index. Eight new auth.js helpers (5 flag CRUD + 3 admin-action shortcuts unpublishScholar/unpublishMosque/softDeleteMessage). Four user-facing Report affordances using shared `<ReportModal>`: ReviewCard Flag icon, PublicScholarDetail + PublicMosqueDetail Report link, ConversationView per-message 3-dot on incoming bubbles. New `<AdminFlags>` queue with status + subject-type + safeguarding filters, grouped detail, three resolve/dismiss/action shortcuts with bulk-close UPDATE on sibling open flags. AdminFlags refactored to drop App.jsx supabase-direct imports (`3d3fb85`). Session D dead-UI MoreHorizontal removed from conversation header (`a726f03`). Closure drops ADMIN_FLAGS mock + reverts a diagnostic console.log push that turned out to confirm no actual bug. Smoke green on all 24 brief steps; step 18 PASS A confirmed `getMessages` filters `deleted_at IS NULL`. Two cross-cutting gotchas filed (migration shipped ≠ applied; saved-query-with-no-body Success ambiguity); K-2 + K-3 entries annotated; Phase 8 — DBS orders is up next.
+
 ### Up next
 
-- **Session K Phase 7 — Flags & reports** per master Session K brief. Scope plan to be surfaced in chat for review before any code lands.
+- **Phase 8 — DBS orders.** Currently mock (`ADMIN_DBS_ORDERS` in `mockAdmin.js`); needs real Supabase table + admin queue + status enum. Last admin-side mock surface remaining post-K-7.
 - **Email notifications** for application events (submit acknowledgement, approval, rejection) + the verification-pending follow-up. Closest deferred-from-Session-J piece. Likely Resend or Supabase Auth email hooks + edge function.
 - **Scholar profile editing** — bio, packages, languages, qualifications, DBS upload. Read-only since Session I; wizard fills initial data on approval but no surface to update.
 - **Scholar availability editor** — currently empty/missing for real scholars.
@@ -2558,6 +2560,10 @@ phase, became active during smoke):
   that needs to be re-clicked. The complexity wasn't worth it
   for this surface.
 
+### Annotation (post-K-7, 8 May 2026)
+
+K-7 pre-flight `pg_policies where tablename='scholars'` probe returned no `is_admin()`-aware policies. Migration 020 was authored and committed to `migrations/` (and noted as shipped in this section's commits list) but never applied to prod. K-2's verification UI was a silent RLS no-op between 7 May 2026 and 8 May 2026 — `getScholarById` against `pending_verification` rows returned null for admin (the public policy filters `status='active'` and 016's self-select policy only matches the scholar's own user_id), and the verification toggles were RLS-denied. Restored via migration 028 Part A on 8 May 2026 with `DROP POLICY IF EXISTS` guards in case 020 had partially landed. The auth.js helpers and AdminScholarApplications UI shipped in K-2 needed no changes. Likely root cause: the Supabase SQL editor's saved-query feature returns the same `Success. No rows returned` banner for a successful CREATE POLICY and an empty / overwritten query body — see the new "Saved-query-with-no-body returns indistinguishable Success" gotcha.
+
 ---
 
 ## Session K Phase 3 — Reviews moderation admin gate ✅ (7 May 2026)
@@ -2646,6 +2652,10 @@ deployed correctly**.
   mutation to a UI action, always show errors inline (or at
   least log them). Otherwise the smoke test for the action is
   the only way to catch a silent denial.
+
+### Annotation (post-K-7, 8 May 2026)
+
+K-7 pre-flight `pg_policies where tablename='reviews'` probe returned 4 policies matching `012_reviews.sql` exactly — none `is_admin()`-aware. Migration 021 (this section's single commit `b02103a`) was authored, committed, and noted as shipped here, but never applied to prod. K-3's "fix" for the Session H silent no-op was itself a silent no-op since the day it shipped — admin moderation continued to RLS-deny against prod between 7 May 2026 and 8 May 2026. Restored via migration 028 Part B on 8 May 2026. Same probable root cause as the K-2 miss: Supabase SQL editor's saved-query empty-body / overwritten-body Success banner ambiguity. New gotcha + new probe-before-declaring-shipped rule both filed in cross-cutting gotchas.
 
 ---
 
@@ -3275,6 +3285,342 @@ to re-validate.
 
 ---
 
+## Session K Phase 7 — Flags & reports ✅ (8 May 2026)
+
+Final user/admin surface for the Session K master brief.
+Polymorphic flags table + four user-facing report affordances
+(review / scholar / mosque / per-message) + admin queue with
+grouped detail and bulk resolve-with-action shortcuts. Pre-flight
+pg_policies probe surfaced that K-2's migration 020 and K-3's
+migration 021 had been authored, committed to migrations/, and
+recorded as "shipped" in NOTES — but never applied to prod.
+Bundled restoration into 028 Parts A + B alongside Phase 7's
+flags table and admin UPDATE on messages.
+
+### What shipped
+
+- **Migration 028** — single migration bundling four concerns:
+  Part A restores K-2 admin RLS on `scholars` (originally 020),
+  Part B restores K-3 admin RLS on `reviews` (originally 021),
+  Part C adds admin UPDATE on `messages` (new for Phase 7's
+  softDeleteMessage), Part D ships the `flags` table + RLS +
+  indexes (Phase 7 core). Polymorphic via `subject_type` ∈
+  {scholar, mosque, review, message}; CHECK-locked enums for
+  `reason` (6 options) and `resolution_action` (5 options);
+  partial-unique index on `(reporter_id, subject_type,
+  subject_id) WHERE status='open'` enforces one-open-flag-per-
+  reporter-per-subject; `flags_other_requires_details` CHECK
+  forces `reason='other'` to ship details for triage substance.
+  RLS: users INSERT own + SELECT own; admins SELECT all + UPDATE
+  all; no user UPDATE/DELETE (flags are immutable post-submit).
+  Three indexes: subject lookup, open-only partial, created_at
+  desc. `DROP POLICY IF EXISTS` guards on Parts A + B make 028
+  idempotent against partial-prior-apply drift.
+
+- **Five flag helpers in auth.js** — `submitFlag` (reporter_id =
+  auth.uid() enforced via RLS, surfaces 23505 from the dedup
+  index as friendly "already reported" copy, retains post-insert
+  !data guard for supabase-js v2's RLS-deny-as-empty quirk),
+  `getMyFlags`, `getAllFlags({status, subjectType,
+  safeguardingOnly})`, `getFlagsForSubject(subjectType, subjectId)`
+  for the grouped detail view, `setFlagStatus(flagId, status,
+  resolutionAction)` with `.eq('status','open')` idempotency
+  guard. Read helpers return raw arrays with `[]` on error
+  (matching `getReviewsForModeration` convention); mutations
+  return `{data, error}` (matching `createReview` convention).
+
+- **Three admin-action helpers in auth.js** — `unpublishScholar`
+  (active → pending_verification, idempotent via `.eq` +
+  `.maybeSingle()`), `unpublishMosque` (same shape; mosques
+  admin RLS already in place from 024, no restoration needed),
+  `softDeleteMessage` (sets `deleted_at = now()`, unguarded on
+  the deleted_at IS NULL side intentionally — re-soft-delete is
+  benign at DB level, a guard would false-positive on retries).
+
+- **`<ReportModal>` shared component** — submit affordance for
+  all four flaggable subject types. 6-option reason radio
+  matching 028 enum; safeguarding option visually distinct
+  (amber tag + child-safety helper copy); optional details
+  textarea, 1000-char max matching DB CHECK, becomes required
+  when `reason='other'` (frontend gate + backend CHECK). 23505
+  surfaced as a neutral "already reported" panel, not an error
+  banner.
+
+- **`<ReviewCard>` Report affordance** — Lucide Flag icon in the
+  meta row next to the Verified booking pill. Hidden when
+  `review.parentId === authedUser.id` (no self-flag) and when
+  `!authedUser` (anon flagging out of scope). Flips to "Reported
+  — under review" inline italic on success. authedUser plumbed
+  to the two real-data render sites; the third site
+  (ImamDashboardView legacy mock) reads from `myReviews = []`
+  so was left un-plumbed.
+
+- **`<PublicScholarDetail>` + `<PublicMosqueDetail>` Report
+  affordance** — small Flag icon + text link in the trust
+  cluster. Stone-500 → rose-600 on hover. Self-flag guards:
+  scholar gate is `myScholar.id === scholar.id` (scholar.user_id
+  isn't on the transformed shape, so myScholar comparison is the
+  cleanest in-scope option); mosque gate is `mosque.user_id ===
+  authedUser.id || myMosque.id === mosque.id`. Placement:
+  scholar inside the existing Verification card; mosque at end-
+  of-page (no dedicated trust card on mosque detail).
+
+- **`<ConversationView>` per-message Report affordance** — 3-dot
+  overflow menu (MoreHorizontal) in top-right of every incoming
+  bubble. Gates: `!isMe && !isDeleted && !!m.id && isRealMessage
+  (m.senderId !== undefined) && !!authedUser`. Demo-shape
+  messages (no senderId) gated out — submitting a flag with a
+  Date.now() integer id would 22P02 against the UUID column.
+  Click opens shared `<ReportModal>` with `subjectType='message'`
+  + 80-char body preview as subject. State additions:
+  `openMenuMessageId`, `reportingMessage`, `reportedMessageIds`
+  (Set; React requires `new Set(prev).add(id)` wrapper because
+  Set#add mutates). Bubble class adds `pl-4 pr-9` instead of
+  `px-4` when the report slot is shown so the absolute-positioned
+  3-dot doesn't overlap message text.
+
+- **`<AdminFlags>` queue + grouped detail + actions** — replaces
+  the ADMIN_FLAGS-mock placeholder tab. List view: status pills
+  (Open / Resolved / Dismissed / All) with live counts; subject-
+  type pills; safeguarding-only toggle (amber-tinted, mirrors
+  `<ReportModal>`); one row per flag, created_at desc, with
+  subject preview + reason pill + reporter name + relative age
+  + status pill. Detail view: full subject preview at top + all
+  flags on the same `(subject_type, subject_id)` grouped below
+  via `getFlagsForSubject`. Three action buttons: Dismiss /
+  Resolve without action / Resolve + take action (context-
+  dependent: setReviewStatus / unpublishScholar / unpublishMosque
+  / softDeleteMessage), each followed by bulk-close UPDATE on
+  all OPEN flags for the same subject in one query. Deleted-
+  subject branch (subject row missing): hide resolve-with-action,
+  show only "Dismiss all". Optimistic UI with rollback. Scoped
+  internal toast (matches AdminScholarApplications precedent).
+  Performance: subjects + reporters batched, cached in Maps
+  keyed by `${type}:${id}` / id.
+
+- **AdminFlags refactor — supabase-direct queries extracted**
+  (`3d3fb85`). Commit 7's initial AdminFlags imported the
+  supabase client at App.jsx top-level for four call sites
+  (batched subject resolution, reporters fetch, two bulk-update
+  queries) — flagged as a deviation from CLAUDE.md's "App.jsx
+  never touches the Supabase client directly" rule. Four new
+  auth.js helpers replace the inline calls:
+  `getSubjectsForFlags`, `getReportersForFlags`,
+  `bulkResolveFlagsForSubject`, `bulkDismissFlagsForSubject`.
+  Pure refactor — no behaviour change.
+
+- **Dead-UI MoreHorizontal removed from conversation header**
+  (`a726f03`). Session D legacy: header rendered a 3-dot button
+  with no onClick / no aria-label / no purpose. Caused visual
+  confusion during smoke testing — looked like the new per-
+  message Report affordance, clicks did nothing.
+
+### Commits
+
+- `fe73bfc` schema(028): flags table + restore admin RLS on reviews/scholars/messages
+- `cbfab20` feat(auth): submitFlag + getMyFlags + getAllFlags + getFlagsForSubject + setFlagStatus
+- `1c5220f` feat(auth): unpublishScholar + unpublishMosque + softDeleteMessage helpers
+- `235869d` feat(public): <ReportModal> + Report affordance on <ReviewCard>
+- `adc6924` feat(public): Report affordance on <PublicScholarDetail> + <PublicMosqueDetail>
+- `2eba4ad` feat(public): per-message Report affordance in <ConversationView>
+- `d5df39b` feat(admin): <AdminFlags> queue + filters + grouped detail + resolve/dismiss/action
+- `3d3fb85` refactor(admin): extract AdminFlags supabase-direct queries into auth.js helpers
+- `a726f03` chore(messages): remove dead-UI MoreHorizontal in conversation header
+- `6ff1220` diag(messages): temporary 3-dot gate console.log for K-7 diagnosis
+- `<TBD>` chore: drop ADMIN_FLAGS mock + remove K-7 diagnostic + NOTES closure
+
+11 commits.
+
+### Decisions
+
+- **Pre-flight pg_policies probe is now phase-zero.** K-7 ran
+  the same probe pattern that caught K-3's silent no-op — and
+  surfaced that 020 (K-2 scholars admin RLS) and 021 (K-3
+  reviews admin RLS) had been committed to migrations/ and
+  noted as "shipped" in NOTES, but never applied to prod. K-2's
+  verification UI had been silently failing (admin couldn't
+  read pending_verification scholars; toggles RLS-denied). K-3's
+  moderation gate, ironically, K-3 itself diagnosed as broken
+  from Session H — but the actual fix (021) never landed. Both
+  restored via 028 Parts A + B in the same migration as Phase
+  7's flags table.
+
+- **Bundled 028 over four sequential migrations.** All four
+  parts land at the same admin-only RLS layer; splitting would
+  have shipped a partial-RLS prod state for hours between
+  applies; the Apply checklist (`notify pgrst, 'reload schema'`
+  + browser refresh) only needs to run once. `DROP POLICY IF
+  EXISTS` guards on Parts A + B make 028 idempotent against
+  partial-prior-apply drift.
+
+- **Polymorphic single table over four type-specific tables.**
+  `flags(subject_type, subject_id)` instead of `scholar_flags`,
+  `mosque_flags`, `review_flags`, `message_flags`. Pros: admin
+  queue is one query; safeguarding-only toggle is one filter;
+  partial-unique dedup index is one constraint. Cons: subject
+  resolution requires a typed batch fetch (resolved via
+  `getSubjectsForFlags`); no FK from `subject_id` to the actual
+  subject (deleted subjects don't auto-cascade flag rows;
+  AdminFlags has explicit "subject row missing" branch). Net
+  win for admin ergonomics.
+
+- **No flag-history surface for users.** Locked decision (c) of
+  the Phase 7 brief. Users see "Reported — under review" inline
+  state for the session, but refresh resets it. `getMyFlags`
+  exists for future use but isn't called anywhere in the UI.
+
+- **`reason='other'` requires details.** Backend CHECK +
+  frontend gate. Without it, triage on "other" is impossible —
+  admin sees "other" and no signal. CHECK enforces min-1-char
+  details so empty-string attempts fail at insert.
+
+- **Idempotency on every mutation helper.** `submitFlag`
+  surfaces 23505 from the dedup index as friendly copy.
+  `setFlagStatus`, `unpublishScholar`, `unpublishMosque` use
+  `.eq('status', X)` + `.maybeSingle()` so a double-click after
+  another admin already acted returns null data, treated as no-
+  op success. Pattern established in Phase 2's `publishScholar`.
+
+- **AdminFlags supabase-direct → auth.js refactor as 7.5.**
+  Initial Phase 7 commit 7 imported supabase at App.jsx top-
+  level for the four batched/bulk queries. CLAUDE.md says
+  App.jsx never touches the Supabase client. The deviation was
+  flagged as a deliberate exception in commit 7's body, but on
+  review the four call sites factored cleanly into auth.js
+  helpers without contortion. Convention restored.
+
+### Bugs found mid-session
+
+- **Bug 1 (DISCOVERY, fixed by 028 Parts A + B)** — pre-flight
+  pg_policies probe revealed 020 + 021 were committed to
+  migrations/ and recorded as shipped, but never applied to
+  prod. Verified via `select policyname from pg_policies where
+  tablename in ('scholars','reviews')` returning no rows
+  containing `is_admin()`. K-2's verification UI had been a
+  silent no-op since 7 May 2026; K-3's was a silent no-op since
+  K-3 shipped (and ironically K-3 itself was the fix for an
+  identical Session H bug, which then re-occurred unfixed for
+  the same reason as H). Likely root cause: the Supabase SQL
+  editor's saved-query feature returns `Success. No rows
+  returned` for both a successful CREATE POLICY and an empty /
+  overwritten query body — easy to mistake "I clicked Run on
+  the saved query" for "I applied the migration". 028
+  restoration includes `DROP POLICY IF EXISTS` guards in case
+  020/021 had partially landed.
+
+- **Bug 2 (CLICK-TARGET FALSE ALARM, no code change)** —
+  initial smoke testing reported the per-message 3-dot Report
+  affordance "didn't work". Diagnostic console.log shipped to
+  prod (`6ff1220`, reverted in this closure) confirmed all gate
+  variables were correct on every incoming bubble — `isMe:
+  false`, `isRealMessage: true`, `canShowReportAction: true`.
+  Real cause: the Session D conversation header rendered a
+  dead-UI MoreHorizontal button (no onClick, no aria-label)
+  that the smoke tester kept clicking thinking it was the new
+  affordance. Removed in `a726f03`. The actual bubble 3-dot
+  worked from commit 2eba4ad — its click target is small
+  (~16x16: 14px Lucide icon + 1px button padding) but
+  functional. Lesson: before diagnosing "the new affordance
+  doesn't work", verify there isn't a dead-UI lookalike from a
+  previous session in the immediate visual neighbourhood. The
+  diagnostic console.log pattern is still cheap and useful —
+  but in this case, would have been faster to inspect the DOM
+  with DevTools first.
+
+### Smoke tests (all 24 ✅, 8 May 2026)
+
+User-side (1–10):
+1. ✅ ReviewCard Report → modal → submit → "Reported — under review" inline.
+2. ✅ Self-flag guard: review by authedUser doesn't show Flag icon.
+3. ✅ Anon (signed-out) view of review: no Flag icon.
+4. ✅ PublicScholarDetail → Report → modal → submit → success state.
+5. ✅ Self-flag guard: claimed scholar viewing own listing has no Report.
+6. ✅ PublicMosqueDetail → Report → modal → submit → success state.
+7. ✅ Self-flag guard: claimed mosque owner viewing own listing has no Report.
+8. ✅ ConversationView per-message 3-dot on incoming bubble → menu → Report → modal → submit → "Reported" pill.
+9. ✅ ConversationView own message: no 3-dot (isMe gate).
+10. ✅ "You've already reported this" panel on duplicate submit (23505 dedup).
+
+Admin-side (11–17):
+11. ✅ AdminFlags queue loads with status + subject-type filters.
+12. ✅ Status pill counts match underlying state across filter changes.
+13. ✅ Detail view groups all flags on the same subject.
+14. ✅ Dismiss → flag flips to dismissed, resolved_by + resolved_at set.
+15. ✅ Resolve without action → status flips to resolved, resolution_action='none'.
+16. ✅ Resolve + hide review → review.status flips to hidden, all open flags on that review bulk-close.
+17. ✅ Resolve + soft-delete message → messages.deleted_at populated, sibling open flags bulk-close.
+
+Cross-cutting (18–24):
+18. ✅ **PASS A — read-path filter present.** getMessages in auth.js:532 filters `deleted_at IS NULL`, so soft-deleted messages disappear from conversations on next mount/refresh. No Session D read-path parked item.
+19. ✅ AdminFlags refactor (3d3fb85): no behaviour change pre/post — same list, same actions, same counts.
+20. ✅ K-2 verification toggle on a pending_verification scholar: admin can read row + flip flag (Part A restoration verified live).
+21. ✅ K-3 review hide/publish: admin can SELECT all-status reviews + flip status (Part B restoration verified live).
+22. ✅ Header dead-UI MoreHorizontal removed (a726f03), no console errors, layout intact.
+23. ✅ Sidebar AdminFlags badge shows current open-flag count on mount.
+24. ✅ Regression: parent + scholar + mosque dashboards all still load correctly.
+
+### Lessons learned
+
+- **Migration "shipped" is now ambiguous.** A migration file
+  exists in `migrations/`, was added in a commit, and was noted
+  in NOTES.md K-2 / K-3 closures as part of "what shipped" —
+  but never actually applied via the SQL editor. The Supabase
+  saved-query UX is a likely accomplice. New rule: every
+  migration-touching session ends with `pg_policies` /
+  `information_schema.tables` / `information_schema.columns`
+  probes against the actual DB to confirm what's there.
+
+- **Dead-UI from prior sessions is a smoke-test confounder.**
+  Phase 7's per-message 3-dot rendered identically to the
+  Session D conversation header's inert MoreHorizontal button.
+  Smoke tester clicked the wrong dot, reported the new
+  affordance broken, triggering a diagnostic console.log push
+  to prod. Cheap to remove dead UI proactively; expensive to
+  debug a fake bug. Worth a one-pass audit per surface before
+  shipping a similarly-shaped affordance.
+
+- **Diagnostic console.log to prod is a valid pattern when
+  local dev friction is high.** No tunnel / no remote inspect /
+  single env. The push-revert cadence is fast (~1 min Vercel
+  deploy each way) and the smoke window is bounded. As long as
+  diagnostic and revert ship in close commits, the prod-noise
+  window is small. K-7 example: 6ff1220 (diag push) → bug
+  self-resolved before diagnostic was needed → reverted in
+  closure commit. Total prod-exposure window: <30 minutes, no
+  real users active.
+
+- **Bundling 028 was the right call.** Splitting into 4
+  migrations would have left the prod state partially-restored
+  for hours between applies. One bundled apply, one PostgREST
+  reload, one verification pass.
+
+- **Polymorphic single table is the right shape for flags.**
+  Admin queue is one query; safeguarding filter is one WHERE;
+  dedup is one partial-unique index. The cost (no FK from
+  subject_id, deleted-subject branch in AdminFlags) is small
+  relative to the alternative of four type-specific tables and
+  four parallel queue views.
+
+### Out of scope / parked
+
+- Flag history surface for users (locked decision (c)).
+- Email notification on flag submit / resolve (caller for the
+  parked Email notifications session).
+- Realtime updates on flag status (admin queue is mount-fetched).
+- `subscribeToMessages` doesn't cover UPDATE events — admin
+  soft-delete during an active user session won't surface live
+  to that user. Currently benign because admin actions happen
+  async to user sessions; matters if cross-user soft-deletes
+  start happening live.
+- AdminFlags sidebar badge is mount-fetched, not action-
+  reactive — taking a flag action doesn't decrement the badge
+  until the next mount.
+- Per-message 3-dot click target is ~16x16 (14px icon + 1px
+  padding). Functional but small; bump padding to 2–3px for
+  easier tap targets on mobile.
+
+---
+
 ## Cross-cutting gotchas
 
 ### Schema / migrations gotchas
@@ -3282,6 +3628,8 @@ to re-validate.
 - **TODO migration files describe intent, not deployed state.** Files in `migrations/` marked `STATUS: TODO` are placeholders awaiting `pg_dump --schema-only` output; their inferred column lists come from reading frontend usage and may not match prod. When code queries a column that "should" exist per a TODO migration's inferred schema, treat the TODO file as a suspect — probe `information_schema.columns` to confirm the column actually landed before assuming the bug is elsewhere. Caught in K-5 when `listAllProfiles` queried `profiles.created_at` and got a 400 from PostgREST despite 010_profiles_table_TODO.sql describing the column.
 - **PostgREST schema cache trap.** Every migration that adds columns or policies needs `notify pgrst, 'reload schema';` AND a hard browser refresh. Both required, neither sufficient alone. The cache holds the schema view from PostgREST's last reload — new columns can't even be SELECTed (the column-expansion of `select=*` happens against the cached schema). Has bitten this session in Phase 1 (017), Phase 5 twice (022 RLS + 023 column add). Whenever a migration lands, the apply checklist is: (1) run the SQL, (2) run notify pgrst, (3) hard-refresh the browser.
 - **Diagnose "the data isn't showing" by walking DB → RLS → frontend.** (1) Does the data exist in the table at all? (2) Does RLS let me see it as my current role? (3) Is the query actually firing (Network tab)? (4) Is the query actually correct (Network response body)? About 5 minutes per layer; usually one of them surfaces the bug clearly. Don't start patching code until step 4 is positive.
+- **Migration file shipped ≠ applied to prod.** A migration's presence in `migrations/`, in a commit, and in a NOTES.md "shipped" closure does NOT prove it ran against the DB. K-7 pre-flight surfaced two K-2/K-3-era migrations (020 + 021) that had been "shipped" by every paper-trail measure but never landed in prod, leading to two silent RLS no-ops that ran for 24+ hours each. **Rule:** every migration session ends with a `pg_policies` / `information_schema.tables` / `information_schema.columns` probe against the actual DB, with the result quoted in the NOTES closure as proof of apply. "I ran it in the SQL editor" without a probe doesn't count.
+- **Saved-query-with-no-body returns indistinguishable Success.** The Supabase SQL editor's saved-query feature returns `Success. No rows returned` for both a successful CREATE POLICY and a query body that's empty / has been overwritten with comments / failed to paste fully. There is no visual distinction — same banner, same null result set. Likely accomplice for the K-2/K-3 020/021 misses. **Rule:** always probe for the object's existence after running the migration, never trust the Success banner alone. For policies: `select policyname from pg_policies where tablename='X'`. For columns: `information_schema.columns`. For triggers: `information_schema.triggers`.
 
 ### Find/replace gotchas
 
@@ -3331,3 +3679,6 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **`jumuah_time` wizard gap (K-6b).** `mosque_applications` has no `jumuah_time` column — 027 added lat/lng/facilities but not this. Wizard-approved mosques therefore land with `jumuah_time=NULL` permanently; public MosqueDetail's Jumuah row stays "TBC" until a profile-editor surface ships post-launch. Not urgent because the seeded production mosques (migration 026) all have `jumuah_time` populated, and admins can patch via SQL in the meantime.
 - **Mosque-via-parent and mosque-via-scholar cross-path edge cases (K-6b).** Two audience-drawer flows that aren't yet bounced consistently with the existing scholar-via-parent cross-path enforcement (K-1). Same shape as the scholar-via-parent edge — a user authed in one role landing on the wrong audience drawer entry. Fix all three together in a future cross-path session: single review surface, single test pass, avoids three separate one-off patches.
 - **Disintermediation prevention** — scholars/parents going off-platform after first booking is a structural marketplace risk. Levers, ranked by effectiveness: (1) make the platform genuinely worth the cut — discovery, verification, scheduling, safeguarding, recordings — this is the only real defense; (2) hide contact details (email, phone) from cross-user views, reveal only post-booking or never; (3) extend message regex blocks to phone, email, social handles, and Zoom/Meet/Teams links — hard-block before first booking, soft-warn after; (4) anti-circumvention clause in ToS at launch; (5) lower commission on repeat bookings; (6) Path B (built-in video) for Session E reduces leakage surface dramatically — scholar and parent never need each other's contact details. Not blocking pre-launch but informs ToS drafting. Related: `profiles.phone` / `profiles.email` audit already flagged above.
+- **AdminFlags sidebar badge stale-on-action (K-7).** The open-flag count badge in AdminPanel sidebar is fetched on mount and doesn't decrement when the admin takes a flag action. Refresh shows the correct count. Real, observed during K-7 smoke. Either lift open-count to AdminPanel state and decrement on flag action, or refetch on tab switch. Not blocking.
+- **Realtime subscription doesn't cover UPDATE events (K-7).** `subscribeToMessages` listens for INSERT only. An admin soft-delete during an active user session won't surface live — user sees the message vanish on next mount/refresh. Currently benign because admin moderation happens async to user sessions, but matters if real-time soft-deletes ever become a UX expectation. Fix: extend the realtime filter to include UPDATE on `deleted_at`.
+- **Per-message 3-dot click target is ~16x16 (K-7).** 14px Lucide MoreHorizontal icon + 1px button padding = ~16x16 hit target. Functional but small, especially on mobile. Bump button padding to 2–3px for an easier click without changing the visual footprint. Filed during the K-7 click-target false-alarm post-mortem.
