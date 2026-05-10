@@ -3890,42 +3890,54 @@ flag for Session M start.
   call, submitDBSOrder accepts the confirmed-charge fields.
   Mocking Stripe's exact shape now would be premature.
 
-### Smoke incomplete
+### Smoke pass (10 May 2026) — 6/6 PASS
 
-The 27-step smoke plan ran partially. Findings:
+Validated against commit `f4d47cb`. Run via Claude.ai chat methodology +
+production browser/SQL probes, with 3 persona switches (yusuf-test → Shiraz
+admin → yusuf-test → Shiraz admin). RLS step 6 automated via
+`scripts/smoke-l-rls.mjs` (committed in 7a6bafe).
 
-- **Steps 1-10 (candidate self-serve happy path) — INCOMPLETE.**
-  Test orders during smoke went to the wrong account (Yusuf
-  test account, not Shiraz admin). The candidate-side flow
-  wasn't validated end-to-end against an intentional persona.
-- **Steps 11-13 (mosque dashboard DBS tab) — RESULT: tab pulled.**
-  Surfaced Bug 4 (product-semantic mismatch); reverted in
-  commit 11.
-- **Steps 14-19 (admin queue side) — PARTIALLY VALIDATED.** List
-  view confirmed working (post Bug 5 fix). Detail view + stage
-  transitions + certificate URL save + disclosure summary save
-  + notes save not exercised end-to-end.
-- **Steps 20-27 (cross-references, RLS regression, K-2 cross-
-  reference, closure verification) — UNTESTED.**
+| Step | Surface | Result |
+|---|---|---|
+| 1 | Candidate ordering (yusuf-test) | PASS — L Critical-1 confirmed: paid_at/created_at 281ms apart, single-roundtrip insert-with-paid |
+| 2 | Cancel flow (yusuf-test) | PASS — paid_at preserved, cancelled_at written 79ms before updated_at |
+| 3 | Admin transitions (Shiraz) | PASS — paid→submitted→issued, confirm modals fire, cert URL validation works, notes save |
+| 4 | Disclosure path (Shiraz → yusuf-test) | PASS — IWD UX gate functional: amber banner, generic copy, no leak of admin text in UI |
+| 5 | K-2 cross-reference (Shiraz, test1) | PASS — both empty + populated K-2 block renders; deep-link bypasses queue correctly |
+| 6 | RLS validation (Node script) | PASS — anon/parent/candidate auth paths all behave per design |
 
-**Action item for Session M start:** run a full smoke pass
-against L's surfaces before building staff management on top.
-Specifically validate:
-- Candidate ordering flow end-to-end with a fresh test user
-  (start from empty DBS state, order Enhanced, verify active
-  order card)
-- Cancel flow (from paid stage → cancelled + refunded)
-- Admin stage transitions end-to-end (paid → submitted →
-  issued; certificate URL save)
-- Disclosure path (issued_with_disclosure → admin writes summary
-  → candidate sees generic copy)
-- K-2 cross-reference click-through (open scholar app detail →
-  Latest DBS order block populates → click "View order" →
-  lands in AdminDBSOrders detail)
-- RLS regression (parent + signed-out users can't see DBS orders
-  via DevTools console)
+3 bugs filed (none blocking): L-A, L-B, L-C — see parked items.
 
-Step 6 (RLS) validated via scripts/smoke-l-rls.mjs — 3/3 pass.
+### Bugs filed during smoke
+
+**Bug L-A — AdminDBSOrderDetail header flips to "Unknown candidate" after successful mutations.**
+
+- *Severity:* medium (cosmetic but degrades admin trust; reload restores correct identity)
+- *Reproduces:* every successful stage transition, cert URL save, notes save, disclosure summary save
+- *Does NOT reproduce on:* failed mutations (e.g. http:// rejection on cert URL), initial component mount
+- *Root cause (high confidence):* admin mutation helpers (`setDBSOrderStage`, `setDBSOrderCertificateUrl`, `setDBSOrderDisclosureSummary`, `setDBSOrderNotes`, cancel helper) return the bare updated row from `UPDATE … RETURNING *`, missing the joined `candidate` profile that the detail view depends on. Component replaces local state with the bare row, losing the candidate field; UI falls back to "Unknown candidate" placeholder. Structurally identical to L Bug 5 (shapeProfile email gap, fixed in 4d363e6).
+- *Fix paths (recommend b):*
+  (a) helpers re-fetch the joined row after UPDATE
+  (b) component refetches via `getDBSOrderById` (joined) after mutation success
+  (c) merge mutation response onto local state preserving fields not in response
+
+**Bug L-B — disclosure_summary readable by candidate via direct API.**
+
+- *Severity:* medium-high (real privacy exposure of admin's internal notes; "ADMIN ONLY" UI label is misleading without server-side enforcement)
+- *Reproduces:* DevTools → Network → `/rest/v1/dbs_orders?candidate_user_id=eq.<uuid>` → candidate sees full row including disclosure_summary
+- *Root cause:* candidate read RLS allows reading own row including all columns; helper does `select('*')`. UI hides field but data is returned over the wire. Already-known design tradeoff per L brief.
+- *Fix paths (recommend b):*
+  (a) PostgREST view with column allowlist for candidate read path
+  (b) explicit `select(...)` in candidate helper excluding `disclosure_summary` and `notes`
+  (c) column-level RLS policy on the column itself
+- *Priority:* address before public launch, alongside parked bookings UPDATE column-level RLS
+
+**Bug L-C — DBS verified flag decoupled from DBS orders table (informational).**
+
+- *Severity:* design gap (not a bug per current intent, but produces internally inconsistent admin state)
+- *Reproduces:* test1's K-2 verification panel shows "DBS verified ✓" despite zero rows in dbs_orders for test1
+- *Root cause:* DBS verified flag is admin-attested manual toggle; decoupled from system-tracked dbs_orders table. Pre-L behaviour permitted flipping DBS verified without an actual order. Combined with the self-declared "DBS STATUS" in Qualifications, the application detail page exposes three independent representations of DBS state.
+- *Resolution:* Session P's "DBS as signup gate" work will gate `status='active'` on a real issued DBS order, resolving structurally.
 
 ### Lessons learned
 
