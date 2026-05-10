@@ -3925,6 +3925,8 @@ Specifically validate:
 - RLS regression (parent + signed-out users can't see DBS orders
   via DevTools console)
 
+Step 6 (RLS) validated via scripts/smoke-l-rls.mjs — 3/3 pass.
+
 ### Lessons learned
 
 - **Pre-flight surface review caught two schema bugs before
