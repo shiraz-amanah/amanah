@@ -3939,6 +3939,34 @@ admin → yusuf-test → Shiraz admin). RLS step 6 automated via
 - *Root cause:* DBS verified flag is admin-attested manual toggle; decoupled from system-tracked dbs_orders table. Pre-L behaviour permitted flipping DBS verified without an actual order. Combined with the self-declared "DBS STATUS" in Qualifications, the application detail page exposes three independent representations of DBS state.
 - *Resolution:* Session P's "DBS as signup gate" work will gate `status='active'` on a real issued DBS order, resolving structurally.
 
+### Schema reference: dbs_orders (19 columns confirmed)
+
+Confirmed by SQL probes during smoke. NOTES narrates UX intent; column-name authority comes from `information_schema.columns`.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | PK |
+| candidate_user_id | uuid | NOT NULL, FK profiles |
+| scholar_id | uuid | nullable, FK scholars |
+| mosque_id | uuid | nullable, FK mosques (parked use, see Session M) |
+| ordered_by | uuid | nullable per L Critical-2 |
+| level | text | basic \| enhanced |
+| stage | text | ordered \| paid \| submitted \| in_progress \| issued \| issued_with_disclosure \| cancelled |
+| payment_status | text | unpaid \| paid \| refunded |
+| amount_pence | integer | |
+| payment_reference | text | `mock_<ts>` or Stripe ref |
+| paid_at | timestamptz | |
+| submitted_at | timestamptz | |
+| issued_at | timestamptz | rewritten on issued ↔ IWD transition |
+| cancelled_at | timestamptz | |
+| certificate_url | text | https:// required |
+| disclosure_summary | text | admin-only intent; not enforced server-side (Bug L-B) |
+| notes | text | column name is `notes`, NOT `admin_notes` |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+Not present: `refunded_at` (payment_status='refunded' is source of truth), `in_progress_at` (stage-only state with no dedicated timestamp).
+
 ### Lessons learned
 
 - **Pre-flight surface review caught two schema bugs before
@@ -4005,6 +4033,24 @@ admin → yusuf-test → Shiraz admin). RLS step 6 automated via
   explicitly ask "does this affordance make sense for the
   persona using it?" not just "does it work?"
 
+**Smoke pass methodology (added 10 May 2026):**
+
+- **Yusuf-vs-Shiraz lesson generalises within a single persona.** "Place fresh paid order" and "click cancel to test step 2" are distinct intents requiring distinct DBS-tab visits, not bundled. Mid-step state mutations during setup invalidate downstream assertions.
+
+- **Mid-step spot-check probes between persona/state transitions catch setup failures cheaply.** One SQL SELECT confirms state-about-to-be-tested actually exists before driving 3-5 UI clicks against it.
+
+- **`array_agg` with text columns truncates silently in Supabase table view.** Prefer one-row-per-record with explicit columns over aggregates for assertion probes.
+
+- **Always run `information_schema.columns` probe at the start of new-table smoke sessions.** NOTES narrates UX intent; column names should come from schema, not inferred backwards from button labels. Hit twice this smoke (initial guesses `refunded_at` and `admin_notes` — both wrong).
+
+- **Failed mutations don't reproduce Bug L-A; successful ones do.** Empirical diagnostic — only successful mutations replace local state with bare row. Test by deliberately failing a mutation (e.g. invalid cert URL) and observing that the header doesn't flip.
+
+- **Placeholder syntax in template SQL is a footgun in screenshot-driven workflow.** When user copy-pastes SQL directly without an intermediate substitution step, all values must be inline literals. Going forward: SQL that depends on a previously-fetched value gets re-issued with the value inlined.
+
+- **Network probe is the right tool for "is admin data hidden from wrong persona at API level, not just UI?"** SQL shows DB has it, UI shows rendering hides it, only Network probe shows what the candidate's browser receives over the wire. Cheap, decisive, produces screenshot evidence.
+
+- **Hybrid empty/populated state testing surfaces UX assertions strict full-state testing misses.** K-2 cross-reference's empty state copy + RTW drop visual confirmation came free from doing empty-state-then-populate rather than seed-then-test.
+
 ### Out of scope / parked
 
 From commit 10's edge cases:
@@ -4036,9 +4082,6 @@ From L brief Out-of-scope:
 - Notifications to scholars on stage changes.
 
 New parked items from L:
-- **Smoke pass needed at start of Session M** before building
-  staff management on top. Specifically the 6 sub-steps in
-  Smoke incomplete above.
 - **shapeProfile email surface widening** — pre-launch audit
   pass on every consumer to confirm no view leaks email where
   it shouldn't.
@@ -4046,6 +4089,9 @@ New parked items from L:
   allows new orders post-IWD; UI suppresses CTA pending manual
   review. If admin policy changes (e.g., auto-allow re-order
   after N days), the UI gate needs re-evaluation.
+- **mosque1@test.com has stale Basic IN PROGRESS dbs_orders row** from L's incomplete first smoke (Bug 4 revert was UI-only; data persisted). Cleanup at convenience — not blocking.
+- **test1@gmail.com has paid Enhanced dbs_orders row** from L smoke step 5 setup (id `beeda403-09ea-4737-b8a5-8cf1220f5a70`, payment_reference `mock_smoke_step5_1778449577`). Cleanup at convenience — useful as fresh-state test fixture.
+- **Bug L-A, L-B, L-C** filed during L smoke pass — see Session L "Bugs filed during smoke" section for full descriptions and fix paths. None blocking; address pre-launch.
 
 ---
 
