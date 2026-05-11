@@ -12637,7 +12637,7 @@ const handleSignIn = (r) => {
 
     // Footer Admin link (unauthed, or non-admin user clicking it).
     // Role check happens in adminLogin onComplete after sign-in.
-    if (r === "admin") { setView("adminLogin"); return; }
+    if (r === "admin") { navigate("adminLogin"); return; }
 
     if (r === "user") {
       if (authedUser) {
@@ -12666,7 +12666,7 @@ const handleSignIn = (r) => {
       // dashboard. Default the post-auth destination there rather than
       // capturing whatever public page the user happened to be on.
       setUserAuthRole("user");
-      setReturnView("userDashboard"); setUserAuthMode("login"); setView("userAuth"); return;
+      setReturnView("userDashboard"); setUserAuthMode("login"); navigate("userAuth"); return;
     }
     if (r === "imam" || r === "scholar") {
       // Scholars use the same Supabase auth as parents. Post-auth we
@@ -12677,7 +12677,7 @@ const handleSignIn = (r) => {
         return;
       }
       setUserAuthRole("scholar");
-      setReturnView("scholarPostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
+      setReturnView("scholarPostAuth"); setUserAuthMode("login"); navigate("userAuth"); return;
     }
     if (r === "mosque") {
       // Mosques use the same Supabase auth as parents/scholars. Post-
@@ -12687,12 +12687,12 @@ const handleSignIn = (r) => {
         return;
       }
       setUserAuthRole("mosque");
-      setReturnView("mosquePostAuth"); setUserAuthMode("login"); setView("userAuth"); return;
+      setReturnView("mosquePostAuth"); setUserAuthMode("login"); navigate("userAuth"); return;
     }
     // Legacy LoginScreen fallthrough kept unreachable per K-6b
     // amendment 3 — Phase 9 deletes. No 6b r value matches this
     // line; the branches above cover every audience entry.
-    setRole(r); setView("login");
+    setRole(r); navigate("login");
   };
 
   // After a scholar signs in (or is already signed in and clicks a scholar
@@ -12814,7 +12814,7 @@ const handleSignIn = (r) => {
     savedCampaignIds={savedCampaignIds}
     toggleCampaignSave={toggleCampaignSave}
     />;
-if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); setView("login"); }} />;
+if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); navigate("login"); }} />;
   // Scholar onboarding wizard — entry point for an authed user with no
   // scholar listing and no application. Submit posts to
   // scholar_applications and routes to the submitted status page.
@@ -12985,7 +12985,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       conversations={inboxData}
       loading={conversationsLoading && !!authedProfile}
       onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }}
-      onBack={() => setView(role === "mosque" ? "mosqueDashboard" : role === "user" ? "userDashboard" : role === "scholar" ? "scholarDashboard" : "imamDashboard")}
+      onBack={() => window.history.back()}
       role={role}
       authedUser={authedUser}
       authedProfile={authedProfile}
@@ -13035,16 +13035,16 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     /* TODO(scholars-real): getOrCreateDirectConversation(scholar.userId, ...) once scholars are linked to auth users */ setView("messagesInbox"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} myScholar={myScholar} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => window.history.back()} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
-  if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
+  if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); navigate("login"); }} onPublic={() => setView("publicHome")} />;
   if (view === "login") return <LoginScreen
     role={role}
-    onLogin={() => setView(role === "mosque" ? "mosqueDashboard" : "imamDashboard")}
+    onLogin={() => navigate(role === "mosque" ? "mosqueDashboard" : "imamDashboard")}
     onBack={() => setView("publicHome")}
-    onGoRegister={() => setView(role === "mosque" ? "mosqueRegister" : "imamRegister")}
+    onGoRegister={() => navigate(role === "mosque" ? "mosqueRegister" : "imamRegister")}
     onSwitchRole={(newRole) => setRole(newRole)}
   />;
-  if (view === "mosqueRegister") return <MosqueRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); setView("registrationPending"); }} />;
-  if (view === "imamRegister") return <ImamRegister onBack={() => setView("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); setView("registrationPending"); }} />;
+  if (view === "mosqueRegister") return <MosqueRegister onBack={() => navigate("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); navigate("registrationPending"); }} />;
+  if (view === "imamRegister") return <ImamRegister onBack={() => navigate("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); navigate("registrationPending"); }} />;
   if (view === "registrationPending") return <RegistrationPending type={registrationType} form={registeredProfile} onHome={() => setView("publicHome")} />;
   if (view === "adminLogin") return <AdminLogin
     onBack={() => setView("publicHome")}
