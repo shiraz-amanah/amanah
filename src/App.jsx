@@ -8932,9 +8932,11 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
 // Real-data scholar dashboard. Activated when an auth user has a
 // scholars row pointing at them (myScholar). Read-only this session
 // except for meeting_url editing on bookings.
-const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessages, onScholarUpdate }) => {
-  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("scholarDashboardTab") || "bookings");
-  const setTab = (v) => { sessionStorage.setItem("scholarDashboardTab", v); setTabRaw(v); };
+const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessages, onScholarUpdate, tab = "bookings", onTabChange }) => {
+  // tab is URL-backed (?tab=X in /scholar-dashboard). onTabChange navigates
+  // with replace:true so each tab click doesn't pollute browser history.
+  // setTab kept as a local alias to avoid renaming 7 internal references.
+  const setTab = onTabChange;
 
   const [bookings, setBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
@@ -12849,6 +12851,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onOpenMessages={() => { setRole("scholar"); setView("messagesInbox"); }}
     onScholarUpdate={(updated) => setMyScholar(updated)}
+    tab={routeQuery.tab || "bookings"}
+    onTabChange={(t) => navigate("scholarDashboard", {}, { tab: t }, { replace: true })}
   />;
   if (view === "mosqueOnboarding") return <MosqueOnboardingWizard
     authedUser={authedUser}
