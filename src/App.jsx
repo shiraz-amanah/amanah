@@ -12727,7 +12727,7 @@ const handleSignIn = (r) => {
     if (scholar) {
       setMyScholar(scholar);
       if (scholar.status === "pending_verification") {
-        setView("scholarVerificationPending");
+        navigate("scholarVerificationPending");
       } else {
         setView("scholarDashboard");
       }
@@ -12736,7 +12736,7 @@ const handleSignIn = (r) => {
     const application = await getMyScholarApplication();
     if (!application) {
       setMyScholarApplication(null);
-      setView("scholarOnboarding");
+      navigate("scholarOnboarding");
       return;
     }
     setMyScholarApplication(application);
@@ -12744,13 +12744,13 @@ const handleSignIn = (r) => {
       // Trigger guarantees a scholars row exists when status='approved'.
       // If we got here without seeing it, RLS is hiding it. Route to
       // verification-pending — the truthful state regardless.
-      setView("scholarVerificationPending");
+      navigate("scholarVerificationPending");
     } else if (application.status === "pending") {
-      setView("scholarApplicationSubmitted");
+      navigate("scholarApplicationSubmitted");
     } else if (application.status === "rejected") {
-      setView("scholarApplicationRejected");
+      navigate("scholarApplicationRejected");
     } else {
-      setView("scholarOnboarding");
+      navigate("scholarOnboarding");
     }
   };
 
@@ -12776,7 +12776,7 @@ const handleSignIn = (r) => {
       const shaped = transformMosque(mosque);
       setMyMosque(shaped);
       if (mosque.status === "pending_verification") {
-        setView("mosqueVerificationPending");
+        navigate("mosqueVerificationPending");
       } else {
         setView("mosqueDashboard");
       }
@@ -12785,7 +12785,7 @@ const handleSignIn = (r) => {
     const application = await getMyMosqueApplication();
     if (!application) {
       setMyMosqueApplication(null);
-      setView("mosqueOnboarding");
+      navigate("mosqueOnboarding");
       return;
     }
     setMyMosqueApplication(application);
@@ -12793,13 +12793,13 @@ const handleSignIn = (r) => {
       // Trigger guarantees a mosques row exists when status='approved'.
       // Defensive route to verification-pending if RLS is hiding it
       // for any reason.
-      setView("mosqueVerificationPending");
+      navigate("mosqueVerificationPending");
     } else if (application.status === "pending") {
-      setView("mosqueApplicationSubmitted");
+      navigate("mosqueApplicationSubmitted");
     } else if (application.status === "rejected") {
-      setView("mosqueApplicationRejected");
+      navigate("mosqueApplicationRejected");
     } else {
-      setView("mosqueOnboarding");
+      navigate("mosqueOnboarding");
     }
   };
 
@@ -12830,7 +12830,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "scholarOnboarding") return <ScholarOnboardingWizard
     authedUser={authedUser}
     authedProfile={authedProfile}
-    onSubmitted={(app) => { setMyScholarApplication(app); setView("scholarApplicationSubmitted"); }}
+    onSubmitted={(app) => { setMyScholarApplication(app); navigate("scholarApplicationSubmitted"); }}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "scholarApplicationSubmitted") return <ScholarApplicationSubmitted
@@ -12841,7 +12841,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   />;
   if (view === "scholarApplicationRejected") return <ScholarApplicationRejected
     application={myScholarApplication}
-    onReapply={() => setView("scholarOnboarding")}
+    onReapply={() => navigate("scholarOnboarding")}
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
@@ -12864,7 +12864,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "mosqueOnboarding") return <MosqueOnboardingWizard
     authedUser={authedUser}
     authedProfile={authedProfile}
-    onSubmitted={(app) => { setMyMosqueApplication(app); setView("mosqueApplicationSubmitted"); }}
+    onSubmitted={(app) => { setMyMosqueApplication(app); navigate("mosqueApplicationSubmitted"); }}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
   if (view === "mosqueApplicationSubmitted") return <MosqueApplicationSubmitted
@@ -12874,7 +12874,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   />;
   if (view === "mosqueApplicationRejected") return <MosqueApplicationRejected
     application={myMosqueApplication}
-    onReapply={() => setView("mosqueOnboarding")}
+    onReapply={() => navigate("mosqueOnboarding")}
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
