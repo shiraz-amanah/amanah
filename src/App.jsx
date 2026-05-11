@@ -12078,9 +12078,13 @@ const AdminAllUsers = ({ authedProfile }) => {
 };
 
 // ===== Admin panel shell =====
-const AdminPanel = ({ authedProfile, onLogout }) => {
+const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionChange }) => {
   const displayName = authedProfile?.name || authedProfile?.email || "Admin";
-  const [section, setSection] = useState("overview");
+  // section is URL-backed (?section=X in /admin). onSectionChange navigates
+  // with replace:true so sidebar clicks don't pollute browser history.
+  // setSection kept as a local alias for the internal references (including
+  // the K-2 DBS-order deep-link at line ~12166).
+  const setSection = onSectionChange;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
   const [openFlagsCount, setOpenFlagsCount] = useState(0);
@@ -13087,6 +13091,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       await fullSignOut();
       setView("publicHome");
     }}
+    section={routeQuery.section || "overview"}
+    onSectionChange={(s) => navigate("adminPanel", {}, { section: s }, { replace: true })}
   />;
   if (view === "mosqueDashboard") return <MosqueDashboard
     mosque={myMosque}
