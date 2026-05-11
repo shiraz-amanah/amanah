@@ -1191,7 +1191,9 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
 // ============== MOSQUE DETAIL PAGE ==============
 
 const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSave, authedUser, authedProfile, onLogoClick, onSignIn, myMosque }) => {
-  if (!mosque) return null;
+  // mosque may be null on hard refresh of /mosque/:slug — App's refetch
+  // useEffect populates selectedMosque by slug. Hooks stay unconditional;
+  // null-guard sits after them.
 
   // Phase 7 Report affordance — session-local. Hidden for unauthed users
   // and for the mosque admin viewing their own listing (mosque.user_id is
@@ -1199,7 +1201,15 @@ const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSa
   // App-root state if the viewer claimed this mosque).
   const [showReportModal, setShowReportModal] = useState(false);
   const [reported, setReported] = useState(false);
-  const canReport = !!authedUser && mosque.user_id !== authedUser?.id && myMosque?.id !== mosque.id && !!mosque.id;
+  const canReport = !!authedUser && mosque?.user_id !== authedUser?.id && myMosque?.id !== mosque?.id && !!mosque?.id;
+
+  if (!mosque) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-sm text-stone-400">Loading mosque…</div>
+      </div>
+    );
+  }
 
   const facilityLabels = {
     disability_access: { label: "Disability access", icon: "♿" },
@@ -1500,9 +1510,15 @@ useEffect(() => {
 
 // ==================== SCHOLAR DETAIL ====================
 const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessage, onSignIn, authedUser, authedProfile, myScholar }) => {
-  // Start with the passed scholar, then refresh from DB for freshest data
+  // initialScholar may be null on hard refresh of /scholar/:slug — App's
+  // refetch useEffect populates selectedScholar by slug, triggering a
+  // re-render with real data. Hooks below stay unconditional (rules of
+  // hooks) and the null-guard sits after them.
   const [scholar, setScholar] = useState(initialScholar);
-  const [selectedPkg, setSelectedPkg] = useState(initialScholar.packages.find(p => p.popular) || initialScholar.packages[1] || initialScholar.packages[0]);
+  const [selectedPkg, setSelectedPkg] = useState(() => {
+    const pkgs = initialScholar?.packages || [];
+    return pkgs.find(p => p.popular) || pkgs[1] || pkgs[0] || null;
+  });
 
   // Real reviews from Supabase
   const [reviews, setReviews] = useState([]);
@@ -1513,10 +1529,10 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
   // gate prevents a claimed scholar from flagging their own profile).
   const [showReportModal, setShowReportModal] = useState(false);
   const [reported, setReported] = useState(false);
-  const canReport = !!authedUser && myScholar?.id !== scholar.id && !!scholar.id;
+  const canReport = !!authedUser && myScholar?.id !== scholar?.id && !!scholar?.id;
 
 useEffect(() => {
-  if (!initialScholar.slug) return;
+  if (!initialScholar?.slug) return;
   getScholarBySlug(initialScholar.slug)
     .then(fresh => {
       if (fresh) {
@@ -1530,7 +1546,7 @@ useEffect(() => {
     .catch(err => {
       console.error("Failed to refresh scholar:", err);
     });
-}, [initialScholar.slug]);
+}, [initialScholar?.slug]);
 
   // Load published reviews for this scholar. Demo scholars (id starts
   // with "demo-") aren't in the DB, skip the fetch.
@@ -1546,6 +1562,15 @@ useEffect(() => {
       .catch(err => console.error("Failed to load reviews:", err))
       .finally(() => setReviewsLoading(false));
   }, [scholar?.id]);
+
+  if (!scholar || !selectedPkg) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-sm text-stone-400">Loading scholar…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
@@ -3262,6 +3287,15 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile,
 
 // ==================== CAMPAIGN DETAIL ====================
 const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, authedProfile, isSaved, onToggleSave }) => {
+  // campaign may be null on hard refresh of /campaign/:id — App's refetch
+  // useEffect populates selectedCampaign from MOCK_CAMPAIGNS.
+  if (!campaign) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-sm text-stone-400">Loading campaign…</div>
+      </div>
+    );
+  }
   const pct = Math.min((campaign.raised / campaign.goal) * 100, 100);
 
   return (
@@ -12438,6 +12472,34 @@ const toggleScholarSave = async (scholar) => {
   // Part A commits 3-8). The shim warns when invoked for a param route.
   const setView = (newView) => navigate(newView);
 
+  // URL → state refetch. On hard refresh or browser back to a slug/id
+  // route, the URL has the identifier but selected* is null (or stale
+  // from a different item). Refetch so the detail view has data to
+  // render. No-ops when state already matches URL.
+  useEffect(() => {
+    if (view === "scholarDetail" && routeParams.slug) {
+      if (!selectedScholar || selectedScholar.slug !== routeParams.slug) {
+        getScholarBySlug(routeParams.slug)
+          .then(data => { if (data) setSelectedScholar(transformScholar(data)); })
+          .catch(err => console.error("Refetch scholar by slug failed:", err));
+      }
+    } else if (view === "mosqueDetail" && routeParams.slug) {
+      if (!selectedMosque || selectedMosque.slug !== routeParams.slug) {
+        getMosqueBySlug(routeParams.slug)
+          .then(data => { if (data) setSelectedMosque(transformMosque(data)); })
+          .catch(err => console.error("Refetch mosque by slug failed:", err));
+      }
+    } else if (view === "campaignDetail" && routeParams.id) {
+      if (!selectedCampaign || String(selectedCampaign.id) !== routeParams.id) {
+        const found = MOCK_CAMPAIGNS.find(c => String(c.id) === routeParams.id);
+        if (found) setSelectedCampaign(found);
+      }
+    } else if (view === "categoryListing" && routeParams.id) {
+      if (selectedCategory !== routeParams.id) setSelectedCategory(routeParams.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, routeParams.slug, routeParams.id]);
+
 // Check for existing session on page load - keeps users logged in across reloads
 useEffect(() => {
   (async () => {
@@ -12737,16 +12799,16 @@ const handleSignIn = (r) => {
   // mutate every individual return statement.
   const renderView = () => {
   if (view === "publicHome") return <PublicHome
-    onCategory={(id) => { setSelectedCategory(id); setView("categoryListing"); }}
-    onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
+    onCategory={(id) => { setSelectedCategory(id); navigate("categoryListing", { id }); }}
+    onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }}
     onSignIn={handleSignIn}
-    onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
+    onCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }}
     onAllCampaigns={() => setView("allCampaigns")}
     onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
     savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave}
     authedUser={authedUser} authedProfile={authedProfile}
     onMosquesListing={() => setView("mosquesListing")}
-    onMosqueDetail={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
+    onMosqueDetail={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }}
     savedMosqueIds={savedMosqueIds}
     toggleMosqueSave={toggleMosqueSave}
     savedCampaignIds={savedCampaignIds}
@@ -12852,7 +12914,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         return;
       }
       const raw = await getScholarById(scholarId);
-      if (raw) { setSelectedScholar(transformScholar(raw)); setView("scholarDetail"); }
+      if (raw) { const s = transformScholar(raw); setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }
     }}
     onReview={async (scholarId, bookingId) => {
       if (!scholarId) {
@@ -12866,23 +12928,23 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         setView("leaveReview");
       }
     }}
-    onViewCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }}
+    onViewCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }}
     onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
     savedScholarIds={savedScholarIds}
     savedCampaignIds={savedCampaignIds}
     savedScholars={savedScholars}
-    onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }}
+    onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }}
     toggleScholarSave={toggleScholarSave}
     savedMosqueIds={savedMosqueIds}
     savedMosques={savedMosques}
     toggleMosqueSave={toggleMosqueSave}
-    onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }}
+    onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }}
   />;
   if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} bookingId={reviewBookingId} onBack={() => window.history.back()} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} onSignIn={handleSignIn} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted
     review={submittedReview}
     onHome={() => setView("publicHome")}
-    onViewScholar={submittedReview?.scholar ? () => { setSelectedScholar(submittedReview.scholar); setView("scholarDetail"); } : null}
+    onViewScholar={submittedReview?.scholar ? () => { setSelectedScholar(submittedReview.scholar); navigate("scholarDetail", { slug: submittedReview.scholar.slug }); } : null}
   />;
   const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
   const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
@@ -12962,16 +13024,16 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   }} />;
   if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
   if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
-  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); setView("campaignDetail"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} savedCampaignIds={savedCampaignIds} toggleCampaignSave={toggleCampaignSave} />;
+  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} savedCampaignIds={savedCampaignIds} toggleCampaignSave={toggleCampaignSave} />;
   if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} isSaved={savedCampaignIds?.has(String(selectedCampaign?.id))} onToggleSave={toggleCampaignSave} />;
-  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => setView("campaignDetail")} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => window.history.back()} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
-  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
-  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); setView("mosqueDetail"); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
-  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); setView("scholarDetail"); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} myMosque={myMosque} />;
+  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
+  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} myMosque={myMosque} />;
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => {
     /* TODO(scholars-real): getOrCreateDirectConversation(scholar.userId, ...) once scholars are linked to auth users */ setView("messagesInbox"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} myScholar={myScholar} />;
-  if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => setView("scholarDetail")} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
+  if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => window.history.back()} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); setView("login"); }} onPublic={() => setView("publicHome")} />;
   if (view === "login") return <LoginScreen
