@@ -7515,8 +7515,11 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque }) => {  const [tab, setTabRaw] = useState(() => sessionStorage.getItem("dashboardTab") || "bookings");
-  const setTab = (newTab) => { sessionStorage.setItem("dashboardTab", newTab); setTabRaw(newTab); };
+  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
+  // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
+  // replace:true so tab clicks don't pollute browser history. setTab kept
+  // as a local alias for the internal references.
+  const setTab = onTabChange;
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", city: "", phone: "" });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -12934,6 +12937,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     }}
     onViewCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }}
     onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
+    tab={routeQuery.tab || "bookings"}
+    onTabChange={(t) => navigate("userDashboard", {}, { tab: t }, { replace: true })}
     savedScholarIds={savedScholarIds}
     savedCampaignIds={savedCampaignIds}
     savedScholars={savedScholars}
