@@ -41,13 +41,15 @@ Plan reshuffled after a pre-Session-C audit (May 2026) found multiple bugs in th
 
 - **Session K Phase 7** ✅ — Flags & reports. Migration 028 bundled four concerns: Parts A + B restore K-2 admin RLS on scholars (originally 020) and K-3 admin RLS on reviews (originally 021) — pre-flight pg_policies probe surfaced both had been committed + noted-as-shipped but never applied to prod (silent RLS no-ops running 24+ hours each); Part C adds admin UPDATE on messages (new for softDeleteMessage); Part D ships polymorphic `flags` table (subject_type ∈ {scholar,mosque,review,message}) + RLS + indexes + partial-unique dedup index. Eight new auth.js helpers (5 flag CRUD + 3 admin-action shortcuts unpublishScholar/unpublishMosque/softDeleteMessage). Four user-facing Report affordances using shared `<ReportModal>`: ReviewCard Flag icon, PublicScholarDetail + PublicMosqueDetail Report link, ConversationView per-message 3-dot on incoming bubbles. New `<AdminFlags>` queue with status + subject-type + safeguarding filters, grouped detail, three resolve/dismiss/action shortcuts with bulk-close UPDATE on sibling open flags. AdminFlags refactored to drop App.jsx supabase-direct imports (`3d3fb85`). Session D dead-UI MoreHorizontal removed from conversation header (`a726f03`). Closure drops ADMIN_FLAGS mock + reverts a diagnostic console.log push that turned out to confirm no actual bug. Smoke green on all 24 brief steps; step 18 PASS A confirmed `getMessages` filters `deleted_at IS NULL`. Two cross-cutting gotchas filed (migration shipped ≠ applied; saved-query-with-no-body Success ambiguity); K-2 + K-3 entries annotated; Phase 8 — DBS orders is up next.
 - **Session L** ✅ — DBS orders core. Migration 029 drops `scholars.rtw_verified` (Part A) + creates `dbs_orders` table with 5 RLS policies, partial-unique active-order index, 7-stage lifecycle CHECK, candidate_user_id required + scholar_id/mosque_id optional polymorphic context (Part B). 11 auth.js helpers + DBS_PRICES_PENCE constant. New `<DBSOrderingPanel>` shared component (10 useState, 5 render branches incl. issued-with-disclosure UX gate) wired into `<ScholarDashboard>` DBS tab. New `<AdminDBSOrders>` queue + detail view replaces ADMIN_DBS_ORDERS mock — 8 stage filters, 3 level filters, debounced search, free-dropdown stage transitions per L review amendment 4 with confirm modal on issued/issued_with_disclosure/cancelled. K-2 verification panel surfaces latest DBS order via dbsDetailOrderId state lifted to `<AdminPanel>`. RTW dropped from K-2 UI (3 toggles → 2) + scholarTransform + ScholarVerificationPending + PublicHome trust copy. Critical-1 amendment shipped insert-with-paid in single round-trip (chained submit→pay would have been RLS-blocked); Critical-2 amendment dropped NOT NULL on ordered_by (NOT NULL + ON DELETE SET NULL is contradictory). Mosque DBS tab reverted mid-smoke (Bug 4: mosques aren't people; Session M reintroduces with staff semantics). shapeProfile email omission caught mid-smoke (Bug 5: admin DBS list rendered candidate email as "—"). NOTIFY pgrst + 5-probe + hard-refresh codified as firm protocol. Smoke incomplete — flag for Session M start. 12 work commits + closure = 13 total.
+- **Session M Part A** ✅ — URL routing foundation. Lightweight `useUrlState` hook wrapping the native History API (no router dependency, ~50-line hook + 50-entry route schema covering all 47 views). App.jsx bootstrap reads `window.location.pathname` first; admin auto-route gated on path being `/` so deep-linked admins keep their URL. Six param routes support deep-linking with refetch from URL: `/scholar/:slug` + `/mosque/:slug` (Supabase by slug), `/campaign/:id` + `/category/:id` (in-memory), `/messages/:id` (against the user's RLS-gated conversations list), `/jobs/:id` + `/jobs/:id/apply` (MOCK_JOBS). Six detail components null-guarded for the loading window between first render and refetch — guards live AFTER hook blocks to preserve rules-of-hooks (PublicScholarDetail's pre-guard crash on `initialScholar.packages` was the bug that surfaced this requirement mid-commit-3 smoke). Dashboard tabs migrated from sessionStorage to URL query params (`/dashboard?tab=X`, `/scholar-dashboard?tab=X`, `/admin?section=X`) with `replace: true` so back from any tab leaves the dashboard rather than cycling. `/staff/accept/:token` stub rendered inline as Part B placeholder. `vercel.json` SPA fallback (`"/(.*)"` → `/index.html`) shipped — Vercel's "successful request to a file that exists will not be rewritten" rule keeps `/assets/*` serving directly. `setView` retained as a one-line shim delegating to `navigate(viewName)` — 85 non-param call sites still go through it (work correctly; future-cleanup style). Sub-routes' "back" buttons (donate, bookingConfirm, applyJob, admin-login cancel) use `window.history.back()` so URL params on the prior page are restored. Two bugs caught mid-session: (1) PublicScholarDetail null crash → null-guard pattern established for 6 components; (2) param-route deep-link gap (refetch useEffect originally only covered scholar/mosque/campaign/category) → user's smoke question prompted the fix, refetch extended to conversation + job routes inside commit 10 itself. 11 work commits + 3 docs = 14 total. Part B (mosque staff management) next.
 
 ### Post-Session-K roadmap (Sessions L–Q)
 
 **Roadmap rationale.** Sessions L–Q reflect a product reframing: Amanah is a marketplace for parent-scholar discovery + booking AND an operational platform for mosques (HR, DBS, rotas, events, donations). The mosque-side features create network effects: mosques run their operations on Amanah → real local content (events, verified staff) → parents engage more → loop closes. L sequenced first as smallest, ships cleanest, validates DBS infrastructure. M sequenced next as the highest-leverage feature for actual mosque adoption. Total: ~65 commits across 6 focused sessions, paced by available bandwidth.
 
 - **Session L — DBS orders core** ✅ — shipped 9 May 2026 (13 commits, see Shipped list above + closure section below). Mosque-side DBS punted to Session M with staff semantics (mosque DBS tab reverted mid-smoke; Bug 4).
-- **Session M — Mosque staff management (HR app foundation).** New `mosque_staff` table, mosque dashboard "Team" tab, two onboarding paths: (1) mosque types staff details directly + creates account on their behalf, (2) email invite linking to the wizard for staff to fill themselves. Per-staff `publicly_listed` boolean toggle on mosque dashboard. Closes Session J's parked Email notifications by shipping the invite email infrastructure (Resend or Supabase Auth hooks). ~15 commits. Highest-leverage session for mosque engagement — without this, mosques have no operational reason to use the dashboard.
+- **Session M Part A — URL routing foundation** ✅ — shipped 11 May 2026 (14 commits, see Shipped list above + closure section below). Hook-based pushState/popstate wrapper, all 47 views mapped to URL paths, deep-link refetch + null-guards across 6 detail components, dashboard tabs as URL params, `/staff/accept/:token` Part B stub, `vercel.json` SPA fallback. Headline fix: hard refresh no longer always lands on home.
+- **Session M Part B — Mosque staff management (HR app foundation).** New `mosque_staff` table, mosque dashboard "Team" tab, two onboarding paths: (1) mosque types staff details directly + creates account on their behalf, (2) email invite linking to the wizard for staff to fill themselves — staff accept flow lands on the `/staff/accept/:token` route Part A stubbed out. Per-staff `publicly_listed` boolean toggle on mosque dashboard. Closes Session J's parked Email notifications by shipping the invite email infrastructure (Resend or Supabase Auth hooks). ~15 commits. Highest-leverage session for mosque engagement — without this, mosques have no operational reason to use the dashboard.
 - **Session N — Mosque rotas.** Prayer lead rota (5 daily prayers + Jummah) and classroom/teaching rotas. Recurring schedule modeling, staff assignment from the M-shipped staff list, public-display surface on mosque detail page. Depends on M (need staff records to assign). ~12 commits.
 - **Session O — Events calendar.** Mosque dashboard event creation (Friday lectures, kids' classes, community events), public PublicHome events feed (geo-sorted, similar to mosques featured-4), event detail page, optional RSVP. No M dependency — can ship in any order relative to N. ~10 commits. Closes the platform's "what's happening near me" loop.
 - **Session P — DBS as signup gate + international scholar tier.** Two policy-shaped changes that depend on L's infrastructure: (a) UK scholars can't reach `status='active'` without a clean DBS — admin approves application intent → scholar prompted to order DBS → status flips to active only on issued; (b) international scholar tier with reference-based verification, flagged adult-students-only (skip safeguarding-heavy DBS, add explicit "International scholar — verified via references" pill, restrict bookings to 18+ students). DBS-with-disclosure handled case-by-case by admin, not auto-rejected. ~8 commits.
@@ -4095,6 +4097,226 @@ New parked items from L:
 
 ---
 
+## Session M Part A — URL routing foundation ✅ (11 May 2026)
+
+Lightweight pushState/popstate wrapper around the native History
+API. No router dependency. Replaces the prior `view` string state
+machine in App.jsx with URL-as-source-of-truth routing: every one of
+the 47 views maps to a real URL path, hard refresh lands on the
+right view, deep links work, and the browser back button is honored
+throughout. Foundation for Part B — mosque staff invites need
+shareable accept-links.
+
+### What shipped
+
+- **`src/lib/useUrlState.js`** — single hook exposing `{ view,
+  params, query, navigate(view, params, query, opts) }`. Route
+  table covers all 47 views: public site by slug/id, dashboards
+  with `?tab` / `?section` query params, auth / admin, onboarding
+  wizards, and `/staff/accept/:token` for Part B. parseUrl /
+  buildUrl are inverse — round-trips verified during commit 1 smoke
+  with 10 representative paths.
+
+- **App.jsx bootstrap rewrite.** `useState("publicHome")` replaced
+  by `useUrlState()`. `setView` retained as a one-line shim that
+  delegates to `navigate(viewName)` so the ~125 existing call sites
+  kept working unchanged through the migration; param-bearing sites
+  were migrated to direct `navigate(view, { slug })` calls
+  region-by-region. Admin auto-route on session restore is now
+  gated on `window.location.pathname === "/"`: an authed admin who
+  deep-links to a public page stays there instead of being bounced
+  to `/admin`. Legacy popstate useEffect deleted — useUrlState owns
+  popstate.
+
+- **Param-route migrations + deep-link refetch.** Public-site param
+  routes (scholar/mosque/campaign/category) and the later wave
+  (conversation/job/job-apply) use `navigate(view, { id })` so
+  slugs/ids land in the URL. A single refetch useEffect at App root
+  watches view + routeParams and rehydrates `selected*` state from
+  the URL: `getScholarBySlug` / `getMosqueBySlug` for the Supabase
+  routes, MOCK_CAMPAIGNS / MOCK_JOBS in-memory lookups for the
+  still-mock ones, and a `conversations.find()` against the auth
+  user's already-loaded list for messaging (RLS-gated — deep-linking
+  to someone else's conversation correctly stays on Loading
+  indefinitely; no error message revealing the conversation
+  exists).
+
+- **Null-guards in 6 detail components.** PublicScholarDetail,
+  MosqueDetail, CampaignDetail, ConversationView, JobDetail,
+  ApplyToJob each show a minimal "Loading…" state while the
+  refetch resolves. Guards live AFTER each component's hook block
+  (not before) to keep hook order stable across the null→data
+  render transition; hook initializers updated to be null-safe via
+  optional chaining and lazy initializer functions.
+  PublicScholarDetail's `useState(initialScholar.packages.find(...))`
+  was the crash that surfaced this requirement during commit 3
+  smoke.
+
+- **Dashboard tabs via URL query.** ScholarDashboard, UserDashboard,
+  AdminPanel migrated from sessionStorage to `?tab=X` / `?section=X`.
+  Tab clicks navigate with `replace: true` so back-button doesn't
+  cycle through tabs — back from any tab leaves the dashboard. K-2
+  → DBS-order deep-link inside AdminPanel preserved end-to-end:
+  clicking "View order" on a candidate's verification panel
+  updates URL to `/admin?section=dbs` AND surfaces the specific
+  order detail via the lifted `dbsDetailOrderId` state (verified
+  in commit 7 smoke).
+
+- **`/staff/accept/:token` stub** rendered inline in the view
+  router as the Part B placeholder. Displays the token, "Mosque
+  staff invite acceptance ships in Session M Part B" copy, and a
+  Browse-Amanah button. Route exists so Part B's invite links won't
+  404 at Vercel between now and B landing.
+
+- **`vercel.json` SPA fallback.** Catch-all rewrite `"/(.*)"` →
+  `/index.html`. Vercel's "successful request to a file that
+  exists will not be rewritten" rule keeps `/assets/*` serving
+  directly while `/scholar/yusuf-al-rahman` falls through to the
+  SPA. Post-merge smoke required: deploy to Vercel preview, hit
+  `/scholar/<slug>` directly, confirm no 404.
+
+### Commits (11 work + 3 docs = 14 total)
+
+1. `5078663` — `feat(routing): add useUrlState hook + route schema`
+2. `22c50ed` — `feat(routing): bootstrap reads pathname first in App.jsx`
+3. `1342134` — `chore(routing): migrate public site routes`
+4. `6b916f5` — `chore(routing): migrate auth flow`
+5. `bdaf1cf` — `chore(routing): migrate scholar dashboard tabs to URL params`
+6. `67a0891` — `chore(routing): migrate parent dashboard tabs to URL params`
+7. `f1d2713` — `docs: note pre-existing dashboard bookings empty-state issue`
+8. `a47eeb1` — `chore(routing): migrate admin panel sections to URL params`
+9. `8daf108` — `chore(routing): migrate onboarding wizards`
+10. `4935e19` — `docs: park Session M Part A onboarding states for staging smoke`
+11. `4d7f920` — `chore(routing): vercel.json SPA fallback`
+12. `90d3cac` — `chore(routing): straggler cleanup + deep-link refetch`
+13. (this closure commit)
+
+### Smoke pass (11 May 2026)
+
+- ✅ Hard refresh on `/`, `/mosques`, `/campaigns`, `/scholar/<slug>`,
+  `/mosque/<slug>`, `/campaign/<id>` — all land on the right view
+  with data populated
+- ✅ Browser back across 3-4 routes works correctly
+- ✅ Scholar dashboard tabs as URL params (3/4 explicit, 4th
+  implicit via tab content rendering)
+- ✅ Parent dashboard tabs (caveat: pre-existing UserDashboard
+  empty-bookings issue surfaced; verified non-regression via
+  `git diff`, parked separately)
+- ✅ Admin panel sections — including K-2 → DBS-order deep-link
+  end-to-end with `dbsDetailOrderId` lifted state
+- ✅ Scholar onboarding funnel end-to-end (new account → wizard →
+  `/onboarding/scholar/submitted`). Mosque funnel +
+  rejected/pending states use the identical `navigate()` pattern
+  but weren't separately exercised in dev — flagged in parked
+  items for staging verification.
+- ✅ Deep-link refetch for `/messages/:id`, `/jobs/:id`,
+  `/jobs/:id/apply`, plus regression on existing param routes
+- ⏳ Vercel SPA fallback — verify post-merge on preview deploy
+
+### Bugs surfaced + fixed mid-session
+
+1. **PublicScholarDetail null crash on `/scholar/<slug>` hard
+   refresh (commit 3 smoke).** Component read
+   `initialScholar.packages` in useState initializer before any
+   null check. Root cause: hard refresh parses URL correctly but
+   `selectedScholar` is null until the refetch useEffect resolves.
+   Fix: lazy useState initializers with optional chaining +
+   null-guards AFTER hook block (NOT before — would violate rules
+   of hooks). Same pattern applied to MosqueDetail + CampaignDetail
+   in commit 3, and later to ConversationView + JobDetail +
+   ApplyToJob in commit 10. ConversationView's null-safety was
+   already partial (`conversation?.id` in places) but its useState
+   initializer needed the same defense.
+
+2. **Param-route deep-link gap (caught mid-commit-10).** When
+   `navigate(view, { id })` was added for the conversation + job
+   routes, commit 3's refetch useEffect wasn't extended to handle
+   them. User's smoke question — "does anything read the URL param
+   and populate selected*?" — surfaced the gap before the commit
+   landed. Fix: extended the refetch useEffect to handle
+   conversationView (against the already-loaded `conversations`
+   state, RLS-gated) and jobDetail/applyJob (against MOCK_JOBS).
+   Folded into commit 10 itself.
+
+### Decisions
+
+- **Native History API only.** No `react-router-dom` / `history`
+  package. The whole hook is ~50 lines plus a 50-entry route table.
+- **`setView` shim retained.** All 125 setView call sites kept
+  working through the migration via a one-line shim that delegates
+  to `navigate(viewName)`. Param-bearing sites were migrated
+  explicitly (the shim would build a URL with a missing param);
+  non-param sites work identically through the shim. 85 non-param
+  setView calls remain through it — pure style, parked.
+- **Dashboard tab clicks use `replace: true`.** Each tab click
+  doesn't create a history entry — back from any tab leaves the
+  dashboard rather than cycling. Confirmed UX win in scholar +
+  parent dashboard smoke.
+- **Sub-routes use `window.history.back()` for back buttons.**
+  Inside flows like donate→back, booking→back, jobs→back: setView
+  to the parent view would lose URL params (e.g. campaignDetail's
+  id); history.back() restores the prior URL with its params
+  intact. Same fix used for admin-login cancel.
+- **Default tab params not stripped from URL.** Tab `bookings`
+  (the default) still puts `?tab=bookings` in URL on click.
+  Aesthetic trade-off in favor of simpler navigate calls; can be
+  tightened later.
+- **Conversation deep-link RLS-gated, not refetched from server.**
+  Lookup is against the user's already-loaded conversations list.
+  Anyone deep-linking to a conversation not in their list stays on
+  Loading indefinitely — correct security posture (no error
+  message revealing the conversation exists).
+
+### Lessons learned
+
+- **The null-guard before useState is a rules-of-hooks trap.**
+  Tempting reflex is to put `if (!prop) return null` at the top of
+  the component; that works when the component mounts with the
+  guard true and stays true (or mounts with it false and stays
+  false), but the moment state transitions across the boundary
+  React panics with "Rendered more hooks than during the previous
+  render." Right pattern: keep hooks unconditional, make their
+  initializers null-safe via optional chaining or lazy
+  initializers, and put the guard AFTER the hook block.
+- **URL param routes need three pieces, not one.** A param route
+  (`/scholar/:slug`) requires: (1) `navigate()` call sites passing
+  the param; (2) refetch useEffect rehydrating state from the URL
+  param; (3) detail component null-guard for the loading window.
+  Missing any of the three makes deep-link/hard-refresh fail
+  silently or crash. The user's mid-commit-10 question
+  ("does anything read the URL param?") caught the gap when only
+  (1) was done for the new routes.
+- **`setView` shim was the right scaffold.** Keeping it in place
+  through commits 2-10 meant each region migration was a focused
+  diff; if I'd tried to migrate all 125 call sites in one go, the
+  diff would have been unreviewable and bisecting would be
+  worthless. Shim users decrease commit-by-commit as regions are
+  migrated.
+- **Vercel rewrites + Vite assets coexist cleanly.** I was
+  initially worried `/(.*)` → `/index.html` would catch
+  `/assets/*` URLs, but Vercel's documented behavior is "rewrites
+  only fire if the URL doesn't match a real file in the build
+  output." No exclusion regex needed.
+
+### Out of scope / parked
+
+- **85 non-param `setView` calls remain through the shim.** All
+  work correctly. Converting them is pure style; the migration
+  doesn't depend on it. Future cleanup session can replace them
+  with explicit `navigate()` and delete the shim.
+- **Scroll restoration.** Not implemented. Browser back to a
+  scrolled-down list returns to top of page. Punt to a future
+  polish session.
+- **No SSR.** Vercel-rendered static SPA, JS-only routing.
+- **Staging-environment smoke for mosque submission, scholar-
+  rejected reapply, verification-pending states.** Flagged
+  separately in parked items (commit 8 docs entry).
+- **UserDashboard "No bookings yet" briefly-renders-then-vanishes
+  issue.** Pre-existing — verified non-regression via `git diff`
+  HEAD~5. Three hypotheses logged in parked items.
+
+---
+
 ## Cross-cutting gotchas
 
 ### Schema / migrations gotchas
@@ -4140,7 +4362,7 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **`SCHOLAR_REVIEWS_DB` migration** — confirmed broken on prod in Session G (integer keys vs. UUID `scholar.id`). Reviews silently render empty for every real scholar detail page. Now in the "next session candidates" list at the top.
 - **Single Supabase project for dev and prod.** `.env` and Vercel both point at `zgoyvztooyxqkcftwylr.supabase.co`. Test data created during development is visible to real users in production (e.g. the "Realtime test from eesaa" / "Test Message" entries from Session D smoke testing now live in real users' inboxes). Not blocking — but: any RLS mistake, schema migration, or destructive query during dev affects production data. Strongly recommended before public launch: spin up a separate Supabase project for dev. Migration cost will only grow as more tables exist.
 - **`profiles.phone` / `profiles.email` audit.** Session D opened profiles SELECT to all authenticated users (needed for messaging joins). Frontend doesn't render those fields outside Account, but a thoughtful pass before public launch is warranted.
-- **Vercel SPA fallback rewrite.** Deep links (e.g. /scholar/yusuf) on hard refresh probably 404 against Vercel's static-host rules. Verify and add `vercel.json` rewrite if so.
+- ~~**Vercel SPA fallback rewrite.**~~ ✅ RESOLVED in Session M Part A (commit `4d7f920`). `vercel.json` catch-all rewrite `"/(.*)"` → `/index.html` ships alongside the URL routing layer. Deep links + hard refresh now land on the right view. Post-merge preview verification still recommended.
 - **MosqueDetail empty scholar affiliations.** Hardcoded to `[]` in Session F until the mosque DB migration replaces them with real wiring.
 - **Two definitions of dashboard tabs.** Session G extracted `<DashboardTabBar>` for the Messages views but kept UserDashboard's inline copy intact to keep the regression surface narrow. Adding/renaming a tab requires both. Worth merging in a follow-up.
 - **Phase K-4 deferred (campaigns).** `campaigns` doesn't exist as a Supabase table yet — public listings still render `MOCK_CAMPAIGNS` directly. Phase 4 of Session K (admin campaign queue + status enum) was originally planned as `alter table` + backfill, but is actually `create table` + seed-from-mock + `donations.campaign_id` migration (FK or stay-text). Punted to its own focused future session. Until then, the AdminCampaignQueue tab keeps mock data and toast-only handlers (same as pre-K).
