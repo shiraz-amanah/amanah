@@ -4865,7 +4865,7 @@ const ConversationView = ({
   // the original in-memory behavior. For real conversations, fetch + subscribe.
   const isReal = !!currentUserId && typeof conversation?.id === "string" && conversation.id.length > 20;
  
-  const [messages, setMessages] = useState(isReal ? [] : (conversation.messages || []));
+  const [messages, setMessages] = useState(isReal ? [] : (conversation?.messages || []));
   const [loading, setLoading] = useState(isReal);
   const [input, setInput] = useState("");
   const [showWarning, setShowWarning] = useState(false);
@@ -5011,6 +5011,14 @@ const ConversationView = ({
   };
  
   const showDashboardTabs = (role === "user" || role === "scholar") && !!onTabClick;
+
+  if (!conversation) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-sm text-stone-400">Loading conversation…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -5425,7 +5433,15 @@ const JobsBoard = ({ onBack, onJob, myApplications }) => {
 };
 
 // ==================== JOB DETAIL (for imams) ====================
-const JobDetail = ({ job, onBack, onApply, applied }) => (
+const JobDetail = ({ job, onBack, onApply, applied }) => {
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-sm text-stone-400">Loading job…</div>
+      </div>
+    );
+  }
+  return (
   <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
     <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
@@ -5549,7 +5565,8 @@ const JobDetail = ({ job, onBack, onApply, applied }) => (
       </div>
     </main>
   </div>
-);
+  );
+};
 
 // ==================== APPLY TO JOB ====================
 const ApplyToJob = ({ job, onBack, onSubmit }) => {
@@ -5559,6 +5576,14 @@ const ApplyToJob = ({ job, onBack, onSubmit }) => {
   const [includeReviews, setIncludeReviews] = useState(true);
 
   const canSubmit = message.length >= 30 && availableDate;
+
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-sm text-stone-400">Loading job…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -12505,9 +12530,22 @@ const toggleScholarSave = async (scholar) => {
       }
     } else if (view === "categoryListing" && routeParams.id) {
       if (selectedCategory !== routeParams.id) setSelectedCategory(routeParams.id);
+    } else if (view === "conversationView" && routeParams.id) {
+      // Conversation lookup is gated by the conversations list the auth user
+      // can actually see (RLS). Anyone deep-linking to a conversation that
+      // isn't theirs stays on the loading state until they navigate away.
+      if (!selectedConversation || selectedConversation.id !== routeParams.id) {
+        const raw = (conversations || []).find(c => c.id === routeParams.id);
+        if (raw) setSelectedConversation(adaptConversation(raw));
+      }
+    } else if ((view === "jobDetail" || view === "applyJob") && routeParams.id) {
+      if (!selectedJob || String(selectedJob.id) !== routeParams.id) {
+        const found = MOCK_JOBS.find(j => String(j.id) === routeParams.id);
+        if (found) setSelectedJob(found);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, routeParams.slug, routeParams.id]);
+  }, [view, routeParams.slug, routeParams.id, conversations]);
 
 // Check for existing session on page load - keeps users logged in across reloads
 useEffect(() => {
@@ -12911,7 +12949,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       await routeAuthedMosque(user.id);
       return;
     }
-    setView(returnView);
+    navigate(returnView);
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
@@ -12997,7 +13035,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     return <MessagesInbox
       conversations={inboxData}
       loading={conversationsLoading && !!authedProfile}
-      onConversation={(c) => { setSelectedConversation(c); setView("conversationView"); }}
+      onConversation={(c) => { setSelectedConversation(c); navigate("conversationView", { id: c.id }); }}
       onBack={() => window.history.back()}
       role={role}
       authedUser={authedUser}
@@ -13025,11 +13063,11 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     messagesUnread={totalMessagesUnread}
     {...messagesChrome}
   />;
-  if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); setView("jobDetail"); }} myApplications={myApplications} />;
+  if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); navigate("jobDetail", { id: j.id }); }} myApplications={myApplications} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
   if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => setView("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
-  if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => setView("jobsBoard")} onApply={(j) => { setSelectedJob(j); setView("applyJob"); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
-  if (view === "applyJob") return <ApplyToJob job={selectedJob} onBack={() => setView("jobDetail")} onSubmit={(app) => {
+  if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => setView("jobsBoard")} onApply={(j) => { setSelectedJob(j); navigate("applyJob", { id: j.id }); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
+  if (view === "applyJob") return <ApplyToJob job={selectedJob} onBack={() => window.history.back()} onSubmit={(app) => {
     const newApp = { id: `app-${Date.now()}`, jobId: app.job.id, status: "submitted", appliedDate: "just now", message: app.message };
     setMyApplications([newApp, ...myApplications]);
     setSubmittedApplication(app);
@@ -13119,14 +13157,30 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     creatorType={campaignCreatorType}
     creatorName={currentCreator.name}
     creatorCity={currentCreator.city}
-    onBack={() => setView(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
+    onBack={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
     onComplete={(form) => { setLaunchedCampaign(form); setView("campaignLaunched"); }}
   />;
   if (view === "campaignLaunched") return <CampaignLaunched
     campaign={launchedCampaign}
     onView={() => setView("publicHome")}
-    onHome={() => setView(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
+    onHome={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
+  // Staff invite acceptance — placeholder until Session M Part B. Route
+  // exists so /staff/accept/:token deep links don't 404 at Vercel; the
+  // real flow (token validation, role assignment) ships in B.
+  if (view === "staffAccept") return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="max-w-md w-full bg-white border border-stone-200 rounded-2xl p-8 text-center">
+        <ShieldCheck className="mx-auto text-stone-300 mb-4" size={36} />
+        <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff invites — coming soon</h2>
+        <p className="text-sm text-stone-600 mb-4">Mosque staff invite acceptance ships in Session M Part B.</p>
+        <p className="text-[11px] text-stone-400 font-mono break-all">Token: {routeParams.token}</p>
+        <button onClick={() => setView("publicHome")} className="mt-5 bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
+          Browse Amanah
+        </button>
+      </div>
+    </div>
+  );
   return null;
   };
 
