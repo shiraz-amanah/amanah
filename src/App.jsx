@@ -8,6 +8,7 @@ import { transformScholar } from "./lib/scholarTransform";
 import { transformMosque } from "./lib/mosqueTransform";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
+import { useUrlState } from "./lib/useUrlState";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
@@ -12266,7 +12267,7 @@ const GlobalToast = ({ message, onDismiss }) => {
 
 // ==================== APP ROOT ====================
 export default function App() {
-  const [view, setViewRaw] = useState("publicHome");
+  const { view, params: routeParams, query: routeQuery, navigate } = useUrlState();
   const [role, setRole] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedScholar, setSelectedScholar] = useState(null);
@@ -12431,31 +12432,11 @@ const toggleScholarSave = async (scholar) => {
     }
   };
 
-  // Custom setView that also pushes to browser history
-  const setView = (newView) => {
-    if (newView !== view) {
-      window.history.pushState({ view: newView }, "", window.location.pathname);
-    }
-    setViewRaw(newView);
-  };
-
-  // Listen for browser back/forward buttons and restore the previous view
-  useEffect(() => {
-    const handlePopState = (event) => {
-      if (event.state && event.state.view) {
-        setViewRaw(event.state.view);
-      } else {
-        // No state means we went back to the very beginning (home)
-        setViewRaw("publicHome");
-      }
-    };
-
-    // Initialise — mark the current view as the first entry in browser history
-    window.history.replaceState({ view: "publicHome" }, "", window.location.pathname);
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  // Backwards-compatible shim — most call sites still pass only a view
+  // name. URL params for routes like /scholar/:slug get wired in via
+  // navigate() directly during region-by-region migration (Session M
+  // Part A commits 3-8). The shim warns when invoked for a param route.
+  const setView = (newView) => navigate(newView);
 
 // Check for existing session on page load - keeps users logged in across reloads
 useEffect(() => {
@@ -12466,13 +12447,12 @@ useEffect(() => {
       if (user) {
         const profile = await getProfile();
         setAuthedProfile(profile);
-        // Admin auto-route: an admin who reloads while inside the
-        // panel should land back on adminPanel rather than be
-        // dumped on publicHome (their natural home is the panel,
-        // unlike scholars/parents who navigate from publicHome).
-        // Suspended admins stay on publicHome — clicking avatar or
+        // Admin auto-route: an admin who reloads while on / should
+        // land in adminPanel. Deep links to any other route are
+        // respected — an admin opening /scholar/yusuf stays there.
+        // Suspended admins stay on publicHome; clicking avatar or
         // the footer Admin link will fire the bounce flow.
-        if (profile?.role === "admin" && !profile.suspended) {
+        if (profile?.role === "admin" && !profile.suspended && window.location.pathname === "/") {
           setView("adminPanel");
         }
         // Scholar + mosque probes are gated on `if (profile)` rather
