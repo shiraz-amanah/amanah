@@ -47,7 +47,7 @@ There is no test suite, no lint script, and no typechecker — `npm run build` i
 
 ## Supabase / data caveats
 
-- **One Supabase project serves both dev and prod.** `.env` and Vercel both point at the same instance. Any schema change or destructive query during development affects real users. NOTES.md flags this as the top pre-launch risk — avoid migrations without a separate dev project, and don't seed test data through the running app.
+- **Two Supabase projects as of 12 May 2026.** `amanah` (prod, served by Vercel) and `amanah-dev` (local dev only, ref `pbejyukihhmybxxtheqq`). Local dev points at dev via gitignored `.env.local` which overrides `.env`; deleting or renaming `.env.local` flips local back to prod for emergencies. Migrations still need care — apply to dev first, then prod via the Supabase SQL editor — but the prior "avoid migrations without a separate dev project" risk no longer applies. Full split context in NOTES.md "Session M Part A → B handoff: Supabase split (12 May 2026)".
 - Polymorphic `saves.item_type` CHECK constraint allows `'scholar' | 'campaign' | 'mosque'`. New types need a constraint update — symptom of forgetting is hearts that flash filled then unfill (optimistic update fires, DB returns 23514, rollback fires).
 - Messaging realtime uses a `postgres_changes` subscription via `subscribeToMessages(conversationIds, onMessage)`. Unread state is computed from `last_message_at` vs the participant's `last_read_at`, not per-message read receipts.
 
