@@ -63,3 +63,30 @@ Session log of every shipped change (Sessions A–F so far, plus the App.jsx Pha
 - One commit per logical unit. Scoped permission prompts only — no blanket approvals.
 - On build failure: stop and surface the error before attempting fixes.
 - Refactors are behavior-preserving by default. Move-code and fix-code are separate commits.
+
+## App.jsx is closed for new feature code (as of 12 May 2026)
+
+App.jsx is ~7,744 lines after the Phase 1 refactor. Further additions slow every edit, every Claude Code session, and every future refactor. New feature work must NOT add to it.
+
+**Do not add to App.jsx:**
+
+- New view components or page-level subtrees
+- New large form components or wizards
+- New page-level event handlers (`handleX`, `submitY`, etc.)
+- New feature-specific state
+
+**Acceptable additions to App.jsx:**
+
+- New routes in the URL → view router (one-line entries pointing at imported components)
+- Import statements for new pages/components
+- Modifications to shared helpers like `handleSignIn` that genuinely span multiple views
+- Root-level layout or context provider changes
+
+**Pattern for new features:**
+
+- New page → `src/pages/<FeatureName>.jsx`
+- New shared component → `src/components/<ComponentName>.jsx`
+- New helper / pure function → `src/lib/<helperName>.js`
+- New data fetch / mock → `src/data/<dataName>.js`
+
+Phase 2 component extraction (pulling existing big subtrees like UserDashboard, AdminPanel, Onboarding out of App.jsx) is scheduled for after Stripe Connect ships (post Session N or O). Until then, App.jsx stays a router + shell + shared context — don't preemptively extract existing subtrees as part of unrelated feature work.
