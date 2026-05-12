@@ -4317,6 +4317,49 @@ shareable accept-links.
 
 ---
 
+## Session M Part A → B handoff: Supabase split (12 May 2026)
+
+### Infrastructure shipped
+- **Supabase upgraded to Pro** ($25/mo base, +$10/mo for 2nd Pro project = $35/mo). 8 automated daily backups visible immediately for `amanah` (prod).
+- **New project `amanah-dev` created**: ref `pbejyukihhmybxxtheqq`, region eu-west-2 (London), API URL `https://pbejyukihhmybxxtheqq.supabase.co`.
+- **Schema cloned from prod via pg_dump** (not migration replay — migrations 001-014 are documentary/inferred per their own comments, not authoritative). Used `pg_dump --schema-only --no-owner --no-acl --schema=public` against prod, stripped 4 lines (`CREATE SCHEMA public`, `COMMENT ON SCHEMA`, `\restrict`/`\unrestrict`), applied to dev via `psql -f`. Result verified: 16 tables, 64 policies, 10 functions — identical structural state to prod.
+- **Local dev points at dev project**: new `.env.local` overrides `.env`. `.gitignore` already covers `.env.local`. Smoke test confirmed via `[supabase] url:` console log.
+
+### Tooling installed (one-time)
+- Homebrew 5.1.11 (Apple Silicon, `/opt/homebrew`)
+- libpq 18.3 via `brew install libpq && brew link --force libpq` — gives `pg_dump`, `psql`, etc. on PATH
+
+### Working agreement
+- **Prod database is hands-off from local dev going forward.** Local work targets `amanah-dev`. Vercel deploys still use prod (untouched, separate env vars in Vercel dashboard).
+- **Switching local dev back to prod**: `mv .env.local .env.local.disabled` and restart `npm run dev`. Vite falls back to `.env`. `.env.prod-backup` is a literal duplicate of `.env` as belt-and-braces.
+- **Dev DB is schema-only**: every feature surface that reads rows (scholars, mosques, campaigns, conversations, bookings) renders empty in local dev. Seeding strategy TBD next session.
+
+### Critical gotchas learned
+- **"Migration file shipped ≠ authoritative DDL"**: pre-Session-A migration files were backfilled from inferred code state, marked "not for re-application" in their own headers. For future dev project bootstrap, `pg_dump` from prod is the canonical source, not the migrations directory. Adds to existing K-7 lesson: trust the database, not the artefacts purporting to describe it.
+- **Supabase shared pooler is required from IPv4 networks**: direct connection + transaction pooler are both IPv6-only by default on Pro tier. Toggle "Use IPv4 connection (Shared Pooler)" ON in Connect modal, port becomes 5432, host becomes `aws-1-eu-west-2.pooler.supabase.com`, user becomes `postgres.<project-ref>`.
+- **pg_dump 18 emits `\restrict`/`\unrestrict` meta-commands**: psql-specific syntax, not SQL. Strip before applying via Supabase SQL Editor or other SQL-only tools. (Applying via `psql -f` directly is fine — psql understands them.)
+- **Password special characters in connection URIs**: `@` in a password must be URL-encoded as `%40` or the URL parser breaks. Cleaner: use `PGPASSWORD='...'` env var + individual `-h -p -U -d` flags to bypass URL encoding entirely.
+
+### Security follow-ups (do soon)
+- **Rotate prod DB password**: was pasted into chat history during diagnosis. Supabase dashboard → amanah project → Settings → Database → Reset password. Save new value in password manager.
+- **Rotate dev DB password**: same flow, amanah-dev project. Lower priority but same principle.
+- **Clear terminal scrollback**: today's terminal pane has both passwords visible in recent commands. Close/reopen Terminal or `Cmd+K` in iTerm.
+
+### Parked / known
+- **Dev DB empty**: seeding strategy needed before any work that requires data (Part B Day 1 mosque-staff invite flow can be developed against fresh manually-created users, but bigger surface tests will want seed data).
+- **`scholars_rating_backup` table** appeared in dump — unrecognized table, possibly leftover from earlier review-system work. Carried into dev as-is. Investigate or drop later.
+
+### Files touched
+- New: `.env.local`, `.env.prod-backup`
+- Untouched: `.env`, all source code, all Vercel config
+- Repo state: clean working tree, zero commits this session
+
+### Cost going forward
+- Supabase: $35/mo ($25 amanah Pro + $10 amanah-dev Pro)
+- Was $0/mo on Free tier
+
+---
+
 ## Cross-cutting gotchas
 
 ### Schema / migrations gotchas
