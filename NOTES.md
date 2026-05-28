@@ -4958,3 +4958,129 @@ Prod-parity probes (Day 2 first task — do not act yet, just probe):
 - [ ] `pg_default_acl` for `public` on prod — does anon hold ALL
   there too? Likely yes (Supabase default). Confirms the
   schema-wide RLS-audit follow-up's scope.
+
+### Deploy-vs-DB ordering — CRITICAL for Day 2 opening
+
+**Vercel auto-deploys every commit to `main` to Production.** Local
+`main` is 11 commits ahead of remote `main` and includes the Staff
+wizard + accept page + auth.js calls into `mosque_staff`,
+`mosque_staff_invites`, `accept_staff_invite`. Pushing local `main`
+to `origin/main` right now would ship the frontend to prod against
+a prod DB that does NOT have any of 030–033 applied → Staff feature
+would 500 / blank-screen for real users.
+
+**End-of-session remote state (backed up but not deployed):**
+- `origin/main` = `19a9c70` (unchanged from pre-Day-1; safe).
+- `origin/session-m-partb-day1` = `98c151b` (all 11 Day-1 commits;
+  Vercel does not deploy non-main branches, so no prod impact).
+- Local `main` = `98c151b` (matches the backup branch).
+
+### Session M Part B Day 2 — opening sequence (locked tonight)
+
+Run these steps in order. Do not reorder. Do not push `main` until
+step 3 completes.
+
+**1. Prod-parity probes (read-only; do not act on results yet).**
+
+Connect to the prod Supabase project (`amanah`, NOT `amanah-dev`).
+Run each probe in the SQL editor; paste raw output back into Day-2
+chat:
+
+```sql
+-- a) Trigger present on prod's auth.users?
+select tgname, pg_get_triggerdef(oid) as def
+  from pg_trigger
+ where tgname = 'on_auth_user_created'
+   and tgrelid = 'auth.users'::regclass;
+
+-- b) Default privileges on public — does anon hold ALL?
+select defaclrole::regrole as owner_role,
+       defaclnamespace::regnamespace as schema,
+       defaclobjtype,
+       defaclacl
+  from pg_default_acl
+ where defaclnamespace = 'public'::regnamespace;
+
+-- c) Accept RPC defined? (expected: function not found — 030
+--    has not been applied to prod yet)
+select pg_get_functiondef('public.accept_staff_invite(uuid)'::regprocedure);
+```
+
+Read each result. Do not interpret a "Success. No rows returned"
+banner as proof; check the raw row count and content.
+
+**2. Apply migrations to prod in order, with dump verification.**
+
+For each migration, in this order: 030 → 031 → 032 → 033.
+
+Per migration:
+- Paste the file contents into prod's SQL editor.
+- Watch the banner for any error (but do NOT trust "Success" as
+  proof).
+- Run the migration-specific verification probe:
+  - 030 → `select tablename from pg_tables where schemaname='public'
+    and tablename in ('mosque_staff', 'mosque_staff_invites');`
+    (expected: 2 rows). Then `select proname, prosecdef from pg_proc
+    where proname in ('validate_staff_invite', 'accept_staff_invite');`
+    (expected: 2 rows, prosecdef=t both).
+  - 031 → `select grantee, table_name, privilege_type from
+    information_schema.role_table_grants where table_schema='public'
+    and table_name in ('mosque_staff', 'mosque_staff_invites')
+    and grantee in ('anon', 'authenticated');` (expected: zero
+    anon rows; authenticated rows present).
+  - 032 → re-run probe 1a above (expected: one row with the
+    expected definition; if prod already had the trigger, the
+    drop+create is a no-op).
+  - 033 → `select pg_get_functiondef('public.accept_staff_invite(uuid)'::regprocedure);`
+    and READ the WHERE line in the idempotency-check block. Must
+    read `where mosque_staff.profile_id = v_user_id and
+    mosque_staff.mosque_id = inv.mosque_id`. Pragma
+    `#variable_conflict use_column` should appear at the top of
+    the function body.
+
+If 032's probe 1a returned zero rows in step 1, before applying
+032 also run:
+```sql
+select id from auth.users u
+ where not exists
+   (select 1 from public.profiles p where p.id = u.id);
+```
+Backfill those orphan auth users with profiles rows before
+applying 032 — otherwise 032 itself does nothing for them
+(handle_new_user only fires on INSERT, not historical rows).
+
+**3. ONLY after step 2 completes green on prod: merge to main.**
+
+```bash
+git fetch origin
+# Sanity: confirm session-m-partb-day1 is fast-forward of origin/main
+git log --oneline origin/main..origin/session-m-partb-day1
+# Should show the 11 Day-1 commits and no others
+git checkout main
+git merge --ff-only origin/session-m-partb-day1
+git push origin main
+```
+
+Vercel picks up the push to `main` and starts a Production
+deployment. Frontend code that calls `accept_staff_invite` etc.
+now lands against a prod DB that has those tables and RPCs.
+Staff feature works immediately on prod.
+
+**Do NOT push `main` before step 2 completes.** Pushing the
+frontend to prod against a prod DB missing the staff tables
+would break the Staff feature for real users (page 404/500 on
+the Staff tab; accept page errors out for any new invitee).
+
+**4. Day-2 smoke against prod.**
+
+Repeat the +staff3 happy-path smoke against the prod URL with
+a fresh test email alias. Same four-row verification as dev
+smoke. If green, Session M Part B Day 1's scope is fully live
+on prod.
+
+**5. Housekeeping after merge.**
+
+The `session-m-partb-day1` remote branch is no longer needed
+once `main` matches. Optional: `git push origin --delete
+session-m-partb-day1`. Keeping it as a historical record is
+also fine.
