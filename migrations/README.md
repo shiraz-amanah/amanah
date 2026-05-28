@@ -59,6 +59,7 @@ filenames.
 | 029 | `029_dbs_orders_and_drop_rtw.sql`      | Verbatim            | TBD (Session L)    | Session L; drops `scholars.rtw_verified` (scholars are independent contractors); creates `dbs_orders` table + RLS + partial-unique active-order index. |
 | 030 | `030_mosque_staff.sql`                 | Verbatim (authoritative) | 28 May 2026   | Session M Part B Day 1; creates `mosque_staff` + `mosque_staff_invites` tables, 11 RLS policies, and the `validate_staff_invite` + `accept_staff_invite` SECURITY DEFINER RPCs. First post-pg_dump-split migration: authoritative source-of-truth, not documentary. |
 | 031 | `031_revoke_anon_on_mosque_staff.sql`  | Verbatim (authoritative) | 28 May 2026   | Session M Part B Day 1 hot-fix. REVOKEs anon's direct privileges on `mosque_staff` + `mosque_staff_invites`. Dev's default_privileges are intact and grant ALL to {anon, authenticated} on every new public table; for these two tables the security model wants anon to have zero direct access (validate_staff_invite SECURITY DEFINER function is the only legitimate anon path). |
+| 032 | `032_on_auth_user_created_trigger.sql` | Verbatim (authoritative) | 28 May 2026   | Session M Part B Day 1 root-cause-#1 fix. Idempotent `drop trigger if exists` + `create trigger on_auth_user_created` on `auth.users` to invoke `public.handle_new_user()`. The trigger was filtered out of amanah-dev's 2026-05-12 schema clone (`pg_dump --schema=public` excluded auth-schema triggers). Apply to prod only after probing prod's existing trigger state. |
 
 ## Workflow
 
