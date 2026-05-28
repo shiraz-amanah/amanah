@@ -4429,3 +4429,532 @@ remains is structural / pre-launch work, not parent-flow polish.
 - **Session M Part A onboarding-funnel states unverified in dev.** Commit 8 migrated scholar + mosque onboarding wizards to `navigate()`. Scholar funnel smoke-tested end-to-end (new account → wizard → submitted). Not exercised in dev: mosque submission funnel, scholar-rejected reapply flow, verification-pending state for either side (no test data covering rejected/pending states). All four use the identical `navigate()` pattern as the scholar-submitted path that did smoke, so the risk surface is low — but verify in staging once accessible.
 - **Supabase Pro activated (12 May 2026).** Org `shiraz-amanah` upgraded from Free to Pro. Unlocked: daily automated backups (7-day retention, runs ~midnight UTC), no project pause-after-inactivity, larger compute/storage/bandwidth allowances. Eight automated backups visible immediately on activation (05–12 May). Storage API objects are **not** included in backups — flag when storage ships (parked photo-upload item above will need a separate object-store backup story). Billing cycle: 12th of each month, $25/month. Materially de-risks the single-project dev/prod parked item above for the dev-mistake recovery case, though that item still stands for RLS/migration concerns.
 - **Manual `pg_dump` backup on laptop** — pre-launch checklist item. Belt-and-braces backup outside the Supabase ecosystem (separate failure domain from Pro's daily backups). Requires Homebrew + libpq install (`brew install libpq && brew link --force libpq`), then `pg_dump --no-owner --no-acl` against the connection string from Settings → Database → Connection string. Should be done before any real user acquisition. Not blocking active development since Pro-tier daily backups cover the dev-mistake recovery case.
+
+## Session M Part B Day 1 — Mosque staff invite token machinery (28 May 2026) ✅ GREEN
+
+Full invite-token loop verified end-to-end in dev. Two distinct
+bugs surfaced along the way; both fixed and verified via SQL probes
+(not banners). Smoke run on a clean +staff3 signup landed all four
+expected rows.
+
+**Root cause #1: `on_auth_user_created` trigger was absent in dev.**
+The `handle_new_user` function existed and is correct; the trigger
+that calls it on `auth.users` INSERT was missing — filtered out of
+the 2026-05-12 schema clone because `pg_dump --schema=public`
+excludes triggers on the `auth` schema. So signups created
+`auth.users` rows but never `public.profiles` rows, and
+`accept_staff_invite`'s `mosque_staff` INSERT then failed on the
+`profile_id → profiles(id)` FK. **Fixed in dev** mid-session via a
+manual `CREATE TRIGGER` + backfill of the orphaned auth user.
+**Verified** when a subsequent fresh signup (+staff2) auto-created
+a profiles row. Formalised as migration 032 (idempotent
+`drop trigger if exists` + `create trigger`).
+
+**Root cause #2: ambiguous `mosque_id` in `accept_staff_invite`.**
+Found from Postgres logs at 16:39:48 + 16:39:55 on the +staff2
+attempts: `ERROR: column reference "mosque_id" is ambiguous`. The
+function's RETURNS TABLE declares an OUT param named `mosque_id`,
+which shadows `mosque_staff.mosque_id` in the idempotency-check
+WHERE clause (`where profile_id = v_user_id and mosque_id =
+inv.mosque_id`). Supabase runs with `variable_conflict = error`,
+so the parser raises rather than picking. The function threw
+before the INSERT — `mosque_staff` stayed empty for every accept
+attempt, masked by the wrapper's generic `rpc_error` response.
+**Fixed in dev** via migration 033 — belt-and-braces:
+`#variable_conflict use_column` pragma at the top of the function
+body AND table-qualified column references in the WHERE
+(`mosque_staff.profile_id`, `mosque_staff.mosque_id`). The
+qualified columns are the structural fix — bulletproof regardless
+of whether the pragma applies. **Verified** via `pg_get_functiondef`
+dump showing the qualified WHERE in the live function body.
+
+Root cause #2 masked root cause #1 in the diagnostic chain: both
+fired on every accept attempt, but #2 errored first. Even after the
+trigger fix landed and profiles rows started appearing, accept
+still threw on the ambiguity. Sequential debugging needed both
+fixes to surface the eventual green path.
+
+**Smoke verification** (all four rows confirmed via SQL on a clean
++staff3 invite + signup):
+
+| Table | Row | Confirms |
+|---|---|---|
+| `auth.users` | `71d9fefd-...` (eesaaibraheem+staff3, confirmed) | signup landed |
+| `public.profiles` | `71d9fefd-...` (Fairaz Ahmed, role `user`) | trigger fix (032) |
+| `public.mosque_staff` | one row, mosque_id `4de6f0ff-...`, role `imam`, status `pending_rtw` | ambiguity fix (033); this INSERT never landed before today |
+| `public.mosque_staff_invites` | status `accepted`, `accepted_at` set | atomic INSERT + UPDATE within `accept_staff_invite` worked |
+
+Nine commits landing this closure. Migrations 030–033 + client tweak
+applied to dev. Prod untouched until prod-parity probes for the
+trigger (032's apply gate) and `pg_default_acl` (separate audit
+follow-up) are run.
+
+### Commits (in order, nine total)
+
+1. `fecf7a4` — feat(db): mosque_staff + mosque_staff_invites tables + token RPCs (030)
+2. `7271b64` — feat: Resend helper + serverless send-staff-invite endpoint
+3. `3190d6a` — feat: mosque admin staff invite wizard + dashboard tab
+4. `3fcec4d` — feat: staff invite acceptance flow (signup + mosque_staff row)
+5. `fe24ad2` — fix(db): revoke anon on mosque_staff[_invites] (031)
+6. (this commit) feat(db): restore on_auth_user_created trigger (032)
+7. (this commit) fix(db): disambiguate mosque_id in accept_staff_invite (033)
+8. (this commit) feat: surface Postgres exception detail in accept page
+9. (this commit) docs(notes): Session M Part B Day 1 closure
++ housekeeping: `.gitignore` adds `.vercel` (Vercel CLI artefact).
+
+### Locked decisions (Session M Part B Day 1)
+
+- **Invite URL `/staff/accept/:token`** — kept the Part-A placeholder
+  route shape; not changed to the brief's `/invite/staff/:token`.
+- **Resend transport: Vercel serverless function** (`api/send-staff-invite.js`)
+  rather than Supabase Edge Function or DB trigger. Function uses
+  the token-only POST shape; email content is sourced from
+  `validate_staff_invite` (DB-anchored, never client-supplied) so
+  abuse blast radius is bounded to "duplicate of legitimate invite".
+- **Entry point: new "Staff" tab in MosqueDashboard** (route-switch
+  pattern matching Messages tab). Minimal touch to App.jsx (one
+  import, one prop, ~4 lines in MosqueDashboard, one new view
+  route). Phase 2 component extraction stays parked.
+- **Verification email Option B** (Supabase sends default verify)
+  — accepted that staff receive two emails (Resend invite + Supabase
+  verify). Auto-confirm via Edge Function is a Day-2+ follow-up.
+- **Token security:** `gen_random_uuid()` only, never predictable
+  counters. `validate_staff_invite` returns safe-shape preview to
+  anon; `accept_staff_invite` is the atomic INSERT+UPDATE entry
+  point. Both SECURITY DEFINER.
+- **FK on-delete:** `mosque_id` CASCADE both tables; `profile_id` +
+  `invited_by` RESTRICT to preserve audit. This RESTRICT is what
+  surfaced root cause #1 — see "Root cause #1" below.
+
+### What worked end-to-end (verified in dev)
+
+Admin half:
+- Mosque admin sees Staff tab on `/mosque-dashboard`.
+- Tab routes to `/mosque-dashboard/staff` and renders the wizard.
+- Form submit → `createStaffInvite` → mosque_staff_invites row
+  INSERT'd via PostgREST as authenticated (only worked after the
+  031 revoke landed — see "Discovery chain" below).
+- Wizard calls `sendStaffInviteEmail` → `/api/send-staff-invite`
+  Vercel function looks up the row via `validate_staff_invite` →
+  POSTs to Resend → email delivered to the invitee.
+- Confirmed tokens live in dev:
+  - `686b4dca-b692-468f-9eef-702f7f9d742a` — first test, sent to
+    `eesaaibraheem@gmail.com`. Still `pending` (the accept attempt
+    was the one that hit root cause #1).
+  - `+staff2` token — second test after the trigger fix. Same shape;
+    still `pending` at session end because of root cause #2.
+
+Invitee half — admin → invite → email → click → preview → signup:
+- Email arrived. Link opened in incognito.
+- `validate_staff_invite` (anon, SECURITY DEFINER) returned preview.
+- Page rendered the signup form with email locked.
+- `supabase.auth.signUp` succeeded; `auth.users` row created;
+  email confirmed via Supabase verify link.
+- Verify link redirected back to `/staff/accept/:token`.
+- `onAuthStateChange(SIGNED_IN)` fired; page re-validated invite;
+  email-match check passed; called `accept_staff_invite`.
+
+After the trigger fix (root cause #1 resolved), the signup → profile
+half also works:
+- Fresh signup as `eesaaibraheem+staff2@gmail.com` →
+  `auth.users` row + `public.profiles` row both landed.
+  Profile UUID `aaae8e15-...`, role `user` (per the role rule —
+  staff membership lives on mosque_staff, never as a role value).
+
+### Root cause #1 — FIXED in dev: missing trigger on auth.users
+
+`handle_new_user` function exists in dev (confirmed; pg_get_functiondef
+returns its body). What was missing: the trigger
+`on_auth_user_created` on `auth.users` that fires it. So the function
+was orphaned — present but never invoked.
+
+How it was lost: most likely a gap in the pg_dump-based bootstrap of
+amanah-dev on 2026-05-12. `pg_dump --schema-only` *does* normally
+capture triggers; one plausible explanation is that triggers on
+`auth.users` were filtered out because `auth` is not in the
+`--schema=public` selector that was used. The function was created
+into `public.handle_new_user` and survived; the trigger lives on
+`auth.users` and didn't make the cut. Worth confirming when
+investigating prod (the dump command exact form lives in NOTES.md
+"Session M Part A → B handoff" section).
+
+**Manual fix applied in dev mid-session (NOT yet a migration):**
+
+```sql
+-- (Re)create the trigger on auth.users so handle_new_user fires
+-- on every new signup. Idempotent.
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Backfill the orphaned auth user from the first accept attempt
+-- (854d643a-...) so they have a profiles row. Without this they
+-- could still log in but every profile-FK feature would silently
+-- fail for them.
+insert into public.profiles (id, email, name, role)
+values ('854d643a-...', 'eesaaibraheem@gmail.com', '<name>', 'user');
+```
+
+Verification (real, end-of-day): a fresh `supabase.auth.signUp`
+through the accept page produced a profiles row automatically. The
+trigger is firing in dev as of session end.
+
+**Day 2 task (this part of it):**
+1. Probe prod's `pg_trigger` for `on_auth_user_created` on
+   `auth.users`. If present with the expected definition: prod is
+   fine; 032 is a no-op there.
+2. Author migration 032 = idempotent `drop trigger if exists` +
+   `create trigger` block as above. Status: Verbatim (authoritative).
+3. Apply 032 to dev (no-op; just landing the artefact in version
+   control so the dev DB state is reproducible).
+4. Apply 032 to prod ONLY AFTER probe step 1. If prod has the
+   trigger already, 032 drops + recreates it identically — safe.
+   If prod is also missing it, this migration is the fix in prod
+   and should be sanity-checked against any users created in prod
+   without a profiles row (probe: `select id from auth.users u
+   where not exists (select 1 from public.profiles p where p.id = u.id);`).
+
+### Root cause #2 — FOUND: ambiguous `mosque_id` in accept_staff_invite
+
+Postgres logs (28 May 16:39:48 and 16:39:55, both +staff2 accept
+attempts):
+
+```
+ERROR: column reference "mosque_id" is ambiguous —
+       could refer to either a PL/pgSQL variable or a table column
+```
+
+The conflict lives in `accept_staff_invite`'s function signature
+itself. Migration 030 declared it as:
+
+```sql
+returns table (
+  ok boolean,
+  reason text,
+  staff_id uuid,
+  mosque_id uuid
+)
+```
+
+That `mosque_id` OUT parameter is a PL/pgSQL variable inside the
+function body. When the body does:
+
+```sql
+insert into public.mosque_staff (profile_id, mosque_id, role, status)
+  values (v_user_id, inv.mosque_id, inv.role, 'pending_rtw')
+```
+
+…the bareword `mosque_id` in the INSERT column list is ambiguous:
+it could be the OUT param (variable) or the `mosque_staff.mosque_id`
+column. Supabase runs with `plpgsql.variable_conflict = error` (the
+project default), so the parser raises rather than silently picking
+one. The function throws before the INSERT, which is exactly why
+`mosque_staff` is empty and the client sees a bare `rpc_error`.
+
+Audit of other potential shadowing in the same function:
+
+| Identifier     | OUT param? | Local var? | Used unqualified? | Collision? |
+|----------------|------------|------------|--------------------|------------|
+| `ok`           | yes        | no         | only in RETURN literals | no |
+| `reason`       | yes        | no         | only in RETURN literals | no |
+| `staff_id`     | yes        | no         | not a column name in either table | no |
+| `mosque_id`    | yes        | no         | **INSERT column list**  | **YES** ← the bug |
+| `invitee_email`| no         | no         | only `inv.invitee_email` | no |
+| `role`         | no         | no         | only `inv.role`         | no |
+| `status`       | no         | no         | UPDATE SET unqualified  | no (no var named `status`) |
+| `profile_id`   | no         | no         | INSERT col list unqualified | no (no var named `profile_id`) |
+| `id`           | no         | no         | only `inv.id`           | no |
+
+So `mosque_id` is the only collision. Other unqualified column
+references in the function body are safe because no PL/pgSQL
+identifier (local or OUT) collides with them.
+
+**`validate_staff_invite` is fine**: its function body references
+columns only through table aliases (`i.mosque_id`, `m.name`, etc.),
+so even though its OUT params include `mosque_id`, `invitee_email`,
+and `role` — all shadowable — none of those appear as bareword
+identifiers in queries inside the function.
+
+**Fix shape (drafted, awaiting apply approval):**
+
+Migration 033 will `create or replace function accept_staff_invite`
+with `#variable_conflict use_column` at the top of the body. This
+pragma instructs PL/pgSQL to resolve ambiguous identifiers as
+columns rather than variables — appropriate here because the
+INSERT column list is unambiguously a column reference. OUT params
+are still accessible via positional binding through `return query
+select …`, so renaming them isn't needed (and would force a client-
+side change in `auth.js` and the accept page).
+
+`validate_staff_invite` will get the same pragma as defense-in-
+depth — same family of function, prevents the same bug class if
+anyone later adds an unqualified column reference to its body.
+
+### Surfacing the real error to the client (Day-1 deferral)
+
+Today's `acceptStaffInvite` wrapper in `auth.js` swallows the
+Postgres error into a generic `reason: 'rpc_error'`, which is
+exactly why this bug needed Postgres logs to diagnose rather than
+the browser console.
+
+Small change drafted alongside 033:
+
+```js
+// in auth.js — pass the actual error message through
+if (error) {
+  console.error('accept_staff_invite RPC failed:', error)
+  return { ok: false, reason: 'rpc_error', message: error.message, code: error.code, error }
+}
+```
+
+…and the accept page's `accept_error` UI renders the message
+underneath the generic copy. Future RPC failures are then
+diagnosable from the page itself, no log dig required.
+
+### Schema-wide finding: anon has direct table privileges everywhere
+
+Migration 031 closed the anon hole on the two new tables, but the
+underlying observation is bigger:
+
+- dev's `pg_default_acl` for `public` grants ALL on every new
+  public table to {anon, authenticated, service_role}. Confirmed
+  by the post-030 grants probe: anon held SELECT / INSERT / UPDATE
+  / DELETE / TRUNCATE / REFERENCES / TRIGGER on the new tables.
+- This is the Supabase default — never customised in this project,
+  almost certainly true in prod too.
+- Net effect schema-wide: anon has ALL on every public table,
+  gated ONLY by RLS. No defense-in-depth at the GRANT layer.
+- One misconfigured policy (`using (true)` on a writable table,
+  missing `with check`, `to anon` where `to authenticated` was
+  meant) = anonymous data loss one HTTP request away.
+
+Follow-ups (NOT Day 2; their own dedicated session, no other scope):
+
+1. **Probe prod's `pg_default_acl`** to confirm posture matches dev.
+2. **Threat-model decision** given Amanah will carry safeguarding
+   data (DBS, RTW, mosque staff PII): is RLS-only gating for anon
+   acceptable? Alternative is `ALTER DEFAULT PRIVILEGES … REVOKE
+   ALL … FROM anon` plus per-table explicit grants on whatever
+   anon legitimately needs (e.g. read on `mosques`, `scholars`,
+   `reviews` for public listings).
+3. **The real follow-up — audit every existing RLS policy** for
+   correctness under the "anon has direct access" model.
+   Per-table: saves, scholars, scholar_applications, mosques,
+   mosque_applications, reviews, bookings, messages, donations,
+   profiles, students, flags, dbs_orders, mosque_staff,
+   mosque_staff_invites. Output: per-table audit table +
+   remediation migrations. Bigger than (1)+(2) combined.
+
+### Discovery chain (process truth, not a tidied narrative)
+
+1. Drafted migration 030, surfaced for approval, approved verbatim.
+2. **Reported "all four probes passed" after the SQL editor paste
+   without raw probe output being checked in-chat.** Committed 030
+   (`fecf7a4`) on that basis.
+3. Phases 2–4 shipped: Resend (`7271b64`), wizard (`3190d6a`),
+   accept page (`3fcec4d`).
+4. Smoke step 5 (admin wizard "Send invite") → PostgREST 404
+   "Could not find table 'public.mosque_staff_invites' in the
+   schema cache." Survived a project restart.
+5. Initial hypothesis (mine): grants gap. Drafted 031 as explicit
+   GRANTs to {anon, authenticated}.
+6. User struck the raw-SQL-insert step from my apply protocol —
+   running as `postgres` would have bypassed grants entirely and
+   proven nothing. Only the wizard's PostgREST-authenticated path
+   is real proof.
+7. **User then ran the probes properly: `pg_tables` zero rows for
+   both tables. 030 had not in fact been applied earlier.** The
+   "four probes passed" report was a false-positive — exactly the
+   gotcha already documented in this NOTES.md ("Saved-query-with-
+   no-body returns indistinguishable Success"). We hit it for real;
+   the documentation didn't help. Lesson re-learned: a probe is
+   only a probe when the raw output is in the chat.
+8. User applied 030 for real. Tables + RPCs created (prosecdef=t).
+   Grants probe then showed anon holds ALL on both tables →
+   refuted the `--no-acl-stripped-defaults` hypothesis. dev's
+   default_privileges are intact and granting broadly.
+9. Rewrote 031 from GRANT to REVOKE (anon-only; authenticated
+   keeps its default ALL grant for consistency with the rest of
+   the schema). Applied. Wizard insert succeeded via PostgREST as
+   authenticated — real proof, real broken path now green. Committed
+   as `fe24ad2`.
+10. Toggled Supabase Auth → Providers → Email → "Confirm email"
+    OFF in dev to isolate the accept flow from the email round-
+    trip. (User subsequently completed the full verify-email path
+    too; final state of the toggle uncertain — see checklist below.)
+11. Invitee accept drove end-to-end through validate (anon),
+    signup, email verify, SIGNED_IN listener, accept call →
+    `rpc_error`. Bug isolated to the missing profiles row.
+12. Initial diagnosis (mine): `handle_new_user` "broken" — function
+    not producing rows. Same shape as the admin's missing profiles
+    row earlier; pointed at the trigger/function as the bug.
+13. **User probed `pg_trigger` properly: function existed,
+    `on_auth_user_created` trigger DID NOT.** Earlier mid-session
+    confirmation ("trigger confirmed — exists in dev") had been
+    based on a probe that only verified the function, not the
+    trigger. Second false-positive of the session, same shape as
+    step 7 — a "confirmed" report not backed by the raw rows in
+    chat. The corrected diagnosis: trigger absent in dev; function
+    fine. Likely dropped by the `pg_dump --schema=public` clone on
+    2026-05-12 because the trigger lives on `auth.users`, outside
+    the selected schema.
+14. User manually applied `create trigger on_auth_user_created` in
+    dev + backfilled the orphaned `854d643a-...` profiles row.
+    Fresh signup as `+staff2` then produced a profiles row
+    automatically (`aaae8e15-...`, role `user`). Root cause #1
+    verified fixed in dev.
+15. Re-ran accept for `+staff2`: still `rpc_error`. User pulled
+    Postgres logs → `ERROR: column reference "mosque_id" is
+    ambiguous — could refer to either a PL/pgSQL variable or a
+    table column` at 16:39:48 and 16:39:55. Root cause #2 isolated
+    to the OUT-param-shadows-column collision in
+    `accept_staff_invite`. Fix drafted as migration 033.
+16. **033 first attempt: false-positive #3 of the session.** Pasted
+    the migration content (both `validate_staff_invite` and
+    `accept_staff_invite` CREATE OR REPLACE blocks with the
+    `#variable_conflict use_column` pragma). SQL editor showed a
+    Success banner. Verification probe (`prosrc ~ '#variable_conflict'`)
+    returned `has_pragma = false` on both functions. The probe was
+    a proxy on `pg_proc.prosrc` text — assumed the pragma would
+    appear there if applied. Suspected the paste hadn't executed
+    fully (snippet rather than full block, or some editor quirk).
+17. **033 second attempt: rewritten + verified via the right gate.**
+    Reduced to a single `CREATE OR REPLACE FUNCTION` block for
+    `accept_staff_invite` only — kept the pragma AND added
+    table-qualified column references in the idempotency-check
+    WHERE clause (`mosque_staff.profile_id` / `mosque_staff.mosque_id`).
+    Pasted in SQL editor. Verification: `select pg_get_functiondef(
+    'public.accept_staff_invite(uuid)'::regprocedure)` and read the
+    actual WHERE line in the returned body — confirmed
+    `mosque_staff.mosque_id` qualified AND pragma present. Both
+    fixes live in dev.
+18. Smoke re-run on a fresh +staff3 invite: invite created → email
+    delivered → click → preview → signup → verify email → SIGNED_IN
+    → accept fired → "You're in" confirmation screen. Probed all
+    four expected rows in dev SQL editor; all present (see
+    headline table). Loop green.
+
+**Verification-gate lesson for CREATE OR REPLACE FUNCTION migrations:**
+the gate is `pg_get_functiondef('schema.fn(arg_types)'::regprocedure)`
+plus *reading the actual line you intended to change* in the
+returned body. Never "Success" banner. Never a regex on `prosrc`
+(it's a proxy that can lie in either direction — the function
+content might be correct while the regex misses something specific,
+or the regex might match nothing while the function is broken).
+This is the function-replacement specialisation of the general
+"probes need raw output, not summaries" rule we re-learned twice
+this session (steps 7 and 16).
+
+### Dev seeding gotcha — final diagnosis
+
+(Folds in the earlier uncommitted edit. Two diagnoses were posted
+mid-session and BOTH were wrong. Final answer at session end:
+the `on_auth_user_created` trigger on `auth.users` was absent
+in amanah-dev, dropped by the `pg_dump --schema=public` clone
+because the trigger lives outside the selected schema. The
+function `handle_new_user` itself is fine.)
+
+| Diagnosis attempt | Theory | Status |
+|---|---|---|
+| 1st (this morning) | "data wasn't cloned — pg_dump --schema-only loses data, not schema" | wrong — schema was cloned; trigger was on a non-public schema and got filtered out |
+| 2nd (mid-Day-1)    | "handle_new_user is broken — function not producing rows" | wrong — function was correct; nothing was calling it |
+| Final              | "trigger on auth.users was absent in dev; function existed orphan" | confirmed by pg_trigger probe + manual create + re-test |
+
+Symptom on the admin path (this morning): `getProfile` returned
+HTTP 406 on `/rest/v1/profiles?id=eq.<uid>` because the app
+expects exactly one row (`.single()` / `.maybeSingle()`) and got
+zero. The mosque admin dashboard wouldn't render until a profiles
+row existed.
+
+Manual fix used for the admin (one-off, applied via SQL editor):
+
+```sql
+insert into public.profiles (id, email, name, role)
+values ('9ecc95b3-f919-4778-8c45-dff4a16ef567',
+        'hr@savecobradford.co.uk', '<name>', 'user');
+```
+
+Same shape backfill applied later for `854d643a-...` (the orphaned
++staff signup that occurred while the trigger was absent).
+
+`profiles.role` CHECK allows only {user, scholar, admin};
+mosque-admin status lives on `mosques.user_id`, not in the role
+column. Therefore any new user (incl. accepted staff invites) gets
+a profiles row with `role='user'`; staff membership lives in
+mosque_staff, never as a role value.
+
+**Rule for any future schema-clone bootstrap**: after a
+`pg_dump --schema=public` (or any selective dump), explicitly
+probe `auth.*` for triggers and functions that should accompany
+the public schema. The pg_dump command captured `public` but
+left `auth.users` triggers (including `on_auth_user_created`)
+behind. Future bootstraps need either `--schema=public
+--schema=auth` (risky, pulls more than wanted) or a separate
+follow-up step that captures the cross-schema artefacts
+explicitly.
+
+### Files touched
+
+```
+migrations/030_mosque_staff.sql                      — new (authoritative)
+migrations/031_revoke_anon_on_mosque_staff.sql       — new (hot-fix)
+migrations/032_on_auth_user_created_trigger.sql      — new (root-cause-#1 fix)
+migrations/033_fix_accept_staff_invite_ambiguity.sql — new (root-cause-#2 fix)
+migrations/README.md                                 — index rows for 030–033
+api/send-staff-invite.js                             — new (Vercel serverless)
+src/lib/resend.js                                    — new (client helper)
+src/lib/useUrlState.js                               — +mosqueStaff route
+src/auth.js                                          — +createStaffInvite, +validateStaffInvite, +acceptStaffInvite, +signUpForStaffInvite, acceptStaffInvite returns error.message + code
+src/pages/MosqueStaffInviteWizard.jsx                — new (admin form)
+src/pages/MosqueStaffInviteAccept.jsx                — new (invitee flow state machine), accept_error UI renders Postgres reason/code/message
+src/App.jsx                                          — +imports, +mosqueStaff route, +Staff tab in MosqueDashboard, +onOpenStaff prop, replaced staffAccept stub
+.gitignore                                           — +.vercel (Vercel CLI artefact)
+```
+
+### Day-1 dev state (end-of-session)
+
+Closed off:
+- [x] Migration 032 applied to dev (manual mid-session, then
+  idempotent re-apply as part of this commit's verification).
+- [x] Migration 033 applied to dev (qualified WHERE + pragma both
+  visible in `pg_get_functiondef` dump).
+- [x] Client surface-real-error change live in dev (auth.js +
+  accept page).
+- [x] Smoke green on +staff3 (Fairaz Ahmed) — all four rows
+  confirmed.
+- [x] Migrations 030, 031, 032, 033 + client tweak + this closure
+  committed (see "Commits in order" above).
+
+Test data state at session end:
+- `686b4dca-b692-468f-9eef-702f7f9d742a` (+staff1 invite to
+  `eesaaibraheem@gmail.com`) — `status='pending'` per last probe.
+  Will expire 24h after creation; nothing to clean up.
+- `854d643a-...` (orphaned auth.users from the pre-trigger-fix
+  attempt) — backfilled with a profiles row but no mosque_staff
+  row. Either delete or leave as historical test data; not
+  blocking.
+- `+staff2` (`aaae8e15-...`) — auth user + profiles row, no
+  mosque_staff (used to verify the trigger fix only).
+- `+staff3` (`71d9fefd-...`, Fairaz Ahmed) — full happy-path
+  test user, mosque_staff row at `pending_rtw`.
+
+Dev configuration to re-check before Day 2 smoke:
+- [ ] Supabase Auth → Providers → Email → "Confirm email" toggle
+  state. Toggled OFF mid-session to isolate accept flow from
+  email round-trip, then user did at least one full verify-email
+  path during smoke. Confirm final state and re-enable before
+  any email-flow regression test.
+
+Prod-parity probes (Day 2 first task — do not act yet, just probe):
+- [ ] `select tgname, pg_get_triggerdef(oid) from pg_trigger where
+  tgname = 'on_auth_user_created' and tgrelid = 'auth.users'::regclass;`
+  on prod. If one row matching dev: 032 is a no-op in prod when
+  applied. If zero rows: prod has been silently skipping profile
+  creation too — backfill orphans before applying 032.
+- [ ] `select pg_get_functiondef('public.accept_staff_invite(uuid)'::regprocedure)`
+  on prod — currently undefined (030 dev-only). Apply 030 → 031
+  → 033 in order once prod posture is verified.
+- [ ] `pg_default_acl` for `public` on prod — does anon hold ALL
+  there too? Likely yes (Supabase default). Confirms the
+  schema-wide RLS-audit follow-up's scope.
