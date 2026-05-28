@@ -87,8 +87,10 @@ const ROUTES = [
   // Mosque internal
   { view: 'mosqueImamDetail',            path: '/mosque/imam/:slug' },
 
-  // Staff invites — Part B placeholder. Route exists so deep links
-  // don't 404 at Vercel; the view renders a stub until B lands.
+  // Staff invites (Session M Part B Day 1).
+  // /mosque-dashboard/staff  — admin-facing invite wizard
+  // /staff/accept/:token     — invitee-facing accept page
+  { view: 'mosqueStaff',                 path: '/mosque-dashboard/staff' },
   { view: 'staffAccept',                 path: '/staff/accept/:token' },
 ];
 

@@ -15,6 +15,7 @@ import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/sch
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
+import MosqueStaffInviteWizard from "./pages/MosqueStaffInviteWizard";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
 // Avatar from initials + gradient
@@ -2534,7 +2535,7 @@ const DBSStatusPill = ({ status }) => {
 // PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
 // MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
 // Phase 9 sweeps.
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessages }) => {
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessages, onOpenStaff }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
   });
@@ -2563,6 +2564,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
 
   const tabs = [
     { v: "profile", l: "Profile", icon: Building2 },
+    { v: "staff", l: "Staff", icon: Users },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
     { v: "account", l: "Account", icon: User },
@@ -2610,7 +2612,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
             const active = tab === t.v;
             const handleClick = t.v === "messages"
               ? () => onOpenMessages && onOpenMessages()
-              : () => setTab(t.v);
+              : t.v === "staff"
+                ? () => onOpenStaff && onOpenStaff()
+                : () => setTab(t.v);
             return (
               <button
                 key={t.v}
@@ -13138,7 +13142,9 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     onOpenMessages={() => { setRole("mosque"); setView("messagesInbox"); }}
+    onOpenStaff={() => setView("mosqueStaff")}
   />;
+  if (view === "mosqueStaff") return <MosqueStaffInviteWizard mosque={myMosque} onBack={() => setView("mosqueDashboard")} />;
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
     const newCheck = { id: Date.now(), candidateName: form.candidateName, candidateEmail: form.candidateEmail, dbs: { type: form.dbsLevel.charAt(0).toUpperCase() + form.dbsLevel.slice(1), status: "awaitingcandidate", date: "—" }, rtw: { status: form.includeRtw ? "awaitingcandidate" : "incomplete", date: "—" }, requestedDate: new Date().toISOString().split("T")[0] };

@@ -160,6 +160,35 @@ export async function getMosqueByUserId(userId) {
   return data
 }
 
+// ==================== Mosque staff invites (Session M Part B) ====================
+
+// Admin-side: insert a row into mosque_staff_invites for the mosque
+// the admin owns. RLS check is `mosque_id in (select id from mosques
+// where user_id = auth.uid()) and invited_by = auth.uid()` — passes
+// when the caller owns the mosque. The unique partial index on
+// (mosque_id, lower(invitee_email)) WHERE status='pending' surfaces
+// duplicate live invites as Postgres error 23505; the wizard maps
+// that to a friendly message.
+export async function createStaffInvite({ mosqueId, email, name, role }) {
+  const user = await getUser()
+  if (!user) return { data: null, error: { message: 'Not signed in' } }
+  if (!mosqueId || !email || !role) {
+    return { data: null, error: { message: 'mosqueId, email and role are required' } }
+  }
+  const { data, error } = await supabase
+    .from('mosque_staff_invites')
+    .insert({
+      mosque_id: mosqueId,
+      invited_by: user.id,
+      invitee_email: email.trim().toLowerCase(),
+      invitee_name: name?.trim() || null,
+      role,
+    })
+    .select('id, token, invitee_email, invitee_name, role, expires_at, status')
+    .single()
+  return { data, error }
+}
+
 // Mirrors getSavedScholars. Returns full mosque data for everything
 // the user has saved with item_type='mosque'. Filters to active so
 // a mosque that gets deactivated post-save doesn't render.
