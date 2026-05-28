@@ -1,0 +1,55 @@
+-- STATUS: Verbatim (authoritative; not documentary like 001–014)
+-- Already applied: TBD (Session M Part B Day 1, hot-fix to 030)
+--
+-- Revokes anon's direct table privileges on mosque_staff and
+-- mosque_staff_invites. Without this, both tables are anon-readable
+-- and anon-writable thanks to Supabase's default_privileges, which
+-- grant ALL on every new public table to {anon, authenticated,
+-- service_role}. For these two tables the security model wants
+-- anon to have zero direct access — the only anon path is the
+-- validate_staff_invite SECURITY DEFINER function (executable by
+-- anon per 030), which runs as postgres and reads the table via
+-- the function's own privileges, so the caller doesn't need any
+-- table grant for the legitimate flow.
+--
+-- Discovery chain (preserved here so the rationale survives in
+-- the migration record, not just in NOTES.md):
+--
+--   1. Migration 030 was reported applied via the SQL editor's
+--      "Success. No rows returned" banner. The four post-apply
+--      probes were summarised as "passed" without their raw output
+--      being checked, so the false-positive went undetected. This
+--      is exactly the gotcha already documented in NOTES.md
+--      "Saved-query-with-no-body returns indistinguishable Success".
+--
+--   2. Day-1 smoke step 5 (admin wizard INSERT into
+--      mosque_staff_invites) returned PostgREST 404 "Could not
+--      find table 'public.mosque_staff_invites' in the schema
+--      cache" — initially mis-diagnosed as a grants gap. The
+--      literal cause was that the table did not exist.
+--
+--   3. Re-applying 030 created both tables. A subsequent grants
+--      probe revealed anon holds SELECT/INSERT/UPDATE/DELETE/
+--      TRUNCATE/REFERENCES/TRIGGER on the new tables, refuting
+--      the prior --no-acl-stripped-defaults hypothesis: dev's
+--      default_privileges are intact and granting broadly.
+--
+--   4. This migration closes the anon hole. authenticated keeps
+--      its (broad) default-privileges grant — RLS is the gating
+--      layer for authenticated, consistent with every other table
+--      in the schema. service_role keeps its grant for the
+--      migrations / admin path.
+--
+-- RLS policies on the tables are unchanged: mosque_staff has 5,
+-- mosque_staff_invites has 6. With anon revoked, the only paths
+-- to either table are: (a) authenticated through RLS, or (b)
+-- validate_staff_invite / accept_staff_invite SECURITY DEFINER
+-- RPCs which bypass RLS as they run as postgres.
+
+revoke all on public.mosque_staff from anon;
+revoke all on public.mosque_staff_invites from anon;
+
+-- PostgREST schema cache reload — required after grant/revoke
+-- changes so the API reflects the new effective privileges
+-- (see NOTES.md "PostgREST schema cache trap").
+notify pgrst, 'reload schema';

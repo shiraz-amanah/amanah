@@ -58,6 +58,7 @@ filenames.
 | 028 | `028_flags_and_admin_rls.sql`          | Verbatim            | 8 May 2026         | Phase 7 flags table + RLS + indexes; restores admin RLS on scholars (originally 020) and reviews (originally 021); adds admin UPDATE on messages. |
 | 029 | `029_dbs_orders_and_drop_rtw.sql`      | Verbatim            | TBD (Session L)    | Session L; drops `scholars.rtw_verified` (scholars are independent contractors); creates `dbs_orders` table + RLS + partial-unique active-order index. |
 | 030 | `030_mosque_staff.sql`                 | Verbatim (authoritative) | 28 May 2026   | Session M Part B Day 1; creates `mosque_staff` + `mosque_staff_invites` tables, 11 RLS policies, and the `validate_staff_invite` + `accept_staff_invite` SECURITY DEFINER RPCs. First post-pg_dump-split migration: authoritative source-of-truth, not documentary. |
+| 031 | `031_revoke_anon_on_mosque_staff.sql`  | Verbatim (authoritative) | 28 May 2026   | Session M Part B Day 1 hot-fix. REVOKEs anon's direct privileges on `mosque_staff` + `mosque_staff_invites`. Dev's default_privileges are intact and grant ALL to {anon, authenticated} on every new public table; for these two tables the security model wants anon to have zero direct access (validate_staff_invite SECURITY DEFINER function is the only legitimate anon path). |
 
 ## Workflow
 
