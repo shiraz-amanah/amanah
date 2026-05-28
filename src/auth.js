@@ -189,6 +189,49 @@ export async function createStaffInvite({ mosqueId, email, name, role }) {
   return { data, error }
 }
 
+// Anon-callable. Wraps the validate_staff_invite SECURITY DEFINER
+// RPC so the accept page can render a safe-shape preview (mosque
+// name, role, expiry) without a broad anon SELECT policy on the
+// invites table. Returns the single result row or null on
+// network/RPC failure.
+export async function validateStaffInvite(token) {
+  if (!token) return null
+  const { data, error } = await supabase.rpc('validate_staff_invite', { p_token: token })
+  if (error) { console.error('validate_staff_invite RPC failed:', error); return null }
+  return Array.isArray(data) ? (data[0] || null) : (data || null)
+}
+
+// Authenticated. Wraps accept_staff_invite — atomic insert of
+// mosque_staff + update of invite status. Caller must already be
+// signed in as the user whose email matches invitee_email
+// (case-insensitive). Returns { ok, reason, staff_id, mosque_id }.
+export async function acceptStaffInvite(token) {
+  if (!token) return { ok: false, reason: 'missing_token' }
+  const { data, error } = await supabase.rpc('accept_staff_invite', { p_token: token })
+  if (error) {
+    console.error('accept_staff_invite RPC failed:', error)
+    return { ok: false, reason: 'rpc_error', error }
+  }
+  const row = Array.isArray(data) ? (data[0] || null) : (data || null)
+  return row || { ok: false, reason: 'empty_response' }
+}
+
+// Signup wrapper specifically for staff invite acceptance. Sets
+// emailRedirectTo so the Supabase verification email links back to
+// /staff/accept/:token with the token still in URL, letting the
+// page auto-fire acceptStaffInvite once the user lands authenticated.
+export async function signUpForStaffInvite({ email, password, name, redirectTo }) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { name },
+      emailRedirectTo: redirectTo,
+    },
+  })
+  return { data, error }
+}
+
 // Mirrors getSavedScholars. Returns full mosque data for everything
 // the user has saved with item_type='mosque'. Filters to active so
 // a mosque that gets deactivated post-save doesn't render.

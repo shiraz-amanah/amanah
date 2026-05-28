@@ -16,6 +16,7 @@ import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHour
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
 import MosqueStaffInviteWizard from "./pages/MosqueStaffInviteWizard";
+import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
 // Avatar from initials + gradient
@@ -13171,22 +13172,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onView={() => setView("publicHome")}
     onHome={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
-  // Staff invite acceptance — placeholder until Session M Part B. Route
-  // exists so /staff/accept/:token deep links don't 404 at Vercel; the
-  // real flow (token validation, role assignment) ships in B.
-  if (view === "staffAccept") return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="max-w-md w-full bg-white border border-stone-200 rounded-2xl p-8 text-center">
-        <ShieldCheck className="mx-auto text-stone-300 mb-4" size={36} />
-        <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff invites — coming soon</h2>
-        <p className="text-sm text-stone-600 mb-4">Mosque staff invite acceptance ships in Session M Part B.</p>
-        <p className="text-[11px] text-stone-400 font-mono break-all">Token: {routeParams.token}</p>
-        <button onClick={() => setView("publicHome")} className="mt-5 bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
-          Browse Amanah
-        </button>
-      </div>
-    </div>
-  );
+  if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   return null;
   };
 
