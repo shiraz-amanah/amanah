@@ -204,13 +204,24 @@ export async function validateStaffInvite(token) {
 // Authenticated. Wraps accept_staff_invite — atomic insert of
 // mosque_staff + update of invite status. Caller must already be
 // signed in as the user whose email matches invitee_email
-// (case-insensitive). Returns { ok, reason, staff_id, mosque_id }.
+// (case-insensitive). Returns { ok, reason, staff_id, mosque_id }
+// on success, or { ok:false, reason:'rpc_error', message, code, error }
+// on a Postgres exception — the message + code are surfaced so the
+// accept page can render the real reason rather than an opaque
+// 'rpc_error', avoiding the need to dig through Postgres logs for
+// future failures (Session M Part B Day 1 root-cause-#2 lesson).
 export async function acceptStaffInvite(token) {
   if (!token) return { ok: false, reason: 'missing_token' }
   const { data, error } = await supabase.rpc('accept_staff_invite', { p_token: token })
   if (error) {
     console.error('accept_staff_invite RPC failed:', error)
-    return { ok: false, reason: 'rpc_error', error }
+    return {
+      ok: false,
+      reason: 'rpc_error',
+      message: error.message || null,
+      code: error.code || null,
+      error,
+    }
   }
   const row = Array.isArray(data) ? (data[0] || null) : (data || null)
   return row || { ok: false, reason: 'empty_response' }

@@ -236,8 +236,12 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
         <div className="text-center">
           <AlertCircle className="mx-auto text-rose-600 mb-4" size={36} />
           <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Couldn't complete acceptance</h2>
-          <p className="text-sm text-stone-600 mb-2">Something went wrong while linking you to {invite?.mosque_name}. Please ask your mosque admin to resend the invite.</p>
-          <p className="text-[11px] text-stone-400 font-mono break-all mb-5">Reason: {acceptResult?.reason || 'unknown'}</p>
+          <p className="text-sm text-stone-600 mb-3">Something went wrong while linking you to {invite?.mosque_name}. Please ask your mosque admin to resend the invite.</p>
+          <div className="bg-stone-50 border border-stone-200 rounded-lg p-2.5 mb-5 text-left">
+            <p className="text-[11px] text-stone-400 font-mono break-all">Reason: {acceptResult?.reason || 'unknown'}</p>
+            {acceptResult?.code && <p className="text-[11px] text-stone-400 font-mono break-all">Code: {acceptResult.code}</p>}
+            {acceptResult?.message && <p className="text-[11px] text-stone-500 font-mono break-all">{acceptResult.message}</p>}
+          </div>
           <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
         </div>
       </Frame>
