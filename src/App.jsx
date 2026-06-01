@@ -7900,10 +7900,16 @@ useEffect(() => {
   };
 
   // Use real profile data when available, fall back to mock for demo
+  let initials = "??";
+  if (profile) {
+    console.log('initials debug:', profile?.avatar_initials, JSON.stringify(profile?.name), JSON.stringify(profile?.email));
+    initials = (profile.avatar_initials ?? (profile.name || profile.email || "??").trim().substring(0, 2).toUpperCase()) || "??";
+    console.log('initials result:', initials);
+  }
   const user = profile ? {
     name: profile.name || profile.email?.split("@")[0] || "Friend",
     email: profile.email,
-    initials: (profile.avatar_initials ?? (profile.name || profile.email || "??").trim().substring(0, 2).toUpperCase()) || "??",
+    initials,
     avatarGradient: profile.avatar_gradient || "from-emerald-400 to-emerald-700",
     city: profile.city || "",
     joinedDate: profile.joined_date ? new Date(profile.joined_date).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "Recently",
