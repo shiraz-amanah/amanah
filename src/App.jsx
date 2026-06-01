@@ -13261,6 +13261,13 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       };
 
   if (view === "messagesInbox") {
+    // User role's Messages lives embedded in the dashboard tab (see
+    // UserDashboard). Direct URL / in-session landing on the naked inbox
+    // redirects to the dashboard tab so the user shell nav stays present.
+    if (role === "user") {
+      navigate("userDashboard", {}, { tab: "messages" }, { replace: true });
+      return null;
+    }
     return <MessagesInbox
       conversations={inboxData}
       loading={conversationsLoading && !!authedProfile}
@@ -13279,7 +13286,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   }
   if (view === "conversationView") return <ConversationView
     conversation={selectedConversation}
-    onBack={() => setView("messagesInbox")}
+    onBack={() => role === "user" ? navigate("userDashboard", {}, { tab: "messages" }, { replace: true }) : setView("messagesInbox")}
     currentUserId={authedUser?.id}
     role={role}
     authedUser={authedUser}
