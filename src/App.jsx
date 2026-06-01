@@ -8025,7 +8025,8 @@ setBookings(transformed);
             </div>
           </button>
           <div className="flex items-center gap-2">
-            <Avatar scholar={{ initials: user.initials, avatarGradient: user.avatarGradient }} size="sm" />
+            {console.log('Avatar render:', user.initials, user.avatarGradient)}
+            <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700" }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
         </div>
