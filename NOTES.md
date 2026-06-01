@@ -5084,3 +5084,73 @@ The `session-m-partb-day1` remote branch is no longer needed
 once `main` matches. Optional: `git push origin --delete
 session-m-partb-day1`. Keeping it as a historical record is
 also fine.
+
+---
+
+## Full product roadmap — all 52 items (captured 1 June 2026)
+
+### Phase 1 — Do now (pre-launch blockers)
+Nothing goes public until these are done.
+
+1. Avatar sweep — blank avatars on scholar/imam dashboard headers
+2. T&Cs and privacy policy — UK GDPR mandatory, needs lawyer review
+3. Safeguarding lawyer review — platform involves children and vulnerable groups
+4. Sentry error monitoring — currently blind on prod errors
+5. Safeguarding incident reporting — dedicated flow, separate audit table, goes directly to admin
+6. Rotate prod DB password — was exposed in chat history, do immediately
+7. RLS audit — anon holds ALL on every public table, audit every policy for correctness
+8. DBS disclosure_summary privacy fix — Bug L-B, candidate can read via direct API
+9. Booking confirmation emails — no email sent to parent or scholar on booking
+10. Manual pg_dump backup — before first real users
+
+### Phase 2 — Next 2–4 weeks (core product gaps)
+Platform not fully functional without these.
+
+11. Stripe Connect — donations, DBS payments, scholar payouts, platform fee split
+12. Editable profiles with AI moderation — scholars and mosques, changes go pending, Claude API gates publish
+13. Scholar availability calendar — real per-scholar slots, not DEFAULT_AVAILABILITY constants
+14. Dashboard notifications — new booking, DBS stage change, new message, application status
+15. Campaign queue real data — migrate MOCK_CAMPAIGNS to Supabase
+16. Gift Aid declaration — UK charities claim 25% extra on donations, checkbox on donation flow
+17. Mosque full dashboard editability — profile, prayer times, Jumuah, contact, services, facilities
+18. Mosque staff management view — see existing staff, roles, RTW status, remove/re-invite
+19. Photo upload via Supabase storage — replace SQL workaround and wizard placeholders
+20. Admin settings Phase 9 — platform fees, integrations, admin team
+21. Admin overview real data — all stats currently hardcoded mock numbers
+22. Admin Ijazah verification UI — no way to approve qualifications currently
+23. DBS issued → approval screen status fix — still shows PENDING after issue
+
+### Phase 3 — 1–2 months (growth and operational features)
+
+24. Mosque rota — assign staff to prayer slots and teaching rotas
+25. Mosque events calendar — Friday lectures, kids classes, community events, public feed, optional RSVP
+26. Scholar response time badge — "Typically responds within 2 hours" on scholar cards
+27. Waitlist for popular scholars — join waitlist when availability full, notified on slot opening
+28. DBS as signup gate Session P — scholars can't reach active without issued DBS
+29. International scholar tier — reference-based verification, adults-only, no DBS required
+30. Scholar endorsements — verified scholars endorse colleagues, peer verification layer
+31. DBS renewal reminders — automated email at 6 months, 3 months, 1 month before expiry
+32. Parent spending analytics — total spent, sessions, subjects, scholars worked with
+33. Aladhan API — real location-accurate adhan times replacing calculated times
+34. NEARBY_MOSQUES geolocation — real geolocation-driven lookup from mosques table
+35. Mosque capacity management — real-time attendance tracking for Jummah crowd management
+36. Multi-language support — Urdu, Arabic, Bengali for scholar/mosque side
+37. Parent verification tier — optional ID verification for parents booking for children
+38. Disintermediation prevention — hide contact details, extend message regex blocks
+
+### Phase 4 — Technical debt and polish
+
+39. Scholar/imam/mosque conversation back navigation — only user role fixed, others still use naked messagesInbox
+40. bookings UPDATE column-level RLS — scholars can update any column, not just meeting_url
+41. Scholar application RLS tightening — any authed user can read others' wizard submissions
+42. Suspension write-blocking — suspended users can still write to bookings/saves/messages/donations
+43. AdminFlags sidebar badge stale on action — count doesn't decrement after admin acts
+44. Realtime UPDATE events for messages — soft-deleted messages don't disappear live
+45. Per-message 3-dot click target — ~16x16px, too small on mobile, bump to 3px padding
+46. UserDashboard bookings flash — "No bookings yet" appears briefly then vanishes on hard refresh
+47. Drop scholars_rating_backup table — leftover from Session H, safe to delete
+48. ImamRegister and ImamDashboardView cleanup — dead code, unreachable, ~200 lines to delete
+49. App.jsx Phase 2 component extraction — still ~8200 lines
+50. Scroll restoration — browser back returns to top of page
+51. Smoke test suite — start with auth, booking, DBS order flows
+52. Mosque stale test data cleanup — mosque1@test.com stale DBS row, test1@gmail.com paid Enhanced row
