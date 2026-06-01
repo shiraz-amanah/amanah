@@ -2536,7 +2536,7 @@ const DBSStatusPill = ({ status }) => {
 // PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
 // MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
 // Phase 9 sweeps.
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessages, onOpenStaff }) => {
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
   });
@@ -2602,24 +2602,18 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
           </div>
         </div>
 
-        {/* Tabs. Messages is a route-switch tab (calls onOpenMessages
-            → setView('messagesInbox')) rather than rendering inline,
-            same pattern as scholar / parent dashboards. Active state
-            never lands on "messages" since the click navigates away
-            before setTab fires. */}
+        {/* Tabs. Staff + Messages render inline within the dashboard
+            shell (same pattern as Account) so the mosque nav bar
+            persists across sub-pages. Conversation open still escapes
+            the shell via onConversation → conversationView route. */}
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto">
           {tabs.map(t => {
             const Icon = t.icon;
             const active = tab === t.v;
-            const handleClick = t.v === "messages"
-              ? () => onOpenMessages && onOpenMessages()
-              : t.v === "staff"
-                ? () => onOpenStaff && onOpenStaff()
-                : () => setTab(t.v);
             return (
               <button
                 key={t.v}
-                onClick={handleClick}
+                onClick={() => setTab(t.v)}
                 className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${active ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
               >
                 <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l}</span>
@@ -2730,6 +2724,14 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
           </div>
         )}
 
+        {tab === "staff" && (
+          <MosqueStaffInviteWizard
+            mosque={mosque}
+            embedded
+            onBack={() => setTab("profile")}
+          />
+        )}
+
         {tab === "donations" && (
           <div>
             <div className="mb-6">
@@ -2743,10 +2745,16 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, onOpenMessage
           </div>
         )}
 
-        {/* tab === "messages" never matches — clicking the tab calls
-            onOpenMessages and switches view to messagesInbox. Block
-            kept absent on purpose; setTab is never invoked with
-            "messages" as the value. */}
+        {tab === "messages" && (
+          <MessagesInbox
+            embedded
+            role="mosque"
+            conversations={conversations || []}
+            loading={conversationsLoading}
+            onConversation={onConversation}
+            onBack={() => setTab("profile")}
+          />
+        )}
 
         {tab === "account" && (
           <div>
@@ -4720,6 +4728,7 @@ const MessagesInbox = ({
   savedScholarsCount,
   savedMosquesCount,
   scholarReviewsCount,
+  embedded = false,
 }) => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -4734,49 +4743,12 @@ const MessagesInbox = ({
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
   const showDashboardTabs = (role === "user" || role === "scholar") && !!onTabClick;
 
-  return (
-    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {showDashboardTabs ? (
-        <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
-          <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
-            <button onClick={onLogoClick} className="flex items-center gap-2.5 md:gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
-              <div className="text-left">
-                <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-                {displayName && <p className="text-xs text-stone-500 hidden md:block">{displayName}</p>}
-              </div>
-            </button>
-            <div className="flex items-center gap-2">
-              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient }} size="sm" />
-              {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
-            </div>
-          </div>
-          <DashboardTabBar
-            role={role}
-            activeTab="messages"
-            onTabClick={onTabClick}
-            upcomingBookingsCount={upcomingBookingsCount}
-            savedScholarsCount={savedScholarsCount}
-            savedMosquesCount={savedMosquesCount}
-            scholarReviewsCount={scholarReviewsCount}
-            messagesUnread={totalUnread}
-          />
-        </header>
-      ) : (
-        <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-            <button onClick={onBack} className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
-              <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
-            </button>
-          </div>
-        </header>
-      )}
-
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back to dashboard</button>
-
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+  // Embedded mode: caller provides the outer shell (e.g. MosqueDashboard
+  // wraps us in its own header + tab bar), so we skip our own min-h-screen
+  // wrapper, chrome header, max-w-5xl, and the "Back to dashboard" button.
+  const Body = (
+    <>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
             <h2 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Messages</h2>
             <p className="text-stone-600">
@@ -4836,6 +4808,55 @@ const MessagesInbox = ({
             </div>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) {
+    return Body;
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {showDashboardTabs ? (
+        <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
+          <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+            <button onClick={onLogoClick} className="flex items-center gap-2.5 md:gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <div className="text-left">
+                <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+                {displayName && <p className="text-xs text-stone-500 hidden md:block">{displayName}</p>}
+              </div>
+            </button>
+            <div className="flex items-center gap-2">
+              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient }} size="sm" />
+              {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
+            </div>
+          </div>
+          <DashboardTabBar
+            role={role}
+            activeTab="messages"
+            onTabClick={onTabClick}
+            upcomingBookingsCount={upcomingBookingsCount}
+            savedScholarsCount={savedScholarsCount}
+            savedMosquesCount={savedMosquesCount}
+            scholarReviewsCount={scholarReviewsCount}
+            messagesUnread={totalUnread}
+          />
+        </header>
+      ) : (
+        <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <button onClick={onBack} className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+            </button>
+          </div>
+        </header>
+      )}
+
+      <main className="max-w-5xl mx-auto px-6 py-8">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6"><ArrowLeft size={14} /> Back to dashboard</button>
+        {Body}
       </main>
     </div>
   );
@@ -13142,10 +13163,10 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     authedUser={authedUser}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
-    onOpenMessages={() => { setRole("mosque"); setView("messagesInbox"); }}
-    onOpenStaff={() => setView("mosqueStaff")}
+    conversations={inboxData}
+    conversationsLoading={conversationsLoading && !!authedProfile}
+    onConversation={(c) => { setSelectedConversation(c); setRole("mosque"); navigate("conversationView", { id: c.id }); }}
   />;
-  if (view === "mosqueStaff") return <MosqueStaffInviteWizard mosque={myMosque} onBack={() => setView("mosqueDashboard")} />;
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
     const newCheck = { id: Date.now(), candidateName: form.candidateName, candidateEmail: form.candidateEmail, dbs: { type: form.dbsLevel.charAt(0).toUpperCase() + form.dbsLevel.slice(1), status: "awaitingcandidate", date: "—" }, rtw: { status: form.includeRtw ? "awaitingcandidate" : "incomplete", date: "—" }, requestedDate: new Date().toISOString().split("T")[0] };

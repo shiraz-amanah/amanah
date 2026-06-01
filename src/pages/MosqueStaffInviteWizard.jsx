@@ -13,7 +13,7 @@ const ROLE_OPTIONS = [
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function MosqueStaffInviteWizard({ mosque, onBack }) {
+export default function MosqueStaffInviteWizard({ mosque, onBack, embedded = false }) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('imam');
@@ -82,22 +82,8 @@ export default function MosqueStaffInviteWizard({ mosque, onBack }) {
     setError(null);
   };
 
-  return (
-    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
-          <button onClick={onBack} className="text-stone-600 hover:text-stone-900 p-2 -ml-2" aria-label="Back"><ArrowLeft size={18} /></button>
-          <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md">
-            <ShieldCheck className="text-emerald-50" size={18} />
-          </div>
-          <div className="text-left">
-            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Invite staff</h1>
-            <p className="text-[11px] md:text-xs text-stone-500 truncate max-w-[60vw]">{mosque.name} · {mosque.city}</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-5 md:px-6 py-6 md:py-10">
+  const body = (
+    <>
         {result ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 max-w-xl mx-auto">
             <div className="text-center">
@@ -208,6 +194,30 @@ export default function MosqueStaffInviteWizard({ mosque, onBack }) {
             <p className="text-[11px] text-stone-500 mt-3 text-center">Invitees receive two emails: this invite link, plus a Supabase verification email after they sign up. Day-1 limitation.</p>
           </div>
         )}
+    </>
+  );
+
+  if (embedded) {
+    return body;
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
+          <button onClick={onBack} className="text-stone-600 hover:text-stone-900 p-2 -ml-2" aria-label="Back"><ArrowLeft size={18} /></button>
+          <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md">
+            <ShieldCheck className="text-emerald-50" size={18} />
+          </div>
+          <div className="text-left">
+            <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Invite staff</h1>
+            <p className="text-[11px] md:text-xs text-stone-500 truncate max-w-[60vw]">{mosque.name} · {mosque.city}</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-5 md:px-6 py-6 md:py-10">
+        {body}
       </main>
     </div>
   );
