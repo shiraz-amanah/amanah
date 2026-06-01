@@ -7902,9 +7902,7 @@ useEffect(() => {
   // Use real profile data when available, fall back to mock for demo
   let initials = "??";
   if (profile) {
-    console.log('initials debug:', profile?.avatar_initials, JSON.stringify(profile?.name), JSON.stringify(profile?.email));
     initials = (profile.avatar_initials ?? (profile.name || profile.email || "??").trim().substring(0, 2).toUpperCase()) || "??";
-    console.log('initials result:', initials);
   }
   const user = profile ? {
     name: profile.name || profile.email?.split("@")[0] || "Friend",
@@ -8025,7 +8023,6 @@ setBookings(transformed);
             </div>
           </button>
           <div className="flex items-center gap-2">
-            {console.log('Avatar render:', user.initials, user.avatarGradient)}
             <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700" }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
@@ -13265,16 +13262,16 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   const messagesChrome = role === "scholar"
     ? {
         displayName: myScholar?.name || authedUser?.email,
-        displayInitials: myScholar?.avatar_initials,
-        displayGradient: myScholar?.avatar_gradient,
+        displayInitials: myScholar?.avatar_initials || (myScholar?.name || authedUser?.email || "??").trim().substring(0, 2).toUpperCase(),
+        displayGradient: myScholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
         onLogout: async () => { await fullSignOut(); setView("publicHome"); },
         upcomingBookingsCount: scholarUpcomingCount,
         scholarReviewsCount: scholarReviewsCount,
       }
     : {
         displayName: authedProfile?.name || authedUser?.email,
-        displayInitials: authedProfile?.avatar_initials,
-        displayGradient: authedProfile?.avatar_gradient,
+        displayInitials: authedProfile?.avatar_initials || (authedProfile?.name || authedUser?.email || "??").trim().substring(0, 2).toUpperCase(),
+        displayGradient: authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700",
         onLogout: async () => { await fullSignOut(); setView("publicHome"); },
       };
 
