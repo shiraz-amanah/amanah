@@ -12792,6 +12792,17 @@ useEffect(() => {
           if (mosque) setMyMosque(transformMosque(mosque));
           const mosqueApp = await getMyMosqueApplication();
           if (mosqueApp) setMyMosqueApplication(mosqueApp);
+
+          // Populate the UI role state so it survives a cold refresh — role
+          // is otherwise null until an in-session interaction sets it, which
+          // left views like messagesInbox unable to tell user from mosque on
+          // a direct URL. profiles.role is only 'user' | 'scholar' | 'admin'
+          // and mosque accounts are role='user' (migration 024), so it can't
+          // map the UI role directly; derive from the scholar/mosque probes
+          // above, which carry the real account identity.
+          if (mosque) setRole("mosque");
+          else if (scholar) setRole("scholar");
+          else setRole("user");
         }
       }
     } catch (err) {
