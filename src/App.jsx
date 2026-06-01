@@ -7903,7 +7903,7 @@ useEffect(() => {
   const user = profile ? {
     name: profile.name || profile.email?.split("@")[0] || "Friend",
     email: profile.email,
-    initials: profile.avatar_initials || (profile.name || profile.email || "??").substring(0, 2).toUpperCase(),
+    initials: (profile.avatar_initials ?? (profile.name || profile.email || "??").trim().substring(0, 2).toUpperCase()) || "??",
     avatarGradient: profile.avatar_gradient || "from-emerald-400 to-emerald-700",
     city: profile.city || "",
     joinedDate: profile.joined_date ? new Date(profile.joined_date).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "Recently",
