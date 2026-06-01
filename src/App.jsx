@@ -5347,7 +5347,7 @@ const JobCard = ({ job, onClick, applied }) => (
 );
 
 // ==================== JOBS BOARD (for imams) ====================
-const JobsBoard = ({ onBack, onJob, myApplications }) => {
+const JobsBoard = ({ onBack, onJob, myApplications, authedUser, authedProfile, onSignIn }) => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [tab, setTab] = useState("browse");
@@ -13292,7 +13292,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     messagesUnread={totalMessagesUnread}
     {...messagesChrome}
   />;
-  if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); navigate("jobDetail", { id: j.id }); }} myApplications={myApplications} />;
+  if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); navigate("jobDetail", { id: j.id }); }} myApplications={myApplications} authedUser={authedUser} authedProfile={authedProfile} onSignIn={handleSignIn} />;
   if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
   if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => setView("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
   if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => setView("jobsBoard")} onApply={(j) => { setSelectedJob(j); navigate("applyJob", { id: j.id }); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
