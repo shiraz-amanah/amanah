@@ -7728,7 +7728,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, onOpenMessages, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
+  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
   // replace:true so tab clicks don't pollute browser history. setTab kept
   // as a local alias for the internal references.
@@ -8039,7 +8039,7 @@ setBookings(transformed);
             return (
               <button
                 key={t.v}
-                onClick={() => t.v === "messages" ? onOpenMessages() : setTab(t.v)}
+                onClick={() => setTab(t.v)}
                 className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
               >
                 <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l} {t.badge > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>}</span>
@@ -8469,6 +8469,17 @@ setBookings(transformed);
               </div>
             )}
           </div>
+        )}
+
+        {tab === "messages" && (
+          <MessagesInbox
+            embedded
+            role="user"
+            conversations={conversations || []}
+            loading={conversationsLoading}
+            onConversation={onConversation}
+            onBack={() => setTab("bookings")}
+          />
         )}
 
         {tab === "account" && (
@@ -13167,6 +13178,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       showToast("Password updated — please sign in.");
     }}
   />;
+  const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
+  const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
     isDemo={!authedProfile}
@@ -13194,7 +13207,9 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       }
     }}
     onViewCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }}
-    onOpenMessages={() => { setRole("user"); setView("messagesInbox"); }}
+    conversations={inboxData}
+    conversationsLoading={conversationsLoading && !!authedProfile}
+    onConversation={(c) => { setSelectedConversation(c); setRole("user"); navigate("conversationView", { id: c.id }); }}
     tab={routeQuery.tab || "bookings"}
     onTabChange={(t) => navigate("userDashboard", {}, { tab: t }, { replace: true })}
     savedScholarIds={savedScholarIds}
@@ -13213,8 +13228,6 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onHome={() => setView("publicHome")}
     onViewScholar={submittedReview?.scholar ? () => { setSelectedScholar(submittedReview.scholar); navigate("scholarDetail", { slug: submittedReview.scholar.slug }); } : null}
   />;
-  const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
-  const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
   const handleDashboardTabClick = (tabValue) => {
     if (tabValue === "messages") return;
     sessionStorage.setItem("dashboardTab", tabValue);
