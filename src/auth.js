@@ -19,6 +19,32 @@ export async function signOut() {
   return { error }
 }
 
+// Trigger Supabase's password-reset email flow. The redirectTo origin
+// must be in the project's Auth → URL Configuration → Redirect URLs
+// allowlist; otherwise Supabase silently falls back to the Site URL.
+export async function requestPasswordReset(email, redirectTo) {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  return { data, error }
+}
+
+// Update the signed-in (or in-recovery) user's password. Supabase
+// allows this both for an authenticated session and during a
+// PASSWORD_RECOVERY session opened by clicking the reset email link.
+export async function updatePassword(newPassword) {
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword })
+  return { data, error }
+}
+
+// Fire `callback` exactly when Supabase emits PASSWORD_RECOVERY — i.e.
+// the user has landed back on the app with a recovery token in the URL
+// hash. Returns the Supabase subscription so the caller can unsubscribe
+// on unmount.
+export function onPasswordRecovery(callback) {
+  return supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') callback()
+  })
+}
+
 export async function getUser() {
   const { data: { user } } = await supabase.auth.getUser()
   return user

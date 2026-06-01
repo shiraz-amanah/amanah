@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -7393,8 +7393,170 @@ const MosqueVerificationPending = ({ mosque, onPublic, onLogout }) => (
   </div>
 );
 
+// ==================== FORGOT PASSWORD ====================
+// Standalone view reached from UserAuth's "Forgot password?" link.
+// Hands off to Supabase's transactional reset email; the user lands
+// back on the app via the link, and App's PASSWORD_RECOVERY listener
+// flips view → "resetPassword". redirectTo is hardcoded to the prod
+// origin per current spec — dev testing of the email round-trip is
+// expected against prod.
+const ForgotPassword = ({ onBack, onDone }) => {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [sent, setSent] = useState(false);
+
+  const submit = async () => {
+    if (!email.trim()) return;
+    setError(null);
+    setLoading(true);
+    const { error: resetError } = await requestPasswordReset(email.trim(), "https://youramanah.co.uk");
+    if (resetError) {
+      setError(resetError.message || "Couldn't send reset link. Try again.");
+      setLoading(false);
+      return;
+    }
+    setSent(true);
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="w-full max-w-md">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back to sign in</button>
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
+            <ShieldCheck className="text-emerald-50" size={22} />
+          </div>
+          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm">
+          {sent ? (
+            <>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Check your email</h2>
+              <p className="text-sm text-stone-600 mb-5">
+                If an account exists for <span className="font-medium text-stone-900 break-all">{email.trim()}</span>, we've sent a reset link. It expires in 1 hour.
+              </p>
+              <button
+                onClick={onDone}
+                className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium"
+              >
+                Back to sign in
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Forgot your password?</h2>
+              <p className="text-sm text-stone-500 mb-6">Enter the email tied to your Amanah account and we'll send a reset link.</p>
+              <div className="space-y-3">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+                  placeholder="Email"
+                  autoComplete="email"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
+                {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
+                <button
+                  onClick={submit}
+                  disabled={loading || !email.trim()}
+                  className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100"
+                >
+                  {loading ? "Sending..." : "Send reset link"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== RESET PASSWORD ====================
+// Rendered after App's PASSWORD_RECOVERY listener flips the view.
+// Supabase has already exchanged the token for a temporary session by
+// the time this mounts, so updateUser({ password }) is the only call
+// needed. On success, sign the user out so they re-authenticate with
+// the new password from a known-clean state.
+const ResetPassword = ({ onDone }) => {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async () => {
+    setError(null);
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setLoading(true);
+    const { error: updateError } = await updatePassword(password);
+    if (updateError) {
+      // Most common failures: expired recovery token (AuthSessionMissingError)
+      // and weak-password rejection from Supabase's password policy.
+      setError(updateError.message || "Couldn't update password. The reset link may have expired.");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+    onDone();
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="w-full max-w-md">
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
+            <ShieldCheck className="text-emerald-50" size={22} />
+          </div>
+          <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+        </div>
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm">
+          <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Set a new password</h2>
+          <p className="text-sm text-stone-500 mb-6">Pick something at least 8 characters long. You'll sign in with the new password next.</p>
+          <div className="space-y-3">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="New password"
+              autoComplete="new-password"
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+            />
+            <input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              placeholder="Confirm new password"
+              autoComplete="new-password"
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+            />
+            {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
+            <button
+              onClick={submit}
+              disabled={loading || !password || !confirm}
+              className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100"
+            >
+              {loading ? "Updating..." : "Update password"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== USER SIGN UP / LOGIN ====================
-const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchMode }) => {
+const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchMode, onForgotPassword }) => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: "", email: "", password: "", interest: "" });
   const [error, setError] = useState(null);
@@ -7530,7 +7692,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
                 </button>
               </div>
               <div className="text-center mt-3">
-                <button className="text-sm text-stone-500 hover:text-stone-900">Forgot password?</button>
+                <button onClick={onForgotPassword} className="text-sm text-stone-500 hover:text-stone-900">Forgot password?</button>
               </div>
             </>
           )}
@@ -12573,6 +12735,18 @@ const toggleScholarSave = async (scholar) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, routeParams.slug, routeParams.id, conversations]);
 
+// Listen for Supabase's PASSWORD_RECOVERY event. Fires when the user
+// clicks the email reset link and lands back on the app — at that
+// point Supabase has already swapped the URL-hash token for a
+// short-lived recovery session, so we just route to the reset form.
+useEffect(() => {
+  const { data } = onPasswordRecovery(() => {
+    setView("resetPassword");
+  });
+  return () => data?.subscription?.unsubscribe?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 // Check for existing session on page load - keeps users logged in across reloads
 useEffect(() => {
   (async () => {
@@ -12976,7 +13150,23 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       return;
     }
     navigate(returnView);
-  }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} />;
+  }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} onForgotPassword={() => setView("forgotPassword")} />;
+  if (view === "forgotPassword") return <ForgotPassword
+    onBack={() => { setUserAuthMode("login"); setView("userAuth"); }}
+    onDone={() => { setUserAuthMode("login"); setView("userAuth"); }}
+  />;
+  if (view === "resetPassword") return <ResetPassword
+    onDone={async () => {
+      // Sign out the recovery session so the next sign-in uses the
+      // new password from a clean state. Without this, Supabase
+      // leaves the user "signed in" via the recovery token, which
+      // confuses the bootstrap auth probe on next reload.
+      await fullSignOut();
+      setUserAuthMode("login");
+      setView("userAuth");
+      showToast("Password updated — please sign in.");
+    }}
+  />;
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
     isDemo={!authedProfile}
