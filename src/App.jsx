@@ -10731,6 +10731,17 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesError, setNotesError] = useState(null);
 
+  const [toast, setToast] = useState(null);
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // All of these mutators .select() without the profiles join, so the
+  // returned row's candidate is null. Merge fresh fields onto the existing
+  // order so the candidate name survives the save.
+  const mergeUpdate = (data) => onUpdate({ ...order, ...data, candidate: data.candidate || order.candidate });
+
   const formatPrice = (pence) => `£${(pence / 100).toFixed(0)}`;
   const formatDate = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
 
@@ -10752,7 +10763,7 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
       setStageError(error.message || "Couldn't save stage. Try again.");
       return;
     }
-    if (data) onUpdate(data);
+    if (data) mergeUpdate(data);
     setPendingStage(null);
   };
 
@@ -10762,7 +10773,8 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
     const { data, error } = await setDBSOrderCertificateUrl(order.id, certUrlInput);
     setCertUrlSaving(false);
     if (error) { setCertUrlError(error.message || "Couldn't save URL."); return; }
-    if (data) onUpdate(data);
+    if (data) mergeUpdate(data);
+    showToast("Certificate URL saved");
   };
 
   const handleDisclosureSave = async () => {
@@ -10771,7 +10783,7 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
     const { data, error } = await setDBSOrderDisclosureSummary(order.id, disclosureInput);
     setDisclosureSaving(false);
     if (error) { setDisclosureError(error.message || "Couldn't save summary."); return; }
-    if (data) onUpdate(data);
+    if (data) mergeUpdate(data);
   };
 
   const handleNotesSave = async () => {
@@ -10780,7 +10792,7 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
     const { data, error } = await setDBSOrderNotes(order.id, notesInput);
     setNotesSaving(false);
     if (error) { setNotesError(error.message || "Couldn't save notes."); return; }
-    if (data) onUpdate(data);
+    if (data) mergeUpdate(data);
   };
 
   const stageOptions = [
@@ -10952,6 +10964,13 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
           {notesError && <p className="text-xs text-rose-700">{notesError}</p>}
         </div>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+          <CheckCircle2 className="text-emerald-400" size={16} />
+          <span className="text-sm font-medium">{toast}</span>
+        </div>
+      )}
     </div>
   );
 };
