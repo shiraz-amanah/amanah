@@ -9,6 +9,7 @@ import { transformMosque } from "./lib/mosqueTransform";
 import AiSearchBar from "./components/AiSearchBar";
 import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
+import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -9674,6 +9675,8 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Your profile</h2>
               <p className="text-stone-600 text-sm md:text-base">This is how parents see you on Amanah. Editing comes soon.</p>
             </div>
+
+            <ProfileQualityScorer scholar={scholar} />
 
             <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 mb-5">
               <div className="flex items-start gap-4 mb-5 flex-wrap">
