@@ -6,18 +6,30 @@
 // page); this function asks Claude to filter + rank those candidates and
 // write a one-line explanation per match, then returns the ranked ids.
 //
-// A single Claude call does the whole job — the datasets are small and
-// already in the browser, so there's no DB round-trip and no second
-// "extract filters" call.
+// Two paths, picked at runtime:
+//   1. Semantic prefilter (preferred) — when OPENAI_API_KEY + SUPABASE_*
+//      are set, we embed the query (text-embedding-3-small) and call the
+//      match_scholars / match_mosques pgvector RPC to get the top ~10 most
+//      similar rows, then hand only those to Claude to rank + explain.
+//   2. Fallback — when the OpenAI/Supabase env is missing, or embedding or
+//      the RPC fails (e.g. embeddings not backfilled yet), we fall back to
+//      the original behaviour: pass the client's already-loaded candidates
+//      straight to Claude. The datasets are small, so this still works.
 //
-// Why this runs server-side: the Anthropic key must never reach the
-// browser bundle. Vite only exposes VITE_-prefixed vars to the client,
-// so we read the unprefixed ANTHROPIC_API_KEY here, exactly like
-// send-staff-invite.js reads RESEND_API_KEY / SUPABASE_* .
+// Either way a single Claude call ranks the shortlist and writes a
+// one-line explanation per match.
+//
+// Why this runs server-side: the Anthropic/OpenAI keys must never reach
+// the browser bundle. Vite only exposes VITE_-prefixed vars to the client,
+// so we read the unprefixed keys here, exactly like send-staff-invite.js
+// reads RESEND_API_KEY / SUPABASE_* .
 //
 // Required env (Vercel project settings + .env.local for `vercel dev`):
-//   ANTHROPIC_API_KEY — Anthropic API key (sk-ant-...). Server-only;
-//                       do NOT add a VITE_ copy.
+//   ANTHROPIC_API_KEY — Anthropic API key (sk-ant-...). Server-only.
+// Optional (enables the semantic prefilter; falls back without them):
+//   OPENAI_API_KEY    — OpenAI API key (sk-...). Server-only.
+//   SUPABASE_URL      — Supabase project URL (same as VITE_SUPABASE_URL).
+//   SUPABASE_ANON_KEY — Supabase anon key (RPC is anon-callable).
 //
 // Returns 200 {ok:true, matches:[{id, explanation}]} on success,
 // 4xx/5xx {ok:false, error} otherwise. The client falls back to the
@@ -27,9 +39,14 @@
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
 
-// Cap candidates sent to Claude. Scholars arrive rating-sorted and
-// mosques city-sorted, so we keep the strongest N. Kept small to bound
-// tokens/latency; logged when it actually truncates (no silent cap).
+const OPENAI_EMBEDDINGS_ENDPOINT = 'https://api.openai.com/v1/embeddings';
+const EMBEDDING_MODEL = 'text-embedding-3-small';
+// How many nearest neighbours the pgvector RPC returns for Claude to rank.
+const SEMANTIC_TOP_K = 10;
+
+// Cap candidates sent to Claude on the fallback path. Scholars arrive
+// rating-sorted and mosques city-sorted, so we keep the strongest N. Kept
+// small to bound tokens/latency; logged when it truncates (no silent cap).
 const MAX_CANDIDATES = 20;
 
 // Structured-output schema — guarantees valid JSON back (no prose, no
@@ -100,6 +117,70 @@ function compactMosque(m) {
   };
 }
 
+// pgvector text input format: "[0.1,0.2,...]".
+function formatVector(arr) {
+  return `[${arr.join(',')}]`;
+}
+
+// Embed a single query string with OpenAI. Throws on any failure so the
+// caller can fall back to the full-candidate path.
+async function embedQuery(query, openaiKey) {
+  const r = await fetch(OPENAI_EMBEDDINGS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${openaiKey}`,
+    },
+    body: JSON.stringify({ model: EMBEDDING_MODEL, input: [query] }),
+  });
+  if (!r.ok) throw new Error(`openai_failed:${r.status}`);
+  const data = await r.json();
+  const embedding = data?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) throw new Error('openai_no_embedding');
+  return embedding;
+}
+
+// Call the match_scholars / match_mosques pgvector RPC. Returns an ordered
+// array of id strings (closest first). Throws on failure.
+async function matchViaRpc(type, embedding, supabaseUrl, anonKey) {
+  const fn = type === 'scholar' ? 'match_scholars' : 'match_mosques';
+  const r = await fetch(`${supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`,
+    },
+    body: JSON.stringify({
+      query_embedding: formatVector(embedding),
+      match_count: SEMANTIC_TOP_K,
+    }),
+  });
+  if (!r.ok) throw new Error(`rpc_failed:${r.status}`);
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows.map((row) => String(row.id)) : [];
+}
+
+// Try the semantic prefilter; return an ordered candidate shortlist, or
+// null to signal "fall back to the full-candidate path".
+async function semanticShortlist(query, type, candidates, env) {
+  const { OPENAI_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY } = env;
+  if (!OPENAI_API_KEY || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  try {
+    const embedding = await embedQuery(query, OPENAI_API_KEY);
+    const ids = await matchViaRpc(type, embedding, SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (!ids.length) return null;
+    // Reorder the client's candidates to the RPC's similarity ranking,
+    // keeping only rows the client actually loaded.
+    const byId = new Map(candidates.map((c) => [String(c.id), c]));
+    const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+    return ordered.length ? ordered : null;
+  } catch (err) {
+    console.warn('[ai-match] semantic prefilter failed, falling back:', err?.message);
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -130,13 +211,21 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'server_misconfigured' });
   }
 
-  if (candidates.length > MAX_CANDIDATES) {
-    console.warn(`[ai-match] truncating ${candidates.length} ${type} candidates to ${MAX_CANDIDATES}`);
+  // Prefer the pgvector semantic shortlist; fall back to the client's
+  // candidates (capped) when embeddings/RPC aren't available.
+  const shortlist = await semanticShortlist(query, type, candidates, process.env);
+  let forRanking;
+  if (shortlist) {
+    forRanking = shortlist;
+  } else {
+    if (candidates.length > MAX_CANDIDATES) {
+      console.warn(`[ai-match] truncating ${candidates.length} ${type} candidates to ${MAX_CANDIDATES}`);
+    }
+    forRanking = candidates.slice(0, MAX_CANDIDATES);
   }
-  const trimmed = candidates.slice(0, MAX_CANDIDATES);
   const compact = type === 'scholar'
-    ? trimmed.map(compactScholar)
-    : trimmed.map(compactMosque);
+    ? forRanking.map(compactScholar)
+    : forRanking.map(compactMosque);
 
   const system = type === 'scholar' ? SCHOLAR_SYSTEM : MOSQUE_SYSTEM;
   const userContent = `Request: ${query}\n\n${type === 'scholar' ? 'Scholars' : 'Mosques'} (JSON):\n${JSON.stringify(compact)}`;
