@@ -1027,7 +1027,9 @@ const DashboardTabBar = ({
     ? [
         { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookingsCount },
         { v: "profile", l: "Profile", i: User, badge: null },
+        { v: "availability", l: "Availability", i: Clock, badge: null },
         { v: "reviews", l: "Reviews", i: Star, badge: scholarReviewsCount || null },
+        { v: "dbs", l: "DBS", i: FileCheck, badge: null },
         { v: "messages", l: "Messages", i: MessageCircle, badge: messagesUnread },
         { v: "account", l: "Account", i: Settings, badge: null },
       ]
