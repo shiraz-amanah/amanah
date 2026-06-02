@@ -5240,6 +5240,37 @@ paths.
 
 ---
 
+## Session M Part C — 2 June 2026
+
+### Shipped
+- Profile quality scorer — smoked ✅ (was in-progress from Part B)
+- Message moderation — AI hard block via Claude API, logs to flags table, admin panel shows flagged messages ✅
+- Message initiation from scholar profile — getOrCreateDirectConversation wired up, user→parent role fix, transformScholar user_id fix ✅
+- Scholar availability calendar — new Availability tab in scholar dashboard, weekly toggle UI with time ranges per day, saves via SECURITY DEFINER RPC, persists on hard refresh, booking calendar integration unchanged ✅
+
+### Migrations applied to prod
+- 039 — availability jsonb column on scholars + update_scholar_availability SECURITY DEFINER function
+
+### Bugs fixed
+- Message button on scholar profile routed to inbox instead of opening conversation (getOrCreateDirectConversation not called, user_id dropped in transformScholar, role enum mismatch "user" vs "parent")
+- Availability tab missing from scholar nav on Messages view (shared nav list was stale)
+- Availability reset on hard refresh (useState seed timing — useEffect keyed on initialSlots fixes async hydration)
+- Scholar profile crash: null guard on packages.map (t.price TypeError)
+- Profile field label rendering: DBSVERIFIED/IJAZAHVERIFIED raw key shown (cosmetic, parked)
+
+### Parked
+- "SUBJECT DELETED" in admin flags when message is blocked (subject_id is conversationId, not a message id — display fix needed)
+- Availability chips removed from public profile (shown in booking flow only)
+- Orphaned AvailabilityEditor (old mock full-page scheduler) — dead code, Phase 9 cleanup
+- start > end validation on availability time pickers
+- Post-sign-in returns to dashboard not back to scholar profile after auth-gated Message click
+
+### Next
+- Dashboard notifications
+- NOTES.md items 53–58 (AI-native platform features) — phased build continuing
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
