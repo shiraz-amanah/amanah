@@ -23,3 +23,15 @@ export const dayAbbr = (d) => find(d)?.abbr || d;
 // Sorted copy, Monday→Sunday.
 export const sortSlots = (slots) =>
   [...(slots || [])].sort((a, b) => dayOrder(a?.day) - dayOrder(b?.day));
+
+// 30-minute time options from 06:00 to 22:00 inclusive (for the weekly editor).
+export const TIME_OPTIONS = (() => {
+  const out = [];
+  for (let h = 6; h <= 22; h++) {
+    for (const m of [0, 30]) {
+      if (h === 22 && m === 30) break; // stop at 22:00
+      out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return out;
+})();

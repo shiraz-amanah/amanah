@@ -11,7 +11,7 @@ import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
-import ScholarAvailabilityEditor from "./components/ScholarAvailabilityEditor";
+import ScholarAvailabilityTab from "./components/ScholarAvailabilityTab";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -9533,6 +9533,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
   const tabs = [
     { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
     { v: "profile", l: "Profile", i: User, badge: null },
+    { v: "availability", l: "Availability", i: Clock, badge: null },
     { v: "reviews", l: "Reviews", i: Star, badge: reviews.length || null },
     { v: "dbs", l: "DBS", i: FileCheck, badge: null },
     { v: "messages", l: "Messages", i: MessageCircle, badge: null },
@@ -9783,8 +9784,16 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                 </div>
               )}
             </div>
+          </div>
+        )}
 
-            <ScholarAvailabilityEditor initialSlots={scholar?.availability} onSaved={(slots) => onScholarUpdate && onScholarUpdate({ ...scholar, availability: slots })} />
+        {tab === "availability" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Your availability</h2>
+              <p className="text-stone-600 text-sm md:text-base">Set the times you're available each week. Parents see this in the booking flow.</p>
+            </div>
+            <ScholarAvailabilityTab initialSlots={scholar?.availability} onSaved={(slots) => onScholarUpdate && onScholarUpdate({ ...scholar, availability: slots })} />
           </div>
         )}
 
