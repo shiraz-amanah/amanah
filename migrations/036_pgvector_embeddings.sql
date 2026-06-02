@@ -8,5 +8,5 @@ create extension if not exists vector;
 alter table scholars add column if not exists embedding vector(1536);
 alter table mosques add column if not exists embedding vector(1536);
 
-create index if not exists scholars_embedding_idx on scholars using ivfflat (embedding vector_cosine_ops);
-create index if not exists mosques_embedding_idx on mosques using ivfflat (embedding vector_cosine_ops);
+create index if not exists scholars_embedding_idx on scholars using hnsw (embedding vector_cosine_ops);
+create index if not exists mosques_embedding_idx on mosques using hnsw (embedding vector_cosine_ops);
