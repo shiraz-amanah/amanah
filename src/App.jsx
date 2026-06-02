@@ -253,8 +253,9 @@ useEffect(() => {
         .sort((a, b) => aiOrderById.get(String(a.id)) - aiOrderById.get(String(b.id)))
     : filtered;
 
-  // Hero-driven mosque preview: matched mosques (ranked, with explanations,
-  // capped at 8 for the preview) when active, else the default top 4.
+  // Hero-driven mosque preview: matched mosques (ranked, with explanations),
+  // capped at 4 to mirror the default 4-card preview row. (The actual count
+  // is still bounded by how many mosques the AI matches.)
   const heroMosqueActive = heroMosqueMatches !== null;
   const heroMosqueExplById = heroMosqueActive ? new Map(heroMosqueMatches.map(m => [m.id, m.explanation])) : null;
   const heroMosqueOrderById = heroMosqueActive ? new Map(heroMosqueMatches.map((m, i) => [m.id, i])) : null;
@@ -262,7 +263,7 @@ useEffect(() => {
     ? mosques
         .filter(m => heroMosqueExplById.has(String(m.id)))
         .sort((a, b) => heroMosqueOrderById.get(String(a.id)) - heroMosqueOrderById.get(String(b.id)))
-        .slice(0, 8)
+        .slice(0, 4)
     : mosques.slice(0, 4);
 
   // Hero-driven campaign filter (keyword). null === show all.
@@ -620,7 +621,7 @@ useEffect(() => {
           </div>
 
           {heroCampaignsActive && displayedCampaigns.length === 0 ? (
-            <p className="text-sm text-emerald-100/60">No matches for this search</p>
+            <p className="text-sm text-emerald-100/80 py-6">No matches for this search</p>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               {displayedCampaigns.map((c, i) => (
