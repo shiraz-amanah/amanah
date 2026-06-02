@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, Check } from "lucide-react";
 import { DAYS, TIME_OPTIONS } from "../lib/availability";
 import { updateScholarAvailability } from "../auth";
@@ -7,7 +7,8 @@ import { updateScholarAvailability } from "../auth";
 // 7 day columns Mon→Sun; each day toggles available/unavailable with a 30-min
 // time range when on. Changes are staged locally and persisted in one call via
 // updateScholarAvailability (only enabled days are written). Seeds from
-// initialSlots on mount; calls onSaved(slots) after a successful save.
+// initialSlots and re-hydrates when it arrives (the dashboard scholar loads
+// async); calls onSaved(slots) after a successful save.
 
 const DEFAULT_START = "09:00";
 const DEFAULT_END = "17:00";
@@ -31,6 +32,16 @@ const ScholarAvailabilityTab = ({ initialSlots, onSaved }) => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
+
+  // Re-seed when the saved availability actually arrives. The dashboard's
+  // scholar (myScholar) loads async, so on a hard refresh the initial prop is
+  // empty and the useState initializer above seeds all-off; this hydrates the
+  // toggles once the real data lands. Only the dashboard's own load + the
+  // post-save sync change this reference, so it won't clobber in-progress edits.
+  useEffect(() => {
+    console.log("[availability] seeding toggles from scholar.availability:", initialSlots);
+    setModel(buildModel(initialSlots));
+  }, [initialSlots]);
 
   const update = (day, patch) => {
     setModel((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
