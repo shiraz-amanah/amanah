@@ -12,7 +12,6 @@ import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
 import ScholarAvailabilityEditor from "./components/ScholarAvailabilityEditor";
-import AvailabilityChips from "./components/AvailabilityChips";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -1850,8 +1849,6 @@ useEffect(() => {
                 {scholar.languages.map(l => <span key={l} className="px-2.5 py-1 bg-sky-50 text-sky-700 text-xs rounded-md">{l}</span>)}
               </div>
             </div>
-
-            <AvailabilityChips slots={scholar.availability} />
 
             {/* Verification */}
             <div className="bg-white border border-stone-200 rounded-2xl p-6">
