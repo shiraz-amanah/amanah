@@ -11,6 +11,7 @@ import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
+import ScholarAvailabilityEditor from "./components/ScholarAvailabilityEditor";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -9782,6 +9783,8 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                 </div>
               )}
             </div>
+
+            <ScholarAvailabilityEditor initialSlots={scholar?.availability} onSaved={(slots) => onScholarUpdate && onScholarUpdate({ ...scholar, availability: slots })} />
           </div>
         )}
 

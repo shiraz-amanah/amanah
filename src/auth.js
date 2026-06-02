@@ -142,6 +142,17 @@ export async function getScholarByUserId(userId) {
   return data
 }
 
+// Persist the signed-in scholar's weekly availability slots. Writes only the
+// availability column for the caller's own row via the SECURITY DEFINER RPC
+// (migration 039) — no broad self-UPDATE policy on scholars. `slots` is an
+// array of { day, start, end } (day lowercase). Returns { error }.
+export async function updateScholarAvailability(slots) {
+  const { error } = await supabase.rpc('update_scholar_availability', {
+    p_slots: Array.isArray(slots) ? slots : [],
+  })
+  return { error }
+}
+
 // ============ MOSQUES (public reads) ============
 
 // Public list — status='active' only, ordered by city. Mosques
