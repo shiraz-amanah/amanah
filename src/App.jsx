@@ -6,6 +6,8 @@ import { NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
 import { transformMosque } from "./lib/mosqueTransform";
+import AiSearchBar from "./components/AiSearchBar";
+import { aiMatch } from "./lib/aiMatch";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -125,6 +127,38 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [mosques, setMosques] = useState([]);
   const [mosquesLoading, setMosquesLoading] = useState(true);
 
+  // AI natural-language scholar matching. aiMatches === null means no
+  // active search (show full listing); an array (possibly empty) means a
+  // search ran. aiError surfaces a graceful fallback note.
+  const [aiMatches, setAiMatches] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
+
+  const runScholarAiSearch = (q) => {
+    setAiLoading(true);
+    setAiError(false);
+    aiMatch({ query: q, type: "scholar", candidates: scholars })
+      .then(res => {
+        if (res.ok) {
+          setAiMatches(res.matches);
+        } else {
+          // Fall back to the full unfiltered listing on any failure.
+          setAiError(true);
+          setAiMatches(null);
+        }
+      })
+      .catch(() => {
+        setAiError(true);
+        setAiMatches(null);
+      })
+      .finally(() => setAiLoading(false));
+  };
+
+  const clearScholarAiSearch = () => {
+    setAiMatches(null);
+    setAiError(false);
+  };
+
 useEffect(() => {
   getScholars()
     .then(data => {
@@ -148,6 +182,18 @@ useEffect(() => {
   }, []);
 
   const filtered = activeTab === "all" ? scholars : scholars.filter(s => s.categories.includes(activeTab));
+
+  // When an AI search is active, show only matched scholars, ordered by
+  // Claude's ranking, each carrying its one-line explanation. Otherwise
+  // show the full listing.
+  const aiActive = aiMatches !== null;
+  const aiExplanationById = aiActive ? new Map(aiMatches.map(m => [m.id, m.explanation])) : null;
+  const aiOrderById = aiActive ? new Map(aiMatches.map((m, i) => [m.id, i])) : null;
+  const displayedScholars = aiActive
+    ? scholars
+        .filter(s => aiExplanationById.has(String(s.id)))
+        .sort((a, b) => aiOrderById.get(String(a.id)) - aiOrderById.get(String(b.id)))
+    : filtered;
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -417,20 +463,22 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Filter chips */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
-          <button onClick={() => setActiveTab("all")} className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeTab === "all" ? "bg-stone-900 text-white" : "bg-white border border-stone-200 text-stone-700 hover:border-stone-400"}`}>
-            All scholars
-          </button>
-          {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setActiveTab(cat.id)} className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeTab === cat.id ? "bg-stone-900 text-white" : "bg-white border border-stone-200 text-stone-700 hover:border-stone-400"}`}>
-              {cat.name}
-            </button>
-          ))}
-        </div>
+        {/* AI natural-language matching (replaces category filter chips) */}
+        <AiSearchBar
+          onSearch={runScholarAiSearch}
+          onClear={clearScholarAiSearch}
+          loading={aiLoading}
+          active={aiActive}
+          placeholder="Describe what you're looking for — subject, location, age group, availability…"
+        />
+        {aiError && (
+          <p className="-mt-3 mb-6 text-xs text-amber-700">
+            AI search is unavailable right now — showing all scholars.
+          </p>
+        )}
 
         {/* Scholars grid */}
-        {scholarsLoading ? (
+        {scholarsLoading || aiLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[1,2,3,4,5,6].map(i => (
               <div key={i} className="bg-white border border-stone-200 rounded-2xl p-5 animate-pulse">
@@ -446,15 +494,19 @@ useEffect(() => {
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : displayedScholars.length === 0 ? (
           <div className="text-center py-12 bg-white border border-stone-200 rounded-2xl">
-            <p className="text-sm text-stone-500">No scholars in this category yet. Check back soon.</p>
+            <p className="text-sm text-stone-500">
+              {aiActive
+                ? "No matches found — try describing what you need differently."
+                : "No scholars yet. Check back soon."}
+            </p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((s, i) => (
+            {displayedScholars.map((s, i) => (
               <div key={s.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-               <ScholarCard scholar={s} onClick={() => onScholar(s)} isSaved={savedScholarIds.has(String(s.id))} onToggleSave={toggleScholarSave} />
+               <ScholarCard scholar={s} onClick={() => onScholar(s)} isSaved={savedScholarIds.has(String(s.id))} onToggleSave={toggleScholarSave} aiExplanation={aiActive ? aiExplanationById.get(String(s.id)) : null} />
               </div>
             ))}
           </div>
@@ -916,7 +968,7 @@ const DashboardTabBar = ({
 };
 
 // Scholar card with hover interactions
-const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
+const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation }) => {
   const minPrice = Math.min(...scholar.packages.map(p => p.price));
   return (
     <div
@@ -954,6 +1006,12 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave }) => {
             <span className="flex items-center gap-1 text-amber-600 font-medium"><Star size={11} fill="currentColor" /> {scholar.rating}</span>
             <span className="text-stone-400">({scholar.reviewCount})</span>
           </div>
+          {aiExplanation && (
+            <p className="mt-1 flex items-start gap-1 text-xs text-emerald-700 leading-snug">
+              <Sparkles size={11} className="mt-0.5 flex-shrink-0" />
+              <span>{aiExplanation}</span>
+            </p>
+          )}
         </div>
       </div>
       <p className="text-sm text-stone-700 line-clamp-2 mb-3 leading-relaxed">{scholar.bio}</p>
