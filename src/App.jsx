@@ -13631,7 +13631,15 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     }
     const { data, error } = await getOrCreateDirectConversation(scholarUserId, "user", "scholar");
     if (error || !data) {
-      console.error("getOrCreateDirectConversation failed:", error);
+      // Diagnostic: log the full Supabase/PostgREST error fields.
+      console.error("getOrCreateDirectConversation failed:", {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        data,
+        error,
+      });
       showToast("Couldn't open chat. Please try again.");
       return;
     }
