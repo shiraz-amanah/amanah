@@ -217,6 +217,14 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  // Persistent clear from the hero bar — needed because the lower scholar
+  // bar (which also has a clear ×) lives inside a section that can itself
+  // be hidden when scholars don't match. Resets the input + all filters.
+  const clearHeroSearch = () => {
+    setSearch("");
+    clearScholarAiSearch();
+  };
+
 useEffect(() => {
   getScholars()
     .then(data => {
@@ -268,6 +276,17 @@ useEffect(() => {
   // Hero-driven campaign filter (keyword). null === show all.
   const heroCampaignsActive = heroCampaigns !== null;
   const displayedCampaigns = heroCampaignsActive ? heroCampaigns : MOCK_CAMPAIGNS;
+
+  // While a hero search is active, only render sections that actually have
+  // matches — an empty section is hidden, not shown with an empty state.
+  // heroCampaigns is set synchronously on hero submit (and only by the
+  // hero), so it's the reliable "hero search is active" flag. A direct
+  // search in the lower scholar bar only filters scholars and leaves the
+  // other sections at their defaults. With no hero search, all three render.
+  const heroSearchActive = heroCampaigns !== null;
+  const showScholarsSection = !heroSearchActive || aiLoading || displayedScholars.length > 0;
+  const showMosquesSection = !heroSearchActive || heroMosqueLoading || (heroMosqueActive && displayedMosquePreview.length > 0);
+  const showCampaignsSection = !heroSearchActive || (heroCampaignsActive && displayedCampaigns.length > 0);
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -406,6 +425,11 @@ useEffect(() => {
                 placeholder="Try 'female Qur'an teacher for kids in Bradford'"
                 className="flex-1 min-w-0 px-2 py-2.5 md:py-3 text-sm text-stone-900 outline-none placeholder:text-stone-400"
               />
+              {heroSearchActive && (
+                <button onClick={clearHeroSearch} aria-label="Clear search" className="flex-shrink-0 p-2 text-stone-400 hover:text-stone-700 rounded-lg transition-colors">
+                  <X size={18} />
+                </button>
+              )}
               <button onClick={submitHeroSearch} className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0">Search</button>
             </div>
 
@@ -474,7 +498,8 @@ useEffect(() => {
         </div>
       </section>
 
-{/* Mosques near you */}
+{/* Mosques near you — hidden during an active search with no mosque matches */}
+{showMosquesSection && (
 <section id="mosques-near-you" className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
   <div className="flex items-end justify-between mb-6 md:mb-8">
     <div>
@@ -499,10 +524,6 @@ useEffect(() => {
         <div key={i} className="bg-white border border-stone-200 rounded-2xl h-72 animate-pulse" />
       ))}
     </div>
-  ) : heroMosqueActive && displayedMosquePreview.length === 0 ? (
-    <div className="text-center py-10 bg-white border border-stone-200 rounded-2xl">
-      <p className="text-sm text-stone-500">No matching mosques — try describing what you need differently.</p>
-    </div>
   ) : (
     <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {displayedMosquePreview.map(m => (
@@ -518,6 +539,7 @@ useEffect(() => {
     </div>
   )}
 </section>
+)}
 
       {/* Recent booking review prompt */}
       <section className="max-w-7xl mx-auto px-6">
@@ -540,7 +562,8 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* Scholar filter tabs */}
+      {/* Scholar filter tabs — hidden during an active search with no scholar matches */}
+      {showScholarsSection && (
       <section id="top-scholars" className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
           <div>
@@ -603,8 +626,10 @@ useEffect(() => {
           </div>
         )}
       </section>
+      )}
 
-      {/* Campaigns / Sadaqah Jariyah */}
+      {/* Campaigns / Sadaqah Jariyah — hidden during an active search with no campaign matches */}
+      {showCampaignsSection && (
       <section id="campaigns" className="relative overflow-hidden mt-16 bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
         <div className="relative max-w-7xl mx-auto px-6 py-16">
@@ -621,19 +646,13 @@ useEffect(() => {
             </button>
           </div>
 
-          {heroCampaignsActive && displayedCampaigns.length === 0 ? (
-            <div className="text-center py-10 bg-white/5 border border-white/10 rounded-2xl">
-              <p className="text-sm text-emerald-100/80">No campaigns match your search. <button onClick={() => onAllCampaigns()} className="underline hover:text-white">Browse all campaigns</button>.</p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {displayedCampaigns.map((c, i) => (
-                <div key={c.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                  <CampaignCard campaign={c} onClick={() => onCampaign(c)} isSaved={savedCampaignIds?.has(String(c.id))} onToggleSave={toggleCampaignSave} />
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {displayedCampaigns.map((c, i) => (
+              <div key={c.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
+                <CampaignCard campaign={c} onClick={() => onCampaign(c)} isSaved={savedCampaignIds?.has(String(c.id))} onToggleSave={toggleCampaignSave} />
+              </div>
+            ))}
+          </div>
 
           {/* Live donation ticker */}
           <div className="mt-10 inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-3 rounded-full text-sm">
@@ -643,6 +662,7 @@ useEffect(() => {
           </div>
         </div>
       </section>
+      )}
 
       {/* How it works */}
       <section className="bg-white border-y border-stone-200 mt-16">
