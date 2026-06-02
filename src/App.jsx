@@ -10,6 +10,7 @@ import AiSearchBar from "./components/AiSearchBar";
 import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
+import { moderateMessage } from "./lib/moderation";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -5103,6 +5104,8 @@ const ConversationView = ({
   const [input, setInput] = useState("");
   const [showWarning, setShowWarning] = useState(false);
   const [sending, setSending] = useState(false);
+  // AI moderation block banner (reason string from Claude, or null).
+  const [moderationError, setModerationError] = useState(null);
 
   // Phase 7 — per-message Report affordance.
   // openMenuMessageId: which 3-dot menu is currently open (null = none).
@@ -5179,9 +5182,21 @@ const ConversationView = ({
       return;
     }
     const body = input;
+    setSending(true);
+    setModerationError(null);
+
+    // AI moderation before the insert. moderateMessage fails open (returns
+    // allowed:true on any error), so this never blocks a legitimate send.
+    const verdict = await moderateMessage({ content: body, conversationId: conversation.id, senderId: currentUserId });
+    if (verdict.allowed === false) {
+      // Blocked — do not insert; show the reason and keep the typed text.
+      setModerationError(verdict.reason || "");
+      setSending(false);
+      return;
+    }
+
     setInput("");
     setShowWarning(false);
-    setSending(true);
     // Optimistic append
     const tempId = `temp-${Date.now()}`;
     const optimistic = {
@@ -5456,6 +5471,17 @@ const ConversationView = ({
       {/* Input */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-10" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="max-w-3xl mx-auto px-4 md:px-6 py-3 md:py-4">
+          {moderationError !== null && (
+            <div className="mb-2 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+              <AlertTriangle size={15} className="text-rose-600 flex-shrink-0 mt-0.5" />
+              <p className="flex-1 text-xs text-rose-800 leading-relaxed">
+                Message not sent — Amanah keeps all communication on-platform.{moderationError ? ` ${moderationError}` : ""}
+              </p>
+              <button onClick={() => setModerationError(null)} aria-label="Dismiss" className="text-rose-400 hover:text-rose-700 flex-shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button className="text-stone-500 hover:text-stone-900 p-2 flex-shrink-0"><Paperclip size={18} /></button>
             <button className="text-stone-500 hover:text-stone-900 p-2 flex-shrink-0" title="Send package offer"><Gift size={18} /></button>
