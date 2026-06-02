@@ -137,6 +137,13 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   // into this too, so both inputs feed one unified AI flow.
   const [aiQueryText, setAiQueryText] = useState("");
 
+  // Hero search also drives the "Verified mosques near you" preview (AI
+  // match) and the campaigns section (keyword filter — campaigns are still
+  // mock data). null === no active hero filter for that section.
+  const [heroMosqueMatches, setHeroMosqueMatches] = useState(null);
+  const [heroMosqueLoading, setHeroMosqueLoading] = useState(false);
+  const [heroCampaigns, setHeroCampaigns] = useState(null);
+
   const runScholarAiSearch = (q) => {
     setAiLoading(true);
     setAiError(false);
@@ -157,20 +164,52 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
       .finally(() => setAiLoading(false));
   };
 
+  // Clearing the unified AI bar drops every hero-driven filter (scholars,
+  // mosques, campaigns) back to the default homepage.
   const clearScholarAiSearch = () => {
     setAiMatches(null);
     setAiError(false);
     setAiQueryText("");
+    setHeroMosqueMatches(null);
+    setHeroCampaigns(null);
   };
 
-  // Hero search → unified AI flow: seed the AI bar below, scroll the grid
-  // into view, and run the same AI match the bar would.
+  const runHeroMosqueSearch = (q) => {
+    setHeroMosqueLoading(true);
+    aiMatch({ query: q, type: "mosque", candidates: mosques })
+      .then(res => setHeroMosqueMatches(res.ok ? res.matches : null))
+      .catch(() => setHeroMosqueMatches(null))
+      .finally(() => setHeroMosqueLoading(false));
+  };
+
+  // Keyword filter over mock campaigns (no AI — campaigns aren't on
+  // Supabase yet). Matches any 4+ char query term against the campaign's
+  // text. Returns an array (possibly empty) so the section can show its
+  // own "no matches" state.
+  const filterHeroCampaigns = (q) => {
+    const terms = q.toLowerCase().split(/\s+/).filter(t => t.length >= 4);
+    if (terms.length === 0) return MOCK_CAMPAIGNS;
+    return MOCK_CAMPAIGNS.filter(c => {
+      const hay = `${c.title} ${c.summary} ${c.creator} ${c.city} ${c.category}`.toLowerCase();
+      return terms.some(t => hay.includes(t));
+    });
+  };
+
+  // Hero search → unified flow across all three sections. Scrolls to the
+  // section the query most relates to (campaign action words win, then
+  // mosque words, else scholars), but every section gets filtered.
   const submitHeroSearch = () => {
     const q = search.trim();
     if (!q) return;
     setAiQueryText(q);
     runScholarAiSearch(q);
-    const el = document.getElementById("top-scholars");
+    runHeroMosqueSearch(q);
+    setHeroCampaigns(filterHeroCampaigns(q));
+
+    const mosqueIntent = /\b(mosque|masjid|prayer|jummah|jumuah|jumma|imam|musallah|wudu)\b/i.test(q);
+    const campaignIntent = /\b(donate|donation|fundrais\w*|campaign|cause|sadaqah|appeal|charity|zakat)\b/i.test(q);
+    const anchor = campaignIntent ? "campaigns" : mosqueIntent ? "mosques-near-you" : "top-scholars";
+    const el = document.getElementById(anchor);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -209,6 +248,22 @@ useEffect(() => {
         .filter(s => aiExplanationById.has(String(s.id)))
         .sort((a, b) => aiOrderById.get(String(a.id)) - aiOrderById.get(String(b.id)))
     : filtered;
+
+  // Hero-driven mosque preview: matched mosques (ranked, with explanations,
+  // capped at 8 for the preview) when active, else the default top 4.
+  const heroMosqueActive = heroMosqueMatches !== null;
+  const heroMosqueExplById = heroMosqueActive ? new Map(heroMosqueMatches.map(m => [m.id, m.explanation])) : null;
+  const heroMosqueOrderById = heroMosqueActive ? new Map(heroMosqueMatches.map((m, i) => [m.id, i])) : null;
+  const displayedMosquePreview = heroMosqueActive
+    ? mosques
+        .filter(m => heroMosqueExplById.has(String(m.id)))
+        .sort((a, b) => heroMosqueOrderById.get(String(a.id)) - heroMosqueOrderById.get(String(b.id)))
+        .slice(0, 8)
+    : mosques.slice(0, 4);
+
+  // Hero-driven campaign filter (keyword). null === show all.
+  const heroCampaignsActive = heroCampaigns !== null;
+  const displayedCampaigns = heroCampaignsActive ? heroCampaigns : MOCK_CAMPAIGNS;
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -416,34 +471,48 @@ useEffect(() => {
       </section>
 
 {/* Mosques near you */}
-<section className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
+<section id="mosques-near-you" className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
   <div className="flex items-end justify-between mb-6 md:mb-8">
     <div>
-      <h3 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verified mosques near you</h3>
-      <p className="text-stone-600 mt-1 text-sm md:text-base">Discover trusted mosques in your area</p>
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
+        <h3 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verified mosques near you</h3>
+        {heroMosqueActive && (
+          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full">
+            <Sparkles size={11} /> Matched by AI
+          </span>
+        )}
+      </div>
+      <p className="text-stone-600 text-sm md:text-base">{heroMosqueActive ? "Matching your search" : "Discover trusted mosques in your area"}</p>
     </div>
     <button onClick={() => onMosquesListing && onMosquesListing()} className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
       View all <ArrowRight size={14} />
     </button>
   </div>
 
-  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    {mosquesLoading ? (
-      Array.from({ length: 4 }).map((_, i) => (
+  {(mosquesLoading || heroMosqueLoading) ? (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="bg-white border border-stone-200 rounded-2xl h-72 animate-pulse" />
-      ))
-    ) : (
-      mosques.slice(0, 4).map(m => (
+      ))}
+    </div>
+  ) : heroMosqueActive && displayedMosquePreview.length === 0 ? (
+    <div className="text-center py-10 bg-white border border-stone-200 rounded-2xl">
+      <p className="text-sm text-stone-500">No matching mosques — try describing what you need differently.</p>
+    </div>
+  ) : (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {displayedMosquePreview.map(m => (
         <MosqueCard
           key={m.id}
           mosque={m}
           onClick={() => onMosqueDetail && onMosqueDetail(m)}
           isSaved={savedMosqueIds?.has?.(String(m.id))}
           onToggleSave={toggleMosqueSave}
+          aiExplanation={heroMosqueActive ? heroMosqueExplById.get(String(m.id)) : null}
         />
-      ))
-    )}
-  </div>
+      ))}
+    </div>
+  )}
 </section>
 
       {/* Recent booking review prompt */}
@@ -532,7 +601,7 @@ useEffect(() => {
       </section>
 
       {/* Campaigns / Sadaqah Jariyah */}
-      <section className="relative overflow-hidden mt-16 bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
+      <section id="campaigns" className="relative overflow-hidden mt-16 bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
         <div className="relative max-w-7xl mx-auto px-6 py-16">
           <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
@@ -541,20 +610,26 @@ useEffect(() => {
                 <HandCoins size={12} /> Sadaqah jariyah · 0% platform fee
               </div>
               <h3 className="text-3xl md:text-5xl font-semibold tracking-tight mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Support a cause.</h3>
-              <p className="text-emerald-100/90 max-w-xl">Live campaigns from verified mosques and scholars. Every fundraiser Charity Commission-checked. Every pound reaches the cause.</p>
+              <p className="text-emerald-100/90 max-w-xl">{heroCampaignsActive ? "Campaigns matching your search." : "Live campaigns from verified mosques and scholars. Every fundraiser Charity Commission-checked. Every pound reaches the cause."}</p>
             </div>
             <button onClick={() => onAllCampaigns()} className="inline-flex items-center gap-1 text-sm font-medium hover:gap-2 transition-all text-emerald-200 hover:text-white">
               View all campaigns <ArrowRight size={14} />
             </button>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {MOCK_CAMPAIGNS.map((c, i) => (
-              <div key={c.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
-                <CampaignCard campaign={c} onClick={() => onCampaign(c)} isSaved={savedCampaignIds?.has(String(c.id))} onToggleSave={toggleCampaignSave} />
-              </div>
-            ))}
-          </div>
+          {heroCampaignsActive && displayedCampaigns.length === 0 ? (
+            <div className="text-center py-10 bg-white/5 border border-white/10 rounded-2xl">
+              <p className="text-sm text-emerald-100/80">No campaigns match your search. <button onClick={() => onAllCampaigns()} className="underline hover:text-white">Browse all campaigns</button>.</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {displayedCampaigns.map((c, i) => (
+                <div key={c.id} style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}>
+                  <CampaignCard campaign={c} onClick={() => onCampaign(c)} isSaved={savedCampaignIds?.has(String(c.id))} onToggleSave={toggleCampaignSave} />
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Live donation ticker */}
           <div className="mt-10 inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-3 rounded-full text-sm">
