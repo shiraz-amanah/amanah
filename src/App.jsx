@@ -1931,7 +1931,7 @@ useEffect(() => {
             <div className="bg-white border border-stone-200 rounded-2xl p-5 sticky top-24 shadow-sm">
               <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-4">Choose a package</h3>
               <div className="space-y-2 mb-5">
-                {scholar.packages.map(pkg => (
+                {(scholar.packages || []).filter(Boolean).map(pkg => (
                   <button
                     key={pkg.name}
                     onClick={() => setSelectedPkg(pkg)}
