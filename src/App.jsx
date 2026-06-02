@@ -1049,7 +1049,7 @@ const getMosqueInitials = (mosque) => {
 };
 
 // Mosque card with hover interactions
-const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave }) => {
+const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave, aiExplanation }) => {
   const hasPhoto = !!mosque.photo;
   return (
     <div
@@ -1107,6 +1107,12 @@ const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave }) => {
           <MapPin size={11} />
           <span className="truncate">{mosque.city}{mosque.postcode ? ` · ${mosque.postcode}` : ''}</span>
         </div>
+        {aiExplanation && (
+          <p className="flex items-start gap-1 text-xs text-emerald-700 leading-snug mb-3">
+            <Sparkles size={11} className="mt-0.5 flex-shrink-0" />
+            <span>{aiExplanation}</span>
+          </p>
+        )}
 
         {/* Facility chips - first 3 */}
         {mosque.facilities && mosque.facilities.length > 0 && (
@@ -1134,6 +1140,11 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
   // Real mosques from Supabase (replaces MOCK_MOSQUES.map shape).
   const [rawMosques, setRawMosques] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // AI natural-language mosque matching. null === no active search.
+  const [aiMatches, setAiMatches] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
 
   // Auto-request on mount (once)
   useEffect(() => {
@@ -1170,6 +1181,41 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
     return a.name.localeCompare(b.name);
   });
 
+  const runMosqueAiSearch = (q) => {
+    setAiLoading(true);
+    setAiError(false);
+    aiMatch({ query: q, type: "mosque", candidates: mosques })
+      .then(res => {
+        if (res.ok) {
+          setAiMatches(res.matches);
+        } else {
+          setAiError(true);
+          setAiMatches(null);
+        }
+      })
+      .catch(() => {
+        setAiError(true);
+        setAiMatches(null);
+      })
+      .finally(() => setAiLoading(false));
+  };
+
+  const clearMosqueAiSearch = () => {
+    setAiMatches(null);
+    setAiError(false);
+  };
+
+  // When an AI search is active, show only matched mosques ordered by
+  // Claude's ranking; otherwise the existing nearest/alphabetical sort.
+  const aiActive = aiMatches !== null;
+  const aiExplanationById = aiActive ? new Map(aiMatches.map(m => [m.id, m.explanation])) : null;
+  const aiOrderById = aiActive ? new Map(aiMatches.map((m, i) => [m.id, i])) : null;
+  const displayedMosques = aiActive
+    ? mosques
+        .filter(m => aiExplanationById.has(String(m.id)))
+        .sort((a, b) => aiOrderById.get(String(a.id)) - aiOrderById.get(String(b.id)))
+    : sorted;
+
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Header */}
@@ -1204,34 +1250,40 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
           <div className="mb-6 text-sm text-stone-500">Getting your location...</div>
         )}
 
-        {/* Search */}
-        <div className="mb-6 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or city..."
-            className="w-full pl-10 pr-4 py-2.5 border border-stone-200 rounded-xl focus:outline-none focus:border-emerald-500 text-sm"
-          />
-        </div>
+        {/* AI natural-language matching (replaces name/city keyword search) */}
+        <AiSearchBar
+          onSearch={runMosqueAiSearch}
+          onClear={clearMosqueAiSearch}
+          loading={aiLoading}
+          active={aiActive}
+          placeholder="Describe what you're looking for — facilities, area, services…"
+        />
+        {aiError && (
+          <p className="-mt-3 mb-6 text-xs text-amber-700">
+            AI search is unavailable right now — showing all mosques.
+          </p>
+        )}
       </div>
 
       {/* Grid */}
       <div className="max-w-6xl mx-auto px-5 md:px-6 pb-16">
-        {loading ? (
+        {loading || aiLoading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="bg-white border border-stone-200 rounded-2xl h-72 animate-pulse" />
             ))}
           </div>
-        ) : sorted.length === 0 ? (
+        ) : displayedMosques.length === 0 ? (
           <div className="text-center py-16 text-stone-500">
-            <p className="text-sm">No mosques match your search.</p>
+            <p className="text-sm">
+              {aiActive
+                ? "No matches found — try describing what you need differently."
+                : "No mosques yet. Check back soon."}
+            </p>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {sorted.map(m => (
+            {displayedMosques.map(m => (
               <MosqueCard
                 key={m.id}
                 mosque={m}
@@ -1239,6 +1291,7 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
                 onClick={() => onMosque(m)}
                 isSaved={savedMosqueIds?.has?.(String(m.id))}
                 onToggleSave={onToggleMosqueSave}
+                aiExplanation={aiActive ? aiExplanationById.get(String(m.id)) : null}
               />
             ))}
           </div>
