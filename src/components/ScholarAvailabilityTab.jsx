@@ -39,7 +39,6 @@ const ScholarAvailabilityTab = ({ initialSlots, onSaved }) => {
   // toggles once the real data lands. Only the dashboard's own load + the
   // post-save sync change this reference, so it won't clobber in-progress edits.
   useEffect(() => {
-    console.log("[availability] seeding toggles from scholar.availability:", initialSlots);
     setModel(buildModel(initialSlots));
   }, [initialSlots]);
 
