@@ -1741,6 +1741,20 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
   const [reported, setReported] = useState(false);
   const canReport = !!authedUser && myScholar?.id !== scholar?.id && !!scholar?.id;
 
+  // Message button: opening state + self-message guard. A scholar viewing
+  // their own listing can't message themselves, so the button is hidden.
+  const [openingChat, setOpeningChat] = useState(false);
+  const isOwnProfile = !!authedUser?.id && authedUser.id === scholar?.user_id;
+  const handleMessageClick = async () => {
+    if (openingChat) return;
+    setOpeningChat(true);
+    try {
+      await onMessage(scholar);
+    } finally {
+      setOpeningChat(false);
+    }
+  };
+
 useEffect(() => {
   if (!initialScholar?.slug) return;
   getScholarBySlug(initialScholar.slug)
@@ -1934,9 +1948,12 @@ useEffect(() => {
               <button onClick={() => onBook(scholar, selectedPkg)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
                 Book for £{selectedPkg.price} <ArrowRight size={15} />
               </button>
-              <button onClick={onMessage} className="w-full mt-2 border border-stone-300 hover:border-emerald-400 hover:bg-emerald-50 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
-                <MessageCircle size={14} /> Message {scholar.name.split(" ")[0]} first
-              </button>
+              {!isOwnProfile && (
+                <button onClick={handleMessageClick} disabled={openingChat} className="w-full mt-2 border border-stone-300 hover:border-emerald-400 hover:bg-emerald-50 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                  {openingChat ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+                  {openingChat ? "Opening chat..." : `Message ${scholar.name.split(" ")[0]} first`}
+                </button>
+              )}
               <div className="mt-4 pt-4 border-t border-stone-100 space-y-2 text-xs text-stone-600">
                 <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-emerald-700" /> Payment held until session complete</p>
                 <p className="flex items-center gap-2"><Clock size={12} className="text-emerald-700" /> Full refund if cancelled 24h before</p>
@@ -1954,9 +1971,11 @@ useEffect(() => {
             <p className="text-xs text-stone-500">{selectedPkg.name} package</p>
             <p className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{selectedPkg.price}</p>
           </div>
-          <button onClick={onMessage} className="border border-stone-300 text-stone-700 p-3 rounded-xl flex-shrink-0">
-            <MessageCircle size={18} />
-          </button>
+          {!isOwnProfile && (
+            <button onClick={handleMessageClick} disabled={openingChat} className="border border-stone-300 text-stone-700 p-3 rounded-xl flex-shrink-0 disabled:opacity-60">
+              {openingChat ? <Loader2 size={18} className="animate-spin" /> : <MessageCircle size={18} />}
+            </button>
+          )}
           <button onClick={() => onBook(scholar, selectedPkg)} className="bg-emerald-900 text-white px-5 py-3 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 flex-shrink-0">
             Book <ArrowRight size={14} />
           </button>
@@ -13595,8 +13614,51 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
   if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} myMosque={myMosque} />;
-  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={() => {
-    /* TODO(scholars-real): getOrCreateDirectConversation(scholar.userId, ...) once scholars are linked to auth users */ setView("messagesInbox"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} myScholar={myScholar} />;
+  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={async (s) => {
+    // Auth gate — same flow as other parent-gated actions.
+    if (!authedUser) {
+      setUserAuthRole("user");
+      setReturnView("userDashboard");
+      setUserAuthMode("login");
+      navigate("userAuth");
+      return;
+    }
+    const scholarUserId = s?.user_id;
+    if (!scholarUserId) {
+      console.error("Message: scholar listing has no linked user_id", s?.id);
+      showToast("Couldn't open chat with this scholar.");
+      return;
+    }
+    const { data, error } = await getOrCreateDirectConversation(scholarUserId, "user", "scholar");
+    if (error || !data) {
+      console.error("getOrCreateDirectConversation failed:", error);
+      showToast("Couldn't open chat. Please try again.");
+      return;
+    }
+    // getOrCreateDirectConversation returns the conversation uuid only, and a
+    // freshly-created one isn't in the cached conversations list yet — so we
+    // build the selectedConversation object (adaptConversation shape) from the
+    // scholar rather than relying on the deep-link refetch.
+    setRole("user");
+    setSelectedConversation({
+      id: data,
+      counterparty: {
+        name: s.name,
+        initials: s.initials || (s.name ? s.name.slice(0, 2).toUpperCase() : "??"),
+        avatarGradient: s.avatarGradient || "from-stone-400 to-stone-600",
+        role: "Scholar",
+        verified: !!s.verified,
+      },
+      context: null,
+      lastMessage: "",
+      lastTime: "",
+      unread: 0,
+      pinned: false,
+      online: false,
+      messages: [],
+    });
+    navigate("conversationView", { id: data });
+  }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} myScholar={myScholar} />;
   if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => window.history.back()} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); navigate("login"); }} onPublic={() => setView("publicHome")} />;

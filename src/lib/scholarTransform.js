@@ -4,6 +4,9 @@ export const transformScholar = (dbScholar) => {
   if (!dbScholar) return null;
   return {
     id: dbScholar.id,
+    // Auth user the scholar listing belongs to — needed to open a direct
+    // conversation (getOrCreateDirectConversation). Was previously dropped.
+    user_id: dbScholar.user_id,
     slug: dbScholar.slug,
     name: dbScholar.name,
     title: dbScholar.title,
