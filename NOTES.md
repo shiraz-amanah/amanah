@@ -5087,6 +5087,159 @@ also fine.
 
 ---
 
+## AI features sprint ✅ (2 June 2026) — out-of-band, not a lettered session
+
+Unplanned sprint: a run of "build an AI X" tasks layered onto the existing
+app. Not part of the L–Q roadmap (Session N is still Mosque rotas). 21 commits
+(`bf8a1c2`…`d64ab7c`). Touches roadmap #38 (disintermediation) via AI message
+moderation; the rest is net-new. **All of it is committed + pushed to prod but
+LIVE-UNVERIFIED** — see "Unverified" below.
+
+### Architectural pattern established (reused for every AI feature)
+Serverless function (`api/*.js`, raw `fetch`, no SDK) holding the key server-side
++ a thin `src/lib/*` client wrapper that fails gracefully + a self-contained
+`src/components/*` card. App.jsx gets only an import + ~1 line — respects the
+"App.jsx is closed" rule. Every feature **degrades gracefully without its key**
+(falls back / shows "unavailable"), so a missing env var never crashes a flow.
+Claude calls use `claude-sonnet-4-6`, `thinking:disabled`, `effort:low`, and
+`output_config.format` json_schema for anything structured.
+
+### What shipped (by feature)
+- **AI natural-language matching** (`bf8a1c2`,`4cffb4d`,`16022c9`,`dc6f0b0`) —
+  `api/ai-match.js` + `src/lib/aiMatch.js` + `src/components/AiSearchBar.jsx`.
+  Replaced the scholar category chips (PublicHome) and the mosque name/city
+  search (MosquesListing) with one NL bar → Claude filters+ranks the
+  already-loaded candidates and writes a one-line explanation per card.
+- **Hero search unification** (`cdd0ad7`,`80204d2`,`720c750`) — the homepage hero
+  search now drives the same AI flow across **three** sections: scholars (AI),
+  mosques (AI), campaigns (keyword filter over MOCK_CAMPAIGNS — still mock).
+  Intent words pick the scroll target. Hero keeps the lower scholar bar's text
+  empty (no echo); the bar's pill+clear still show.
+- **Empty-state behaviour** (`b8852d5` → reverted by `025ada9`, then
+  `e56450c`) — see Reversals below.
+- **pgvector semantic search** (`a6b0a20`,`f534309`,`1f2c604`,`d3fe3f0`) —
+  migrations 036 (embedding `vector(1536)` cols + index), 037 (`search_logs`),
+  038 (`match_scholars`/`match_mosques` RPCs); `api/embed.js` (OpenAI
+  `text-embedding-3-small` proxy), `api/backfill-embeddings.js` (one-time,
+  service-role), and `ai-match.js` extended to embed the query → RPC top-10 →
+  Claude. **Falls back to full-candidate Claude when OpenAI/Supabase env absent
+  or embeddings not yet backfilled.**
+- **Admin daily brief** (`3e08902`) — `api/admin-brief.js` + `AdminBriefCard`
+  at the top of AdminOverview. Pulls live ops counts → Claude writes a 3–5
+  sentence urgency-ordered brief + stat pills.
+- **Scholar profile scorer** (`41142f4`) — `api/score-profile.js` +
+  `ProfileQualityScorer` at the top of ScholarDashboard's Profile tab. Score
+  /100, grade, strengths, prioritised improvements.
+- **AI message moderation** (`86bd073`) — `api/moderate-message.js` +
+  `src/lib/moderation.js`, wired into `ConversationView.handleSend` before the
+  insert. Blocks off-platform contact/payment, logs a `flags` row, **fails
+  open** (any error → allowed). Rose dismissible banner; keeps the user's text.
+- **Scholar-detail Message button** (`ee3fa8f`,`bfcf779`,`d64ab7c`) — replaced
+  the stub with real `getOrCreateDirectConversation` wiring; see Decisions +
+  the role bug below.
+
+### Reversals / corrected course (honest record)
+- **"Claude API is available in the artifact environment" was a misconception.**
+  The session brief said this; it refers to the claude.ai artifact sandbox
+  (`window.claude.complete`), which does not exist in a deployed Vite/Vercel app.
+  Corrected at the planning stage → serverless functions with server-side keys.
+- **Section-hiding was built then reverted.** `b8852d5` hid homepage sections
+  with no matches during a hero search (and added a hero clear-✕ to compensate
+  for the scholar bar — which holds the only clear button — getting hidden).
+  Next task reverted it (`025ada9`): keep sections visible, show a subtle
+  "No matches for this search" line instead; removed the now-unneeded hero ✕.
+  The lower scholar bar's clear (always visible again) already resets all three
+  filters. Lesson: anchoring sections > hiding them; don't trap the only clear
+  control inside a hideable region.
+- **Two task-spec schema mismatches caught by checking the real tables:**
+  - `donations.amount_pence` does not exist — column is `amount`, in **pounds**
+    (`fmt` = `£`+n). Admin brief sums `amount`.
+  - The `flags` table the moderation brief described (`flagged_by`,
+    `flagged_item_type`, `category`, `metadata`) does **not** match migration
+    028. Real cols: `reporter_id`, `subject_type`, `subject_id` (NOT NULL),
+    `reason` (constrained enum, not free text), `details`, `status`. Mapped:
+    reporter_id←senderId, subject_type='message', subject_id←conversationId,
+    reason='other' (AI text doesn't fit the enum; 'other' *requires* details,
+    which we supply), details←"[category] reason — snippet". No category/metadata
+    column → folded into details.
+- **Admin brief: anon key would read 0.** flags/applications/dbs_orders are
+  RLS-gated by `is_admin()`; the serverless fn has no admin JWT, so it prefers
+  `SUPABASE_SERVICE_ROLE_KEY` (falls back to anon with a warning). Deliberate
+  deviation from the brief's "use anon key".
+- **036 index swapped ivfflat → hnsw** (`d3fe3f0`) — lower memory, and unlike
+  ivfflat it doesn't need a rebuild after the backfill populates the column.
+  The file now diverges from what's marked "applied to prod" (ivfflat); prod
+  needs a drop+recreate to match.
+
+### The Message-button role bug (full chain)
+1. `ee3fa8f` wired the button; smoke failed with a "Couldn't open chat" toast.
+2. User confirmed the RPC exists and the scholar has a `user_id`, so not those.
+3. `bfcf779` added a full-error-fields diagnostic log (I can't read their
+   browser console — only they can).
+4. Diagnosed from the schema *before* any console read: `getOrCreateDirectConversation`
+   was called with `my_role='user'`, but `conversation_participants.role` only
+   allows `('parent','scholar','mosque_admin','student')` (migration 004) → check
+   violation 23514. The trap: `profiles.role` *does* allow `'user'` (migration
+   017), but the **messaging participant role is a separate vocabulary** where
+   the parent side is `'parent'`. The original session brief's `"user"` carried
+   the bug in.
+5. `d64ab7c` fixed it (`'user'`→`'parent'`) and trimmed the diagnostic log.
+
+### Decisions
+- **transformScholar was dropping `user_id`** — added it back (`ee3fa8f`); the
+  conversation lookup needs it. Both the card path and the slug deep-link go
+  through transformScholar, so one fix covers both.
+- **Build the `selectedConversation` object, don't deep-link-refetch.**
+  `getOrCreateDirectConversation` returns only the conversation uuid, and the
+  conversationView deep-link effect only resolves conversations already in the
+  cached `conversations` list — a *just-created* one isn't there, so navigating
+  with only the id would hang on loading. So we construct the adaptConversation
+  shape (id + counterparty from the scholar) and `ConversationView` fetches the
+  (empty) messages itself.
+- **Message moderation runs behind the existing `containsContact` local regex**
+  (defense-in-depth) and only in the real-send path. Demo conversations skip it.
+
+### Unverified (cannot smoke from here)
+None of the live AI/round-trip paths were exercised. They need keys
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) + a Vercel
+runtime (`vercel dev` or deploy); plain `npm run dev` 404s the `/api` routes
+(→ graceful fallback). Verification done was build-level only (`npm run build`
+green every commit; `node --check` on each serverless file; scope-checked that
+the Message handler's identifiers resolve in App). **The Message-button fix is
+diagnosed-correct against the constraint but its live click-through (eesaa →
+Fatima → land in chat) was never confirmed.** Likewise the embedding/RPC/Claude
+paths.
+
+### To do before these actually work in prod
+- Set env in Vercel (Prod + Preview): `ANTHROPIC_API_KEY` (all AI features),
+  `OPENAI_API_KEY` + `SUPABASE_URL`/`SUPABASE_ANON_KEY` (semantic search),
+  `SUPABASE_SERVICE_ROLE_KEY` (backfill + admin brief + moderation flag insert).
+- Apply migration 038 in Supabase (dev→prod); run `POST /api/backfill-embeddings`
+  once; consider `REINDEX` after backfill if any ivfflat indexes remain.
+- Confirm migrations 036/037 (marked "applied directly to prod before the file"
+  — counter to dev-first discipline) actually match prod, and reconcile 036's
+  hnsw swap.
+- **Rotate secrets:** `.env.local` (incl. `SUPABASE_SERVICE_ROLE_KEY`,
+  `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) was pasted into the chat transcript.
+- Env note: the dev-client (`VITE_SUPABASE_URL`=pbejyukihhmybxxtheqq) vs
+  prod-serverless (`SUPABASE_URL`=zgoyvztooyxqkcftwylr) split is **intentional**
+  (user confirmed) — don't "fix" it.
+
+### Things to watch
+- Campaign hero filter is keyword-only over MOCK_CAMPAIGNS (campaigns aren't on
+  Supabase yet) — "mosque" queries match Mosque-Renovation campaigns, which is
+  correct "has matches" behaviour but can surprise.
+- `search_logs` (037) has no writer yet — schema groundwork; the anon-insert
+  policy needs the client to send `user_id: null` explicitly for logged-out rows.
+- Moderation `subject_id` = conversationId (the message row doesn't exist at
+  block time); admins see blocked messages as `reason: other` in the flags queue.
+
+### Doc fix
+- `e0936a3` — CLAUDE.md: mosques are live on Supabase (the "still mock" note was
+  stale); saved-mosques now mirror the scholar Set+Array pattern.
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
