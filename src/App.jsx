@@ -8,6 +8,7 @@ import { transformScholar } from "./lib/scholarTransform";
 import { transformMosque } from "./lib/mosqueTransform";
 import AiSearchBar from "./components/AiSearchBar";
 import { aiMatch } from "./lib/aiMatch";
+import AdminBriefCard from "./components/AdminBriefCard";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -10129,6 +10130,9 @@ const AdminOverview = ({ onNavigate, counts, displayName }) => {
         <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Good morning, {firstName}</h1>
         <p className="text-sm md:text-base text-stone-600">Here's what needs your attention today.</p>
       </div>
+
+      {/* AI-generated morning brief */}
+      <AdminBriefCard />
 
       {/* Urgent queue alert */}
       {counts.flags > 0 && (
