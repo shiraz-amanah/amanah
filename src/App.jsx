@@ -133,6 +133,9 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [aiMatches, setAiMatches] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
+  // Canonical text for the scholar AI search bar. The hero search writes
+  // into this too, so both inputs feed one unified AI flow.
+  const [aiQueryText, setAiQueryText] = useState("");
 
   const runScholarAiSearch = (q) => {
     setAiLoading(true);
@@ -157,6 +160,18 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const clearScholarAiSearch = () => {
     setAiMatches(null);
     setAiError(false);
+    setAiQueryText("");
+  };
+
+  // Hero search → unified AI flow: seed the AI bar below, scroll the grid
+  // into view, and run the same AI match the bar would.
+  const submitHeroSearch = () => {
+    const q = search.trim();
+    if (!q) return;
+    setAiQueryText(q);
+    runScholarAiSearch(q);
+    const el = document.getElementById("top-scholars");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
 useEffect(() => {
@@ -328,10 +343,11 @@ useEffect(() => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Try 'Qur'an teacher' or 'nikah imam'"
+                onKeyDown={(e) => { if (e.key === "Enter") submitHeroSearch(); }}
+                placeholder="Try 'female Qur'an teacher for kids in Bradford'"
                 className="flex-1 min-w-0 px-2 py-2.5 md:py-3 text-sm text-stone-900 outline-none placeholder:text-stone-400"
               />
-              <button className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0">Search</button>
+              <button onClick={submitHeroSearch} className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0">Search</button>
             </div>
 
             {/* Live stats */}
@@ -469,6 +485,8 @@ useEffect(() => {
           onClear={clearScholarAiSearch}
           loading={aiLoading}
           active={aiActive}
+          value={aiQueryText}
+          onValueChange={setAiQueryText}
           placeholder="Describe what you're looking for — subject, location, age group, availability…"
         />
         {aiError && (

@@ -11,8 +11,17 @@ import { Sparkles, Search, X, Loader2 } from "lucide-react";
 //   loading          — true while the parent's aiMatch call is in flight
 //   active           — true once a search has matched (shows the AI pill + clear)
 //   placeholder      — input placeholder text
-const AiSearchBar = ({ onSearch, onClear, loading, active, placeholder }) => {
-  const [value, setValue] = useState("");
+//   value / onValueChange — optional controlled mode. When `value` is passed the
+//     parent owns the input text (used to drive the bar from the hero search);
+//     otherwise the bar keeps its own internal state (mosque listing).
+const AiSearchBar = ({ onSearch, onClear, loading, active, placeholder, value: controlledValue, onValueChange }) => {
+  const [internal, setInternal] = useState("");
+  const isControlled = controlledValue !== undefined;
+  const value = isControlled ? controlledValue : internal;
+  const setValue = (v) => {
+    if (isControlled) onValueChange?.(v);
+    else setInternal(v);
+  };
 
   const submit = () => {
     const q = value.trim();
