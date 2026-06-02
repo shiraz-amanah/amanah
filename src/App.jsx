@@ -13629,17 +13629,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       showToast("Couldn't open chat with this scholar.");
       return;
     }
-    const { data, error } = await getOrCreateDirectConversation(scholarUserId, "user", "scholar");
+    // Parent side of the chat. NB: the conversation_participants.role enum is
+    // ('parent','scholar','mosque_admin','student') — NOT profiles.role's
+    // 'user'. Passing 'user' here violates the check constraint (23514).
+    const { data, error } = await getOrCreateDirectConversation(scholarUserId, "parent", "scholar");
     if (error || !data) {
-      // Diagnostic: log the full Supabase/PostgREST error fields.
-      console.error("getOrCreateDirectConversation failed:", {
-        message: error?.message,
-        code: error?.code,
-        details: error?.details,
-        hint: error?.hint,
-        data,
-        error,
-      });
+      console.error("getOrCreateDirectConversation failed:", error?.code, error?.message, error);
       showToast("Couldn't open chat. Please try again.");
       return;
     }
