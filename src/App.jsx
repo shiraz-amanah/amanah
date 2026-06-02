@@ -133,8 +133,10 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const [aiMatches, setAiMatches] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
-  // Canonical text for the scholar AI search bar. The hero search writes
-  // into this too, so both inputs feed one unified AI flow.
+  // Visible text for the scholar AI search bar. Direct typing in the bar
+  // populates it; a hero-driven search deliberately leaves it empty (the
+  // hero bar is the input) so the query isn't duplicated below — only the
+  // bar's active state (pill + clear) shows.
   const [aiQueryText, setAiQueryText] = useState("");
 
   // Hero search also drives the "Verified mosques near you" preview (AI
@@ -201,7 +203,9 @@ const PublicHome = ({ onCategory, onScholar, onSignIn, onCampaign, onAllCampaign
   const submitHeroSearch = () => {
     const q = search.trim();
     if (!q) return;
-    setAiQueryText(q);
+    // Hero is the input — keep the lower scholar bar's text empty so the
+    // query isn't echoed there; its active state (pill + clear) still shows.
+    setAiQueryText("");
     runScholarAiSearch(q);
     runHeroMosqueSearch(q);
     setHeroCampaigns(filterHeroCampaigns(q));
