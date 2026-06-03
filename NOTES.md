@@ -5435,6 +5435,60 @@ and a **24h booking reminder** (hourly sweep).
 
 ---
 
+## Session R — Booking cancellation + refund flow ✅ (3 June 2026)
+
+Any of the three parties can cancel a booking; the refund policy is determined
+server-side; cancellation emails fire to both parties; Stripe refund is stubbed
+for Session S.
+
+### Shipped
+- Migration 047 — `cancelled_by`, `cancellation_reason`, `refund_policy` on bookings
+  (`cancelled_at` already existed). text + CHECK constraints, NOT enums ✅ (surfaced, not applied)
+- Migration 048 — `cancel_booking(p_booking_id, p_reason)` SECURITY DEFINER RPC
+  (granted to `authenticated`, self-authorizes via auth.uid()) + `create or replace`
+  of `get_booking_notification_data` to also return cancelled_by/refund_policy/cancelled_at ✅ (surfaced, not applied)
+- `cancelBooking(bookingId, reason)` rewritten in src/auth.js → calls the RPC, fires
+  the cancellation email fire-and-forget, returns `{ refundPolicy, cancelledAt, cancelledBy }` ✅
+- `sendBookingCancelledEmail()` in src/lib/email.js; `booking_cancelled` intent +
+  branded template + handler in api/send-transactional.js (sends to both parties;
+  per-recipient refund copy; Stripe refund stub comments) ✅
+- `src/components/CancelBookingModal.jsx` — shared confirm modal (policy warning +
+  optional reason), used by family + scholar dashboards ✅
+- Family dashboard: existing inline cancel confirm replaced by the modal ✅
+- Scholar dashboard: new "Cancel session" button + modal on upcoming bookings ✅
+
+### Refund policy (in the RPC)
+scholar/admin cancel → full · family >24h before → full · family within 24h → partial.
+`refund_policy` 'none' is reserved (never produced by current logic). cancelled_by
+stores a role LABEL ('family'/'scholar'/'admin'), derived by which party the caller
+matches — NOT profiles.role (there is no 'family' role; a family user is role 'user').
+
+### Decisions / corrections from the brief (pre-flight)
+- **status is plain `text`, not a PG enum** — "add 'cancelled' to the status enum"
+  was a no-op; 'cancelled' was already in use. No ALTER TYPE.
+- **`cancelBooking` + `cancelled_at` already existed** — rewrote the helper (one call
+  site), `reason` optional; `ADD COLUMN IF NOT EXISTS` for the column.
+- **Admin cancel UI deferred** — there is no admin bookings view/list/`getAllBookings`,
+  and building one is new feature code (App.jsx is closed). Admin *capability* lives in
+  the RPC (`is_admin()` branch); UI is a future session.
+- **Modal extracted to src/components** (not inline in App.jsx) — DRY across family +
+  scholar, respects the closed-file rule. App.jsx got imports + button wiring only.
+- Reminder sweep needs no change — `get_due_reminders` already filters status='confirmed'.
+
+### Parked / Session S
+- Stripe refund API calls (stub comments in the booking_cancelled handler).
+- Admin bookings page (+ admin cancel UI), refund status tracking UI.
+- Rescheduling + dispute flow (separate sessions).
+
+### Manual steps before this works
+1. Apply migrations 047 then 048 to dev → `NOTIFY pgrst, 'reload schema';` → smoke → then prod.
+2. No new env vars (reuses Session Q's send-transactional infra).
+
+### Next session
+- Stripe Connect / refunds (Session S)
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
