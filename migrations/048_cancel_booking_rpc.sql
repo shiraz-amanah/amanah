@@ -12,8 +12,14 @@
 --      checks are the real trust boundary.
 --   2. get_booking_notification_data() is re-created to ALSO return cancelled_by,
 --      refund_policy and cancelled_at, which the booking_cancelled email needs.
---      Additive + keyed-by-name in PostgREST, so the existing booking_confirmed /
---      reminder callers are unaffected. Stays service_role-only.
+--      Keyed-by-name in PostgREST, so the existing booking_confirmed / reminder
+--      callers are unaffected. Stays service_role-only. NOTE: this changes the
+--      function's return type, so it must be DROPped before recreate (a plain
+--      `create or replace` raises 42P13) — see section 2.
+--
+-- APPLY ORDER: run migration 047 first, then this. If a single SQL editor run
+-- errors, the whole transaction rolls back — so apply 047 and 048 separately and
+-- confirm each succeeds.
 
 -- ---------------------------------------------------------------------------
 -- 1. cancel_booking — authorize caller, derive refund policy, cancel
@@ -98,6 +104,14 @@ grant execute on function public.cancel_booking(uuid, text) to authenticated;
 -- ---------------------------------------------------------------------------
 -- 2. Extend get_booking_notification_data with cancellation fields
 -- ---------------------------------------------------------------------------
+-- Adding columns CHANGES the function's return type, and `create or replace`
+-- cannot change a function's return type (Postgres error 42P13). So DROP the
+-- 046 version first, then recreate. Safe: nothing in the DB depends on it (only
+-- the send-transactional Edge Function calls it at runtime via REST), and the
+-- drop+recreate happens in the same transaction. The DROP resets privileges, so
+-- the service_role grant is re-applied below.
+drop function if exists public.get_booking_notification_data(uuid);
+
 create or replace function public.get_booking_notification_data(p_booking_id uuid)
 returns table (
   booking_id     uuid,
