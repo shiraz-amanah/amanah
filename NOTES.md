@@ -5489,6 +5489,54 @@ matches — NOT profiles.role (there is no 'family' role; a family user is role 
 
 ---
 
+## Session S — Platform alerts + user-journey emails ✅ (3 June 2026)
+
+No migrations. All sends are fire-and-forget from existing auth.js helpers via the
+Session Q send-transactional infra.
+
+### Shipped — user-journey emails (new intents in api/send-transactional.js)
+- `welcome` — fires from `signUp()` (family/scholar copy variant by profiles.role) ✅
+- `scholar_application_submitted` — from `submitScholarApplication()` ✅
+- `scholar_application_rejected` — from `rejectScholarApplication()` (reason read from the row) ✅
+- `mosque_application_submitted` — from `submitMosqueApplication()` ✅
+- `mosque_application_approved` — from `approveMosqueApplication()` ✅
+- `mosque_application_rejected` — from `rejectMosqueApplication()` (reason from the row) ✅
+- New `wrapEmail`/`ctaButton`/`eGreeting`… building blocks (DRY) + matching `sendX` helpers in src/lib/email.js ✅
+
+### Shipped — platform ops alerts (to PLATFORM_ALERT_EMAIL)
+Emitted **server-side as a side-effect** inside the relevant handlers (NOT a client
+intent): `new_parent_signup` (welcome), `new_scholar_application` (scholar submitted),
+`scholar_published` (scholar_approved), `new_booking` (booking_confirmed),
+`booking_cancelled` (booking_cancelled). `sendAlert()` no-ops if PLATFORM_ALERT_EMAIL
+is unset and never throws. ✅
+
+### Key corrections from the brief (pre-flight)
+- **`platform_alert` as a client-fired + CRON_SECRET-gated intent is impossible** —
+  the browser can't hold CRON_SECRET. Reworked as server-side side-effects of the
+  already-authorized handlers. No separate intent, no client call sites for alerts.
+- **No `createProfile()`** — profiles come from a DB trigger; welcome hooks `signUp()`.
+- **No migrations needed** — recipient emails for admin-triggered sends are read from
+  **`profiles.email`** (mirrors auth.users, confirmed populated) via service role;
+  rejection reasons are already persisted on the application rows. The client passes
+  only the `applicationId`; the function derives recipient + reason and authorizes
+  `isAdmin()` server-side.
+- **Welcome fires at signUp** (signups are auto-confirmed, so a session/token exists).
+  The "scholar at signup" variant is effectively dead (all signups are role 'user';
+  scholars apply later and get the Session Q verified email) but kept for cheap futureproofing.
+- `PLATFORM_ALERT_EMAIL` is an **optional** env (not in envOrThrow's required list).
+
+### Recipient/trust model per intent
+- self (welcome, *_submitted): `caller.email`/profiles by `app.user_id`, verify `user_id == caller.id`.
+- admin (scholar reject, mosque approve/reject): `isAdmin(caller)`, recipient = profiles.email of `app.user_id`.
+
+### Manual steps
+- Add `PLATFORM_ALERT_EMAIL` to Vercel Production env (+ already in local `.env`/`.env.local`). No DB changes, no other new env.
+
+### Next session
+- Stripe Connect / refunds (Session T)
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
