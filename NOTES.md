@@ -5328,6 +5328,20 @@ paths.
 - DBS compliance wizard shell — uCheck fields collected in wizard
 - Pricing intelligence — Claude benchmarks scholar rates
 
+### Additional features shipped after Session O closure
+
+**Preply-style booking picker:**
+- WeekSlotPicker replaces monthly DateTimePicker — week view, 30-min slots grouped Morning/Afternoon/Evening, timezone label, today highlighted, past days greyed ✅
+- Timezone fix platform-wide — formatBookingDateTime() pinned to Europe/London across booking confirmation, parent dashboard, scholar dashboard ✅
+
+**Scholar monthly calendar with overrides:**
+- ScholarMonthCalendar — month view with nav, day states (weekly=emerald-100, custom=solid, blocked=rose, past=greyed), inline panel for block/adjust/add per day ✅
+- ScholarAvailabilityTabs — Weekly schedule + Monthly calendar sub-tabs in Availability section ✅
+- Migration 042 — availability_overrides jsonb column + update_scholar_availability_overrides SECURITY DEFINER RPC, applied to prod ✅
+- WeekSlotPicker respects overrides — blocked dates show Unavailable, custom hours override weekly pattern ✅
+- Avatar fix — Fatima's photo shows on parent booking cards, EA initials show on scholar booking cards ✅
+- Package duration parser — parseDurationToMinutes() in lib/schedule.js, applied platform-wide ✅
+
 ---
 
 ## Full product roadmap — all 52 items (captured 1 June 2026)
