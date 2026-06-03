@@ -2045,6 +2045,24 @@ useEffect(() => {
     .catch(err => console.error("Failed to load students:", err));
 }, [authedUser]);
 
+  // The scholar object handed to the booking flow can come from a cached/list
+  // source whose `availability` is stale or absent (the converter can't fix data
+  // that isn't there). Seed from the prop, but refetch fresh by slug whenever the
+  // prop has no slots, so the calendar always has the scholar's real availability.
+  const [liveAvailability, setLiveAvailability] = useState(scholar?.availability || []);
+  useEffect(() => {
+    if (Array.isArray(scholar?.availability) && scholar.availability.length) {
+      setLiveAvailability(scholar.availability);
+      return;
+    }
+    if (!scholar?.slug) return;
+    let cancelled = false;
+    getScholarBySlug(scholar.slug)
+      .then((fresh) => { if (!cancelled && Array.isArray(fresh?.availability)) setLiveAvailability(fresh.availability); })
+      .catch((err) => console.error("Booking availability refetch failed:", err));
+    return () => { cancelled = true; };
+  }, [scholar?.slug, scholar?.availability]);
+
   // Guard against a missing package/scholar (e.g. landing on bookingConfirm via
   // deep link or refresh, where App-level selectedPkg is still null). Sits after
   // all hooks so the hook order stays stable.
@@ -2058,6 +2076,17 @@ useEffect(() => {
       </div>
     );
   }
+
+  // Booking calendar availability: convert the scholar's real { day, start, end }
+  // slots to the Date.getDay()-keyed shape the picker reads. Falls back to mock
+  // only when the scholar has no slots at all.
+  const bookingAvailability = liveAvailability?.length ? slotsToWeekly(liveAvailability) : DEFAULT_AVAILABILITY;
+  // Temporary diagnostics (remove once confirmed) — trace availability into the
+  // booking calendar. 2026-06-09 is a Tuesday, a day the scholar saved.
+  console.log("[BookingConfirm] scholar.availability (prop):", scholar.availability);
+  console.log("[BookingConfirm] liveAvailability (used):", liveAvailability);
+  console.log("[BookingConfirm] slotsToWeekly →", bookingAvailability);
+  console.log("[BookingConfirm] getSlotsForDate(Tue 2026-06-09) →", getSlotsForDate(new Date(2026, 5, 9), bookingAvailability, DEFAULT_BOOKINGS));
 
   const platformFee = Math.round(pkg.price * 0.1);
   const total = pkg.price + platformFee;
@@ -2194,7 +2223,7 @@ useEffect(() => {
                 <p className="text-sm text-stone-500 mb-5">Only showing times {scholar.name.split(" ")[0]} is actually available.</p>
 
                 <DateTimePicker
-                  availability={scholar?.availability?.length ? slotsToWeekly(scholar.availability) : DEFAULT_AVAILABILITY}
+                  availability={bookingAvailability}
                   bookings={DEFAULT_BOOKINGS}
                   selectedDate={date}
                   selectedTime={time}

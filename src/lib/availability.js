@@ -16,24 +16,49 @@ const ORDER = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, sat
 
 export const dayOrder = (d) => ORDER[String(d || "").toLowerCase()] || 99;
 
-// JS Date.getDay() index per slot day name: 0=Sun, 1=Mon … 6=Sat. NOTE this is
+// JS Date.getDay() index per slot day value: 0=Sun, 1=Mon … 6=Sat. NOTE this is
 // deliberately NOT `ORDER` above (which is 1=Mon…7=Sun, for Monday-first display
 // sorting). The booking calendar keys off Date.getDay(), so any slot→calendar
-// conversion MUST use this map, not dayOrder.
+// conversion MUST use this map, not dayOrder. Includes common abbreviations so a
+// slot stored as "tue"/"Tues" still resolves.
 export const JS_DAY_INDEX = {
-  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+  sun: 0, sunday: 0,
+  mon: 1, monday: 1,
+  tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3,
+  thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5,
+  sat: 6, saturday: 6,
 };
+
+// Resolve a slot's `day` (full name, abbreviation, or a 0-6 number/numeric
+// string) to a JS getDay() index, or null if unrecognisable.
+export function dayToJsIndex(day) {
+  if (day == null) return null;
+  if (typeof day === "number") return day >= 0 && day <= 6 ? day : null;
+  const k = String(day).trim().toLowerCase();
+  if (k in JS_DAY_INDEX) return JS_DAY_INDEX[k];
+  const n = Number(k);
+  return Number.isInteger(n) && n >= 0 && n <= 6 ? n : null;
+}
 
 // Convert [{day,start,end}] slots → a weekly pattern keyed by Date.getDay()
 // ({ 0:[], 1:[{start,end}], … 6:[] }) — the shape getSlotsForDate / the booking
-// calendar expect. This is the single source of truth for day-name → JS-day
-// mapping; the booking date picker and reschedule picker both go through it so
-// no surface can drift to a wrong (e.g. Monday=0) mapping.
+// calendar expect. Single source of truth for day → JS-day mapping; the booking
+// date picker and reschedule picker both go through it so no surface can drift
+// to a wrong mapping. Tolerates jsonb that arrives as a string (parses it) and
+// day values in any of the forms dayToJsIndex accepts, so malformed-but-
+// recoverable availability still highlights instead of silently showing none.
 export function slotsToWeekly(slots) {
   const weekly = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-  for (const s of slots || []) {
-    if (!s || !s.day) continue;
-    const idx = JS_DAY_INDEX[String(s.day).toLowerCase()];
+  let arr = slots;
+  if (typeof arr === "string") {
+    try { arr = JSON.parse(arr); } catch { arr = []; }
+  }
+  if (!Array.isArray(arr)) return weekly;
+  for (const s of arr) {
+    if (!s) continue;
+    const idx = dayToJsIndex(s.day);
     if (idx == null) continue;
     weekly[idx].push({ start: s.start, end: s.end });
   }
