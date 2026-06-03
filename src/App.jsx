@@ -11,7 +11,7 @@ import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
-import ScholarAvailabilityTab from "./components/ScholarAvailabilityTab";
+import ScholarAvailabilityCalendar from "./components/ScholarAvailabilityCalendar";
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
@@ -9766,7 +9766,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Your availability</h2>
               <p className="text-stone-600 text-sm md:text-base">Set the times you're available each week. Parents see this in the booking flow.</p>
             </div>
-            <ScholarAvailabilityTab initialSlots={scholar?.availability} onSaved={(slots) => onScholarUpdate && onScholarUpdate({ ...scholar, availability: slots })} />
+            <ScholarAvailabilityCalendar initialSlots={scholar?.availability} onSaved={(slots) => onScholarUpdate && onScholarUpdate({ ...scholar, availability: slots })} />
           </div>
         )}
 
