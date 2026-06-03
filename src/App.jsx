@@ -26,12 +26,25 @@ import MosqueStaffInviteWizard from "./pages/MosqueStaffInviteWizard";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
-// Avatar from initials + gradient
+// Avatar — renders an uploaded photo when one is present, else an initials +
+// gradient circle. Tolerates both camelCase (avatarUrl/avatarGradient/initials)
+// and snake_case (avatar_url/avatar_gradient/avatar_initials) shapes, since call
+// sites pass raw DB rows and transformed objects interchangeably.
 const Avatar = ({ scholar, size = "md" }) => {
   const dims = { sm: "w-10 h-10 text-sm", md: "w-14 h-14 text-lg", lg: "w-24 h-24 text-3xl" }[size];
+  const url = scholar?.avatarUrl || scholar?.avatar_url || null;
+  const gradient = scholar?.avatarGradient || scholar?.avatar_gradient || "from-emerald-400 to-emerald-700";
+  const initials = scholar?.initials ?? scholar?.avatar_initials ?? "";
+  if (url) {
+    return (
+      <div className={`${dims} rounded-full overflow-hidden flex-shrink-0 shadow-sm bg-stone-100`}>
+        <img src={url} alt={scholar?.name || "Avatar"} className="w-full h-full object-cover" />
+      </div>
+    );
+  }
   return (
-    <div className={`${dims} rounded-full bg-gradient-to-br ${scholar.avatarGradient} flex items-center justify-center text-white font-semibold flex-shrink-0 shadow-sm`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
-      {scholar.initials}
+    <div className={`${dims} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-white font-semibold flex-shrink-0 shadow-sm`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+      {initials}
     </div>
   );
 };
@@ -298,12 +311,18 @@ useEffect(() => {
     className="flex items-center gap-2 hover:opacity-80 transition-opacity"
     aria-label="Open dashboard"
   >
-    <div
-      className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
-      style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-    >
-      {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
-    </div>
+    {authedProfile?.avatar_url ? (
+      <div className="w-9 h-9 rounded-full overflow-hidden shadow-sm bg-stone-100">
+        <img src={authedProfile.avatar_url} alt="" className="w-full h-full object-cover" />
+      </div>
+    ) : (
+      <div
+        className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
+        style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+      >
+        {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
+      </div>
+    )}
   </button>
 ) : (
   <button
@@ -982,12 +1001,18 @@ const PublicHeader = ({ authedUser, authedProfile, onLogoClick, onSignIn }) => {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             aria-label="Open dashboard"
           >
-            <div
-              className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
-              style={{ fontFamily: "'Fraunces', Georgia, serif" }}
-            >
-              {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
-            </div>
+            {authedProfile?.avatar_url ? (
+              <div className="w-9 h-9 rounded-full overflow-hidden shadow-sm bg-stone-100">
+                <img src={authedProfile.avatar_url} alt="" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div
+                className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
+                style={{ fontFamily: "'Fraunces', Georgia, serif" }}
+              >
+                {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
+              </div>
+            )}
           </button>
         ) : (
           <button
@@ -4955,6 +4980,7 @@ const MessagesInbox = ({
   displayName,
   displayInitials,
   displayGradient,
+  displayAvatarUrl,
   upcomingBookingsCount,
   savedScholarsCount,
   savedMosquesCount,
@@ -5059,7 +5085,7 @@ const MessagesInbox = ({
               </div>
             </button>
             <div className="flex items-center gap-2">
-              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient }} size="sm" />
+              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient, avatarUrl: displayAvatarUrl, name: displayName }} size="sm" />
               {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
             </div>
           </div>
@@ -5112,6 +5138,7 @@ const ConversationView = ({
   displayName,
   displayInitials,
   displayGradient,
+  displayAvatarUrl,
   upcomingBookingsCount,
   savedScholarsCount,
   savedMosquesCount,
@@ -5304,7 +5331,7 @@ const ConversationView = ({
               </div>
             </button>
             <div className="flex items-center gap-2">
-              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient }} size="sm" />
+              <Avatar scholar={{ initials: displayInitials, avatarGradient: displayGradient, avatarUrl: displayAvatarUrl, name: displayName }} size="sm" />
               {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
             </div>
           </div>
@@ -8164,6 +8191,7 @@ useEffect(() => {
     name: profile.name || profile.email?.split("@")[0] || "Friend",
     email: profile.email,
     initials,
+    avatarUrl: profile.avatar_url || null,
     avatarGradient: profile.avatar_gradient || "from-emerald-400 to-emerald-700",
     city: profile.city || "",
     joinedDate: profile.joined_date ? new Date(profile.joined_date).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "Recently",
@@ -8279,7 +8307,7 @@ setBookings(transformed);
             </div>
           </button>
           <div className="flex items-center gap-2">
-            <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700" }} size="sm" />
+            <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700", avatarUrl: user.avatarUrl, name: user.name }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
         </div>
@@ -9557,7 +9585,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             </div>
           </button>
           <div className="flex items-center gap-2">
-            <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient }} size="sm" />
+            <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient, avatar_url: scholar?.avatar_url, name: scholar?.name }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
         </div>
@@ -13050,6 +13078,20 @@ useEffect(() => {
   })();
 }, []);
 
+// Mirror a scholar's uploaded photo onto authedProfile.avatar_url. The photo
+// lives on the scholars row (myScholar), but every shared header (PublicHeader,
+// the public home top-bar, the user-dashboard + Messages chrome) reads the
+// avatar off authedProfile. Mirroring keeps one priority — scholar.avatar_url >
+// profile.avatar_url > initials — without threading myScholar through every
+// header. Guarded so it's a no-op once in sync (no render loop); re-applies if
+// authedProfile is refetched. Runs after a photo save too (onScholarUpdate sets
+// myScholar), so the header updates immediately.
+useEffect(() => {
+  const url = myScholar?.avatar_url;
+  if (!url) return;
+  setAuthedProfile((p) => (p && p.avatar_url !== url ? { ...p, avatar_url: url } : p));
+}, [myScholar?.avatar_url, authedProfile]);
+
 // Refresh scholar tab-badge counts whenever myScholar changes (sign-in,
 // sign-out, claim). Fetches are independent of ScholarDashboard's own
 // data fetches — those are still scoped to the dashboard. Source of
@@ -13502,6 +13544,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         displayName: myScholar?.name || authedUser?.email,
         displayInitials: myScholar?.avatar_initials || (myScholar?.name || authedUser?.email || "??").trim().substring(0, 2).toUpperCase(),
         displayGradient: myScholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
+        displayAvatarUrl: myScholar?.avatar_url || null,
         onLogout: async () => { await fullSignOut(); setView("publicHome"); },
         upcomingBookingsCount: scholarUpcomingCount,
         scholarReviewsCount: scholarReviewsCount,
@@ -13510,6 +13553,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
         displayName: authedProfile?.name || authedUser?.email,
         displayInitials: authedProfile?.avatar_initials || (authedProfile?.name || authedUser?.email || "??").trim().substring(0, 2).toUpperCase(),
         displayGradient: authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700",
+        displayAvatarUrl: authedProfile?.avatar_url || null,
         onLogout: async () => { await fullSignOut(); setView("publicHome"); },
       };
 

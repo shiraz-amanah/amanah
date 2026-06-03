@@ -14,6 +14,7 @@ export const transformScholar = (dbScholar) => {
     city: dbScholar.city,
     initials: dbScholar.avatar_initials,
     avatarGradient: dbScholar.avatar_gradient,
+    avatarUrl: dbScholar.avatar_url || null,
     categories: dbScholar.categories || [],
     languages: dbScholar.languages || [],
     qualifications: dbScholar.qualifications || [],
