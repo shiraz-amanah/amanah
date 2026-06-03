@@ -75,3 +75,67 @@ export async function uploadScholarAvatar(file, scholarId) { // eslint-disable-l
   const { data } = supabase.storage.from("avatars").getPublicUrl(path);
   return { url: data?.publicUrl || null, error: null };
 }
+
+// ============================================================================
+// Private document uploads — ijazah/qualification → `credentials` bucket,
+// existing DBS certificates → `dbs-certificates` bucket. Both are PRIVATE
+// (migration 043 header documents manual bucket creation), so we store the
+// object PATH (not a public URL) and serve it to admins via short-lived signed
+// URLs (getSignedDocUrl). Path is keyed on auth.uid() so a per-user RLS INSERT
+// policy can scope writes the same way 041 does for avatars.
+// ============================================================================
+
+const DOC_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const DOC_ALLOWED = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+// Upload `file` to {bucket}/{authUserId}/{timestamp}.{ext}. Validates type
+// (PDF/jpg/png/webp) and size (≤10MB) before the network call. Returns
+// { path, error } — exactly one is set. `path` is the in-bucket object path to
+// persist; resolve a viewable link later with getSignedDocUrl(bucket, path).
+export async function uploadPrivateDoc(file, bucket) {
+  if (!file) return { path: null, error: "No file selected." };
+  const ext = DOC_ALLOWED[file.type];
+  if (!ext) return { path: null, error: "Use a PDF, JPG, PNG or WebP file." };
+  if (file.size > DOC_MAX_BYTES) return { path: null, error: "File must be under 10MB." };
+
+  const { data: { user } = {}, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !user) {
+    console.error("uploadPrivateDoc: no authenticated user", authErr);
+    return { path: null, error: "You're signed out — sign in again and retry." };
+  }
+
+  const path = `${user.id}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+
+  if (error) {
+    console.error("uploadPrivateDoc failed:", { bucket, message: error?.message, statusCode: error?.statusCode, path, error });
+    const blob = `${error?.message || ""} ${error?.statusCode || ""}`;
+    const msg = /bucket|not found/i.test(blob)
+      ? "Document storage isn't set up yet. Contact support."
+      : /row-level security|policy|unauthor|403/i.test(blob)
+      ? "Upload was blocked by storage permissions. Contact support."
+      : "Couldn't upload your document — try again.";
+    return { path: null, error: msg };
+  }
+  return { path, error: null };
+}
+
+// Mint a short-lived signed URL for a private document path (admin "View …"
+// links). `expiresIn` is seconds. Returns { url, error }.
+export async function getSignedDocUrl(bucket, path, expiresIn = 3600) {
+  if (!path) return { url: null, error: "No document." };
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (error) {
+    console.error("getSignedDocUrl failed:", { bucket, path, error });
+    return { url: null, error: "Couldn't open the document." };
+  }
+  return { url: data?.signedUrl || null, error: null };
+}
