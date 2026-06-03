@@ -5357,7 +5357,7 @@ paths.
 - dbs-certificates bucket created (private) ✅
 
 ### Parked
-- Storage RLS for private buckets — admins can't read signed URLs for credentials/dbs-certificates yet, needs a follow-up RLS migration before real submissions
+- Storage RLS for private credential/DBS buckets — 8 policies added via Supabase dashboard, documented in migration 044 ✅
 - Legacy LegacyScholarOnboardingWizard (~400 lines dead code) — Phase 9 cleanup
 - uCheck API wiring — shell only, API integration in future session
 - Stripe Connect for real DBS payment — future session
