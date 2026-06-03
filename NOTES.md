@@ -5303,6 +5303,31 @@ paths.
 
 ---
 
+## Session O — 3 June 2026
+
+### Shipped
+- Availability calendar rebuilt as Google Calendar-style grid — 7 day columns × hourly rows 06:00–22:00, click/drag to select slots, emerald fill, fixed header, scrollable body, mobile nav ✅
+- Booking calendar fixed — was reading mock DEFAULT_AVAILABILITY, now reads real scholar.availability via slotsToWeekly() converter with day-name→JS-Date mapping ✅
+- Packages null guard — platform-wide fix across 7 sites (ScholarCard, PublicScholarDetail, BookingConfirm, admin view, transform boundaries) ✅
+- Standing rule recorded: every bug fix applied platform-wide, never just the failing instance ✅
+
+### Bugs fixed
+- Booking calendar showing wrong days (Mon/Tue/Thu/Sat) — was hardcoded to DEFAULT_AVAILABILITY mock
+- Booking calendar showing no days — stale scholar object missing availability; BookingConfirm now refetches by slug when prop has no slots
+- Day mapping off — slotsToWeekly() now hardened against string/number/abbreviated day values
+- Packages crash (t.price TypeError) — null entries in packages array; filter(Boolean) + optional chaining applied platform-wide
+
+### Parked
+- Booked-out times in booking calendar still use mock data — needs real booking volume to matter, defer
+- TIME_OPTIONS in availability.js unused (leftover from old tab) — minor cleanup
+
+### Next session
+- Scholar auth wizard — new scholar signup without admin approval
+- DBS compliance wizard shell — uCheck fields collected in wizard
+- Pricing intelligence — Claude benchmarks scholar rates
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
