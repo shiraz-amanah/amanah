@@ -5365,7 +5365,6 @@ paths.
 ### Next session
 - Pricing intelligence — Claude benchmarks scholar rates against comparable scholars
 - Scholar availability overrides extension to reschedule flow
-- Storage RLS for private credential buckets
 
 ---
 
