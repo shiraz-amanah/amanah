@@ -2081,12 +2081,6 @@ useEffect(() => {
   // slots to the Date.getDay()-keyed shape the picker reads. Falls back to mock
   // only when the scholar has no slots at all.
   const bookingAvailability = liveAvailability?.length ? slotsToWeekly(liveAvailability) : DEFAULT_AVAILABILITY;
-  // Temporary diagnostics (remove once confirmed) — trace availability into the
-  // booking calendar. 2026-06-09 is a Tuesday, a day the scholar saved.
-  console.log("[BookingConfirm] scholar.availability (prop):", scholar.availability);
-  console.log("[BookingConfirm] liveAvailability (used):", liveAvailability);
-  console.log("[BookingConfirm] slotsToWeekly →", bookingAvailability);
-  console.log("[BookingConfirm] getSlotsForDate(Tue 2026-06-09) →", getSlotsForDate(new Date(2026, 5, 9), bookingAvailability, DEFAULT_BOOKINGS));
 
   const platformFee = Math.round(pkg.price * 0.1);
   const total = pkg.price + platformFee;
