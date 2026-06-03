@@ -5271,6 +5271,40 @@ paths.
 
 ---
 
+## Session N — 3 June 2026
+
+### Shipped
+- Scholar profile editing — full editor with photo upload, bio, title, categories (12 total, 4 new), languages, packages (add/remove/toggle/reprice), live preview card, profile completeness bar ✅
+- Scholar avatar — uploads to Supabase storage avatars bucket, shows platform-wide: header, public profile hero, scholar listing cards, messages header ✅
+- Profile quality scorer integration — already present, sits above editor ✅
+- 4 new categories added to src/data/categories.js: Tajweed, Children's Islamic Stories, Aalim Course / Dars-e-Nizami, Spirituality & Tasawwuf ✅
+
+### Migrations applied to prod
+- 040 — avatar_url column on scholars + update_scholar_profile SECURITY DEFINER function
+- 041 — avatars storage RLS policies (INSERT/UPDATE/DELETE authenticated own folder, SELECT public) — applied via Supabase dashboard UI (pg_policies doesn't surface storage policies)
+
+### Infrastructure
+- Supabase Storage avatars bucket created (public)
+
+### Bugs fixed
+- Scholar greeting "Assalamu alaikum, Scholar" → now uses first name (data fix: Fatima's name column was empty, backfilled manually)
+- Full name field blank in editor — name not in scholars row, fixed by data backfill
+- Header avatar showing green circle instead of photo — Avatar component now reads scholar.avatar_url > profile.avatar_url > initials, applied platform-wide
+- Public profile hero showing initials — transformScholar now carries avatarUrl
+- Scholar listing cards showing initials — same transform fix cascades to all cards
+
+### Parked
+- preview branch deployments — CC is syncing feat/scholar-profile-editor branch on every push, causing double Vercel deploys; tell CC to stop pushing to backup branch
+- Chunk size warning in build (>500kB) — App.jsx still ~8200 lines, Phase 2 extraction deferred
+- NOTES.md duplicate 2 June block — fold informal AI sprint block into Part C closure
+
+### Next session
+- Availability calendar rebuild (Google Calendar style, hourly slots, click to select)
+- Scholar auth wizard (new scholar signup without admin approval flow)
+- DBS compliance wizard shell (uCheck fields collected in wizard, API wired later)
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
