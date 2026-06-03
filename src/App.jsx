@@ -13,6 +13,7 @@ import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
 import ScholarAvailabilityCalendar from "./components/ScholarAvailabilityCalendar";
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
+import WeekSlotPicker from "./components/WeekSlotPicker";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -2216,13 +2217,12 @@ useEffect(() => {
                 <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>When works for you?</h2>
                 <p className="text-sm text-stone-500 mb-5">Only showing times {scholar.name.split(" ")[0]} is actually available.</p>
 
-                <DateTimePicker
+                <WeekSlotPicker
                   availability={bookingAvailability}
                   bookings={DEFAULT_BOOKINGS}
                   selectedDate={date}
                   selectedTime={time}
-                  onDateChange={setDate}
-                  onTimeChange={setTime}
+                  onSelect={(d, t) => { setDate(d); setTime(t); }}
                 />
 
                 <div className="mt-5">
