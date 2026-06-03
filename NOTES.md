@@ -5087,7 +5087,36 @@ also fine.
 
 ---
 
-## AI features sprint ✅ (2 June 2026) — out-of-band, not a lettered session
+## Session M Part C — 2 June 2026
+
+### Shipped
+- Profile quality scorer — smoked ✅ (was in-progress from Part B)
+- Message moderation — AI hard block via Claude API, logs to flags table, admin panel shows flagged messages ✅
+- Message initiation from scholar profile — getOrCreateDirectConversation wired up, user→parent role fix, transformScholar user_id fix ✅
+- Scholar availability calendar — new Availability tab in scholar dashboard, weekly toggle UI with time ranges per day, saves via SECURITY DEFINER RPC, persists on hard refresh, booking calendar integration unchanged ✅
+
+### Migrations applied to prod
+- 039 — availability jsonb column on scholars + update_scholar_availability SECURITY DEFINER function
+
+### Bugs fixed
+- Message button on scholar profile routed to inbox instead of opening conversation (getOrCreateDirectConversation not called, user_id dropped in transformScholar, role enum mismatch "user" vs "parent")
+- Availability tab missing from scholar nav on Messages view (shared nav list was stale)
+- Availability reset on hard refresh (useState seed timing — useEffect keyed on initialSlots fixes async hydration)
+- Scholar profile crash: null guard on packages.map (t.price TypeError)
+- Profile field label rendering: DBSVERIFIED/IJAZAHVERIFIED raw key shown (cosmetic, parked)
+
+### Parked
+- "SUBJECT DELETED" in admin flags when message is blocked (subject_id is conversationId, not a message id — display fix needed)
+- Availability chips removed from public profile (shown in booking flow only)
+- Orphaned AvailabilityEditor (old mock full-page scheduler) — dead code, Phase 9 cleanup
+- start > end validation on availability time pickers
+- Post-sign-in returns to dashboard not back to scholar profile after auth-gated Message click
+
+### Next
+- Dashboard notifications
+- NOTES.md items 53–58 (AI-native platform features) — phased build continuing
+
+### AI features sprint (out-of-band — not a lettered session) ✅
 
 Unplanned sprint: a run of "build an AI X" tasks layered onto the existing
 app. Not part of the L–Q roadmap (Session N is still Mosque rotas). 21 commits
@@ -5095,7 +5124,7 @@ app. Not part of the L–Q roadmap (Session N is still Mosque rotas). 21 commits
 moderation; the rest is net-new. **All of it is committed + pushed to prod but
 LIVE-UNVERIFIED** — see "Unverified" below.
 
-### Architectural pattern established (reused for every AI feature)
+#### Architectural pattern established (reused for every AI feature)
 Serverless function (`api/*.js`, raw `fetch`, no SDK) holding the key server-side
 + a thin `src/lib/*` client wrapper that fails gracefully + a self-contained
 `src/components/*` card. App.jsx gets only an import + ~1 line — respects the
@@ -5104,7 +5133,7 @@ Serverless function (`api/*.js`, raw `fetch`, no SDK) holding the key server-sid
 Claude calls use `claude-sonnet-4-6`, `thinking:disabled`, `effort:low`, and
 `output_config.format` json_schema for anything structured.
 
-### What shipped (by feature)
+#### What shipped (by feature)
 - **AI natural-language matching** (`bf8a1c2`,`4cffb4d`,`16022c9`,`dc6f0b0`) —
   `api/ai-match.js` + `src/lib/aiMatch.js` + `src/components/AiSearchBar.jsx`.
   Replaced the scholar category chips (PublicHome) and the mosque name/city
@@ -5138,7 +5167,7 @@ Claude calls use `claude-sonnet-4-6`, `thinking:disabled`, `effort:low`, and
   the stub with real `getOrCreateDirectConversation` wiring; see Decisions +
   the role bug below.
 
-### Reversals / corrected course (honest record)
+#### Reversals / corrected course (honest record)
 - **"Claude API is available in the artifact environment" was a misconception.**
   The session brief said this; it refers to the claude.ai artifact sandbox
   (`window.claude.complete`), which does not exist in a deployed Vite/Vercel app.
@@ -5171,7 +5200,7 @@ Claude calls use `claude-sonnet-4-6`, `thinking:disabled`, `effort:low`, and
   The file now diverges from what's marked "applied to prod" (ivfflat); prod
   needs a drop+recreate to match.
 
-### The Message-button role bug (full chain)
+#### The Message-button role bug (full chain)
 1. `ee3fa8f` wired the button; smoke failed with a "Couldn't open chat" toast.
 2. User confirmed the RPC exists and the scholar has a `user_id`, so not those.
 3. `bfcf779` added a full-error-fields diagnostic log (I can't read their
@@ -5185,7 +5214,7 @@ Claude calls use `claude-sonnet-4-6`, `thinking:disabled`, `effort:low`, and
    the bug in.
 5. `d64ab7c` fixed it (`'user'`→`'parent'`) and trimmed the diagnostic log.
 
-### Decisions
+#### Decisions
 - **transformScholar was dropping `user_id`** — added it back (`ee3fa8f`); the
   conversation lookup needs it. Both the card path and the slug deep-link go
   through transformScholar, so one fix covers both.
@@ -5199,7 +5228,7 @@ Claude calls use `claude-sonnet-4-6`, `thinking:disabled`, `effort:low`, and
 - **Message moderation runs behind the existing `containsContact` local regex**
   (defense-in-depth) and only in the real-send path. Demo conversations skip it.
 
-### Unverified (cannot smoke from here)
+#### Unverified (cannot smoke from here)
 None of the live AI/round-trip paths were exercised. They need keys
 (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) + a Vercel
 runtime (`vercel dev` or deploy); plain `npm run dev` 404s the `/api` routes
@@ -5210,7 +5239,7 @@ diagnosed-correct against the constraint but its live click-through (eesaa →
 Fatima → land in chat) was never confirmed.** Likewise the embedding/RPC/Claude
 paths.
 
-### To do before these actually work in prod
+#### To do before these actually work in prod
 - Set env in Vercel (Prod + Preview): `ANTHROPIC_API_KEY` (all AI features),
   `OPENAI_API_KEY` + `SUPABASE_URL`/`SUPABASE_ANON_KEY` (semantic search),
   `SUPABASE_SERVICE_ROLE_KEY` (backfill + admin brief + moderation flag insert).
@@ -5225,7 +5254,7 @@ paths.
   prod-serverless (`SUPABASE_URL`=zgoyvztooyxqkcftwylr) split is **intentional**
   (user confirmed) — don't "fix" it.
 
-### Things to watch
+#### Things to watch
 - Campaign hero filter is keyword-only over MOCK_CAMPAIGNS (campaigns aren't on
   Supabase yet) — "mosque" queries match Mosque-Renovation campaigns, which is
   correct "has matches" behaviour but can surprise.
@@ -5234,40 +5263,9 @@ paths.
 - Moderation `subject_id` = conversationId (the message row doesn't exist at
   block time); admins see blocked messages as `reason: other` in the flags queue.
 
-### Doc fix
+#### Doc fix
 - `e0936a3` — CLAUDE.md: mosques are live on Supabase (the "still mock" note was
   stale); saved-mosques now mirror the scholar Set+Array pattern.
-
----
-
-## Session M Part C — 2 June 2026
-
-### Shipped
-- Profile quality scorer — smoked ✅ (was in-progress from Part B)
-- Message moderation — AI hard block via Claude API, logs to flags table, admin panel shows flagged messages ✅
-- Message initiation from scholar profile — getOrCreateDirectConversation wired up, user→parent role fix, transformScholar user_id fix ✅
-- Scholar availability calendar — new Availability tab in scholar dashboard, weekly toggle UI with time ranges per day, saves via SECURITY DEFINER RPC, persists on hard refresh, booking calendar integration unchanged ✅
-
-### Migrations applied to prod
-- 039 — availability jsonb column on scholars + update_scholar_availability SECURITY DEFINER function
-
-### Bugs fixed
-- Message button on scholar profile routed to inbox instead of opening conversation (getOrCreateDirectConversation not called, user_id dropped in transformScholar, role enum mismatch "user" vs "parent")
-- Availability tab missing from scholar nav on Messages view (shared nav list was stale)
-- Availability reset on hard refresh (useState seed timing — useEffect keyed on initialSlots fixes async hydration)
-- Scholar profile crash: null guard on packages.map (t.price TypeError)
-- Profile field label rendering: DBSVERIFIED/IJAZAHVERIFIED raw key shown (cosmetic, parked)
-
-### Parked
-- "SUBJECT DELETED" in admin flags when message is blocked (subject_id is conversationId, not a message id — display fix needed)
-- Availability chips removed from public profile (shown in booking flow only)
-- Orphaned AvailabilityEditor (old mock full-page scheduler) — dead code, Phase 9 cleanup
-- start > end validation on availability time pickers
-- Post-sign-in returns to dashboard not back to scholar profile after auth-gated Message click
-
-### Next
-- Dashboard notifications
-- NOTES.md items 53–58 (AI-native platform features) — phased build continuing
 
 ---
 
