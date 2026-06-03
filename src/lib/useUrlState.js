@@ -32,6 +32,7 @@ const ROUTES = [
 
   // Onboarding
   { view: 'scholarOnboarding',           path: '/onboarding/scholar' },
+  { view: 'scholarOnboardingSuccess',    path: '/onboarding/scholar/success' },
   { view: 'scholarApplicationSubmitted', path: '/onboarding/scholar/submitted' },
   { view: 'scholarApplicationRejected',  path: '/onboarding/scholar/rejected' },
   { view: 'scholarVerificationPending',  path: '/onboarding/scholar/pending' },

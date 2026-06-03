@@ -13,6 +13,8 @@ import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
 import ScholarAvailabilityTabs from "./components/ScholarAvailabilityTabs";
 import AdminDocLink from "./components/AdminDocLink";
+import ScholarOnboardingWizard from "./pages/ScholarOnboardingWizard";
+import ScholarOnboardingSuccess from "./pages/ScholarOnboardingSuccess";
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import WeekSlotPicker from "./components/WeekSlotPicker";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
@@ -6635,7 +6637,10 @@ const DBS_OPTIONS = [
 
 const WIZARD_DRAFT_KEY = "scholarOnboardingDraft";
 
-const ScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogout }) => {
+// DEAD as of the src/pages onboarding rebuild — the scholarOnboarding route now
+// renders the imported ScholarOnboardingWizard from src/pages. Renamed (not yet
+// deleted) to free the name for the import; safe to remove in a cleanup commit.
+const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogout }) => { // eslint-disable-line no-unused-vars
   // Hydrate from sessionStorage if present
   const initialForm = (() => {
     try {
@@ -13481,9 +13486,12 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   // scholar_applications and routes to the submitted status page.
   if (view === "scholarOnboarding") return <ScholarOnboardingWizard
     authedUser={authedUser}
-    authedProfile={authedProfile}
-    onSubmitted={(app) => { setMyScholarApplication(app); navigate("scholarApplicationSubmitted"); }}
+    onSubmitted={(app) => { setMyScholarApplication(app); navigate("scholarOnboardingSuccess"); }}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
+  />;
+  if (view === "scholarOnboardingSuccess") return <ScholarOnboardingSuccess
+    application={myScholarApplication}
+    onExplore={() => navigate("publicHome")}
   />;
   if (view === "scholarApplicationSubmitted") return <ScholarApplicationSubmitted
     authedUser={authedUser}
