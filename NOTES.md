@@ -5316,12 +5316,14 @@ paths.
 - Booking calendar showing no days — stale scholar object missing availability; BookingConfirm now refetches by slug when prop has no slots
 - Day mapping off — slotsToWeekly() now hardened against string/number/abbreviated day values
 - Packages crash (t.price TypeError) — null entries in packages array; filter(Boolean) + optional chaining applied platform-wide
+- Package duration string not parseable as integer for bookings.duration_minutes — parseDurationToMinutes() added to lib/schedule.js ("4 × 45 min" → 180, "30 min" → 30, unparseable → 60 default), applied platform-wide at createBooking call site and DB boundary
 
 ### Parked
 - Booked-out times in booking calendar still use mock data — needs real booking volume to matter, defer
 - TIME_OPTIONS in availability.js unused (leftover from old tab) — minor cleanup
 
 ### Next session
+- Full booking flow confirmed working end-to-end (AMN-85949411) ✅
 - Scholar auth wizard — new scholar signup without admin approval
 - DBS compliance wizard shell — uCheck fields collected in wizard
 - Pricing intelligence — Claude benchmarks scholar rates
