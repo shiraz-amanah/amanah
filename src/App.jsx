@@ -19,6 +19,7 @@ import { useUrlState } from "./lib/useUrlState";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
+import { slotsToWeekly } from "./lib/availability";
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
@@ -2193,7 +2194,7 @@ useEffect(() => {
                 <p className="text-sm text-stone-500 mb-5">Only showing times {scholar.name.split(" ")[0]} is actually available.</p>
 
                 <DateTimePicker
-                  availability={DEFAULT_AVAILABILITY}
+                  availability={scholar?.availability?.length ? slotsToWeekly(scholar.availability) : DEFAULT_AVAILABILITY}
                   bookings={DEFAULT_BOOKINGS}
                   selectedDate={date}
                   selectedTime={time}
@@ -8244,6 +8245,7 @@ useEffect(() => {
             scholarGradient: b.scholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
             scholarCity: b.scholar?.city,
             scholarSlug: b.scholar?.slug,
+            scholarAvailability: b.scholar?.availability || [],
             package: b.package_name,
             packageDesc: b.package_description,
             date: dateKey,
@@ -8424,7 +8426,7 @@ setBookings(transformed);
                               <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-3 mt-2">
                                 <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Pick a new date & time</p>
                                 <DateTimePicker
-                                  availability={DEFAULT_AVAILABILITY}
+                                  availability={b.scholarAvailability?.length ? slotsToWeekly(b.scholarAvailability) : DEFAULT_AVAILABILITY}
                                   bookings={DEFAULT_BOOKINGS}
                                   selectedDate={rescheduleDate}
                                   selectedTime={rescheduleTime}

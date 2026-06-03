@@ -16,6 +16,30 @@ const ORDER = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, sat
 
 export const dayOrder = (d) => ORDER[String(d || "").toLowerCase()] || 99;
 
+// JS Date.getDay() index per slot day name: 0=Sun, 1=Mon … 6=Sat. NOTE this is
+// deliberately NOT `ORDER` above (which is 1=Mon…7=Sun, for Monday-first display
+// sorting). The booking calendar keys off Date.getDay(), so any slot→calendar
+// conversion MUST use this map, not dayOrder.
+export const JS_DAY_INDEX = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+
+// Convert [{day,start,end}] slots → a weekly pattern keyed by Date.getDay()
+// ({ 0:[], 1:[{start,end}], … 6:[] }) — the shape getSlotsForDate / the booking
+// calendar expect. This is the single source of truth for day-name → JS-day
+// mapping; the booking date picker and reschedule picker both go through it so
+// no surface can drift to a wrong (e.g. Monday=0) mapping.
+export function slotsToWeekly(slots) {
+  const weekly = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+  for (const s of slots || []) {
+    if (!s || !s.day) continue;
+    const idx = JS_DAY_INDEX[String(s.day).toLowerCase()];
+    if (idx == null) continue;
+    weekly[idx].push({ start: s.start, end: s.end });
+  }
+  return weekly;
+}
+
 const find = (d) => DAYS.find((x) => x.value === String(d || "").toLowerCase());
 export const dayLabel = (d) => find(d)?.label || d;
 export const dayAbbr = (d) => find(d)?.abbr || d;
