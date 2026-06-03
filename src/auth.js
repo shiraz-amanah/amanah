@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient'
 import { geocodePostcode } from './lib/postcode'
-import { sendBookingConfirmedEmail, sendScholarApprovedEmail } from './lib/email'
+import { sendBookingConfirmedEmail, sendScholarApprovedEmail, sendBookingCancelledEmail } from './lib/email'
 
 export async function signUp(email, password, name, interest) {
   const { data, error } = await supabase.auth.signUp({
@@ -451,12 +451,34 @@ export async function setBookingMeetingUrl(bookingId, url) {
   return { data, error }
 }
 
-// Cancel a booking
-export async function cancelBooking(bookingId) {
-  return updateBooking(bookingId, {
-    status: 'cancelled',
-    cancelled_at: new Date().toISOString()
+// Cancel a booking. Routes through the cancel_booking SECURITY DEFINER RPC
+// (migration 048), which authorizes the caller (family/scholar/admin), derives
+// the refund_policy, and writes the cancellation columns atomically. Returns
+// { data: { refundPolicy, cancelledAt, cancelledBy } } on success.
+//
+// `reason` is optional (the family/scholar confirm modals collect it; the one
+// legacy call site passes none). Fires the cancellation emails to both parties
+// fire-and-forget — a failed send never blocks or fails the cancellation.
+export async function cancelBooking(bookingId, reason = null) {
+  if (!bookingId) return { error: { message: 'bookingId required' } }
+
+  const { data, error } = await supabase.rpc('cancel_booking', {
+    p_booking_id: bookingId,
+    p_reason: reason ? String(reason).trim() : null,
   })
+  if (error) return { error }
+
+  // The RPC returns a set; an empty result means the booking wasn't 'confirmed'
+  // (already cancelled/completed) so nothing was changed.
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) {
+    return { error: { message: 'This booking can no longer be cancelled.' } }
+  }
+
+  sendBookingCancelledEmail(bookingId)
+    .then((r) => { if (!r.ok) console.warn('[booking] cancellation email not sent:', r.error) })
+
+  return { data: { refundPolicy: row.refund_policy, cancelledAt: row.cancelled_at, cancelledBy: row.cancelled_by } }
 }
 
 export function onAuthChange(callback) {

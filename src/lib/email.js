@@ -54,3 +54,11 @@ export function sendScholarApprovedEmail(scholarId) {
   if (!scholarId) return Promise.resolve({ ok: false, error: 'missing_scholarId' });
   return postTransactional({ intent: 'scholar_approved', scholarId });
 }
+
+// Booking cancelled → emails BOTH parties (family + scholar). Fired after the
+// cancel_booking RPC succeeds. The server re-derives who cancelled + the refund
+// policy from the booking row, so the client only passes the id.
+export function sendBookingCancelledEmail(bookingId) {
+  if (!bookingId) return Promise.resolve({ ok: false, error: 'missing_bookingId' });
+  return postTransactional({ intent: 'booking_cancelled', bookingId });
+}
