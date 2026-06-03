@@ -17,6 +17,7 @@ import ScholarOnboardingWizard from "./pages/ScholarOnboardingWizard";
 import ScholarOnboardingSuccess from "./pages/ScholarOnboardingSuccess";
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import WeekSlotPicker from "./components/WeekSlotPicker";
+import CancelBookingModal from "./components/CancelBookingModal";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt, initialsFromName } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -8198,14 +8199,15 @@ useEffect(() => {
     setEditingStudentId(null);
   };
 
-  // Cancel a booking — sets status='cancelled' in Supabase
-  const handleCancelBooking = async (bookingId) => {
+  // Cancel a booking — routes through the cancel_booking RPC (handles auth +
+  // refund policy + fires the cancellation emails). `reason` is optional.
+  const handleCancelBooking = async (bookingId, reason = null) => {
     setBookingActionLoading(true);
-    const { error } = await cancelBooking(bookingId);
+    const { error } = await cancelBooking(bookingId, reason);
     setBookingActionLoading(false);
     if (error) {
       console.error("Failed to cancel booking:", error);
-      alert("Couldn't cancel — please try again.");
+      alert(error.message || "Couldn't cancel — please try again.");
       return;
     }
     // Optimistic: mark as cancelled in local state so it disappears from upcoming
@@ -8495,30 +8497,15 @@ setBookings(transformed);
                                 </div>
                               </div>
                             ) : cancellingBookingId === b.id ? (
-                              /* Cancel confirmation (inline, replaces buttons) */
-                              <div className="border border-rose-200 bg-rose-50/40 rounded-xl p-3 mt-2">
-                                <div className="flex items-start gap-2 mb-3">
-                                  <AlertCircle className="text-rose-700 flex-shrink-0 mt-0.5" size={16} />
-                                  <div>
-                                    <p className="text-sm font-medium text-stone-900">Cancel this session?</p>
-                                    <p className="text-xs text-stone-600 mt-0.5">{b.scholarName} will be notified. Refunds processed within 5 days for sessions cancelled 24h+ in advance.</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => setCancellingBookingId(null)}
-                                    disabled={bookingActionLoading}
-                                    className="px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900"
-                                  >Keep booking</button>
-                                  <button
-                                    onClick={() => handleCancelBooking(b.id)}
-                                    disabled={bookingActionLoading}
-                                    className="bg-rose-700 hover:bg-rose-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
-                                  >
-                                    {bookingActionLoading ? "Cancelling..." : <><XCircle size={12} /> Yes, cancel</>}
-                                  </button>
-                                </div>
-                              </div>
+                              /* Cancel confirmation — extracted modal (src/components) */
+                              <CancelBookingModal
+                                scheduledAt={b.rawScheduledAt}
+                                otherPartyName={b.scholarName}
+                                role="family"
+                                submitting={bookingActionLoading}
+                                onClose={() => setCancellingBookingId(null)}
+                                onConfirm={(reason) => handleCancelBooking(b.id, reason)}
+                              />
                             ) : (
                               /* Default: action buttons. items-center keeps
                                  Reschedule/Cancel from stretching to match
@@ -9621,6 +9608,23 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
     setEditingValue("");
   };
 
+  // Scholar cancels a booking — routes through cancel_booking RPC (full refund
+  // to the family); reason optional. Mirrors the family flow.
+  const [cancellingBookingId, setCancellingBookingId] = useState(null);
+  const [scholarCancelLoading, setScholarCancelLoading] = useState(false);
+  const handleScholarCancelBooking = async (bookingId, reason = null) => {
+    setScholarCancelLoading(true);
+    const { error } = await cancelBooking(bookingId, reason);
+    setScholarCancelLoading(false);
+    if (error) {
+      console.error("Failed to cancel booking:", error);
+      alert(error.message || "Couldn't cancel — please try again.");
+      return;
+    }
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: "cancelled" } : b));
+    setCancellingBookingId(null);
+  };
+
   const formatDateTime = (date) => date.toLocaleString("en-GB", {
     timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short"
   });
@@ -9758,6 +9762,25 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                       <button onClick={() => startEditing(b)} className="bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
                         <Plus size={14} /> Set meeting link
                       </button>
+                    )}
+                    {/* Cancel session (scholar) — always a full refund to the family */}
+                    <div className="mt-3 pt-3 border-t border-stone-100">
+                      <button
+                        onClick={() => setCancellingBookingId(b.id)}
+                        className="text-xs text-rose-700 hover:text-rose-800 font-medium inline-flex items-center gap-1"
+                      >
+                        <XCircle size={12} /> Cancel session
+                      </button>
+                    </div>
+                    {cancellingBookingId === b.id && (
+                      <CancelBookingModal
+                        scheduledAt={b.scheduledAt}
+                        otherPartyName={b.parent?.name}
+                        role="scholar"
+                        submitting={scholarCancelLoading}
+                        onClose={() => setCancellingBookingId(null)}
+                        onConfirm={(reason) => handleScholarCancelBooking(b.id, reason)}
+                      />
                     )}
                   </div>
                 ))}
