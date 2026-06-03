@@ -139,10 +139,6 @@ export async function getScholarByUserId(userId) {
   const { data, error } = await supabase
     .from('scholars').select('*').eq('user_id', userId).maybeSingle()
   if (error) { console.error('Error fetching scholar by user_id:', error); return null }
-  // Diagnostic: myScholar is this RAW row (no transformScholar in this path), so
-  // the dashboard greeting + profile editor read `name` straight off it. Confirm
-  // whether the row exists and carries a name, or whether name is null/empty.
-  console.debug('[getScholarByUserId] raw row:', data, '| name:', data?.name, '| id:', data?.id)
   return data
 }
 

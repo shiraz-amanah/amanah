@@ -68,12 +68,6 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
   // Read-only name, derived directly from the prop (not form state).
   const scholarName = scholar?.name || "";
 
-  // Diagnostic: confirm the name prop is arriving (fires on mount and whenever
-  // the scholar row's name changes once it loads async).
-  useEffect(() => {
-    console.debug("[ScholarProfileEditor] scholar.name:", scholar?.name);
-  }, [scholar?.name]);
-
   // Re-seed when the dashboard's scholar actually arrives. myScholar loads
   // async, so on a hard refresh the initial props are empty; this hydrates the
   // form once the real row lands. Keyed on id so it fires once (undefined→id)
