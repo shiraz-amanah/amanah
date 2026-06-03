@@ -12,6 +12,7 @@ import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
 import ScholarAvailabilityTabs from "./components/ScholarAvailabilityTabs";
+import AdminDocLink from "./components/AdminDocLink";
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import WeekSlotPicker from "./components/WeekSlotPicker";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
@@ -11631,6 +11632,55 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
             </div>
             <DetailRow label="Bio" value={selected.bio || "—"} multiline />
           </ApplicationDetailSection>
+
+          {(selected.ijazahDocUrl || selected.qualificationDocUrl || (selected.specialties || []).length > 0) && (
+            <ApplicationDetailSection title="Credentials">
+              <DetailRow label="Specialties" value={(selected.specialties || []).join(", ") || "—"} />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1">
+                {selected.ijazahDocUrl
+                  ? <AdminDocLink bucket="credentials" path={selected.ijazahDocUrl} label="View ijazah" />
+                  : <span className="text-xs text-stone-400">No ijazah document</span>}
+                {selected.qualificationDocUrl && <AdminDocLink bucket="credentials" path={selected.qualificationDocUrl} label="View qualification" />}
+              </div>
+            </ApplicationDetailSection>
+          )}
+
+          {selected.dbsOption && (
+            <ApplicationDetailSection title="DBS & identity">
+              <DetailRow label="DBS route" value={selected.dbsOption === "existing" ? "Has Enhanced DBS certificate" : "Needs new DBS check"} />
+              {selected.dbsOption === "existing" && (
+                <>
+                  <DetailRow label="Certificate number" value={selected.existingDbsNumber || "—"} />
+                  <DetailRow label="Issue date" value={selected.existingDbsDate || "—"} />
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    {selected.existingDbsUrl
+                      ? <AdminDocLink bucket="dbs-certificates" path={selected.existingDbsUrl} label="View certificate" />
+                      : <span className="text-xs text-stone-400">No certificate uploaded</span>}
+                    <span className="text-[10px] uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-medium">Verify certificate</span>
+                  </div>
+                </>
+              )}
+              {selected.dbsOption === "new" && (
+                <>
+                  <DetailRow label="Legal name" value={selected.legalName || "—"} />
+                  <DetailRow label="Date of birth" value={selected.dateOfBirth || "—"} />
+                  <DetailRow label="National Insurance" value={selected.nationalInsurance || "—"} />
+                  <DetailRow label="ID document" value={selected.idDocumentType || "—"} />
+                  <DetailRow label="Previous names" value={selected.previousNames || "—"} />
+                  <div className="pt-1">
+                    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5">Address history</p>
+                    {(selected.addressHistory || []).length > 0 ? (
+                      <ul className="text-xs text-stone-700 space-y-1">
+                        {selected.addressHistory.map((a, i) => (
+                          <li key={i}>· {[a.line1, a.line2, a.city, a.postcode].filter(Boolean).join(", ") || "—"}{(a.from || a.to) ? ` (${a.from || "?"} → ${a.to || "present"})` : ""}</li>
+                        ))}
+                      </ul>
+                    ) : <p className="text-xs text-stone-400">—</p>}
+                  </div>
+                </>
+              )}
+            </ApplicationDetailSection>
+          )}
 
           {selected.status === "rejected" && selected.rejectionReason && (
             <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
