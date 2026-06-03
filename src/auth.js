@@ -153,6 +153,18 @@ export async function updateScholarAvailability(slots) {
   return { error }
 }
 
+// Persist the signed-in scholar's per-date availability overrides. Writes only
+// the availability_overrides column for the caller's own row via the SECURITY
+// DEFINER RPC (migration 042) — no broad self-UPDATE policy on scholars.
+// `overrides` is an array of { date, blocked } | { date, start, end } (date
+// "YYYY-MM-DD"). Returns { error }.
+export async function updateScholarAvailabilityOverrides(overrides) {
+  const { error } = await supabase.rpc('update_scholar_availability_overrides', {
+    p_overrides: Array.isArray(overrides) ? overrides : [],
+  })
+  return { error }
+}
+
 // Persist the signed-in scholar's editable profile fields via the SECURITY
 // DEFINER RPC (migration 040) — writes ONLY name/title/bio/avatar_url/languages/
 // categories/packages for the caller's own row (user_id = auth.uid()). Never

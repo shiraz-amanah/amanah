@@ -31,6 +31,7 @@ export const transformScholar = (dbScholar) => {
     packages: (dbScholar.packages || []).filter(Boolean),
     acceptsBookings: dbScholar.accepts_bookings,
     availability: dbScholar.availability || [],
+    availabilityOverrides: dbScholar.availability_overrides || [],
     verified: dbScholar.dbs_verified && dbScholar.ijazah_verified,
     // Static fallbacks for fields not in DB yet
     nextAvailable: "Today",
