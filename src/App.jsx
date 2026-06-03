@@ -21,7 +21,7 @@ import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
 import { slotsToWeekly } from "./lib/availability";
-import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours, parseDurationToMinutes } from "./lib/schedule";
+import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours, parseDurationToMinutes, formatBookingDateTime } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
 import MosqueStaffInviteWizard from "./pages/MosqueStaffInviteWizard";
@@ -2246,7 +2246,7 @@ useEffect(() => {
                   </div>
                   <div className="flex justify-between py-2 border-b border-stone-100">
                     <span className="text-stone-500">Date & time</span>
-                    <span className="text-stone-900 font-medium">{date} at {time}</span>
+                    <span className="text-stone-900 font-medium">{formatBookingDateTime(new Date(`${date}T${time}`))}</span>
                   </div>
                   {notes && <div className="py-2 border-b border-stone-100"><span className="text-stone-500 block mb-1">Notes</span><span className="text-stone-700 text-xs">{notes}</span></div>}
                 </div>
@@ -8445,8 +8445,8 @@ setBookings(transformed);
                             </div>
                             <p className="text-xs text-stone-500 mb-2">{b.package} package{b.forStudent && ` · for ${b.forStudent.name}`}{b.packageDesc && ` · ${b.packageDesc}`}</p>
                             <div className="flex items-center gap-3 text-sm text-stone-700 mb-3 flex-wrap">
-                              <span className="flex items-center gap-1"><Calendar size={13} /> {dateObj.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
-                              <span className="flex items-center gap-1"><Clock size={13} /> {b.time}</span>
+                              <span className="flex items-center gap-1"><Calendar size={13} /> {dateObj.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short" })}</span>
+                              <span className="flex items-center gap-1"><Clock size={13} /> {dateObj.toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                             </div>
                             {/* Reschedule picker (inline, only when this booking is being rescheduled) */}
                             {reschedulingBookingId === b.id ? (
@@ -8586,7 +8586,7 @@ setBookings(transformed);
                               <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.scholarName}</h4>
                               <span className="text-[10px] px-2 py-0.5 bg-stone-100 text-stone-700 rounded-full uppercase tracking-wider font-medium">Completed</span>
                             </div>
-                            <p className="text-xs text-stone-500 mb-2">{b.package} package{b.forStudent && ` · for ${b.forStudent.name}`} · {dateObj.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                            <p className="text-xs text-stone-500 mb-2">{b.package} package{b.forStudent && ` · for ${b.forStudent.name}`} · {dateObj.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short", year: "numeric" })}</p>
                             <div className="flex gap-2 flex-wrap">
                               <button onClick={() => onBookAgain(b.scholarId)} className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">Book again</button>
                               {!b.reviewLeft && (
@@ -9603,7 +9603,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
   };
 
   const formatDateTime = (date) => date.toLocaleString("en-GB", {
-    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false
+    timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short"
   });
 
   const tabs = [

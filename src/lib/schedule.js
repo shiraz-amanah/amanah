@@ -43,6 +43,17 @@ export const parseDurationToMinutes = (value) => {
   return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
 };
 
+// Format a stored scheduled_at (UTC ISO string or Date) for display in the
+// platform's timezone (Europe/London). Single source of truth so the booking
+// confirmation + both dashboards render the same local time, not raw UTC.
+//   "2026-06-18T15:30:00Z" → "18 Jun 2026, 16:30" (during BST)
+export const formatBookingDateTime = (scheduledAt) => {
+  if (!scheduledAt) return "";
+  const d = scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-GB", { timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short" });
+};
+
 // Get available slots for a specific date
 export const getSlotsForDate = (date, availability, bookings) => {
   const dayOfWeek = date.getDay();
