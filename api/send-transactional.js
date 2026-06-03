@@ -404,6 +404,8 @@ function envOrThrow() {
   return {
     RESEND_API_KEY, RESEND_FROM, SUPABASE_URL, SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY, PUBLIC_APP_URL: PUBLIC_APP_URL.replace(/\/$/, ''), CRON_SECRET,
+    // Optional — ops alerts are skipped (not an error) when unset.
+    PLATFORM_ALERT_EMAIL: process.env.PLATFORM_ALERT_EMAIL || null,
   };
 }
 
@@ -467,6 +469,61 @@ async function sendEmail(env, { to, subject, html }) {
   return json.id;
 }
 
+// Service-role GET against PostgREST. Returns a parsed array (or []).
+async function sbGet(env, path) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+  });
+  if (!res.ok) { console.error('[send-transactional] sbGet failed', path, res.status); return []; }
+  return res.json().catch(() => []);
+}
+
+// Resolve a recipient profile (email/name/role) by user id. profiles.email
+// mirrors auth.users, so this avoids needing an auth-schema RPC.
+async function getProfile(env, userId) {
+  const rows = await sbGet(env, `profiles?id=eq.${userId}&select=email,name,role`);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+// ---------------------------------------------------------------------------
+// Branded email building blocks (logo header + footer wrapper, reused by the
+// journey + alert emails; the four Session Q/R templates keep their own markup).
+// ---------------------------------------------------------------------------
+function wrapEmail(title, innerHtml) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${escapeHtml(title)}</title></head>
+<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb;">
+<tr><td align="center" style="padding:32px 32px 24px 32px; border-bottom:1px solid #f3f4f6;">${SHARED_HEAD_LOGO}</td></tr>
+<tr><td style="padding:32px;">${innerHtml}</td></tr>
+<tr><td style="padding:24px 32px; background-color:#f9fafb; border-top:1px solid #f3f4f6;"><p style="margin:0; font-size:12px; line-height:1.6; color:#9ca3af; text-align:center;">${FOOTER}</p></td></tr>
+</table></td></tr></table></body></html>`;
+}
+const ctaButton = (text, url) =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:4px 0;"><tr><td align="center"><a href="${escapeHtml(url)}" style="display:inline-block; background-color:#059669; color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:8px;">${escapeHtml(text)}</a></td></tr></table>`;
+const eGreeting = (name) => `<p style="margin:0 0 16px 0; font-size:16px; color:#374151;">Assalamu alaikum ${escapeHtml(name || 'there')},</p>`;
+const eHeading = (t) => `<h1 style="margin:0 0 16px 0; font-size:22px; font-weight:700; color:#111827;">${escapeHtml(t)}</h1>`;
+const ePara = (html) => `<p style="margin:0 0 16px 0; font-size:16px; line-height:1.6; color:#4b5563;">${html}</p>`;
+const eSignoff = `<p style="margin:28px 0 0 0; font-size:16px; color:#374151;">JazakAllah khair,<br />The Amanah Team</p>`;
+const eReasonBox = (reason) => `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 20px 0;"><tr><td style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 18px;"><p style="margin:0; font-size:13px; color:#6b7280;">Reason</p><p style="margin:4px 0 0 0; font-size:14px; line-height:1.6; color:#374151;">${escapeHtml(reason)}</p></td></tr></table>`;
+
+// Fire an ops alert to PLATFORM_ALERT_EMAIL. No-op if unset; never throws — a
+// failed alert must not break the user-facing send it rides alongside.
+async function sendAlert(env, { event, lines = [], link }) {
+  if (!env.PLATFORM_ALERT_EMAIL) return;
+  try {
+    const rows = lines.map(([k, v]) =>
+      `<tr><td style="padding:6px 0; border-bottom:1px solid #eee;"><span style="font-size:13px;color:#6b7280;">${escapeHtml(k)}</span><span style="float:right;font-size:14px;font-weight:600;color:#111827;">${escapeHtml(v ?? '—')}</span></td></tr>`).join('');
+    const inner = `${eHeading('Platform alert')}${ePara(`<strong>${escapeHtml(event)}</strong>`)}
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin:0 0 24px 0;"><tr><td style="padding:8px 20px;"><table width="100%" cellpadding="0" cellspacing="0">${rows}</table></td></tr></table>
+${link ? ctaButton('Open admin panel', link) : ''}`;
+    await sendEmail(env, { to: env.PLATFORM_ALERT_EMAIL, subject: `[Amanah] ${event}`, html: wrapEmail(`Amanah alert — ${event}`, inner) });
+  } catch (err) {
+    console.error('[send-transactional] alert failed', event, err?.message);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Intent handlers
 // ---------------------------------------------------------------------------
@@ -492,6 +549,10 @@ async function handleBookingConfirmed(env, caller, bookingId) {
     DASHBOARD_URL: env.PUBLIC_APP_URL,
   });
   const id = await sendEmail(env, { to: b.parent_email, subject: 'Booking confirmed — Amanah', html });
+  await sendAlert(env, { event: 'new_booking', link: env.PUBLIC_APP_URL, lines: [
+    ['Family', b.parent_name], ['Scholar', b.scholar_name],
+    ['When', `${formatDate(b.scheduled_at)} ${formatTime(b.scheduled_at)}`],
+  ] });
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
@@ -508,6 +569,7 @@ async function handleScholarApproved(env, caller, scholarId) {
     PROFILE_URL: env.PUBLIC_APP_URL,
   });
   const id = await sendEmail(env, { to: s.email, subject: 'Your Amanah profile is now verified', html });
+  await sendAlert(env, { event: 'scholar_published', link: env.PUBLIC_APP_URL, lines: [['Scholar', s.name]] });
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
@@ -566,7 +628,110 @@ async function handleBookingCancelled(env, caller, bookingId) {
     });
     ids.push(await sendEmail(env, { to: b.scholar_email, subject, html: scholarHtml }));
   }
+  await sendAlert(env, { event: 'booking_cancelled', link: env.PUBLIC_APP_URL, lines: [
+    ['Cancelled by', cancelledByText], ['Family', b.parent_name], ['Scholar', b.scholar_name],
+    ['Refund', b.refund_policy],
+  ] });
   return { status: 200, body: { ok: true, sent: ids.length, ids } };
+}
+
+// --- Welcome (fires at signup; family/scholar copy variant) -----------------
+async function handleWelcome(env, caller) {
+  const profile = await getProfile(env, caller.id);
+  const to = profile?.email || caller.email;
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  const name = profile?.name || caller.user_metadata?.name || 'there';
+  const isScholar = (profile?.role || 'user') === 'scholar';
+
+  const inner = `${eGreeting(name)}${eHeading('Welcome to Amanah')}
+${ePara("We're delighted to have you — you're joining a trusted community of verified Muslim scholars, teachers, and families seeking knowledge with confidence.")}
+${ePara(isScholar
+    ? 'Your next step is to complete your scholar profile so families can find you and book sessions.'
+    : 'Your next step is to find a scholar — browse verified teachers by subject and book a session that suits you.')}
+${ctaButton(isScholar ? 'Complete your profile' : 'Find a scholar', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: 'Welcome to Amanah', html: wrapEmail('Welcome to Amanah', inner) });
+  await sendAlert(env, { event: 'new_parent_signup', link: env.PUBLIC_APP_URL, lines: [['Name', name], ['Email', to], ['Role', profile?.role || 'user']] });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
+// --- Scholar application submitted (self) -----------------------------------
+async function handleScholarApplicationSubmitted(env, caller, applicationId) {
+  const app = (await sbGet(env, `scholar_applications?id=eq.${applicationId}&select=user_id,full_name`))[0];
+  if (!app) return { status: 404, body: { ok: false, error: 'application_not_found' } };
+  if (app.user_id !== caller.id && !(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const profile = await getProfile(env, app.user_id);
+  const to = profile?.email || caller.email;
+  const name = app.full_name || profile?.name || 'there';
+  const inner = `${eGreeting(name)}${eHeading('Application received')}
+${ePara("JazakAllah khair for applying to join Amanah as a verified scholar — we've received your application.")}
+${ePara("Our team will review your credentials, which usually takes a few working days. We'll email you as soon as there's an update.")}
+${ctaButton('Go to your dashboard', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: "We've received your Amanah application", html: wrapEmail('Application received', inner) });
+  await sendAlert(env, { event: 'new_scholar_application', link: env.PUBLIC_APP_URL, lines: [['Scholar', name]] });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
+// --- Scholar application rejected (admin) -----------------------------------
+async function handleScholarApplicationRejected(env, caller, applicationId) {
+  if (!(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const app = (await sbGet(env, `scholar_applications?id=eq.${applicationId}&select=user_id,full_name,rejection_reason`))[0];
+  if (!app) return { status: 404, body: { ok: false, error: 'application_not_found' } };
+  const profile = await getProfile(env, app.user_id);
+  if (!profile?.email) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  const name = app.full_name || profile.name || 'there';
+  const inner = `${eGreeting(name)}${eHeading("Your application wasn't approved")}
+${ePara("Thank you for applying to Amanah. After careful review, we're not able to approve your scholar application at this time.")}
+${app.rejection_reason ? eReasonBox(app.rejection_reason) : ''}
+${ePara("You're welcome to address this feedback and reapply — we'd be glad to review an updated application.")}
+${ctaButton('Update your application', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to: profile.email, subject: 'Update on your Amanah application', html: wrapEmail('Application update', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
+// --- Mosque application submitted (self) ------------------------------------
+async function handleMosqueApplicationSubmitted(env, caller, applicationId) {
+  const app = (await sbGet(env, `mosque_applications?id=eq.${applicationId}&select=user_id,org_name`))[0];
+  if (!app) return { status: 404, body: { ok: false, error: 'application_not_found' } };
+  if (app.user_id !== caller.id && !(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const profile = await getProfile(env, app.user_id);
+  const to = profile?.email || caller.email;
+  const contact = profile?.name || 'there';
+  const inner = `${eGreeting(contact)}${eHeading('Application received')}
+${ePara(`JazakAllah khair for registering <strong>${escapeHtml(app.org_name)}</strong> on Amanah — we've received your application.`)}
+${ePara("Our team will review it, which usually takes a few working days. We'll be in touch with the outcome.")}
+${ctaButton('Go to your dashboard', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: "We've received your mosque application", html: wrapEmail('Application received', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
+// --- Mosque application approved (admin) ------------------------------------
+async function handleMosqueApplicationApproved(env, caller, applicationId) {
+  if (!(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const app = (await sbGet(env, `mosque_applications?id=eq.${applicationId}&select=user_id,org_name`))[0];
+  if (!app) return { status: 404, body: { ok: false, error: 'application_not_found' } };
+  const profile = await getProfile(env, app.user_id);
+  if (!profile?.email) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  const inner = `${eGreeting(profile.name || 'there')}${eHeading('Your mosque is now live')}
+${ePara(`Congratulations — <strong>${escapeHtml(app.org_name)}</strong> has been approved and is now live on Amanah. Families can find your mosque, see prayer times, and connect with your community.`)}
+${ctaButton('Open your mosque dashboard', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to: profile.email, subject: `${app.org_name} is now live on Amanah`, html: wrapEmail('Your mosque is live', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
+// --- Mosque application rejected (admin) ------------------------------------
+async function handleMosqueApplicationRejected(env, caller, applicationId) {
+  if (!(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const app = (await sbGet(env, `mosque_applications?id=eq.${applicationId}&select=user_id,org_name,rejection_reason`))[0];
+  if (!app) return { status: 404, body: { ok: false, error: 'application_not_found' } };
+  const profile = await getProfile(env, app.user_id);
+  if (!profile?.email) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  const inner = `${eGreeting(profile.name || 'there')}${eHeading("Your mosque application wasn't approved")}
+${ePara(`Thank you for registering <strong>${escapeHtml(app.org_name)}</strong> on Amanah. After review, we're not able to approve it at this time.`)}
+${app.rejection_reason ? eReasonBox(app.rejection_reason) : ''}
+${ePara("You're welcome to address this feedback and reapply.")}
+${ctaButton('Update your application', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to: profile.email, subject: 'Update on your mosque application', html: wrapEmail('Application update', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
 async function handleReminderSweep(env) {
@@ -667,6 +832,35 @@ export default async function handler(req, res) {
     if (body.intent === 'booking_cancelled') {
       if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
       const out = await handleBookingCancelled(env, caller, body.bookingId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'welcome') {
+      const out = await handleWelcome(env, caller);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'scholar_application_submitted') {
+      if (!isUuid(body.applicationId)) return res.status(400).json({ ok: false, error: 'invalid_applicationId' });
+      const out = await handleScholarApplicationSubmitted(env, caller, body.applicationId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'scholar_application_rejected') {
+      if (!isUuid(body.applicationId)) return res.status(400).json({ ok: false, error: 'invalid_applicationId' });
+      const out = await handleScholarApplicationRejected(env, caller, body.applicationId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'mosque_application_submitted') {
+      if (!isUuid(body.applicationId)) return res.status(400).json({ ok: false, error: 'invalid_applicationId' });
+      const out = await handleMosqueApplicationSubmitted(env, caller, body.applicationId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'mosque_application_approved') {
+      if (!isUuid(body.applicationId)) return res.status(400).json({ ok: false, error: 'invalid_applicationId' });
+      const out = await handleMosqueApplicationApproved(env, caller, body.applicationId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'mosque_application_rejected') {
+      if (!isUuid(body.applicationId)) return res.status(400).json({ ok: false, error: 'invalid_applicationId' });
+      const out = await handleMosqueApplicationRejected(env, caller, body.applicationId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
