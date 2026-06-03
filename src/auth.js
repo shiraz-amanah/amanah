@@ -153,6 +153,25 @@ export async function updateScholarAvailability(slots) {
   return { error }
 }
 
+// Persist the signed-in scholar's editable profile fields via the SECURITY
+// DEFINER RPC (migration 040) — writes ONLY name/title/bio/avatar_url/languages/
+// categories/packages for the caller's own row (user_id = auth.uid()). Never
+// touches dbs_verified / ijazah_verified / status / rating / slug. Returns
+// { error }. `packages` is an array of { name, duration, price, desc } and
+// `categories`/`languages` are string arrays.
+export async function updateScholarProfile({ name, title, bio, avatarUrl, languages, categories, packages }) {
+  const { error } = await supabase.rpc('update_scholar_profile', {
+    p_name: name ?? null,
+    p_title: title ?? null,
+    p_bio: bio ?? null,
+    p_avatar_url: avatarUrl ?? null,
+    p_languages: Array.isArray(languages) ? languages : [],
+    p_categories: Array.isArray(categories) ? categories : [],
+    p_packages: Array.isArray(packages) ? packages : [],
+  })
+  return { error }
+}
+
 // ============ MOSQUES (public reads) ============
 
 // Public list — status='active' only, ordered by city. Mosques
