@@ -5368,6 +5368,73 @@ paths.
 
 ---
 
+## Session Q — Transactional emails via Resend ✅ (3 June 2026)
+
+Closes roadmap item #9 (Booking confirmation emails). Three branded transactional
+emails now send via Resend: **booking confirmed**, **scholar approved/verified**,
+and a **24h booking reminder** (hourly sweep).
+
+### Shipped
+- `api/send-transactional.js` — Vercel serverless function (NOT a Supabase Edge
+  Function; the repo has no Edge Function infra — only `api/*.js`). Three inline
+  branded templates, server-side `{{PLACEHOLDER}}` fill, Resend POST (reuses the
+  `escapeHtml` + send pattern from `api/send-staff-invite.js`) ✅
+- `src/lib/email.js` — `sendBookingConfirmedEmail(id)` / `sendScholarApprovedEmail(id)`.
+  Thin client wrapper (mirrors `src/lib/resend.js`); passes id + the caller's
+  Supabase JWT only — never `to`/content ✅
+- Wiring in `src/auth.js` (NOT App.jsx — closed-file rule): fire-and-forget in
+  `createBooking` (booking confirmed → family) and `publishScholar` (verified →
+  scholar, only when the row actually flipped to active) ✅
+- Migration 045 — `reminder_sent_at timestamptz` on bookings + partial index ✅ (surfaced, not yet applied)
+- Migration 046 — 4 `SECURITY DEFINER` RPCs, service-role-only EXECUTE:
+  `get_booking_notification_data`, `get_scholar_notification_data`,
+  `get_due_reminders`, `mark_reminder_sent` ✅ (surfaced, not yet applied)
+- `vercel.json` — hourly `crons` entry → `/api/send-transactional?intent=reminder_sweep` ✅
+
+### Key decisions (diverged from the original brief — all confirmed in pre-flight)
+- **Vercel function, not Supabase Edge Function** — no `supabase/` dir exists; the
+  only email sender was `api/send-staff-invite.js`.
+- **`scheduled_at`, not `start_time`** — the brief's column name was wrong (see
+  `createBooking`, migration 008).
+- **`publishScholar` (status `pending_verification`→`active`) is the "approved"
+  event** — there is no `verification_status` column anywhere; publish is when the
+  badge shows and families can book, matching the template copy.
+- **Vercel Cron, not pg_cron** — pg_cron can't send email without pg_net; a Vercel
+  Cron keeps all email logic in one Node function. No pg_cron/pg_net needed.
+- **Server-derives recipient + content from an id; client never sends `to`/data** —
+  recipient emails live in `auth.users` (PostgREST won't expose it), so the RPCs
+  resolve them with the service role. Closes the open-relay / email-harvest hole an
+  `{ to, data }` contract would have created. Mirrors `validate_staff_invite()`.
+
+### Idempotency (load-bearing)
+- The reminder sweep runs hourly; the next-day window matches each booking ~24×.
+  `reminder_sent_at` is the guard. The sweep **claims** each row via
+  `mark_reminder_sent()` (guarded `reminder_sent_at IS NULL`) BEFORE sending, so
+  overlapping runs can't double-send. Family + scholar each get one reminder; the
+  recipient sees the other party in the "With" row.
+
+### Parked / follow-ups
+- `SESSION_FORMAT` has no source column — hardcoded `"Online video session"`
+  (`DEFAULT_SESSION_FORMAT` in the function). One-line swap when a format column lands.
+- CTA links (`DASHBOARD_URL`/`PROFILE_URL`) point at `PUBLIC_APP_URL` root — the app
+  uses view-string routing, not URL routes, so deep links wouldn't resolve.
+- Booking **cancellation** email — next session (explicitly out of scope here).
+
+### Manual steps before this works (the brief's were outdated)
+1. Apply migrations 045 then 046 in SQL editor (dev → prod), then
+   `NOTIFY pgrst, 'reload schema';` + hard refresh.
+2. Vercel env (Production + `.env.local` for `vercel dev`): `RESEND_API_KEY`,
+   `RESEND_FROM` (verified `youramanah.co.uk` sender), `PUBLIC_APP_URL`, `CRON_SECRET`.
+   `SUPABASE_SERVICE_ROLE_KEY` already present. No Edge Function secrets, no pg_cron.
+3. `/api` routes don't run under `npm run dev` (Vite) — smoke test via `vercel dev`
+   or a deploy. Vercel Cron auto-injects `Authorization: Bearer <CRON_SECRET>` (GET).
+
+### Next session
+- Booking cancellation email
+- Stripe receipts / Stripe Connect
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
