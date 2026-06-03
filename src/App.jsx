@@ -2051,6 +2051,13 @@ useEffect(() => {
   // that isn't there). Seed from the prop, but refetch fresh by slug whenever the
   // prop has no slots, so the calendar always has the scholar's real availability.
   const [liveAvailability, setLiveAvailability] = useState(scholar?.availability || []);
+  // Per-date overrides (042) follow the same staleness story as availability:
+  // seed from the (transformed, camelCase) prop and capture fresh ones on the
+  // slug refetch below.
+  const [liveOverrides, setLiveOverrides] = useState(scholar?.availabilityOverrides || []);
+  useEffect(() => {
+    if (Array.isArray(scholar?.availabilityOverrides)) setLiveOverrides(scholar.availabilityOverrides);
+  }, [scholar?.availabilityOverrides]);
   useEffect(() => {
     if (Array.isArray(scholar?.availability) && scholar.availability.length) {
       setLiveAvailability(scholar.availability);
@@ -2059,7 +2066,11 @@ useEffect(() => {
     if (!scholar?.slug) return;
     let cancelled = false;
     getScholarBySlug(scholar.slug)
-      .then((fresh) => { if (!cancelled && Array.isArray(fresh?.availability)) setLiveAvailability(fresh.availability); })
+      .then((fresh) => {
+        if (cancelled) return;
+        if (Array.isArray(fresh?.availability)) setLiveAvailability(fresh.availability);
+        if (Array.isArray(fresh?.availability_overrides)) setLiveOverrides(fresh.availability_overrides);
+      })
       .catch((err) => console.error("Booking availability refetch failed:", err));
     return () => { cancelled = true; };
   }, [scholar?.slug, scholar?.availability]);
@@ -2219,6 +2230,7 @@ useEffect(() => {
 
                 <WeekSlotPicker
                   availability={bookingAvailability}
+                  overrides={liveOverrides}
                   bookings={DEFAULT_BOOKINGS}
                   selectedDate={date}
                   selectedTime={time}

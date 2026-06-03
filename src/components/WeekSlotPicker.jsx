@@ -43,12 +43,17 @@ function tzLabel() {
   }
 }
 
-// 30-min slots for one day from the weekly availability pattern, tagged with
-// booked / past state.
-function buildDaySlots(date, availability, bookings) {
-  const windows = (availability && availability[date.getDay()]) || [];
-  if (!windows.length) return [];
+// 30-min slots for one day, tagged with booked / past state. Per-date overrides
+// (migration 042) layer on top of the weekly pattern: a blocked override hides
+// the day entirely; a custom-hours override replaces that day's weekly windows.
+function buildDaySlots(date, availability, bookings, overrides) {
   const dateKey = toDateKey(date);
+  const override = (overrides || []).find((o) => o && o.date === dateKey);
+  if (override?.blocked) return [];
+  const windows = override && override.start && override.end
+    ? [{ start: override.start, end: override.end }]
+    : (availability && availability[date.getDay()]) || [];
+  if (!windows.length) return [];
   const booked = new Set((bookings || []).filter((b) => b.date === dateKey).map((b) => b.time));
   const now = Date.now();
   const out = [];
@@ -63,7 +68,7 @@ function buildDaySlots(date, availability, bookings) {
   return out;
 }
 
-const WeekSlotPicker = ({ availability, bookings, selectedDate, selectedTime, onSelect }) => {
+const WeekSlotPicker = ({ availability, overrides, bookings, selectedDate, selectedTime, onSelect }) => {
   const currentWeekStart = startOfWeek(new Date());
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const today = new Date();
@@ -106,7 +111,7 @@ const WeekSlotPicker = ({ availability, bookings, selectedDate, selectedTime, on
           const dateKey = toDateKey(date);
           const isPastDay = date < today;
           const todayCol = isToday(date);
-          const slots = isPastDay ? [] : buildDaySlots(date, availability, bookings);
+          const slots = isPastDay ? [] : buildDaySlots(date, availability, bookings, overrides);
           const hasSlots = slots.length > 0;
           return (
             <div key={dateKey} className="flex-shrink-0 w-[31%] md:w-auto snap-start">
