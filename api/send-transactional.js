@@ -306,6 +306,83 @@ const TEMPLATE_REMINDER = `<!DOCTYPE html>
   </body>
 </html>`;
 
+const TEMPLATE_BOOKING_CANCELLED = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Amanah booking has been cancelled</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f3f4f6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb;">
+            <tr>
+              <td align="center" style="padding:32px 32px 24px 32px; border-bottom:1px solid #f3f4f6;">${SHARED_HEAD_LOGO}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 16px 0; font-size:16px; color:#374151;">Assalamu alaikum {{USER_NAME}},</p>
+                <h1 style="margin:0 0 8px 0; font-size:22px; font-weight:700; color:#111827;">Your booking has been cancelled</h1>
+                <p style="margin:0 0 28px 0; font-size:16px; line-height:1.6; color:#4b5563;">Your session with <strong>{{OTHER_PARTY_NAME}}</strong> has been cancelled by {{CANCELLED_BY}}.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f9fafb; border-radius:8px; border:1px solid #e5e7eb; margin-bottom:24px;">
+                  <tr>
+                    <td style="padding:20px 24px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td style="padding:8px 0; border-bottom:1px solid #e5e7eb;">
+                            <span style="font-size:13px; color:#6b7280;">With</span>
+                            <span style="float:right; font-size:14px; font-weight:600; color:#111827;">{{OTHER_PARTY_NAME}}</span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px 0; border-bottom:1px solid #e5e7eb;">
+                            <span style="font-size:13px; color:#6b7280;">Date</span>
+                            <span style="float:right; font-size:14px; font-weight:600; color:#111827;">{{SESSION_DATE}}</span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px 0;">
+                            <span style="font-size:13px; color:#6b7280;">Time</span>
+                            <span style="float:right; font-size:14px; font-weight:600; color:#111827;">{{SESSION_TIME}}</span>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:28px;">
+                  <tr>
+                    <td style="background-color:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:16px 20px;">
+                      <p style="margin:0; font-size:14px; line-height:1.6; color:#065f46;"><strong>Refund:</strong> {{REFUND_POLICY_TEXT}}</p>
+                    </td>
+                  </tr>
+                </table>
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="center">
+                      <a href="{{DASHBOARD_URL}}" style="display:inline-block; background-color:#059669; color:#ffffff; font-size:16px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:8px;">Go to your dashboard</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:28px 0 0 0; font-size:13px; line-height:1.6; color:#9ca3af;">If you have any questions about this cancellation, please get in touch from your dashboard.</p>
+                <p style="margin:24px 0 0 0; font-size:16px; color:#374151;">JazakAllah khair,<br />The Amanah Team</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px; background-color:#f9fafb; border-top:1px solid #f3f4f6;">
+                <p style="margin:0; font-size:12px; line-height:1.6; color:#9ca3af; text-align:center;">${FOOTER}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
 // ---------------------------------------------------------------------------
 // Supabase REST helpers
 // ---------------------------------------------------------------------------
@@ -434,6 +511,64 @@ async function handleScholarApproved(env, caller, scholarId) {
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Booking cancelled — emails BOTH parties. The cancel_booking RPC (migration
+// 048) has already authorized + performed the cancellation; this re-derives
+// recipients + refund_policy from the booking row and notifies. The refund copy
+// differs by recipient: the family is told their own refund, the scholar is told
+// what the family will receive.
+async function handleBookingCancelled(env, caller, bookingId) {
+  const rows = await callRpc(env, 'get_booking_notification_data', { p_booking_id: bookingId });
+  const b = Array.isArray(rows) ? rows[0] : rows;
+  if (!b) return { status: 404, body: { ok: false, error: 'booking_not_found' } };
+
+  // Authorize: caller must be a party to this booking (family or scholar) or admin.
+  const email = caller?.email?.toLowerCase();
+  const isParent = email && b.parent_email && email === b.parent_email.toLowerCase();
+  const isScholar = email && b.scholar_email && email === b.scholar_email.toLowerCase();
+  if (!isParent && !isScholar && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  // STRIPE REFUND — wire in Session S
+  // if (b.refund_policy === 'full')    { /* full refund via stripe */ }
+  // if (b.refund_policy === 'partial') { /* 50% refund via stripe */ }
+
+  const cancelledByText = { family: 'the family', scholar: 'the scholar', admin: 'an Amanah administrator' }[b.cancelled_by] || 'Amanah';
+  const familyRefund = {
+    full: 'You will receive a full refund.',
+    partial: 'As the session was cancelled within 24 hours, you will receive a 50% refund.',
+    none: 'No refund applies for this cancellation.',
+  }[b.refund_policy] || 'No refund applies for this cancellation.';
+  const scholarRefund = {
+    full: 'The family will receive a full refund.',
+    partial: 'The family will receive a 50% refund.',
+    none: 'No refund applies for this cancellation.',
+  }[b.refund_policy] || 'No refund applies for this cancellation.';
+
+  const base = {
+    SESSION_DATE: formatDate(b.scheduled_at),
+    SESSION_TIME: formatTime(b.scheduled_at),
+    CANCELLED_BY: cancelledByText,
+    DASHBOARD_URL: env.PUBLIC_APP_URL,
+  };
+  const subject = 'Your Amanah booking has been cancelled';
+  const ids = [];
+
+  const familyHtml = fillTemplate(TEMPLATE_BOOKING_CANCELLED, {
+    ...base, USER_NAME: b.parent_name || 'there', OTHER_PARTY_NAME: b.scholar_name, REFUND_POLICY_TEXT: familyRefund,
+  });
+  ids.push(await sendEmail(env, { to: b.parent_email, subject, html: familyHtml }));
+
+  // Scholar may have no linked account (scholar_email null) — skip if so.
+  if (b.scholar_email) {
+    const scholarHtml = fillTemplate(TEMPLATE_BOOKING_CANCELLED, {
+      ...base, USER_NAME: firstName(b.scholar_name), OTHER_PARTY_NAME: b.parent_name || 'your student', REFUND_POLICY_TEXT: scholarRefund,
+    });
+    ids.push(await sendEmail(env, { to: b.scholar_email, subject, html: scholarHtml }));
+  }
+  return { status: 200, body: { ok: true, sent: ids.length, ids } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -515,7 +650,7 @@ export default async function handler(req, res) {
       return res.status(out.status).json(out.body);
     }
 
-    // The two client-initiated intents require a verified caller.
+    // The client-initiated intents require a verified caller.
     const caller = await verifyCaller(env, req.headers.authorization);
     if (!caller?.id) return res.status(401).json({ ok: false, error: 'unauthorized' });
 
@@ -527,6 +662,11 @@ export default async function handler(req, res) {
     if (body.intent === 'scholar_approved') {
       if (!isUuid(body.scholarId)) return res.status(400).json({ ok: false, error: 'invalid_scholarId' });
       const out = await handleScholarApproved(env, caller, body.scholarId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'booking_cancelled') {
+      if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
+      const out = await handleBookingCancelled(env, caller, body.bookingId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
