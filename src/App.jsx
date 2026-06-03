@@ -12,6 +12,7 @@ import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
 import { moderateMessage } from "./lib/moderation";
 import ScholarAvailabilityTab from "./components/ScholarAvailabilityTab";
+import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -9722,70 +9723,12 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
           <div>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Your profile</h2>
-              <p className="text-stone-600 text-sm md:text-base">This is how parents see you on Amanah. Editing comes soon.</p>
+              <p className="text-stone-600 text-sm md:text-base">This is how parents see you on Amanah. Keep it complete and up to date.</p>
             </div>
 
             <ProfileQualityScorer scholar={scholar} />
 
-            <div className="bg-white border border-stone-200 rounded-2xl p-6 md:p-8 mb-5">
-              <div className="flex items-start gap-4 mb-5 flex-wrap">
-                <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient }} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <h3 className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholar?.name}</h3>
-                    {scholar?.dbs_verified && scholar?.ijazah_verified && (
-                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-medium">
-                        <ShieldCheck size={11} /> Verified
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-stone-500 mb-2">{scholar?.title}</p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
-                    <span className="flex items-center gap-1"><MapPin size={11} /> {scholar?.city}</span>
-                    {scholar?.experience_years && <span>· {scholar.experience_years} yrs experience</span>}
-                    <span className="flex items-center gap-1 text-amber-600 font-medium"><Star size={11} fill="currentColor" /> {Number(scholar?.rating || 0).toFixed(1)} ({scholar?.review_count || 0})</span>
-                  </div>
-                </div>
-              </div>
-              {scholar?.bio && (
-                <p className="text-sm text-stone-700 leading-relaxed mb-4">{scholar.bio}</p>
-              )}
-            </div>
-
-            {scholar?.packages && scholar.packages.length > 0 && (
-              <div className="bg-white border border-stone-200 rounded-2xl p-6 mb-5">
-                <h3 className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-3">Packages</h3>
-                <div className="space-y-3">
-                  {scholar.packages.map((pkg, i) => (
-                    <div key={i} className="flex items-start justify-between gap-3 pb-3 border-b border-stone-100 last:border-0 last:pb-0">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-stone-900">{pkg.name}</p>
-                        {pkg.duration && <p className="text-xs text-stone-500">{pkg.duration}</p>}
-                        {pkg.desc && <p className="text-xs text-stone-600 mt-1">{pkg.desc}</p>}
-                      </div>
-                      <span className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{pkg.price}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="grid md:grid-cols-2 gap-3">
-              {scholar?.languages && scholar.languages.length > 0 && (
-                <div className="bg-white border border-stone-200 rounded-2xl p-5">
-                  <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Languages</p>
-                  <p className="text-sm text-stone-700">{scholar.languages.join(", ")}</p>
-                </div>
-              )}
-              {scholar?.qualifications && scholar.qualifications.length > 0 && (
-                <div className="bg-white border border-stone-200 rounded-2xl p-5">
-                  <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">Qualifications</p>
-                  <ul className="text-sm text-stone-700 space-y-1">
-                    {scholar.qualifications.map((q, i) => <li key={i}>· {q}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
+            <ScholarProfileEditor scholar={scholar} onScholarUpdate={onScholarUpdate} />
           </div>
         )}
 

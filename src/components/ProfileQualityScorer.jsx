@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sparkles, CheckCircle2, RefreshCw, Loader2 } from "lucide-react";
 
 // AI profile-quality scorer for the scholar dashboard. Self-contained:
@@ -83,6 +83,20 @@ const ProfileQualityScorer = ({ scholar }) => {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
+
+  // Auto re-analyse after a profile save. We only re-run once the scholar has
+  // already been analysed (a result exists) so we don't fire spurious API calls
+  // on first mount or in local dev (where /api/score-profile 404s). Keyed on a
+  // content signature so it fires when the editor's onScholarUpdate refreshes
+  // the row — not on every render. `analysedRef` avoids re-running on the result
+  // state change itself (which would loop).
+  const analysedRef = useRef(false);
+  useEffect(() => { if (result) analysedRef.current = true; }, [result]);
+  const sig = JSON.stringify(toPayload(scholar));
+  useEffect(() => {
+    if (analysedRef.current && !loading) analyse();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig]);
 
   const grade = result?.grade;
   const c = result ? scoreColour(result.score) : null;
