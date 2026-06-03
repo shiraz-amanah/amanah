@@ -1,12 +1,21 @@
 import { supabase } from './supabaseClient'
 import { geocodePostcode } from './lib/postcode'
-import { sendBookingConfirmedEmail, sendScholarApprovedEmail, sendBookingCancelledEmail } from './lib/email'
+import {
+  sendBookingConfirmedEmail, sendScholarApprovedEmail, sendBookingCancelledEmail,
+  sendWelcomeEmail, sendScholarApplicationSubmittedEmail, sendScholarApplicationRejectedEmail,
+  sendMosqueApplicationSubmittedEmail, sendMosqueApplicationApprovedEmail, sendMosqueApplicationRejectedEmail,
+} from './lib/email'
 
 export async function signUp(email, password, name, interest) {
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: { data: { name: name, interest: interest } }
   })
+  // Fire-and-forget welcome email (+ new_parent_signup alert, server-side).
+  // Relies on signups being auto-confirmed so a session/token exists now.
+  if (data?.user && !error) {
+    sendWelcomeEmail().then((r) => { if (!r.ok) console.warn('[signup] welcome email not sent:', r.error) })
+  }
   return { data, error }
 }
 
@@ -1063,7 +1072,10 @@ export async function submitScholarApplication(applicationData) {
     console.error('submitScholarApplication: insert returned no data AND no error', { userId: user.id, hasSession: !!session })
     return { error: { message: "Submission didn't save. Try signing out and back in, then resubmit." } }
   }
-  return { data: shapeScholarApplication(data) }
+  const shaped = shapeScholarApplication(data)
+  sendScholarApplicationSubmittedEmail(shaped.id)
+    .then((r) => { if (!r.ok) console.warn('[scholar-application] submitted email not sent:', r.error) })
+  return { data: shaped }
 }
 
 // Returns the most recent application for the current user, or null
@@ -1136,7 +1148,10 @@ export async function rejectScholarApplication(applicationId, reason) {
     .select()
     .single()
   if (error) return { error }
-  return { data: shapeScholarApplication(data) }
+  const shaped = shapeScholarApplication(data)
+  sendScholarApplicationRejectedEmail(shaped.id)
+    .then((r) => { if (!r.ok) console.warn('[scholar-application] rejected email not sent:', r.error) })
+  return { data: shaped }
 }
 
 // ============================================================================
@@ -1263,7 +1278,10 @@ export async function approveMosqueApplication(applicationId) {
     .select()
     .single()
   if (error) return { error }
-  return { data: shapeMosqueApplication(data) }
+  const shaped = shapeMosqueApplication(data)
+  sendMosqueApplicationApprovedEmail(shaped.id)
+    .then((r) => { if (!r.ok) console.warn('[mosque-application] approved email not sent:', r.error) })
+  return { data: shaped }
 }
 
 // Admin: reject with required reason. Same min-10-chars rule as
@@ -1287,7 +1305,10 @@ export async function rejectMosqueApplication(applicationId, reason) {
     .select()
     .single()
   if (error) return { error }
-  return { data: shapeMosqueApplication(data) }
+  const shaped = shapeMosqueApplication(data)
+  sendMosqueApplicationRejectedEmail(shaped.id)
+    .then((r) => { if (!r.ok) console.warn('[mosque-application] rejected email not sent:', r.error) })
+  return { data: shaped }
 }
 
 // Admin: flip a single verification flag on a mosques row. flag is
@@ -1399,7 +1420,10 @@ export async function submitMosqueApplication(applicationData) {
     console.error('submitMosqueApplication: insert returned no data AND no error', { userId: user.id, hasSession: !!session })
     return { error: { message: "Submission didn't save. Try signing out and back in, then resubmit." } }
   }
-  return { data: shapeMosqueApplication(data) }
+  const shaped = shapeMosqueApplication(data)
+  sendMosqueApplicationSubmittedEmail(shaped.id)
+    .then((r) => { if (!r.ok) console.warn('[mosque-application] submitted email not sent:', r.error) })
+  return { data: shaped }
 }
 
 // Returns the most recent mosque application for the current user,
