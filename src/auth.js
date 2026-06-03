@@ -368,7 +368,7 @@ export async function getMyBookings() {
     .from('bookings')
     .select(`
       *,
-      scholar:scholars (id, slug, name, title, avatar_initials, avatar_gradient, city, availability),
+      scholar:scholars (id, slug, name, title, avatar_initials, avatar_gradient, avatar_url, city, availability),
       student:students (id, name, relation, age)
     `)
     .eq('parent_id', user.id)

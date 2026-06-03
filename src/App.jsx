@@ -15,7 +15,7 @@ import ScholarAvailabilityCalendar from "./components/ScholarAvailabilityCalenda
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import WeekSlotPicker from "./components/WeekSlotPicker";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
-import { fmt } from "./lib/format";
+import { fmt, initialsFromName } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
@@ -8268,8 +8268,9 @@ useEffect(() => {
             id: b.id,
             scholarId: b.scholar_id || b.scholar?.id || null,
             scholarName: b.scholar?.name || "Unknown scholar",
-            scholarInitials: b.scholar?.avatar_initials || "??",
+            scholarInitials: b.scholar?.avatar_initials || initialsFromName(b.scholar?.name),
             scholarGradient: b.scholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
+            scholarAvatarUrl: b.scholar?.avatar_url || null,
             scholarCity: b.scholar?.city,
             scholarSlug: b.scholar?.slug,
             scholarAvailability: b.scholar?.availability || [],
@@ -8435,7 +8436,7 @@ setBookings(transformed);
                     return (
                       <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
                         <div className="flex items-start gap-3 md:gap-4">
-                          <Avatar scholar={{ initials: b.scholarInitials, avatarGradient: b.scholarGradient }} size="md" />
+                          <Avatar scholar={{ initials: b.scholarInitials, avatarGradient: b.scholarGradient, avatar_url: b.scholarAvatarUrl, name: b.scholarName }} size="md" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                               <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.scholarName}</h4>
@@ -8580,7 +8581,7 @@ setBookings(transformed);
                     return (
                       <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
                         <div className="flex items-start gap-3 md:gap-4">
-                          <Avatar scholar={{ initials: b.scholarInitials, avatarGradient: b.scholarGradient }} size="md" />
+                          <Avatar scholar={{ initials: b.scholarInitials, avatarGradient: b.scholarGradient, avatar_url: b.scholarAvatarUrl, name: b.scholarName }} size="md" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <h4 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{b.scholarName}</h4>
@@ -9535,8 +9536,8 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             parent: b.parent ? {
               name: b.parent.name,
               city: b.parent.city,
-              avatarInitials: b.parent.avatar_initials,
-              avatarGradient: b.parent.avatar_gradient,
+              avatarInitials: b.parent.avatar_initials || initialsFromName(b.parent.name),
+              avatarGradient: b.parent.avatar_gradient || "from-emerald-400 to-emerald-700",
             } : null,
             student: b.student ? {
               name: b.student.name,
