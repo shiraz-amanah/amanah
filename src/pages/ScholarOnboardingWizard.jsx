@@ -2,10 +2,56 @@ import { useState, useEffect, useRef } from "react";
 import {
   ChevronLeft, ChevronRight, Loader2, Check, X, Plus, Trash2,
   Upload, FileText, Image as ImageIcon, GraduationCap, Star,
+  ShieldCheck, CreditCard,
 } from "lucide-react";
 import { CATEGORIES } from "../data/categories";
 import { fmt } from "../lib/format";
 import { uploadScholarAvatar, uploadPrivateDoc } from "../lib/storage";
+import { submitScholarApplication } from "../auth";
+
+const DBS_FEE = 38;
+const ID_DOCUMENT_TYPES = ["Passport", "UK Driving Licence", "EU ID Card", "BRP"];
+const emptyAddress = () => ({ line1: "", line2: "", city: "", postcode: "", from: "", to: "" });
+
+// Map the wizard form to the camelCase payload submitScholarApplication expects.
+const buildPayload = (f) => {
+  const base = {
+    fullName: f.fullName.trim(),
+    title: f.title.trim(),
+    city: f.city.trim(),
+    bio: f.bio.trim(),
+    languages: f.languages,
+    subjects: f.subjects,
+    specialties: f.specialties,
+    photoUrl: f.photoUrl || null,
+    yearsExperience: f.yearsExperience === "" ? null : Number(f.yearsExperience),
+    packages: f.packages.filter((p) => p.enabled).map((p) => ({
+      name: p.name.trim(), duration: (p.duration || "").trim(), price: Number(p.price) || 0, desc: (p.description || "").trim(),
+    })),
+    ijazahDocUrl: f.ijazahDocUrl || null,
+    ijazahDocName: f.ijazahDocName || null,
+    qualificationDocUrl: f.qualificationDocUrl || null,
+    qualificationDocName: f.qualificationDocName || null,
+    dbsOption: f.dbsOption,
+  };
+  if (f.dbsOption === "new") {
+    return {
+      ...base,
+      legalName: f.legalName.trim(),
+      dateOfBirth: f.dateOfBirth || null,
+      nationalInsurance: f.nationalInsurance.trim(),
+      idDocumentType: f.idDocumentType || null,
+      previousNames: f.previousNames.trim() || null,
+      addressHistory: f.addressHistory.filter((a) => (a.line1 || "").trim()),
+    };
+  }
+  return {
+    ...base,
+    existingDbsUrl: f.existingDbsUrl || null,
+    existingDbsNumber: f.existingDbsNumber.trim(),
+    existingDbsDate: f.existingDbsDate || null,
+  };
+};
 
 // ============================================================================
 // Scholar onboarding wizard (src/pages) — replaces the legacy in-App wizard.
@@ -170,6 +216,9 @@ const ScholarOnboardingWizard = ({ authedUser, onSubmitted, onLogout }) => {
   const [uploads, setUploads] = useState({});   // { field: bool } in-flight
   const [uploadErrors, setUploadErrors] = useState({});
   const [stepError, setStepError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [paying, setPaying] = useState(false);
 
   // Persist draft on every change.
   useEffect(() => {
@@ -222,6 +271,22 @@ const ScholarOnboardingWizard = ({ authedUser, onSubmitted, onLogout }) => {
       if (enabled.some((p) => !p.name.trim() || !(Number(p.price) > 0))) return "Each enabled package needs a name and a price.";
     }
     // step 3 is optional
+    if (step === 4 && form.dbsOption === "new") {
+      if (!form.legalName.trim()) return "Add your full legal name.";
+      if (!form.dateOfBirth) return "Add your date of birth.";
+      if (!form.nationalInsurance.trim()) return "Add your National Insurance number.";
+      if (!form.idDocumentType) return "Select an ID document type.";
+      const a = form.addressHistory[0] || {};
+      if (!(a.line1 || "").trim() || !(a.postcode || "").trim() || !a.from) return "Add at least your current address with a start date.";
+    }
+    return "";
+  };
+
+  const validateExistingDbs = () => {
+    if (!form.existingDbsNumber.trim()) return "Add your DBS certificate number.";
+    if (!form.existingDbsDate) return "Add the issue date.";
+    if (!form.existingDbsUrl) return "Upload your DBS certificate.";
+    if (!form.enhancedConfirmed) return "Confirm this is an Enhanced DBS check.";
     return "";
   };
 
@@ -233,6 +298,34 @@ const ScholarOnboardingWizard = ({ authedUser, onSubmitted, onLogout }) => {
   };
   const back = () => { setStepError(""); setStep((s) => Math.max(1, s - 1)); };
 
+  const doSubmit = async () => {
+    if (form.dbsOption === "existing") {
+      const err = validateExistingDbs();
+      if (err) { setStepError(err); return; }
+    }
+    setStepError("");
+    setSubmitError("");
+    setSubmitting(true);
+    const { data, error } = await submitScholarApplication(buildPayload(form));
+    setSubmitting(false);
+    if (error) { setSubmitError(error.message || "Couldn't submit your application — try again."); return; }
+    try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    onSubmitted && onSubmitted(data);
+  };
+
+  // Mock DBS payment: 1.5s spinner, then submit.
+  const handlePay = async () => {
+    setPaying(true);
+    await new Promise((r) => setTimeout(r, 1500));
+    setPaying(false);
+    await doSubmit();
+  };
+
+  // address-history helpers (step 4, Option A)
+  const updateAddress = (i, patch) => set({ addressHistory: form.addressHistory.map((a, idx) => idx === i ? { ...a, ...patch } : a) });
+  const addAddress = () => { if (form.addressHistory.length < 5) set({ addressHistory: [...form.addressHistory, emptyAddress()] }); };
+  const removeAddress = (i) => set({ addressHistory: form.addressHistory.filter((_, idx) => idx !== i) });
+
   // package helpers
   const updatePackage = (i, patch) => set({ packages: form.packages.map((p, idx) => idx === i ? { ...p, ...patch } : p) });
   const addPackage = () => set({ packages: [...form.packages, { name: "", description: "", duration: "", price: 0, enabled: true }] });
@@ -240,6 +333,8 @@ const ScholarOnboardingWizard = ({ authedUser, onSubmitted, onLogout }) => {
 
   const showPreview = step <= 3;
   const bioCount = form.bio.trim().length;
+  // Existing-DBS scholars have no payment step, so step 4 is their final step.
+  const isExistingFinal = step === 4 && form.dbsOption === "existing";
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -271,29 +366,46 @@ const ScholarOnboardingWizard = ({ authedUser, onSubmitted, onLogout }) => {
             {step === 3 && (
               <Step3 form={form} set={set} handleDoc={handleDoc} uploads={uploads} uploadErrors={uploadErrors} />
             )}
-            {(step === 4 || step === 5) && (
-              <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-sm">
-                {STEP_LABELS[step - 1]} step — coming in the next commit.
-              </div>
+            {step === 4 && (
+              <Step4 form={form} set={set} handleDoc={handleDoc} uploads={uploads} uploadErrors={uploadErrors}
+                updateAddress={updateAddress} addAddress={addAddress} removeAddress={removeAddress} />
+            )}
+            {step === 5 && (
+              <Step5 paying={paying} submitting={submitting} onPay={handlePay} />
             )}
 
             {stepError && <p className="text-sm text-rose-600 mt-4">{stepError}</p>}
+            {submitError && <p className="text-sm text-rose-600 mt-4">{submitError}</p>}
 
             {/* Nav */}
             <div className="flex items-center justify-between mt-8">
               <button
                 onClick={back}
-                disabled={step === 1}
+                disabled={step === 1 || submitting || paying}
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:text-stone-900 disabled:opacity-40"
               >
                 <ChevronLeft size={16} /> Back
               </button>
-              <button
-                onClick={next}
-                className="inline-flex items-center gap-1.5 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-95"
-              >
-                Continue <ChevronRight size={16} />
-              </button>
+              {step === 5 ? (
+                // Payment step's action lives in-step (Pay button) — no bottom primary.
+                <span />
+              ) : isExistingFinal ? (
+                <button
+                  onClick={doSubmit}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-1.5 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-70 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-95 disabled:hover:scale-100"
+                >
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  {submitting ? "Submitting…" : "Submit application"}
+                </button>
+              ) : (
+                <button
+                  onClick={next}
+                  className="inline-flex items-center gap-1.5 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  Continue <ChevronRight size={16} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -475,6 +587,158 @@ const Step3 = ({ form, set, handleDoc, uploads, uploadErrors }) => (
     </div>
 
     <p className="text-xs text-stone-400 mt-3 inline-flex items-center gap-1"><Star size={12} /> All fields here are optional — you can add credentials later from your dashboard.</p>
+  </div>
+);
+
+// ---- Step 4: DBS check ---------------------------------------------------
+
+const Step4 = ({ form, set, handleDoc, uploads, uploadErrors, updateAddress, addAddress, removeAddress }) => (
+  <div>
+    <div className="flex items-start gap-3 mb-6">
+      <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700 flex-shrink-0"><ShieldCheck size={20} /></div>
+      <div>
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Identity & safeguarding verification</h1>
+        <p className="text-stone-600 text-sm mt-1">Amanah requires all scholars to be DBS checked to teach children.</p>
+      </div>
+    </div>
+
+    {/* Option toggle */}
+    <div className="grid sm:grid-cols-2 gap-3 mb-6">
+      {[
+        { v: "new", t: "I need a DBS check", d: "We'll arrange an Enhanced DBS check for you" },
+        { v: "existing", t: "I already have an Enhanced DBS", d: "Upload your existing certificate to verify" },
+      ].map((o) => {
+        const on = form.dbsOption === o.v;
+        return (
+          <button key={o.v} type="button" onClick={() => set({ dbsOption: o.v })}
+            className={`text-left p-4 rounded-2xl border transition-colors ${on ? "bg-emerald-900 border-emerald-900 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-emerald-400"}`}>
+            <p className="text-sm font-semibold">{o.t}</p>
+            <p className={`text-xs mt-0.5 ${on ? "text-emerald-100" : "text-stone-500"}`}>{o.d}</p>
+          </button>
+        );
+      })}
+    </div>
+
+    {form.dbsOption === "new" ? (
+      <div className="space-y-5 bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+        <div>
+          <FieldLabel hint="(may differ from your display name)">Full legal name</FieldLabel>
+          <input value={form.legalName} onChange={(e) => set({ legalName: e.target.value })}
+            className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Date of birth</FieldLabel>
+            <input type="date" value={form.dateOfBirth} onChange={(e) => set({ dateOfBirth: e.target.value })}
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <FieldLabel hint="(AB 12 34 56 C)">National Insurance number</FieldLabel>
+            <input value={form.nationalInsurance} onChange={(e) => set({ nationalInsurance: e.target.value })} placeholder="AB 12 34 56 C"
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>ID document type</FieldLabel>
+            <select value={form.idDocumentType} onChange={(e) => set({ idDocumentType: e.target.value })}
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-emerald-500">
+              <option value="">Select…</option>
+              {ID_DOCUMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <FieldLabel hint="(last 5 years, optional)">Previous names</FieldLabel>
+            <input value={form.previousNames} onChange={(e) => set({ previousNames: e.target.value })} placeholder="Any names used in the last 5 years"
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+
+        {/* Address history */}
+        <div>
+          <FieldLabel hint="(up to 5 addresses, last 5 years)">Address history</FieldLabel>
+          <p className="text-[11px] text-stone-400 mb-2">uCheck requires 5 years of address history.</p>
+          <div className="space-y-3">
+            {form.addressHistory.map((a, i) => (
+              <div key={i} className="border border-stone-200 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-stone-500">{i === 0 ? "Current address" : `Address ${i + 1}`}</span>
+                  {form.addressHistory.length > 1 && (
+                    <button type="button" onClick={() => removeAddress(i)} className="text-stone-300 hover:text-rose-600"><Trash2 size={14} /></button>
+                  )}
+                </div>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <input value={a.line1} onChange={(e) => updateAddress(i, { line1: e.target.value })} placeholder="Address line 1" className="border border-stone-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:border-emerald-500 sm:col-span-2" />
+                  <input value={a.line2} onChange={(e) => updateAddress(i, { line2: e.target.value })} placeholder="Address line 2 (optional)" className="border border-stone-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:border-emerald-500 sm:col-span-2" />
+                  <input value={a.city} onChange={(e) => updateAddress(i, { city: e.target.value })} placeholder="City" className="border border-stone-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+                  <input value={a.postcode} onChange={(e) => updateAddress(i, { postcode: e.target.value })} placeholder="Postcode" className="border border-stone-300 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+                  <label className="text-[10px] uppercase tracking-wider text-stone-400 font-medium">From
+                    <input type="date" value={a.from} onChange={(e) => updateAddress(i, { from: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2.5 py-2 text-sm normal-case tracking-normal focus:outline-none focus:border-emerald-500" />
+                  </label>
+                  <label className="text-[10px] uppercase tracking-wider text-stone-400 font-medium">To
+                    <input type="date" value={a.to} onChange={(e) => updateAddress(i, { to: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2.5 py-2 text-sm normal-case tracking-normal focus:outline-none focus:border-emerald-500" />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+          {form.addressHistory.length < 5 && (
+            <button type="button" onClick={addAddress} className="mt-2 inline-flex items-center gap-1.5 text-sm text-emerald-800 font-medium hover:underline"><Plus size={14} /> Add address</button>
+          )}
+        </div>
+      </div>
+    ) : (
+      <div className="space-y-5 bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>DBS certificate number</FieldLabel>
+            <input value={form.existingDbsNumber} onChange={(e) => set({ existingDbsNumber: e.target.value })}
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <FieldLabel>Issue date</FieldLabel>
+            <input type="date" value={form.existingDbsDate} onChange={(e) => set({ existingDbsDate: e.target.value })}
+              className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+        <DocUploadField label="Upload certificate" hint="(required)" fileName={form.existingDbsName} uploading={!!uploads.dbsCert} error={uploadErrors.dbsCert}
+          onPick={(f) => handleDoc("dbsCert", "existingDbsUrl", "existingDbsName", f)} onClear={() => set({ existingDbsUrl: "", existingDbsName: "" })} />
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={form.enhancedConfirmed} onChange={(e) => set({ enhancedConfirmed: e.target.checked })} className="accent-emerald-600 w-4 h-4 mt-0.5" />
+          <span className="text-sm text-stone-700">This is an Enhanced DBS check.</span>
+        </label>
+      </div>
+    )}
+  </div>
+);
+
+// ---- Step 5: payment (new DBS only) --------------------------------------
+
+const Step5 = ({ paying, submitting, onPay }) => (
+  <div>
+    <div className="flex items-start gap-3 mb-6">
+      <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-700 flex-shrink-0"><CreditCard size={20} /></div>
+      <div>
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>DBS check fee</h1>
+        <p className="text-stone-600 text-sm mt-1">A one-off fee for your Enhanced DBS check.</p>
+      </div>
+    </div>
+
+    <div className="bg-white border border-stone-200 rounded-2xl p-6 max-w-md">
+      <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+        <span className="text-sm text-stone-700">Enhanced DBS check</span>
+        <span className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{fmt(DBS_FEE)}</span>
+      </div>
+      <p className="text-xs text-stone-500 mt-4 leading-relaxed">This fee is paid directly to the DBS checking service via Amanah.</p>
+      <button
+        onClick={onPay}
+        disabled={paying || submitting}
+        className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-70 text-white text-sm font-medium px-5 py-3 rounded-xl transition-all hover:scale-[1.01] active:scale-95 disabled:hover:scale-100"
+      >
+        {(paying || submitting) ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+        {paying ? "Processing payment…" : submitting ? "Submitting…" : `Pay ${fmt(DBS_FEE)}`}
+      </button>
+    </div>
   </div>
 );
 
