@@ -8258,7 +8258,11 @@ useEffect(() => {
           // "within ±15 min" enabled state has a window to render before the row falls off.
           const upcomingCutoff = new Date(Date.now() - 15 * 60 * 1000);
           const isUpcoming = scheduledDate >= upcomingCutoff && b.status !== "cancelled" && b.status !== "completed";
-          const dateKey = scheduledDate.toISOString().split("T")[0];
+          // LOCAL date key (not toISOString(), which is UTC) so the date matches
+          // the LOCAL time shown below and the toDateKey()-based isToday/filter
+          // comparisons. Mismatching these is how a 16:30 BST booking rendered as
+          // the previous UTC day.
+          const dateKey = toDateKey(scheduledDate);
           const timeStr = scheduledDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
           return {
             id: b.id,
@@ -8425,7 +8429,7 @@ setBookings(transformed);
                 <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Upcoming</h3>
                 <div className="space-y-3">
                   {upcomingBookings.map(b => {
-                    const dateObj = new Date(b.date);
+                    const dateObj = new Date(b.rawScheduledAt);
                     const isTomorrow = toDateKey(new Date(Date.now() + 86400000)) === b.date;
                     const isToday_ = toDateKey(new Date()) === b.date;
                     return (
@@ -8572,7 +8576,7 @@ setBookings(transformed);
                 <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Past sessions</h3>
                 <div className="space-y-3">
                   {pastBookings.map(b => {
-                    const dateObj = new Date(b.date);
+                    const dateObj = new Date(b.rawScheduledAt);
                     return (
                       <div key={b.id} className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
                         <div className="flex items-start gap-3 md:gap-4">
