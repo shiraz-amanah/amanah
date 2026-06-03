@@ -62,3 +62,35 @@ export function sendBookingCancelledEmail(bookingId) {
   if (!bookingId) return Promise.resolve({ ok: false, error: 'missing_bookingId' });
   return postTransactional({ intent: 'booking_cancelled', bookingId });
 }
+
+// --- Session S: user-journey emails (all fire-and-forget) -------------------
+// Welcome — recipient is the signed-in user themselves (server derives from the
+// caller's JWT), so no id is needed.
+export function sendWelcomeEmail() {
+  return postTransactional({ intent: 'welcome' });
+}
+
+export function sendScholarApplicationSubmittedEmail(applicationId) {
+  if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
+  return postTransactional({ intent: 'scholar_application_submitted', applicationId });
+}
+
+export function sendScholarApplicationRejectedEmail(applicationId) {
+  if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
+  return postTransactional({ intent: 'scholar_application_rejected', applicationId });
+}
+
+export function sendMosqueApplicationSubmittedEmail(applicationId) {
+  if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
+  return postTransactional({ intent: 'mosque_application_submitted', applicationId });
+}
+
+export function sendMosqueApplicationApprovedEmail(applicationId) {
+  if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
+  return postTransactional({ intent: 'mosque_application_approved', applicationId });
+}
+
+export function sendMosqueApplicationRejectedEmail(applicationId) {
+  if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
+  return postTransactional({ intent: 'mosque_application_rejected', applicationId });
+}
