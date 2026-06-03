@@ -1,5 +1,8 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/send-transactional?intent=reminder_sweep", "schedule": "0 * * * *" }
   ]
 }
