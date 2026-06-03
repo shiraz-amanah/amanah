@@ -5344,6 +5344,31 @@ paths.
 
 ---
 
+## Session P — 3 June 2026
+
+### Shipped
+- Scholar onboarding wizard — 5-step wizard replacing legacy application flow: Profile (name/photo/headline/bio/categories/languages/city + live preview card), Packages (add/remove/toggle/price), Credentials (optional ijazah + qualification upload + specialties + years experience), DBS (new check with uCheck fields + address history, or existing certificate upload), Payment (mock £38) ✅
+- ScholarOnboardingSuccess — "Application submitted — JazakAllah khair!" confirmation with AMN ref ✅
+- Admin panel — new Credentials and DBS & Identity sections in scholar application detail view ✅
+- Migration 043 — 16 new columns on scholar_applications (title, specialties, qualification_doc_url, qualification_doc_name, ijazah_doc_url, ijazah_doc_name, dbs_option, existing_dbs_url, existing_dbs_number, existing_dbs_date, legal_name, date_of_birth, national_insurance, id_document_type, previous_names, address_history), applied to prod ✅
+
+### Infrastructure
+- credentials bucket created (private) ✅
+- dbs-certificates bucket created (private) ✅
+
+### Parked
+- Storage RLS for private buckets — admins can't read signed URLs for credentials/dbs-certificates yet, needs a follow-up RLS migration before real submissions
+- Legacy LegacyScholarOnboardingWizard (~400 lines dead code) — Phase 9 cleanup
+- uCheck API wiring — shell only, API integration in future session
+- Stripe Connect for real DBS payment — future session
+
+### Next session
+- Pricing intelligence — Claude benchmarks scholar rates against comparable scholars
+- Scholar availability overrides extension to reschedule flow
+- Storage RLS for private credential buckets
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
