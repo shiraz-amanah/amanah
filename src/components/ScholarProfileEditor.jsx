@@ -45,7 +45,9 @@ const initialsFrom = (scholar) =>
   "?";
 
 const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
-  const [name, setName] = useState(scholar?.name || ""); // read-only (display); re-seeded on async load
+  // Name is read-only (changing it needs support). We deliberately DON'T hold it
+  // in form state — it's derived straight from the prop below as `scholarName`,
+  // so it always reflects the latest scholar row regardless of async-load timing.
   const [title, setTitle] = useState(scholar?.title || "");
   const [bio, setBio] = useState(scholar?.bio || "");
   const [categories, setCategories] = useState(scholar?.categories || []);
@@ -63,6 +65,15 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
   const [status, setStatus] = useState("idle"); // idle | saving | saved | error
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Read-only name, derived directly from the prop (not form state).
+  const scholarName = scholar?.name || "";
+
+  // Diagnostic: confirm the name prop is arriving (fires on mount and whenever
+  // the scholar row's name changes once it loads async).
+  useEffect(() => {
+    console.debug("[ScholarProfileEditor] scholar.name:", scholar?.name);
+  }, [scholar?.name]);
+
   // Re-seed when the dashboard's scholar actually arrives. myScholar loads
   // async, so on a hard refresh the initial props are empty; this hydrates the
   // form once the real row lands. Keyed on id so it fires once (undefined→id)
@@ -70,7 +81,6 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
   // edits, since the id is stable while editing. Post-save sync re-seeds with
   // the same values we just wrote, which is a no-op for the user.
   useEffect(() => {
-    setName(scholar?.name || "");
     setTitle(scholar?.title || "");
     setBio(scholar?.bio || "");
     setCategories(scholar?.categories || []);
@@ -174,7 +184,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
       }));
 
       const { error } = await updateScholarProfile({
-        name,
+        name: scholarName,
         title: title.trim(),
         bio: bio.trim(),
         avatarUrl: finalAvatarUrl,
@@ -195,7 +205,6 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
       setPhotoPreview(null);
       onScholarUpdate && onScholarUpdate({
         ...scholar,
-        name,
         title: title.trim(),
         bio: bio.trim(),
         avatar_url: finalAvatarUrl,
@@ -277,7 +286,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
             <div>
               <label className={labelCls}>Full name</label>
               <div className="relative" title="Contact support to change your name">
-                <input value={name} readOnly disabled className={`${inputCls} bg-stone-100 text-stone-500 cursor-not-allowed pr-9`} />
+                <input value={scholarName} readOnly disabled className={`${inputCls} bg-stone-100 text-stone-500 cursor-not-allowed pr-9`} />
                 <Lock size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400" />
               </div>
               <p className="text-xs text-stone-400 mt-1">Contact support to change your name.</p>
@@ -454,7 +463,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
                 {previewImg ? <img src={previewImg} alt="" className="w-full h-full object-cover" /> : <span>{previewInitials}</span>}
               </div>
               <div className="min-w-0">
-                <p className="text-base font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{name || "Your name"}</p>
+                <p className="text-base font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholarName || "Your name"}</p>
                 <p className="text-xs text-stone-500 line-clamp-2">{title || "Your title / headline"}</p>
                 <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-1">
                   <Star size={11} fill="currentColor" /> {Number(scholar?.rating || 0).toFixed(1)} ({scholar?.review_count || 0})
