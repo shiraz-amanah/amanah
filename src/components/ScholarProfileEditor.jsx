@@ -45,7 +45,7 @@ const initialsFrom = (scholar) =>
   "?";
 
 const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
-  const [name] = useState(scholar?.name || "");          // read-only
+  const [name, setName] = useState(scholar?.name || ""); // read-only (display); re-seeded on async load
   const [title, setTitle] = useState(scholar?.title || "");
   const [bio, setBio] = useState(scholar?.bio || "");
   const [categories, setCategories] = useState(scholar?.categories || []);
@@ -70,6 +70,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
   // edits, since the id is stable while editing. Post-save sync re-seeds with
   // the same values we just wrote, which is a no-op for the user.
   useEffect(() => {
+    setName(scholar?.name || "");
     setTitle(scholar?.title || "");
     setBio(scholar?.bio || "");
     setCategories(scholar?.categories || []);

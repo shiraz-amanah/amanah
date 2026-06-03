@@ -18,20 +18,32 @@ const ALLOWED = {
   "image/webp": "webp",
 };
 
-// Upload `file` to avatars/scholars/{scholarId}/{timestamp}.{ext} and return its
-// public URL. Validates type (jpg/png/webp) and size (≤5MB) BEFORE hitting the
-// network. Returns { url, error } — exactly one is set. `error` is a plain
+// Upload `file` to avatars/scholars/{authUserId}/{timestamp}.{ext} and return
+// its public URL. Validates type (jpg/png/webp) and size (≤5MB) BEFORE hitting
+// the network. Returns { url, error } — exactly one is set. `error` is a plain
 // string suitable for showing to the scholar.
-export async function uploadScholarAvatar(file, scholarId) {
+//
+// IMPORTANT: the folder is the authenticated user's id, NOT the scholars-row id
+// (`scholarId` is accepted for call-site clarity but intentionally not used in
+// the path). The storage RLS policy (migration 041) scopes writes to
+// scholars/{auth.uid()}/*, so the path MUST embed auth.uid() to be allowed.
+export async function uploadScholarAvatar(file, scholarId) { // eslint-disable-line no-unused-vars
   if (!file) return { url: null, error: "No file selected." };
-  if (!scholarId) return { url: null, error: "Missing scholar id — try reloading." };
 
   const ext = ALLOWED[file.type];
   if (!ext) return { url: null, error: "Use a JPG, PNG or WebP image." };
   if (file.size > MAX_BYTES) return { url: null, error: "Image must be under 5MB." };
 
+  // The RLS policy keys the folder on auth.uid(); resolve it from the session
+  // rather than trusting a passed id, so the path always matches the policy.
+  const { data: { user } = {}, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !user) {
+    console.error("uploadScholarAvatar: no authenticated user", authErr);
+    return { url: null, error: "You're signed out — sign in again and retry." };
+  }
+
   // Date.now() for a stable, sortable, collision-resistant filename per upload.
-  const path = `scholars/${scholarId}/${Date.now()}.${ext}`;
+  const path = `scholars/${user.id}/${Date.now()}.${ext}`;
 
   const { error } = await supabase.storage
     .from("avatars")
@@ -42,10 +54,20 @@ export async function uploadScholarAvatar(file, scholarId) {
     });
 
   if (error) {
-    console.error("uploadScholarAvatar failed:", error?.message, error);
-    // Bucket-missing is the most likely first-run failure — surface it plainly.
-    const msg = /bucket|not found/i.test(error?.message || "")
+    // Log the full storage error — message + statusCode are what distinguish
+    // a missing bucket (400/404) from an RLS denial (403) from a name clash.
+    console.error("uploadScholarAvatar failed:", {
+      message: error?.message,
+      statusCode: error?.statusCode,
+      name: error?.name,
+      path,
+      error,
+    });
+    const blob = `${error?.message || ""} ${error?.statusCode || ""}`;
+    const msg = /bucket|not found/i.test(blob)
       ? "Photo storage isn't set up yet. Contact support."
+      : /row-level security|policy|unauthor|403/i.test(blob)
+      ? "Upload was blocked by storage permissions. Contact support."
       : "Couldn't upload your photo — try again.";
     return { url: null, error: msg };
   }
