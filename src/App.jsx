@@ -1095,7 +1095,8 @@ const DashboardTabBar = ({
 
 // Scholar card with hover interactions
 const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation }) => {
-  const minPrice = Math.min(...scholar.packages.map(p => p.price));
+  const pkgs = (scholar?.packages || []).filter(Boolean);
+  const minPrice = pkgs.length ? Math.min(...pkgs.map(p => p.price ?? Infinity)) : null;
   return (
     <div
       onClick={onClick}
@@ -1150,7 +1151,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation })
       <div className="flex items-center justify-between pt-3 border-t border-stone-100">
         <div>
           <span className="text-xs text-stone-500 block">Starting from</span>
-          <span className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{minPrice}</span>
+          <span className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{minPrice != null ? `£${minPrice}` : "—"}</span>
         </div>
         <span className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
           View <ArrowRight size={14} />
@@ -1755,7 +1756,7 @@ const PublicScholarDetail = ({ scholar: initialScholar, onBack, onBook, onMessag
   // hooks) and the null-guard sits after them.
   const [scholar, setScholar] = useState(initialScholar);
   const [selectedPkg, setSelectedPkg] = useState(() => {
-    const pkgs = initialScholar?.packages || [];
+    const pkgs = (initialScholar?.packages || []).filter(Boolean);
     return pkgs.find(p => p.popular) || pkgs[1] || pkgs[0] || null;
   });
 
@@ -1792,7 +1793,8 @@ useEffect(() => {
         const transformed = transformScholar(fresh);
         setScholar(transformed);
         // Re-set selected package in case it changed
-        const newPkg = transformed.packages.find(p => p.popular) || transformed.packages[0];
+        const tpkgs = (transformed.packages || []).filter(Boolean);
+        const newPkg = tpkgs.find(p => p.popular) || tpkgs[0];
         if (newPkg) setSelectedPkg(newPkg);
       }
     })
@@ -1960,7 +1962,7 @@ useEffect(() => {
                   <button
                     key={pkg.name}
                     onClick={() => setSelectedPkg(pkg)}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all relative ${selectedPkg.name === pkg.name ? "border-emerald-600 bg-emerald-50 shadow-sm" : "border-stone-200 hover:border-stone-300"}`}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all relative ${selectedPkg?.name === pkg.name ? "border-emerald-600 bg-emerald-50 shadow-sm" : "border-stone-200 hover:border-stone-300"}`}
                   >
                     {pkg.popular && (
                       <span className="absolute -top-2 right-3 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">Most popular</span>
@@ -1975,7 +1977,7 @@ useEffect(() => {
                 ))}
               </div>
               <button onClick={() => onBook(scholar, selectedPkg)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
-                Book for £{selectedPkg.price} <ArrowRight size={15} />
+                Book for £{selectedPkg?.price} <ArrowRight size={15} />
               </button>
               {!isOwnProfile && (
                 <button onClick={handleMessageClick} disabled={openingChat} className="w-full mt-2 border border-stone-300 hover:border-emerald-400 hover:bg-emerald-50 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60">
@@ -1997,8 +1999,8 @@ useEffect(() => {
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-30 px-5 py-3" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-stone-500">{selectedPkg.name} package</p>
-            <p className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{selectedPkg.price}</p>
+            <p className="text-xs text-stone-500">{selectedPkg?.name} package</p>
+            <p className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{selectedPkg?.price}</p>
           </div>
           {!isOwnProfile && (
             <button onClick={handleMessageClick} disabled={openingChat} className="border border-stone-300 text-stone-700 p-3 rounded-xl flex-shrink-0 disabled:opacity-60">
@@ -2041,6 +2043,20 @@ useEffect(() => {
     .then(setStudents)
     .catch(err => console.error("Failed to load students:", err));
 }, [authedUser]);
+
+  // Guard against a missing package/scholar (e.g. landing on bookingConfirm via
+  // deep link or refresh, where App-level selectedPkg is still null). Sits after
+  // all hooks so the hook order stays stable.
+  if (!scholar || !pkg) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-center">
+          <p className="text-sm text-stone-400 mb-3">This booking is no longer available.</p>
+          <button onClick={onBack} className="text-sm font-medium text-emerald-800 hover:text-emerald-900">Go back</button>
+        </div>
+      </div>
+    );
+  }
 
   const platformFee = Math.round(pkg.price * 0.1);
   const total = pkg.price + platformFee;
@@ -11561,7 +11577,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
             <div className="mt-2">
               <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5">Packages</p>
               <ul className="text-xs text-stone-700 space-y-1">
-                {(selected.packages || []).map((p, i) => (
+                {(selected.packages || []).filter(Boolean).map((p, i) => (
                   <li key={i}>· {p.name} · {p.duration} · £{p.price}{p.desc ? ` — ${p.desc}` : ""}</li>
                 ))}
               </ul>

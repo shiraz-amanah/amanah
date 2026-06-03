@@ -53,7 +53,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
   const [categories, setCategories] = useState(scholar?.categories || []);
   const [languages, setLanguages] = useState(scholar?.languages || []);
   const [langDraft, setLangDraft] = useState("");
-  const [packages, setPackages] = useState(() => (scholar?.packages || []).map(toEditorPackage));
+  const [packages, setPackages] = useState(() => (scholar?.packages || []).filter(Boolean).map(toEditorPackage));
 
   // Photo: existing saved URL + an optionally-chosen new File (previewed via an
   // object URL, only uploaded on save).
@@ -79,7 +79,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
     setBio(scholar?.bio || "");
     setCategories(scholar?.categories || []);
     setLanguages(scholar?.languages || []);
-    setPackages((scholar?.packages || []).map(toEditorPackage));
+    setPackages((scholar?.packages || []).filter(Boolean).map(toEditorPackage));
     setAvatarUrl(scholar?.avatar_url || null);
     setPhotoFile(null);
     setPhotoPreview(null);

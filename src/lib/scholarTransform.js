@@ -28,7 +28,7 @@ export const transformScholar = (dbScholar) => {
     reviews: dbScholar.review_count || 0,
     reviewCount: dbScholar.review_count || 0,
     students: dbScholar.students_taught || 0,
-    packages: dbScholar.packages || [],
+    packages: (dbScholar.packages || []).filter(Boolean),
     acceptsBookings: dbScholar.accepts_bookings,
     availability: dbScholar.availability || [],
     verified: dbScholar.dbs_verified && dbScholar.ijazah_verified,

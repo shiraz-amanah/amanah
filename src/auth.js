@@ -167,7 +167,7 @@ export async function updateScholarProfile({ name, title, bio, avatarUrl, langua
     p_avatar_url: avatarUrl ?? null,
     p_languages: Array.isArray(languages) ? languages : [],
     p_categories: Array.isArray(categories) ? categories : [],
-    p_packages: Array.isArray(packages) ? packages : [],
+    p_packages: (Array.isArray(packages) ? packages : []).filter(Boolean),
   })
   return { error }
 }
@@ -907,7 +907,7 @@ function shapeScholarApplication(row) {
     yearsTeaching: row.years_teaching,
     dbsStatus: row.dbs_status,
     subjects: row.subjects || [],
-    packages: row.packages || [],
+    packages: (row.packages || []).filter(Boolean),
     bio: row.bio,
     reviewedAt: row.reviewed_at,
     reviewedBy: row.reviewed_by,
@@ -957,7 +957,7 @@ export async function submitScholarApplication(applicationData) {
     years_teaching: applicationData.yearsTeaching ?? null,
     dbs_status: applicationData.dbsStatus || null,
     subjects: applicationData.subjects || [],
-    packages: applicationData.packages || [],
+    packages: (applicationData.packages || []).filter(Boolean),
     bio: applicationData.bio,
   }
   const { data, error } = await supabase
