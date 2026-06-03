@@ -20,7 +20,7 @@ import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
 import { slotsToWeekly } from "./lib/availability";
-import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours } from "./lib/schedule";
+import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours, parseDurationToMinutes } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
 import MosqueStaffInviteWizard from "./pages/MosqueStaffInviteWizard";
@@ -2106,7 +2106,7 @@ useEffect(() => {
       packageName: pkg.name,
       packageDescription: pkg.description || pkg.desc,
       sessionsTotal: pkg.sessions || 1,
-      durationMinutes: pkg.duration || 60,
+      durationMinutes: parseDurationToMinutes(pkg.duration),
       scheduledAt: scheduledAt,
       amountPaid: total,
       parentNotes: notes

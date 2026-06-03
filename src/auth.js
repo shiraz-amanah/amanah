@@ -343,7 +343,10 @@ export async function createBooking({
       package_name: packageName,
       package_description: packageDescription || null,
       sessions_total: sessionsTotal || 1,
-      duration_minutes: durationMinutes || 60,
+      // Coerce to a positive integer; never let a string/null reach the integer
+      // column (callers should pass parsed minutes, but this is the last line of
+      // defence — defaults to 60 when missing/unparseable).
+      duration_minutes: (() => { const n = Number(durationMinutes); return Number.isFinite(n) && n > 0 ? Math.round(n) : 60; })(),
       scheduled_at: scheduledAt,
       amount_paid: amountPaid || 0,
       parent_notes: parentNotes || null,

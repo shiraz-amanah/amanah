@@ -23,6 +23,26 @@ export const generateSlots = (start, end, intervalMin = 30) => {
   return slots;
 };
 
+// Parse a human package-duration string to integer minutes, or null when it
+// isn't minute-denominated / can't be parsed. The bookings.duration_minutes
+// column is an integer, so the raw package label ("4 × 45 min", "12 weeks")
+// must never be written directly.
+//   "30 min" → 30 · "45 min" → 45 · "4 × 45 min" → 180 · "12 weeks" → null
+//   "" / "1 hour" / unparseable → null
+export const parseDurationToMinutes = (value) => {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+  const str = String(value).toLowerCase();
+  if (!/min/.test(str)) return null; // only minute-denominated durations convert
+  const minMatch = str.match(/(\d+(?:\.\d+)?)\s*min/);
+  if (!minMatch) return null;
+  let minutes = parseFloat(minMatch[1]);
+  // Multiplier form: "4 × 45 min" / "4 x 45 min" / "4*45 min" → sessions × minutes.
+  const multMatch = str.match(/(\d+(?:\.\d+)?)\s*[×x*]\s*\d+(?:\.\d+)?\s*min/);
+  if (multMatch) minutes = parseFloat(multMatch[1]) * minutes;
+  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
+};
+
 // Get available slots for a specific date
 export const getSlotsForDate = (date, availability, bookings) => {
   const dayOfWeek = date.getDay();
