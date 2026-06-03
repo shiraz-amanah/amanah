@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient'
 import { geocodePostcode } from './lib/postcode'
+import { sendBookingConfirmedEmail, sendScholarApprovedEmail } from './lib/email'
 
 export async function signUp(email, password, name, interest) {
   const { data, error } = await supabase.auth.signUp({
@@ -366,6 +367,15 @@ export async function createBooking({
     })
     .select()
     .single()
+
+  // Fire-and-forget the branded "booking confirmed" email to the family. Never
+  // block or fail the booking on the email — sendBookingConfirmedEmail catches
+  // its own errors and returns an object. (Server-derives recipient + content;
+  // see api/send-transactional.js.)
+  if (data && !error) {
+    sendBookingConfirmedEmail(data.id)
+      .then((r) => { if (!r.ok) console.warn('[booking] confirmation email not sent:', r.error) })
+  }
 
   return { data, error }
 }
@@ -1156,6 +1166,15 @@ export async function publishScholar(scholarId) {
     .eq('status', 'pending_verification')
     .select()
     .maybeSingle()
+
+  // Fire-and-forget the "your profile is verified" email — only when THIS call
+  // actually published the scholar (data non-null). A repeat click hits zero
+  // rows (data === null) and sends nothing, so the scholar isn't re-emailed.
+  if (data && !error) {
+    sendScholarApprovedEmail(data.id)
+      .then((r) => { if (!r.ok) console.warn('[scholar] verified email not sent:', r.error) })
+  }
+
   return { data, error }
 }
 
