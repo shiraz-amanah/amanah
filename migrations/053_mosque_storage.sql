@@ -21,14 +21,18 @@ create policy "mosque media public read" on storage.objects
   using (bucket_id in ('mosque-logos', 'mosque-photos'));
 
 -- Owner write: the <mosque_id> folder must belong to a mosque the caller owns.
+-- NOTE: qualify the path as `objects.name`, NOT bare `name`. Inside the subquery
+-- aliased `m`, an unqualified `name` binds to mosques.name (mosques has a `name`
+-- column), so storage.foldername() would get the mosque NAME, not the object
+-- path, and every owner write would be denied. (Caught in the Session U smoke.)
 create policy "mosque media owner insert" on storage.objects
   for insert to authenticated
   with check (
     bucket_id in ('mosque-logos', 'mosque-photos')
     and exists (
       select 1 from public.mosques m
-      where m.id::text = (storage.foldername(name))[1]
-        and m.user_id = auth.uid()
+      where m.user_id = auth.uid()
+        and m.id::text = (storage.foldername(objects.name))[1]
     )
   );
 
@@ -38,8 +42,8 @@ create policy "mosque media owner update" on storage.objects
     bucket_id in ('mosque-logos', 'mosque-photos')
     and exists (
       select 1 from public.mosques m
-      where m.id::text = (storage.foldername(name))[1]
-        and m.user_id = auth.uid()
+      where m.user_id = auth.uid()
+        and m.id::text = (storage.foldername(objects.name))[1]
     )
   );
 
@@ -49,8 +53,8 @@ create policy "mosque media owner delete" on storage.objects
     bucket_id in ('mosque-logos', 'mosque-photos')
     and exists (
       select 1 from public.mosques m
-      where m.id::text = (storage.foldername(name))[1]
-        and m.user_id = auth.uid()
+      where m.user_id = auth.uid()
+        and m.id::text = (storage.foldername(objects.name))[1]
     )
   );
 
