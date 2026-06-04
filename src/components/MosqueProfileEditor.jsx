@@ -22,7 +22,52 @@ const TEXT_FIELDS = [
   { k: "donation_url", l: "Donation link", type: "url", placeholder: "https:// (PayPal, GoFundMe, bank…)" },
 ];
 
-const toggle = (list, v) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+// Preset toggle pills + custom add/delete, backing a text[] of enabled values.
+// Presets toggle on/off; custom entries (values not in `presets`) render as
+// deletable pills. Custom values store the raw text — the public page renders
+// unknown values via its `|| value` fallback. Same pill style throughout.
+const TagPicker = ({ presets, values, onChange, placeholder }) => {
+  const [text, setText] = useState("");
+  const presetVals = new Set(presets.map((p) => p.v));
+  const custom = values.filter((v) => !presetVals.has(v));
+  const pill = "text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1";
+  const toggle = (v) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
+  const add = () => {
+    const val = text.trim();
+    if (val && !values.some((v) => v.toLowerCase() === val.toLowerCase())) onChange([...values, val]);
+    setText("");
+  };
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {presets.map((p) => {
+          const on = values.includes(p.v);
+          return (
+            <button key={p.v} type="button" onClick={() => toggle(p.v)} className={`${pill} ${on ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>
+              {on && <Check size={11} />}{p.l}
+            </button>
+          );
+        })}
+        {custom.map((v) => (
+          <span key={v} className={`${pill} bg-emerald-50 border-emerald-300 text-emerald-800`}>
+            {v}
+            <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} aria-label={`Remove ${v}`} className="text-emerald-700 hover:text-emerald-900 -mr-0.5"><X size={11} /></button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2 mt-3">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder={placeholder}
+          className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+        />
+        <button type="button" onClick={add} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1 flex-shrink-0"><Plus size={14} /> Add</button>
+      </div>
+    </div>
+  );
+};
 
 const MosqueProfileEditor = ({ mosque, onSaved }) => {
   const [form, setForm] = useState(() => ({
@@ -221,23 +266,13 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
       {/* Services */}
       <div className={cardCls}>
         <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Services offered</h3>
-        <div className="flex flex-wrap gap-2">
-          {MOSQUE_SERVICES.map((s) => {
-            const on = form.services.includes(s.v);
-            return <button key={s.v} type="button" onClick={() => set("services", toggle(form.services, s.v))} className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${on ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>{on && <Check size={11} className="inline mr-1 -mt-0.5" />}{s.l}</button>;
-          })}
-        </div>
+        <TagPicker presets={MOSQUE_SERVICES} values={form.services} onChange={(v) => set("services", v)} placeholder="Add a custom service…" />
       </div>
 
       {/* Facilities */}
       <div className={cardCls}>
         <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Facilities</h3>
-        <div className="flex flex-wrap gap-2">
-          {MOSQUE_FACILITIES.map((f) => {
-            const on = form.facilities.includes(f.v);
-            return <button key={f.v} type="button" onClick={() => set("facilities", toggle(form.facilities, f.v))} className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${on ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>{on && <Check size={11} className="inline mr-1 -mt-0.5" />}{f.l}</button>;
-          })}
-        </div>
+        <TagPicker presets={MOSQUE_FACILITIES} values={form.facilities} onChange={(v) => set("facilities", v)} placeholder="Add a custom facility…" />
       </div>
     </div>
   );

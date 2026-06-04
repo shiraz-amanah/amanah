@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ShieldCheck, MapPin, Heart, Clock, Globe, Phone, HandCoins, Calendar, Pin, CheckCircle2, X, GraduationCap } from "lucide-react";
-import { MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS, MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
+import { MOSQUE_SERVICES, MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS, MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import { getMosqueScholars, getMosqueUpcomingEvents, getMosqueAnnouncements } from "../auth";
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
@@ -50,6 +50,7 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
   const prayer = mosque.prayer_times || mosque.iqamaTimes || {};
   const hasPrayer = PRAYER_KEYS.some((k) => prayer[k]);
   const facilities = Array.isArray(mosque.facilities) ? mosque.facilities : [];
+  const services = Array.isArray(mosque.services) ? mosque.services : [];
   const photos = Array.isArray(mosque.photos) ? mosque.photos : [];
   const heroPhoto = mosque.photo || mosque.photo_url || (photos[0] || null);
 
@@ -126,6 +127,19 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
                 <span className="text-stone-700">Jumu'ah <span className="font-mono text-emerald-700 font-medium">{mosque.jumuah_time}</span>{mosque.jumuah_language ? ` · ${mosque.jumuah_language}` : ""}</span>
               </div>
             )}
+          </Section>
+        )}
+
+        {/* Services */}
+        {services.length > 0 && (
+          <Section title="Services offered">
+            <div className="flex flex-wrap gap-2">
+              {services.map((s) => (
+                <span key={s} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg">
+                  <CheckCircle2 size={13} className="text-emerald-600" /> {MOSQUE_SERVICES.find((x) => x.v === s)?.l || s}
+                </span>
+              ))}
+            </div>
           </Section>
         )}
 
