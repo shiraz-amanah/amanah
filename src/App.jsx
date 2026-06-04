@@ -13710,15 +13710,19 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onHome={() => setView("publicHome")}
     onViewScholar={submittedReview?.scholar ? () => { setSelectedScholar(submittedReview.scholar); navigate("scholarDetail", { slug: submittedReview.scholar.slug }); } : null}
   />;
+  // Tab clicks from the Messages-view chrome (shared tab bar on MessagesInbox /
+  // ConversationView) route back to the dashboard with the chosen tab. Dashboards
+  // read the active tab from the URL (?tab=X) since the Session M routing
+  // migration — so navigate with the query. The old sessionStorage writes were
+  // dead (nothing reads them) and `setView(...)` cleared the query, dropping the
+  // dashboard back to its "bookings" default (the Account→Bookings bug).
   const handleDashboardTabClick = (tabValue) => {
     if (tabValue === "messages") return;
-    sessionStorage.setItem("dashboardTab", tabValue);
-    setView("userDashboard");
+    navigate("userDashboard", {}, { tab: tabValue });
   };
   const handleScholarTabClick = (tabValue) => {
     if (tabValue === "messages") return;
-    sessionStorage.setItem("scholarDashboardTab", tabValue);
-    setView("scholarDashboard");
+    navigate("scholarDashboard", {}, { tab: tabValue });
   };
   const messagesTabClick = role === "scholar" ? handleScholarTabClick : handleDashboardTabClick;
   // Identity-row chrome the Messages views share with the dashboards.
