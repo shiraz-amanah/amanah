@@ -5600,16 +5600,44 @@ auto-expiring at session end. **No migrations** (meeting_url already existed).
   send-transactional — they're not email sends, per the brief's lean). api/ now
   has 10 functions, under the Hobby 12-fn cap.
 
-### NOT verified — smoke test still owed (flag for next session start)
-`/api/*` routes don't run under `npm run dev` (Vite), so **none of the 8 smoke
-steps have been run**. `npm run build` is green and all imports resolve, but the
-end-to-end path (room creation on booking → meeting_url set → embed countdown →
-clock-forward join → token issuance → DAILY_API_KEY absent from client network)
-is **unverified**. Must be smoke-tested via `vercel dev` or a deploy. Specific
-unknowns to watch: (a) `frame.join({ url, token })` actually authenticating into
-a private room; (b) whether the `meeting_url=is.null` PATCH guard + race-loser
-re-read behaves as intended; (c) DailyIframe cleanup across remounts (the
-"duplicate instance" guard) under real navigation, not just reasoning.
+### Smoke test results (run under `vercel dev` :3000 against **dev**)
+Backend/data live path is **GREEN**; browser-render path is **still owed**.
+
+**Confirmed live (real Vercel runtime + real Daily REST API):**
+- Input validation: 405 wrong method / 400 bad bookingId / 401 no-auth on both fns.
+- Dev/prod target empirically confirmed = **dev** before any write (dev JWT +
+  nonexistent UUID → 404 booking_not_found, not 401) — so `vercel dev`'s `/api`
+  reads `.env` (server `SUPABASE_URL` = dev), as the brief claimed.
+- **Step 1** room created + `meeting_url` persisted to the booking row.
+- **Step 2/7** room is `private`; `nbf`/`exp` matched expected
+  `scheduled−5min`/`scheduled+60min` **exactly**; `max_participants:2`, chat +
+  screenshare off; `exp` = session end (auto-expiry confirmed).
+- **Idempotency** second call → `existing:true`, same URL (guard works).
+- **Token (step 4 backbone)** issued; payload correctly scoped — `r`=room,
+  `ud`=participant uid, `exp`=session end.
+- **Authz** scholar (party) → token ✓; unrelated user → **403** on BOTH fns.
+- **Step 8** `DAILY_API_KEY` absent from `dist/` bundle (only a source comment).
+
+**Still owed — browser-render (could NOT verify headless; no Playwright/browser
+tooling, and `vercel dev` can't serve the SPA — see gotcha below):**
+- Step 3 countdown render, step 5 scholar embed render, and the **iframe
+  `frame.join()` actually loading a private room** (step 4 visual). The token is
+  proven valid/scoped, but the live DailyIframe mount + join was never observed.
+- **Verify on the deployed site** (signed in) once `DAILY_API_KEY` is set in prod.
+
+**Gotcha found (logged to parked + memory):** `vercel dev` serves a **blank
+screen** because `vercel.json`'s catch-all rewrite hijacks Vite's dev module
+requests (returns HTML for `/src/*.js`). Prod is unaffected (built assets are
+real files). For local full-stack smoke: run `npm run dev` (Vite :5173) for the
+SPA + a dev-only Vite `/api` proxy → `vercel dev` :3000 for the functions. Do NOT
+change `vercel.json` (risks the prod SPA fallback).
+
+**Misdiagnosis caught (honesty):** a signed-OUT dashboard renders
+`MOCK_USER_BOOKINGS` (demo mode, `isDemo = !authedProfile`) whose mock rows carry
+a fake `meet.google.com/abc-defg-hij` link. During smoke this looked like "Join
+opened Google Meet / the room expired" — it was neither; the session simply
+wasn't authenticated, so real Daily bookings never rendered. Tell: demo shows
+"Ustadh Yusuf Al-Rahman"; real fixtures show the given scholar/package names.
 
 ### Parked / follow-ups
 - Booking confirmation email does **not** include the meeting link (template
@@ -5622,12 +5650,19 @@ re-read behaves as intended; (c) DailyIframe cleanup across remounts (the
   would be stale after a reschedule. Needs a room-update call or recreate.
 - `start_video_off`/`start_audio_off` left `false` per brief (camera on at join).
 
-### Manual steps before this works
-1. Add `DAILY_API_KEY` to **Vercel Production env** (already in local `.env` +
+### Manual steps before this works in prod
+**⚠️ Shipped to prod (`c4e02cd..69ec847`) WITHOUT the prod env var set.** Until
+step 1 is done the feature is dormant in prod: `create-daily-room` returns
+`server_misconfigured`, so `meeting_url` stays null and no embed shows. Bookings
+are unaffected (the call is fire-and-forget; createBooking only logs a warning).
+1. **Add `DAILY_API_KEY` to Vercel Production env** (already in local `.env` +
    `.env.local`; `vercel dev` reads `.env`). No other new env, no DB changes.
-2. Verify the Daily.co account domain — room URLs return as
-   `https://<team>.daily.co/<name>`; `isDailyRoomUrl` matches any `*.daily.co` host.
-3. Smoke via `vercel dev` or a deploy (see "NOT verified" above) before trusting.
+   `SUPABASE_*` already present in prod env.
+2. Daily.co domain confirmed as `youramanah.daily.co` (rooms return
+   `https://youramanah.daily.co/<name>`); `isDailyRoomUrl` matches any
+   `*.daily.co` host.
+3. After setting the key, **verify on the deployed site signed-in** (browser
+   steps 3/4/5 above were never observed headless).
 
 ### Next session
 - Stripe Connect / payments (Session W — last)
