@@ -5790,6 +5790,89 @@ storage objects) purged after.
 
 ---
 
+## Session U Day 2 — Mosque staff directory, rotas, DBS + substitute finder ✅ (4 June 2026)
+
+Full staff management on top of the Session M `mosque_staff`/invite foundation:
+permanent + temporary staff with DBS tracking, app-access invites, rotas, a
+substitute finder, and a privacy-safe public Our Team section. Built in two
+chunks (schema+permanent staff, then temp/history/rota/finder/public), **10/10
+dev smoke green**. NOT pushed — prod needs 054–056 first.
+
+### Shipped
+- **Migrations 054 + 055** (`7129ef2`) — 054 extends `mosque_staff` (drops
+  `NOT NULL` on `profile_id`, +14 cols incl. `staff_type`/`dbs_*`/`invite_status`/
+  `linked_scholar_id`/`archived`, adds the missing mosque-admin INSERT policy,
+  reuses `profile_id` not a new `user_id`). 055 rewrites `accept_staff_invite`
+  to **link an accepted account to a pre-existing email-matched record** (else
+  insert), preserving 033's `#variable_conflict`/qualified-ref fixes.
+- **Migration 056** (`a241af0`) — `mosque_rotas` (one row per mosque+week, slots
+  jsonb, owner-CRUD + linked-staff-read RLS) **and** `get_mosque_team` — an
+  anon-callable SECURITY DEFINER returning ONLY display columns. (Brief had
+  055=rotas; renumbered: 054 staff, 055 RPC, 056 rotas+team.)
+- **Permanent staff directory** (`0ebdd25`) — `MosqueStaffDirectory` replaces the
+  Session M invite wizard in the Staff tab; CRUD, DBS (verified-but-expired UI
+  rule + summary), photo (`mosque-photos/{mosqueId}/staff-…`), archive, invite
+  reusing `createStaffInvite` + `sendStaffInviteEmail`.
+- **Temp/history/rota/finder** (`688bab9`) — Staff-tab hub (Team / History / Rota
+  / Find substitute). Temp staff (Visiting badge, period, cover reason); history
+  = date filter (`end_date < today`) + role filter + CSV; `MosqueRotaBuilder`
+  (day×slot grid, copy-last-week, print); `MosqueSubstituteFinder` (active-scholar
+  search, Request cover → `mosque_admin↔scholar` conversation, Add to temp →
+  linked record). Dead `MosqueStaffInviteWizard` page removed in this commit.
+- **Public Our Team** (`b838d42`) — `MosqueProfile` reads `get_mosque_team`,
+  permanent + current temp (Visiting), ended excluded.
+
+### Key decisions / corrections from the brief (pre-flight, all approved)
+- **Existing `mosque_staff` had a conflicting model** (profile_id NOT NULL,
+  no admin-insert policy) — extended in place rather than a new table; reused
+  `profile_id` for the brief's "user_id".
+- **Staff tab absorbs everything** (directory/rota/finder); Day-1 Scholars tab
+  kept distinct. Invite wizard folded into the per-staff app-access action.
+- **`accept_staff_invite` → link-or-insert** (056 RPC change to a live flow).
+- **Public team via SECURITY DEFINER `get_mosque_team`, NOT a public-read policy**
+  — `mosque_staff` has no anon RLS, and a blanket policy would leak staff
+  email/phone/DBS cert (RLS is row-level, not column-level). The function returns
+  display columns only. **Privacy call, important to preserve.**
+- **Substitute finder is city/keyword/DBS match — NO distance** (scholars have no
+  lat/lng; geocoding deferred). "Availability date-range" also not implemented
+  (scholars only have weekly `availability`). Both flagged.
+- **Staff photos reuse `mosque-photos`** at `{mosqueId}/staff-…` (existing 053
+  policy covers it) — no new bucket.
+
+### Smoke (dev, API/RLS layer) — 10/10 GREEN
+1 add permanent staff (admin-insert RLS, nullable profile_id) ✓ · 2 DBS badge
++ effective-expiry ✓ · 3 invite + **055 link path** (links existing record, no
+dupe) + Session M create-new parity + email-mismatch guard ✓ · 4 temp staff →
+Visiting via get_mosque_team ✓ · 5 ended temp excluded from public ✓ · 6 history
+split + CSV ✓ · 7 rota owner-upsert + **staff-read RLS works / anon denied** ✓ ·
+8 finder returns active scholars ✓ · 9 request-cover opens conversation ✓ · 10
+add-sub → linked temp record, shows on public team ✓. **get_mosque_team payload
+carries no PII** (verified). Browser render not exercised headless. Fixtures purged.
+- **Process note:** 056 read as not-applied twice before going green — the raw
+  PGRST205/202 probes (not the "applied/reloaded" claims) were the source of
+  truth; a reload can't surface objects that aren't there. Re-confirmed the
+  probe-raw-output discipline.
+
+### Parked / follow-ups
+- Staff "view my rota when logged in" — RLS allows it (staff-read policy), but
+  there's no staff dashboard surface yet.
+- Substitute finder distance ranking (needs scholar geocoding) + availability
+  date-range filtering.
+- Temp-form in-line "link Amanah scholar by name" — currently linking happens via
+  the finder's "Add to temp"; a search field in the temp form is a nicety.
+- Rota PDF is browser-print (window.print), not a generated PDF.
+
+### Manual steps before push
+1. Apply **054 → 055 → 056 to prod** (dev done). Re-smoke the Session M invite
+   loop on prod (055 changed a live RPC). Run `NOTIFY pgrst, 'reload schema';`.
+2. Then push (git pipeline on the `amanah` project). Apply-before-push: the Staff
+   tab errors on missing columns/tables/RPC otherwise.
+
+### Next session
+- Stripe (Session W — last). Note the `api/` function count (11) for any new endpoints.
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
