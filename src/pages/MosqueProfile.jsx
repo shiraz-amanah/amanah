@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ShieldCheck, MapPin, Heart, Clock, Globe, Phone, HandCoins, Calendar, Pin, CheckCircle2, X, GraduationCap } from "lucide-react";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS, MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
-import { getMosqueScholars, getMosqueUpcomingEvents, getMosqueAnnouncements } from "../auth";
+import { getMosqueScholars, getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam } from "../auth";
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
 // Works for logged-out visitors — all reads are anon-safe (RLS public-read on
@@ -27,14 +27,15 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
   const [scholars, setScholars] = useState([]);
   const [events, setEvents] = useState([]);
   const [anns, setAnns] = useState([]);
+  const [team, setTeam] = useState([]);
   const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
     const id = mosque?.id;
     if (!id) return;
     let alive = true;
-    Promise.all([getMosqueScholars(id), getMosqueUpcomingEvents(id, 5), getMosqueAnnouncements(id)])
-      .then(([s, e, a]) => { if (alive) { setScholars(s); setEvents(e); setAnns(a); } })
+    Promise.all([getMosqueScholars(id), getMosqueUpcomingEvents(id, 5), getMosqueAnnouncements(id), getMosqueTeam(id)])
+      .then(([s, e, a, t]) => { if (alive) { setScholars(s); setEvents(e); setAnns(a); setTeam(t); } })
       .catch((err) => console.error("MosqueProfile load failed:", err));
     return () => { alive = false; };
   }, [mosque?.id]);
@@ -151,6 +152,27 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
                 <span key={f} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-700 rounded-lg">
                   <CheckCircle2 size={13} className="text-emerald-600" /> {MOSQUE_FACILITIES.find((x) => x.v === f)?.l || f}
                 </span>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Our Team (staff — safe-shape via get_mosque_team RPC) */}
+        {team.length > 0 && (
+          <Section title="Our team">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {team.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 bg-stone-50 border border-stone-200 rounded-xl p-3">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
+                    {m.photo_url ? <img src={m.photo_url} alt="" className="w-full h-full object-cover" /> : initialsOf(m)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-1.5">{m.name}
+                      {m.staff_type === "temporary" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700">Visiting</span>}
+                    </p>
+                    <p className="text-xs text-stone-500 truncate">{m.role}</p>
+                  </div>
+                </div>
               ))}
             </div>
           </Section>
