@@ -13651,6 +13651,17 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
     </div>
   );
+  // Auth still resolving on the dashboard route — show a loader rather than
+  // briefly flashing demo (MOCK_USER / MOCK_USER_BOOKINGS) data for a user who
+  // is actually signed in. Once authLoading clears, isDemo={!authedProfile}
+  // correctly distinguishes a real user from a genuinely-anonymous demo view.
+  if (authLoading && view === "userDashboard") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <Loader2 className="animate-spin text-emerald-700" size={28} />
+      </div>
+    );
+  }
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
     isDemo={!authedProfile}
