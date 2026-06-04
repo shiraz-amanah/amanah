@@ -5,6 +5,7 @@ import {
   sendWelcomeEmail, sendScholarApplicationSubmittedEmail, sendScholarApplicationRejectedEmail,
   sendMosqueApplicationSubmittedEmail, sendMosqueApplicationApprovedEmail, sendMosqueApplicationRejectedEmail,
 } from './lib/email'
+import { createDailyRoom } from './lib/video'
 
 export async function signUp(email, password, name, interest) {
   const { data, error } = await supabase.auth.signUp({
@@ -377,11 +378,16 @@ export async function createBooking({
     .select()
     .single()
 
-  // Fire-and-forget the branded "booking confirmed" email to the family. Never
-  // block or fail the booking on the email — sendBookingConfirmedEmail catches
-  // its own errors and returns an object. (Server-derives recipient + content;
-  // see api/send-transactional.js.)
+  // Fire-and-forget side-effects, in order. Neither blocks or fails the booking.
   if (data && !error) {
+    // Create the Daily.co video room first so meeting_url is populated by the
+    // time the family lands on their dashboard. Idempotent server-side; never
+    // overwrites a manually-entered link. (See api/create-daily-room.js.)
+    createDailyRoom(data.id)
+      .then((r) => { if (!r.ok) console.warn('[booking] video room not created:', r.error) })
+
+    // Branded "booking confirmed" email to the family. Server derives recipient
+    // + content; see api/send-transactional.js.
     sendBookingConfirmedEmail(data.id)
       .then((r) => { if (!r.ok) console.warn('[booking] confirmation email not sent:', r.error) })
   }
