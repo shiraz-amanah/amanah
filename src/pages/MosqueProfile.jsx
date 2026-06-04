@@ -183,8 +183,8 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
             <div className="space-y-2">
               {events.map((e) => (
                 <div key={e.id} className="flex items-center gap-3 border border-stone-100 rounded-xl p-3">
-                  <div className="w-11 h-11 rounded-lg bg-emerald-50 border border-emerald-100 flex flex-col items-center justify-center flex-shrink-0">
-                    <Calendar size={16} className="text-emerald-700" />
+                  <div className="w-11 h-11 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {e.image_url ? <img src={e.image_url} alt="" className="w-full h-full object-cover" /> : <Calendar size={16} className="text-emerald-700" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-stone-900 truncate">{e.title}</p>
@@ -205,6 +205,7 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
                 <div key={a.id} className="border-l-2 border-emerald-300 pl-3">
                   <p className="text-sm font-medium text-stone-900 flex items-center gap-1.5">{a.pinned && <Pin size={12} className="text-emerald-700" />} {a.title}</p>
                   {a.body && <p className="text-sm text-stone-600 mt-0.5 whitespace-pre-line">{a.body}</p>}
+                  {a.image_url && <img src={a.image_url} alt="" className="mt-2 rounded-lg max-h-56 w-auto object-cover" />}
                 </div>
               ))}
             </div>

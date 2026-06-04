@@ -318,10 +318,10 @@ export async function toggleMosqueScholar(mosqueId, scholarId, link) {
 const todayDate = () => new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
 
 // --- Events (owner dashboard CRUD; RLS migration 051 gates to the owner) ---
-export async function createMosqueEvent({ mosqueId, title, description, date, time, type }) {
+export async function createMosqueEvent({ mosqueId, title, description, date, time, type, image_url }) {
   const { data, error } = await supabase
     .from('mosque_events')
-    .insert({ mosque_id: mosqueId, title, description: description || null, date, time: time || null, type })
+    .insert({ mosque_id: mosqueId, title, description: description || null, date, time: time || null, type, image_url: image_url || null })
     .select().single()
   return { data, error }
 }
@@ -343,10 +343,10 @@ export async function deleteMosqueEvent(id) {
 }
 
 // --- Announcements ---
-export async function createMosqueAnnouncement({ mosqueId, title, body, pinned }) {
+export async function createMosqueAnnouncement({ mosqueId, title, body, pinned, image_url }) {
   const { data, error } = await supabase
     .from('mosque_announcements')
-    .insert({ mosque_id: mosqueId, title, body: body || null, pinned: !!pinned })
+    .insert({ mosque_id: mosqueId, title, body: body || null, pinned: !!pinned, image_url: image_url || null })
     .select().single()
   return { data, error }
 }
@@ -374,7 +374,7 @@ export async function deleteMosqueAnnouncement(id) {
 export async function getUpcomingEvents(limit = 10) {
   const { data, error } = await supabase
     .from('mosque_events')
-    .select('id, title, date, time, type, mosque:mosques (id, slug, name, logo_url, photo_url, city)')
+    .select('id, title, date, time, type, image_url, mosque:mosques (id, slug, name, logo_url, photo_url, city)')
     .gte('date', todayDate())
     .order('date', { ascending: true })
     .limit(limit)

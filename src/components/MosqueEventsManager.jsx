@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Trash2, Pencil, Pin, AlertCircle, Check, X, Calendar } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Pin, AlertCircle, Check, X, Calendar, Upload } from "lucide-react";
+import { uploadMosqueEventImage, uploadMosqueAnnouncementImage } from "../lib/storage";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import {
   getMosqueEvents, createMosqueEvent, updateMosqueEvent, deleteMosqueEvent,
@@ -14,8 +15,8 @@ import {
 const typeLabel = (v) => MOSQUE_EVENT_TYPES.find((t) => t.v === v)?.l || v;
 const fmtDate = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); } catch { return d; } };
 
-const blankEvent = { title: "", description: "", date: "", time: "", type: "lecture" };
-const blankAnn = { title: "", body: "", pinned: false };
+const blankEvent = { title: "", description: "", date: "", time: "", type: "lecture", image_url: "" };
+const blankAnn = { title: "", body: "", pinned: false, image_url: "" };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
@@ -53,13 +54,15 @@ const MosqueEventsManager = ({ mosqueId }) => {
     setErr(null);
     if (!ev.title.trim() || !ev.date) { setErr("Event needs a title and date."); return; }
     setEvBusy(true);
-    const payload = { mosqueId, title: ev.title.trim(), description: ev.description.trim(), date: ev.date, time: ev.time || null, type: ev.type };
-    const { error } = evEditing ? await updateMosqueEvent(evEditing, payload) : await createMosqueEvent(payload);
+    // Fields only (no mosqueId — that's a create-only key; passing it to update
+    // would hit a non-existent column).
+    const fields = { title: ev.title.trim(), description: ev.description.trim(), date: ev.date, time: ev.time || null, type: ev.type, image_url: ev.image_url || null };
+    const { error } = evEditing ? await updateMosqueEvent(evEditing, fields) : await createMosqueEvent({ mosqueId, ...fields });
     setEvBusy(false);
     if (error) { setErr(error.message || "Couldn't save the event."); return; }
     setEv(blankEvent); setEvEditing(null); refresh();
   };
-  const editEvent = (e) => { setEvEditing(e.id); setEv({ title: e.title, description: e.description || "", date: e.date, time: e.time || "", type: e.type }); };
+  const editEvent = (e) => { setEvEditing(e.id); setEv({ title: e.title, description: e.description || "", date: e.date, time: e.time || "", type: e.type, image_url: e.image_url || "" }); };
   const removeEvent = async (id) => { const { error } = await deleteMosqueEvent(id); if (error) { setErr(error.message); return; } setEvents((xs) => xs.filter((x) => x.id !== id)); };
 
   // --- Announcements ---
@@ -67,13 +70,17 @@ const MosqueEventsManager = ({ mosqueId }) => {
     setErr(null);
     if (!an.title.trim()) { setErr("Announcement needs a title."); return; }
     setAnBusy(true);
-    const payload = { mosqueId, title: an.title.trim(), body: an.body.trim(), pinned: an.pinned };
-    const { error } = anEditing ? await updateMosqueAnnouncement(anEditing, { title: payload.title, body: payload.body, pinned: payload.pinned }) : await createMosqueAnnouncement(payload);
+    const fields = { title: an.title.trim(), body: an.body.trim(), pinned: an.pinned, image_url: an.image_url || null };
+    const { error } = anEditing ? await updateMosqueAnnouncement(anEditing, fields) : await createMosqueAnnouncement({ mosqueId, ...fields });
     setAnBusy(false);
     if (error) { setErr(error.message || "Couldn't save the announcement."); return; }
     setAn(blankAnn); setAnEditing(null); refresh();
   };
-  const editAnn = (a) => { setAnEditing(a.id); setAn({ title: a.title, body: a.body || "", pinned: a.pinned }); };
+  const editAnn = (a) => { setAnEditing(a.id); setAn({ title: a.title, body: a.body || "", pinned: a.pinned, image_url: a.image_url || "" }); };
+  const [evImgBusy, setEvImgBusy] = useState(false);
+  const [anImgBusy, setAnImgBusy] = useState(false);
+  const handleEvImg = async (file) => { if (!file) return; setEvImgBusy(true); const { url, error } = await uploadMosqueEventImage(file, mosqueId); setEvImgBusy(false); if (error || !url) { setErr(error || "Upload failed."); return; } setEv((f) => ({ ...f, image_url: url })); };
+  const handleAnImg = async (file) => { if (!file) return; setAnImgBusy(true); const { url, error } = await uploadMosqueAnnouncementImage(file, mosqueId); setAnImgBusy(false); if (error || !url) { setErr(error || "Upload failed."); return; } setAn((f) => ({ ...f, image_url: url })); };
   const removeAnn = async (id) => { const { error } = await deleteMosqueAnnouncement(id); if (error) { setErr(error.message); return; } setAnns((xs) => xs.filter((x) => x.id !== id)); };
   const togglePin = async (a) => { const { error } = await updateMosqueAnnouncement(a.id, { pinned: !a.pinned }); if (!error) refresh(); };
 
@@ -95,6 +102,16 @@ const MosqueEventsManager = ({ mosqueId }) => {
             <div><label className={labelCls}>Date</label><input type="date" className={inputCls} value={ev.date} onChange={(e) => setEv({ ...ev, date: e.target.value })} /></div>
             <div><label className={labelCls}>Time</label><input type="time" className={inputCls} value={ev.time} onChange={(e) => setEv({ ...ev, time: e.target.value })} /></div>
             <div><label className={labelCls}>Type</label><select className={inputCls} value={ev.type} onChange={(e) => setEv({ ...ev, type: e.target.value })}>{MOSQUE_EVENT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}</select></div>
+          </div>
+          <div>
+            <label className={labelCls}>Poster (optional)</label>
+            <div className="flex items-center gap-2">
+              <label className="flex w-16 h-16 rounded-lg border border-dashed border-stone-300 hover:border-emerald-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center flex-shrink-0">
+                {ev.image_url ? <img src={ev.image_url} alt="" className="w-full h-full object-cover" /> : evImgBusy ? <Loader2 size={14} className="animate-spin text-stone-400" /> : <Upload size={14} className="text-stone-400" />}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleEvImg(e.target.files?.[0])} />
+              </label>
+              {ev.image_url && <button type="button" onClick={() => setEv({ ...ev, image_url: "" })} className="text-xs text-stone-500 hover:text-rose-700">Remove</button>}
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={saveEvent} disabled={evBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{evBusy ? <Loader2 size={14} className="animate-spin" /> : evEditing ? <Check size={14} /> : <Plus size={14} />} {evEditing ? "Update event" : "Add event"}</button>
@@ -127,6 +144,16 @@ const MosqueEventsManager = ({ mosqueId }) => {
           <div><label className={labelCls}>Title</label><input className={inputCls} value={an.title} onChange={(e) => setAn({ ...an, title: e.target.value })} /></div>
           <div><label className={labelCls}>Body</label><textarea rows={3} className={inputCls + " resize-none"} value={an.body} onChange={(e) => setAn({ ...an, body: e.target.value })} /></div>
           <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={an.pinned} onChange={(e) => setAn({ ...an, pinned: e.target.checked })} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-200" /> Pin to top</label>
+          <div>
+            <label className={labelCls}>Image (optional)</label>
+            <div className="flex items-center gap-2">
+              <label className="flex w-16 h-16 rounded-lg border border-dashed border-stone-300 hover:border-emerald-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center flex-shrink-0">
+                {an.image_url ? <img src={an.image_url} alt="" className="w-full h-full object-cover" /> : anImgBusy ? <Loader2 size={14} className="animate-spin text-stone-400" /> : <Upload size={14} className="text-stone-400" />}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAnImg(e.target.files?.[0])} />
+              </label>
+              {an.image_url && <button type="button" onClick={() => setAn({ ...an, image_url: "" })} className="text-xs text-stone-500 hover:text-rose-700">Remove</button>}
+            </div>
+          </div>
           <div className="flex gap-2">
             <button onClick={saveAnn} disabled={anBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{anBusy ? <Loader2 size={14} className="animate-spin" /> : anEditing ? <Check size={14} /> : <Plus size={14} />} {anEditing ? "Update" : "Add announcement"}</button>
             {anEditing && <button onClick={() => { setAn(blankAnn); setAnEditing(null); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>}

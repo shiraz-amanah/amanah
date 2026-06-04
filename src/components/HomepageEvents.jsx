@@ -56,8 +56,10 @@ const HomepageEvents = ({ onMosque }) => {
               <button
                 key={e.id}
                 onClick={() => m.slug && onMosque?.(m)}
-                className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all group"
+                className="text-left bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-300 hover:shadow-sm transition-all group"
               >
+                {e.image_url && <img src={e.image_url} alt="" className="w-full h-28 object-cover" />}
+                <div className="p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 overflow-hidden flex items-center justify-center flex-shrink-0 text-[10px] font-semibold text-emerald-800">
                     {m.logo_url ? <img src={m.logo_url} alt="" className="w-full h-full object-cover" /> : initials(m.name)}
@@ -73,6 +75,7 @@ const HomepageEvents = ({ onMosque }) => {
                   <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{typeLabel(e.type)}</span>
                 </div>
                 <span className="text-xs text-emerald-700 font-medium inline-flex items-center gap-0.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">View mosque <ChevronRight size={12} /></span>
+                </div>
               </button>
             );
           })}
