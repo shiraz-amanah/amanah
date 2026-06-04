@@ -427,6 +427,49 @@ export async function deleteMosqueStaff(id) {
   return { error }
 }
 
+// --- Rotas (migration 056) ---
+export async function getMosqueRota(mosqueId, weekStart) {
+  if (!mosqueId || !weekStart) return null
+  const { data, error } = await supabase
+    .from('mosque_rotas').select('*').eq('mosque_id', mosqueId).eq('week_start', weekStart).maybeSingle()
+  if (error) { console.error('Error fetching rota:', error); return null }
+  return data
+}
+export async function upsertMosqueRota(mosqueId, weekStart, slots) {
+  if (!mosqueId || !weekStart) return { error: { message: 'mosqueId + weekStart required' } }
+  const { data, error } = await supabase
+    .from('mosque_rotas')
+    .upsert({ mosque_id: mosqueId, week_start: weekStart, slots: slots || {} }, { onConflict: 'mosque_id,week_start' })
+    .select().single()
+  return { data, error }
+}
+
+// --- Substitute finder: active scholars only (never unverified) ---
+export async function searchSubstituteScholars({ keyword, city, dbsOnly } = {}) {
+  let q = supabase
+    .from('scholars')
+    .select('id, slug, name, title, avatar_initials, avatar_gradient, avatar_url, city, categories, dbs_verified, rating, review_count, user_id')
+    .eq('status', 'active')
+  if (city && city.trim()) q = q.ilike('city', `%${city.trim()}%`)
+  if (dbsOnly) q = q.eq('dbs_verified', true)
+  if (keyword && keyword.trim()) {
+    const k = `%${keyword.trim()}%`
+    q = q.or(`name.ilike.${k},title.ilike.${k}`)
+  }
+  const { data, error } = await q.order('rating', { ascending: false, nullsFirst: false }).limit(50)
+  if (error) { console.error('Error searching substitute scholars:', error); return [] }
+  return data || []
+}
+
+// --- Public team (safe-shape SECURITY DEFINER; migration 056) ---
+// Returns display-only columns (no email/phone/dbs) for the Our Team section.
+export async function getMosqueTeam(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.rpc('get_mosque_team', { p_mosque_id: mosqueId })
+  if (error) { console.error('get_mosque_team RPC failed:', error); return [] }
+  return data || []
+}
+
 // ==================== Mosque staff invites (Session M Part B) ====================
 
 // Admin-side: insert a row into mosque_staff_invites for the mosque

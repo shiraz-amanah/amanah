@@ -2616,7 +2616,7 @@ const DBSStatusPill = ({ status }) => {
 // PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
 // MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
 // Phase 9 sweeps.
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate }) => {
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
   });
@@ -2719,7 +2719,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         )}
 
         {tab === "staff" && (
-          <MosqueStaffDirectory mosqueId={mosque.id} />
+          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
         )}
 
         {tab === "donations" && (
@@ -13573,6 +13573,19 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     conversationsLoading={conversationsLoading && !!authedProfile}
     onConversation={(c) => { setSelectedConversation(c); setRole("mosque"); navigate("conversationView", { id: c.id }); }}
     onMosqueUpdate={(updated) => setMyMosque(transformMosque(updated))}
+    onRequestCover={async (s) => {
+      if (!s?.user_id) { showToast("This scholar has no account to message yet."); return; }
+      // Participant role enum is 'mosque_admin' (not 'mosque') — see scholar onMessage.
+      const { data, error } = await getOrCreateDirectConversation(s.user_id, "mosque_admin", "scholar");
+      if (error || !data) { showToast("Couldn't open chat. Please try again."); return; }
+      setRole("mosque");
+      setSelectedConversation({
+        id: data,
+        counterparty: { name: s.name, initials: (s.name ? s.name.slice(0, 2).toUpperCase() : "??"), avatarGradient: s.avatar_gradient || "from-emerald-400 to-emerald-700", role: "Scholar", verified: true },
+        context: null, lastMessage: "", lastTime: "", unread: 0, pinned: false, online: false, messages: [],
+      });
+      navigate("conversationView", { id: data });
+    }}
   />;
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
