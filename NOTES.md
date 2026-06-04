@@ -5702,8 +5702,9 @@ are unaffected (the call is fire-and-forget; createBooking only logs a warning).
 
 Mosques get a fully editable profile, scholar links, events + announcements, and
 a rich public page; events surface on the homepage. 8 work commits
-(`229e792`…`8011eb0`) + this closure. **Built green at every step; NOT yet
-smoke-tested or pushed** (see below).
+(`229e792`…`8011eb0`) + closure + storage-policy fixes (`1ae72d6`, `cc127bc`).
+**Smoke-tested 9/9 on dev (see below); migrations applied to dev; NOT yet pushed
+to prod** (awaiting 049–053 on prod).
 
 ### Shipped
 - **Migrations 049–052** (`229e792`) + **053 storage** (`63ff5be`). Pre-flight
@@ -5739,14 +5740,33 @@ smoke-tested or pushed** (see below).
 - **Storage path `{mosque_id}/<file>`** (Q answered), diverging from the scholar
   avatars' `{auth.uid()}/…` convention; 053's policy validates via `mosques.user_id`.
 
-### NOT verified — smoke test owed (flag for next session start)
-**Nothing has been run against a live app.** `npm run build` is green and all
-imports resolve, but the 9-step smoke plan is unexecuted. Specifically unverified:
-(a) the RLS write paths actually allow owner edits/links/events (the classic
-silent-write trap here); (b) storage uploads succeed under the 053 policies; (c)
-the public page renders for logged-out users; (d) homepage events show only
-active mosques'. **Depends on migrations 049–053 being applied to dev first** —
-until then the editor saves 400 on the new columns and events/announcements 404.
+### Smoke test — 9/9 GREEN on dev (data/RLS layer, via PostgREST + storage REST)
+Ran the full 9-step plan against dev with a real mosque-owner JWT (RLS-gated
+writes) + anon reads (logged-out visibility). All pass:
+1. Profile edit persists (owner-update RLS) — incl. prayer_times jsonb, facilities text[] ✅
+2/3. Owner logo + 3 gallery uploads return 200; public read 200; **cross-owner
+   upload correctly denied** ✅
+4. Active-scholar link works; **inactive-scholar link denied** (active gate) ✅
+5/6. Events + announcements write; anon reads, pinned-first ordering correct ✅
+7. Logged-out read by slug returns name/about/photos/facilities/donate + scholar
+   + event + announcements ✅
+8. Edit + delete event (200 / 204, confirmed gone) ✅
+9. Homepage upcoming-events query excludes a PENDING mosque's event (verified-only,
+   enforced in RLS not just the query) ✅
+Browser RENDER (the page actually painting) wasn't exercised — no browser here —
+but every read the page issues returns the right rows for anon.
+
+**Bug caught + fixed (the smoke's payoff): migration 053 storage owner-write RLS.**
+Inside the owner-write policy's `select … from mosques m` subquery, an unqualified
+`name` bound to `mosques.name` (mosques has a `name` column), so
+`storage.foldername()` got the mosque's NAME instead of the object path → every
+owner upload denied. An `objects.name`-qualified attempt also failed; the robust
+fix computes `storage.foldername(name)` at the OUTER level
+(`… in (select m.id::text from mosques m where m.user_id = auth.uid())`) where
+`name` is unambiguous. Commits: `63ff5be` (orig), `1ae72d6` (objects.name attempt),
+`cc127bc` (robust — confirmed on dev). **Apply the current/robust 053 to prod.**
+Dev smoke fixtures (2 mosques/owners, scholars, links, events, announcements,
+storage objects) purged after.
 
 ### Parked / follow-ups
 - **Report affordance dropped** from the public mosque page (MosqueDetail had it;
