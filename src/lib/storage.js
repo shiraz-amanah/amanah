@@ -77,6 +77,58 @@ export async function uploadScholarAvatar(file, scholarId) { // eslint-disable-l
 }
 
 // ============================================================================
+// Mosque media — logo (mosque-logos) + gallery photos (mosque-photos). Both
+// PUBLIC buckets (migration 053). Path convention: `{mosqueId}/<file>` — the
+// 053 owner-write policy validates the FIRST path segment against
+// mosques.user_id, so the folder MUST be the mosque id (not auth.uid()).
+// ============================================================================
+const MOSQUE_IMG_MAX = 5 * 1024 * 1024; // 5MB
+const MOSQUE_IMG_ALLOWED = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+async function uploadMosqueImage(file, mosqueId, bucket, prefix) {
+  if (!file) return { url: null, error: "No file selected." };
+  if (!mosqueId) return { url: null, error: "Missing mosque id." };
+  const ext = MOSQUE_IMG_ALLOWED[file.type];
+  if (!ext) return { url: null, error: "Use a JPG, PNG or WebP image." };
+  if (file.size > MOSQUE_IMG_MAX) return { url: null, error: "Image must be under 5MB." };
+
+  const path = `${mosqueId}/${prefix}${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    contentType: file.type, cacheControl: "3600", upsert: false,
+  });
+  if (error) {
+    console.error(`uploadMosqueImage(${bucket}) failed:`, { message: error?.message, statusCode: error?.statusCode, path });
+    const blob = `${error?.message || ""} ${error?.statusCode || ""}`;
+    const msg = /bucket|not found/i.test(blob)
+      ? "Media storage isn't set up yet. Contact support."
+      : /row-level security|policy|unauthor|403/i.test(blob)
+      ? "Upload was blocked by storage permissions."
+      : "Couldn't upload the image — try again.";
+    return { url: null, error: msg };
+  }
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return { url: data?.publicUrl || null, error: null };
+}
+
+export const uploadMosqueLogo  = (file, mosqueId) => uploadMosqueImage(file, mosqueId, "mosque-logos", "logo-");
+export const uploadMosquePhoto = (file, mosqueId) => uploadMosqueImage(file, mosqueId, "mosque-photos", "");
+
+// Best-effort delete of a gallery photo by its public URL. Extracts the
+// in-bucket path after `/object/public/mosque-photos/` and removes it.
+export async function removeMosquePhoto(url) {
+  try {
+    const marker = "/object/public/mosque-photos/";
+    const i = (url || "").indexOf(marker);
+    if (i === -1) return { error: "Not a mosque-photos URL." };
+    const path = decodeURIComponent(url.slice(i + marker.length));
+    const { error } = await supabase.storage.from("mosque-photos").remove([path]);
+    return { error: error?.message || null };
+  } catch (e) {
+    return { error: e?.message || "remove failed" };
+  }
+}
+
+// ============================================================================
 // Private document uploads — ijazah/qualification → `credentials` bucket,
 // existing DBS certificates → `dbs-certificates` bucket. Both are PRIVATE
 // (migration 043 header documents manual bucket creation), so we store the
