@@ -22,6 +22,7 @@ import VideoCallEmbed from "./components/VideoCallEmbed";
 import MosqueProfileEditor from "./components/MosqueProfileEditor";
 import MosqueScholarsManager from "./components/MosqueScholarsManager";
 import MosqueEventsManager from "./components/MosqueEventsManager";
+import MosqueProfile from "./pages/MosqueProfile";
 import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "./data/mosqueTaxonomy";
@@ -1440,252 +1441,9 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
   );
 };
 
-// ============== MOSQUE DETAIL PAGE ==============
-
-const MosqueDetail = ({ mosque, onBack, onScholar, onDonate, isSaved, onToggleSave, authedUser, authedProfile, onLogoClick, onSignIn, myMosque }) => {
-  // mosque may be null on hard refresh of /mosque/:slug — App's refetch
-  // useEffect populates selectedMosque by slug. Hooks stay unconditional;
-  // null-guard sits after them.
-
-  // Phase 7 Report affordance — session-local. Hidden for unauthed users
-  // and for the mosque admin viewing their own listing (mosque.user_id is
-  // available via transformMosque's row spread; myMosque is the authoritative
-  // App-root state if the viewer claimed this mosque).
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reported, setReported] = useState(false);
-  const canReport = !!authedUser && mosque?.user_id !== authedUser?.id && myMosque?.id !== mosque?.id && !!mosque?.id;
-
-  if (!mosque) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <div className="text-sm text-stone-400">Loading mosque…</div>
-      </div>
-    );
-  }
-
-  const facilityLabels = {
-    disability_access: { label: "Disability access", icon: "♿" },
-    parking: { label: "Parking", icon: "🅿️" },
-    womens_area: { label: "Women's area", icon: "🌸" },
-    wudu_facilities: { label: "Wudu facilities", icon: "💧" },
-    first_aid: { label: "First aid", icon: "🩹" },
-    defibrillator: { label: "Defibrillator", icon: "❤️‍🩹" }
-  };
-
-  // TODO(mosques-migration): mosque.scholarIds is empty until mosques migrate
-  // to Supabase and gain real FK relationships to scholars.id (UUIDs). The
-  // previous integer-id lookup against the deleted mock scholar data produced
-  // fabricated affiliations — see Session F recap. Affiliated scholars section
-  // renders empty until the mosques DB session lands.
-  const affiliatedScholars = [];
-
-  // Prayer times - hardcoded Adhan times for now (Session C will use Aladhan API)
-  const prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
-  const adhanTimes = { Fajr: "05:14", Dhuhr: "12:55", Asr: "15:48", Maghrib: "19:32", Isha: "21:08" };
-  const iqamaKeys = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
-
-  return (
-    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onLogoClick} onSignIn={onSignIn} />
-      {/* Hero with photo (or initials block when photo_url is null) */}
-      <div className="relative h-72 md:h-96 bg-stone-900 overflow-hidden">
-        {mosque.photo ? (
-          <img
-            src={mosque.photo}
-            alt={mosque.name}
-            className="w-full h-full object-cover opacity-90"
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center">
-            <span className="text-white text-7xl md:text-8xl font-semibold tracking-wide" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
-              {getMosqueInitials(mosque)}
-            </span>
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-stone-900/70 via-stone-900/20 to-transparent" />
-
-        {/* Back button + save */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-          <button onClick={onBack} className="bg-white/90 backdrop-blur text-stone-900 inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-white transition-colors">
-            <ArrowLeft size={16} /> Back
-          </button>
-          {onToggleSave && (
-            <button
-              onClick={() => onToggleSave(mosque)}
-              className="bg-white/90 backdrop-blur p-2 rounded-full hover:bg-white transition-colors"
-              aria-label={isSaved ? "Unsave" : "Save"}
-            >
-              <Heart size={18} className={isSaved ? "text-rose-500" : "text-stone-700"} fill={isSaved ? "currentColor" : "none"} />
-            </button>
-          )}
-        </div>
-
-        {/* Title overlaid */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8">
-          <div className="max-w-4xl mx-auto">
-            {mosque.verified && (
-              <div className="inline-flex items-center gap-1 bg-emerald-600 text-white text-[11px] px-2.5 py-1 rounded-full font-medium uppercase tracking-wider mb-2">
-                <ShieldCheck size={12} /> Verified
-              </div>
-            )}
-            <h1 className="text-3xl md:text-5xl font-semibold text-white" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{mosque.name}</h1>
-            <p className="text-white/80 mt-1 text-sm md:text-base">{mosque.address}, {mosque.city} {mosque.postcode}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-5 md:px-6 py-8 md:py-10 space-y-6">
-        {/* About */}
-        {mosque.description && (
-          <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">About</h2>
-            <p className="text-stone-800 leading-relaxed">{mosque.description}</p>
-          </section>
-        )}
-
-        {/* Contact */}
-        <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-          <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Contact</h2>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <a href={`tel:${mosque.phone}`} className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 hover:border-emerald-400 transition-colors">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center"><Phone size={16} className="text-emerald-700" /></div>
-              <div className="text-sm">
-                <p className="text-stone-500 text-xs">Phone</p>
-                <p className="text-stone-900 font-medium">{mosque.phone}</p>
-              </div>
-            </a>
-            <a href={`mailto:${mosque.email}`} className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 hover:border-emerald-400 transition-colors">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center"><Mail size={16} className="text-emerald-700" /></div>
-              <div className="text-sm min-w-0">
-                <p className="text-stone-500 text-xs">Email</p>
-                <p className="text-stone-900 font-medium truncate">{mosque.email}</p>
-              </div>
-            </a>
-          </div>
-        </section>
-
-        {/* Prayer times */}
-        <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-          <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Today's prayer times</h2>
-          <div className="overflow-hidden rounded-xl border border-stone-200">
-            <table className="w-full text-sm">
-              <thead className="bg-stone-50 text-stone-600 text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="text-left px-4 py-2.5">Prayer</th>
-                  <th className="text-right px-4 py-2.5">Adhan</th>
-                  {mosque.iqamaTimes && <th className="text-right px-4 py-2.5">Iqama</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {prayerNames.map((name, i) => (
-                  <tr key={name} className="border-t border-stone-100">
-                    <td className="px-4 py-2.5 font-medium text-stone-900">{name}</td>
-                    <td className="px-4 py-2.5 text-right text-stone-700 font-mono">{adhanTimes[name]}</td>
-                    {mosque.iqamaTimes && (
-                      <td className="px-4 py-2.5 text-right text-emerald-700 font-mono font-medium">{mosque.iqamaTimes[iqamaKeys[i]] || "—"}</td>
-                    )}
-                  </tr>
-                ))}
-                {mosque.jumuahTime && (
-                  <tr className="border-t border-stone-100 bg-emerald-50/40">
-                    <td className="px-4 py-2.5 font-medium text-stone-900">Jumu'ah</td>
-                    <td className="px-4 py-2.5 text-right text-stone-700 font-mono">—</td>
-                    {mosque.iqamaTimes && <td className="px-4 py-2.5 text-right text-emerald-700 font-mono font-medium">{mosque.jumuahTime}</td>}
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-stone-500 mt-2">Iqama times are mosque-reported. Adhan times are calculated; please verify locally.</p>
-        </section>
-
-        {/* Facilities */}
-        {mosque.facilities && mosque.facilities.length > 0 && (
-          <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Facilities</h2>
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {mosque.facilities.map(f => {
-                const meta = facilityLabels[f] || { label: f.replace(/_/g, ' '), icon: "✓" };
-                return (
-                  <div key={f} className="flex items-center gap-2 p-2.5 rounded-lg bg-stone-50 border border-stone-100">
-                    <span className="text-base">{meta.icon}</span>
-                    <span className="text-sm text-stone-800">{meta.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* Affiliated scholars */}
-        {affiliatedScholars.length > 0 && (
-          <section>
-            <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3 px-1">Scholars at this mosque</h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {affiliatedScholars.map(s => (
-                <ScholarCard key={s.id} scholar={s} onClick={() => onScholar(s)} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Donate */}
-        {mosque.campaignId && (
-          <section className="bg-gradient-to-br from-emerald-700 to-emerald-900 text-white rounded-2xl p-6 md:p-8">
-            <h2 className="text-2xl font-semibold mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Support this mosque</h2>
-            <p className="text-emerald-50 text-sm mb-4">Your donation helps keep the mosque running and supports community programmes.</p>
-            <button
-              onClick={() => onDonate && onDonate(mosque)}
-              className="bg-white text-emerald-800 font-medium px-5 py-2.5 rounded-xl hover:bg-emerald-50 transition-colors inline-flex items-center gap-2"
-            >
-              <Heart size={16} fill="currentColor" /> Donate now
-            </button>
-          </section>
-        )}
-
-        {/* Community reviews — empty-state until mosque reviews ship as a
-            real feature. Section always renders so the surface is visible
-            and the data shape isn't silently dropped. Pre-K-6a, this
-            block was conditional on mockReviews; transformMosque doesn't
-            populate that field, so the conditional would have hidden the
-            section entirely on the cutover. Empty-state instead is a
-            clearer signal the surface exists. */}
-        <section className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-          <h2 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Community reviews</h2>
-          <div className="text-center py-6 text-stone-500">
-            <Star className="mx-auto text-stone-300 mb-2" size={20} />
-            <p className="text-sm">No reviews yet.</p>
-          </div>
-        </section>
-
-        {canReport && (
-          <div className="flex justify-center pt-2">
-            {reported ? (
-              <span className="text-xs text-stone-500 italic">Reported — under review</span>
-            ) : (
-              <button
-                onClick={() => setShowReportModal(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-stone-500 hover:text-rose-600 transition-colors"
-              >
-                <Flag size={12} /> Report this mosque
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      {showReportModal && (
-        <ReportModal
-          subjectType="mosque"
-          subjectId={mosque.id}
-          subjectPreview={mosque.name}
-          onClose={() => setShowReportModal(false)}
-          onSubmitted={() => { setReported(true); setShowReportModal(false); }}
-        />
-      )}
-    </div>
-  );
-};
+// MOSQUE DETAIL PAGE — retired in Session U Day 1. The public mosque page is now
+// src/pages/MosqueProfile.jsx (richer: gallery, linked scholars, events,
+// announcements, donation link). /mosque/:slug routes there.
 
 // ==================== CATEGORY PAGE ====================
   const CategoryListing = ({ categoryId, onBack, onScholar, onSignIn, savedScholarIds, toggleScholarSave, authedUser, authedProfile }) => {
@@ -13703,7 +13461,13 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
   if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
-  if (view === "mosqueDetail") return <MosqueDetail mosque={selectedMosque} onBack={() => window.history.back()} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onDonate={(m) => { console.log("Donate to mosque:", m.name); }} isSaved={savedMosqueIds.has(String(selectedMosque?.id))} onToggleSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} myMosque={myMosque} />;
+  if (view === "mosqueDetail") return <MosqueProfile
+    mosque={selectedMosque}
+    header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />}
+    onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }}
+    isSaved={savedMosqueIds.has(String(selectedMosque?.id))}
+    onToggleSave={toggleMosqueSave}
+  />;
   if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={async (s) => {
     // Auth gate — same flow as other parent-gated actions.
     if (!authedUser) {
