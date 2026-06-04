@@ -239,6 +239,31 @@ export async function getMosqueByUserId(userId) {
   return data
 }
 
+// Mosque owner self-service profile update (Session U Day 1). Direct RLS-gated
+// UPDATE — the "Mosque owners update own listing" policy (migration 024) scopes
+// writes to auth.uid() = user_id, so an owner can only ever patch their own row.
+// `updates` is a partial of snake_case mosque columns; only whitelisted profile
+// fields are written (never status/verification flags/slug/user_id). Returns the
+// updated raw row in { data } so the caller can re-transform it.
+const MOSQUE_EDITABLE_COLUMNS = [
+  'name', 'description', 'bio', 'address', 'city', 'postcode', 'phone', 'email',
+  'capacity', 'services', 'facilities', 'prayer_times', 'jumuah_time',
+  'jumuah_language', 'donation_url', 'website_url', 'logo_url', 'photo_url', 'photos',
+]
+export async function updateMosqueProfile(mosqueId, updates) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const patch = {}
+  for (const k of MOSQUE_EDITABLE_COLUMNS) {
+    if (updates && Object.prototype.hasOwnProperty.call(updates, k)) patch[k] = updates[k]
+  }
+  if (Object.keys(patch).length === 0) return { error: { message: 'No editable fields provided' } }
+  patch.updated_at = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('mosques').update(patch).eq('id', mosqueId).select().single()
+  if (error) console.error('Error updating mosque profile:', error)
+  return { data, error }
+}
+
 // ==================== Mosque staff invites (Session M Part B) ====================
 
 // Admin-side: insert a row into mosque_staff_invites for the mosque

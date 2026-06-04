@@ -19,8 +19,10 @@ import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import WeekSlotPicker from "./components/WeekSlotPicker";
 import CancelBookingModal from "./components/CancelBookingModal";
 import VideoCallEmbed from "./components/VideoCallEmbed";
+import MosqueProfileEditor from "./components/MosqueProfileEditor";
 import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
+import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "./data/mosqueTaxonomy";
 import { fmt, initialsFromName } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
@@ -2850,7 +2852,7 @@ const DBSStatusPill = ({ status }) => {
 // PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
 // MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
 // Phase 9 sweeps.
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation }) => {
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
   });
@@ -2939,103 +2941,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10">
         {tab === "profile" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Profile</h2>
-              <p className="text-sm text-stone-600">Read-only display of your mosque details. Editing comes in a follow-up release.</p>
-            </div>
-
-            {/* Hero card with photo or initials */}
-            <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
-              <div className="relative h-44 md:h-56">
-                {mosque.photo ? (
-                  <img src={mosque.photo} alt={mosque.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; }} />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center">
-                    <span className="text-white text-6xl font-semibold tracking-wide" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{getMosqueInitials(mosque)}</span>
-                  </div>
-                )}
-              </div>
-              <div className="p-5 md:p-6">
-                <h3 className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{mosque.name}</h3>
-                <p className="text-sm text-stone-600 mt-0.5">{mosque.address}, {mosque.city} {mosque.postcode}</p>
-                {mosque.bio && <p className="text-sm text-stone-700 leading-relaxed mt-3">{mosque.bio}</p>}
-                {!mosque.bio && mosque.description && <p className="text-sm text-stone-700 leading-relaxed mt-3">{mosque.description}</p>}
-              </div>
-            </div>
-
-            {/* Contact + capacity card */}
-            <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-              <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Contact & details</h3>
-              <div className="grid md:grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Phone</p>
-                  <p className="text-sm text-stone-900">{mosque.phone || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Email</p>
-                  <p className="text-sm text-stone-900 break-all">{mosque.email || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Capacity</p>
-                  <p className="text-sm text-stone-900">{mosque.capacity ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Charity number</p>
-                  <p className="text-sm text-stone-900">{mosque.registered_charity_number || "—"}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Prayer times */}
-            {mosque.iqamaTimes && (
-              <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Iqama times</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {iqamaKeys.map(k => (
-                    <div key={k}>
-                      <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{iqamaLabels[k]}</p>
-                      <p className="text-sm text-emerald-700 font-mono font-medium">{mosque.iqamaTimes[k] || "—"}</p>
-                    </div>
-                  ))}
-                </div>
-                {mosque.jumuahTime && (
-                  <div className="mt-3 pt-3 border-t border-stone-100">
-                    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Jumu'ah</p>
-                    <p className="text-sm text-emerald-700 font-mono font-medium">{mosque.jumuahTime}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Services */}
-            {mosque.services && mosque.services.length > 0 && (
-              <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Services offered</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {mosque.services.map(s => (
-                    <span key={s} className="text-xs px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md">
-                      {(MOSQUE_SERVICES.find(x => x.v === s)?.l) || s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Facilities */}
-            {mosque.facilities && mosque.facilities.length > 0 && (
-              <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
-                <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Facilities</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {mosque.facilities.map(f => (
-                    <span key={f} className="text-xs px-2 py-1 bg-stone-50 border border-stone-200 text-stone-700 rounded-md">
-                      {(MOSQUE_FACILITIES.find(x => x.v === f)?.l) || f}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
         )}
 
         {tab === "staff" && (
@@ -7210,28 +7116,8 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
 // MosqueDetail conditionally renders the jumuah row, so a wizard-
 // approved mosque without it is graceful-degraded.
 
-const MOSQUE_SERVICES = [
-  { v: "five_prayers", l: "Five daily prayers" },
-  { v: "jumuah", l: "Jumu'ah (Friday)" },
-  { v: "taraweeh", l: "Taraweeh in Ramadan" },
-  { v: "eid_prayers", l: "Eid prayers" },
-  { v: "janazah", l: "Janazah service" },
-  { v: "marriage", l: "Nikah / marriage" },
-  { v: "classes_for_kids", l: "Quran / Islamic classes for kids" },
-  { v: "classes_for_adults", l: "Adult learning circles" },
-  { v: "reverts_support", l: "New Muslim support" },
-  { v: "food_bank", l: "Food bank / community meals" },
-  { v: "family_events", l: "Family events" },
-];
-
-const MOSQUE_FACILITIES = [
-  { v: "disability_access", l: "Disability access" },
-  { v: "parking", l: "Parking" },
-  { v: "womens_area", l: "Women's area" },
-  { v: "wudu_facilities", l: "Wudu facilities" },
-  { v: "first_aid", l: "First aid trained" },
-  { v: "defibrillator", l: "Defibrillator on site" },
-];
+// MOSQUE_SERVICES + MOSQUE_FACILITIES moved to src/data/mosqueTaxonomy.js
+// (imported at top) so the dashboard editor + public page share them.
 
 const MOSQUE_WIZARD_DRAFT_KEY = "mosqueOnboardingDraft";
 
@@ -13910,6 +13796,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     conversations={inboxData}
     conversationsLoading={conversationsLoading && !!authedProfile}
     onConversation={(c) => { setSelectedConversation(c); setRole("mosque"); navigate("conversationView", { id: c.id }); }}
+    onMosqueUpdate={(updated) => setMyMosque(transformMosque(updated))}
   />;
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
