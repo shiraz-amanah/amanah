@@ -5537,6 +5537,103 @@ is unset and never throws. ✅
 
 ---
 
+## Session T — Daily.co video calls embedded in dashboard ✅ (4 June 2026)
+
+**Session renumbering:** this brief makes **T = Daily.co video** and pushes
+**Stripe to Session W (last)**. The S-block above (and R, Q) still say "next →
+Stripe / Session T" — that pointer is now stale; Stripe is W. Path B "built-in
+video" deferred back in Session E lands here.
+
+A private Daily room is created at booking confirmation, its URL stored in
+`bookings.meeting_url`, and an embedded iframe shown to both family and scholar
+in their dashboard booking view — joinable 5 min before `scheduled_at`,
+auto-expiring at session end. **No migrations** (meeting_url already existed).
+
+### Shipped (5 work commits + this closure)
+- `api/create-daily-room.js` (new Vercel fn) — POST `{ bookingId }` + Bearer JWT.
+  Service-role booking read, authorizes by **UUID** (parent_id OR scholar.user_id),
+  creates a private room (`nbf` = scheduled_at − 5 min, `exp` = scheduled_at +
+  duration_minutes, `max_participants: 2`, chat/screenshare off), stores the URL
+  guarded on `meeting_url IS NULL`. Idempotent — returns the existing URL untouched
+  (protects manual Zoom/Meet links). ✅
+- `api/get-meeting-token.js` (new Vercel fn) — GET `?bookingId=` + Bearer JWT, same
+  UUID authz, derives room name from `meeting_url`, mints a per-participant Daily
+  meeting token (`exp` = session end). Private rooms reject join without it. ✅
+- `src/lib/video.js` — client wrappers `createDailyRoom` / `getMeetingToken`
+  (mirror `src/lib/email.js`: pass only bookingId + JWT, never the Daily key,
+  catch own errors) + `isDailyRoomUrl(url)` predicate (host ends `.daily.co`). ✅
+- `src/auth.js` — `createBooking()` fires `createDailyRoom(data.id)`
+  fire-and-forget **after the insert, before** the confirmation email, so
+  meeting_url is populated by the time the family hits their dashboard. ✅
+- `src/components/VideoCallEmbed.jsx` — wall-clock state machine (null→nothing,
+  pre-window→countdown, in-window→Join button→embedded `DailyIframe`,
+  post-end→"Session ended"). Frame created **lazily on Join click only** (never
+  on render) and destroyed on unmount/`left-meeting`/`error` — sidesteps Daily's
+  "duplicate instance" guard when many rows mount the component, and keeps the
+  camera off until opt-in. Token/iframe failure → fallback external link. ✅
+- App.jsx wiring (import + render only — closed-file rule honoured): family
+  booking row renders the embed above the action row; scholar row renders it
+  above the existing manual link editor. Both **gated on `isDailyRoomUrl`** so
+  the legacy external-tab Join button (family) and the manual editor (scholar)
+  survive for manually-entered links. ✅
+
+### Decisions / corrections from the brief (pre-flight)
+- **`bookings.duration_minutes` ALREADY EXISTS** — the brief's "no duration column
+  yet — hardcode 60" was wrong. `createBooking` inserts it (defaulting 60) and both
+  dashboards display it. `exp` (room + token) now uses the real column, falling back
+  to 60 only when null. The brief's hardcode TODO is dropped.
+- **Three product overlaps the brief was silent on — resolved by asking Shiraz:**
+  (1) Family: existing Session E "Join session" button (external `window.open`,
+  ±15 min) → **embed only when Daily-hosted**; keep the external-tab button for
+  manual links + the no-link state. (2) Scholar manual meeting-link editor →
+  **keep it as an override escape hatch**, embed renders above it. (3) Prop shape
+  → **explicit normalized props** (`bookingId, meetingUrl, scheduledAt,
+  durationMinutes`), not the brief's snake_case `{ booking }` — the two dashboards
+  pass differently-named camelCase objects, so a single object shape didn't fit.
+- **Authz by UUID, not email** — the email handlers match on `parent_email`/
+  `scholar_email` via the notification RPC, but that RPC doesn't return
+  duration_minutes or the participant UUIDs. A direct service-role `bookings` read
+  (`select=…,scholars(user_id)`) gives every field AND lets us authorize on
+  `caller.id === parent_id || caller.id === scholar.user_id` — stronger, and no
+  migration (brief's "no migrations" holds).
+- **Two new Vercel functions** (room + token kept separate from
+  send-transactional — they're not email sends, per the brief's lean). api/ now
+  has 10 functions, under the Hobby 12-fn cap.
+
+### NOT verified — smoke test still owed (flag for next session start)
+`/api/*` routes don't run under `npm run dev` (Vite), so **none of the 8 smoke
+steps have been run**. `npm run build` is green and all imports resolve, but the
+end-to-end path (room creation on booking → meeting_url set → embed countdown →
+clock-forward join → token issuance → DAILY_API_KEY absent from client network)
+is **unverified**. Must be smoke-tested via `vercel dev` or a deploy. Specific
+unknowns to watch: (a) `frame.join({ url, token })` actually authenticating into
+a private room; (b) whether the `meeting_url=is.null` PATCH guard + race-loser
+re-read behaves as intended; (c) DailyIframe cleanup across remounts (the
+"duplicate instance" guard) under real navigation, not just reasoning.
+
+### Parked / follow-ups
+- Booking confirmation email does **not** include the meeting link (template
+  unchanged — it links to the dashboard). Could add the join link in a future pass.
+- In-person bookings: there's still no session_format column, so meeting_url is
+  effectively always set (every booking gets a Daily room). True in-person =
+  meeting_url null → embed renders nothing; revisit when a format column lands.
+- No reschedule hook: rescheduling a booking (`updateBooking` sets scheduled_at)
+  does **not** update the existing Daily room's nbf/exp. Parked — the room window
+  would be stale after a reschedule. Needs a room-update call or recreate.
+- `start_video_off`/`start_audio_off` left `false` per brief (camera on at join).
+
+### Manual steps before this works
+1. Add `DAILY_API_KEY` to **Vercel Production env** (already in local `.env` +
+   `.env.local`; `vercel dev` reads `.env`). No other new env, no DB changes.
+2. Verify the Daily.co account domain — room URLs return as
+   `https://<team>.daily.co/<name>`; `isDailyRoomUrl` matches any `*.daily.co` host.
+3. Smoke via `vercel dev` or a deploy (see "NOT verified" above) before trusting.
+
+### Next session
+- Stripe Connect / payments (Session W — last)
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
