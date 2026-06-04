@@ -1,0 +1,217 @@
+// /api/create-daily-room — Vercel serverless function (Session T).
+//
+// Creates a private Daily.co video room for a booking and stores the returned
+// URL in bookings.meeting_url. Called fire-and-forget from createBooking() right
+// after the booking row is inserted (see src/auth.js).
+//
+// Trust model (mirrors send-transactional.js):
+//   - The caller forwards their Supabase access token (Authorization: Bearer
+//     <jwt>); we resolve the auth user via /auth/v1/user.
+//   - Authorization is by UUID: the caller must be the booking's parent_id OR
+//     the user_id of the booking's scholar. We read the booking row with the
+//     SERVICE ROLE (PostgREST RLS would otherwise hide the scholar.user_id and
+//     block the meeting_url UPDATE on another party's row).
+//   - DAILY_API_KEY is read server-side only and never reaches the client. The
+//     client receives just { url, roomName }.
+//
+// Idempotent: if meeting_url is already set on the booking (a prior room, or a
+// manually-entered Zoom/Meet link from the scholar's editor), we return the
+// existing URL and never overwrite it.
+//
+// Env (Vercel Production + local .env — NOTE: `vercel dev` reads .env, not
+// .env.local, for /api functions):
+//   DAILY_API_KEY             — Daily.co REST API key
+//   SUPABASE_URL              — project URL
+//   SUPABASE_ANON_KEY         — used to verify the caller's JWT
+//   SUPABASE_SERVICE_ROLE_KEY — service role (booking read + meeting_url write)
+
+const DAILY_ROOMS_ENDPOINT = 'https://api.daily.co/v1/rooms';
+
+// Session length when a booking has no duration_minutes (defensive — the column
+// exists and createBooking defaults it to 60, but null-guard anyway).
+const DEFAULT_DURATION_MINUTES = 60;
+// Room opens this many minutes before the scheduled start (Daily `nbf`).
+const JOIN_LEAD_MINUTES = 5;
+
+function isUuid(s) {
+  return typeof s === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+function envOrThrow() {
+  const { DAILY_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } = process.env;
+  const missing = Object.entries({
+    DAILY_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+  }).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length) {
+    console.error('[create-daily-room] missing env', missing);
+    throw new Error('server_misconfigured');
+  }
+  return { DAILY_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY };
+}
+
+// Verify a caller's Supabase JWT → returns the auth user, or null.
+async function verifyCaller(env, authHeader) {
+  const token = (authHeader || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Service-role GET against PostgREST. Returns a parsed array (or []).
+async function sbGet(env, path) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+  });
+  if (!res.ok) { console.error('[create-daily-room] sbGet failed', path, res.status); return []; }
+  return res.json().catch(() => []);
+}
+
+// Fetch the booking + the embedded scholar's user_id (service role bypasses RLS).
+async function getBooking(env, bookingId) {
+  const rows = await sbGet(
+    env,
+    `bookings?id=eq.${bookingId}&select=id,parent_id,scheduled_at,duration_minutes,meeting_url,scholars(user_id)`
+  );
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+// Caller must be the family (parent) or the scholar on this booking.
+function callerOwnsBooking(booking, callerId) {
+  if (!booking || !callerId) return false;
+  return booking.parent_id === callerId || booking.scholars?.user_id === callerId;
+}
+
+// Derive the Daily room name (last path segment) from a room URL.
+function roomNameFromUrl(url) {
+  try { return new URL(url).pathname.replace(/^\/+/, '') || null; }
+  catch { return null; }
+}
+
+// nbf (room opens) / exp (room closes) as unix seconds, derived from the
+// booking's scheduled_at + duration_minutes.
+function roomWindow(booking) {
+  const startMs = new Date(booking.scheduled_at).getTime();
+  const durationMin = Number(booking.duration_minutes) > 0
+    ? Number(booking.duration_minutes)
+    : DEFAULT_DURATION_MINUTES;
+  return {
+    nbf: Math.floor(startMs / 1000) - JOIN_LEAD_MINUTES * 60,
+    exp: Math.floor(startMs / 1000) + durationMin * 60,
+  };
+}
+
+async function createDailyRoom(env, booking) {
+  const { nbf, exp } = roomWindow(booking);
+  const res = await fetch(DAILY_ROOMS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.DAILY_API_KEY}`,
+    },
+    // Room name is auto-generated by Daily (omitted) to avoid collisions.
+    body: JSON.stringify({
+      privacy: 'private',
+      properties: {
+        nbf,
+        exp,
+        max_participants: 2,
+        enable_chat: false,
+        enable_screenshare: false,
+        start_video_off: false,
+        start_audio_off: false,
+      },
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('[create-daily-room] daily_create_failed', res.status, json?.info || json?.error);
+    throw new Error('daily_create_failed');
+  }
+  return { url: json.url, roomName: json.name };
+}
+
+// Persist the room URL — guarded on meeting_url IS NULL so overlapping calls (or
+// a manual link set in between) can't be clobbered.
+async function storeMeetingUrl(env, bookingId, url) {
+  const res = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}&meeting_url=is.null`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ meeting_url: url }),
+    }
+  );
+  if (!res.ok) {
+    console.error('[create-daily-room] meeting_url update failed', res.status);
+    return null;
+  }
+  const rows = await res.json().catch(() => []);
+  // Empty array = the guard matched no row (meeting_url was set by a racing
+  // call). Re-read to return whatever URL actually won.
+  if (Array.isArray(rows) && rows[0]) return rows[0].meeting_url;
+  return null;
+}
+
+export default async function handler(req, res) {
+  let env;
+  try { env = envOrThrow(); }
+  catch { return res.status(500).json({ ok: false, error: 'server_misconfigured' }); }
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, error: 'method_not_allowed' });
+  }
+
+  const body = typeof req.body === 'object' && req.body ? req.body : {};
+  const bookingId = body.bookingId;
+  if (!isUuid(bookingId)) {
+    return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
+  }
+
+  const caller = await verifyCaller(env, req.headers.authorization);
+  if (!caller?.id) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+  const booking = await getBooking(env, bookingId);
+  if (!booking) return res.status(404).json({ ok: false, error: 'booking_not_found' });
+  if (!callerOwnsBooking(booking, caller.id)) {
+    return res.status(403).json({ ok: false, error: 'forbidden' });
+  }
+
+  // Idempotent: an existing URL (Daily room or manual Zoom/Meet link) wins.
+  if (booking.meeting_url) {
+    return res.status(200).json({
+      ok: true,
+      url: booking.meeting_url,
+      roomName: roomNameFromUrl(booking.meeting_url),
+      existing: true,
+    });
+  }
+
+  try {
+    const { url, roomName } = await createDailyRoom(env, booking);
+    const stored = await storeMeetingUrl(env, bookingId, url);
+    // If the guarded UPDATE matched nothing, a concurrent call set a URL first —
+    // prefer that one so both callers agree on a single room.
+    const winningUrl = stored || url;
+    return res.status(200).json({
+      ok: true,
+      url: winningUrl,
+      roomName: stored && stored !== url ? roomNameFromUrl(winningUrl) : roomName,
+    });
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err?.message || 'create_failed' });
+  }
+}
