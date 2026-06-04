@@ -3,6 +3,7 @@ import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upl
 import { sendDbsReminderEmail } from "../lib/email";
 import MosqueTimesheets from "./MosqueTimesheets";
 import MosqueBulkImport from "./MosqueBulkImport";
+import MosqueHRAssistant from "./MosqueHRAssistant";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
 import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite } from "../auth";
 import { sendStaffInviteEmail } from "../lib/resend";
@@ -189,6 +190,8 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff</h2>
         <p className="text-sm text-stone-600">Your team, rotas, and substitute cover.</p>
       </div>
+
+      <MosqueHRAssistant mosqueId={mosqueId} />
 
       {/* Segmented control */}
       <div className="flex gap-1 border-b border-stone-200 overflow-x-auto">

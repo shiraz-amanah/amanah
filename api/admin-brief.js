@@ -68,6 +68,68 @@ async function sumColumn(baseUrl, key, table, query, column) {
   }
 }
 
+// Session V: mosque HR assistant, folded into this AI function to avoid a new
+// /api endpoint (Hobby 12-function cap). Separate from the admin brief: it's
+// owner-JWT authed and answers ONLY from the caller's own mosque data.
+async function mhGet(env, pathAndQuery) {
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/rest/v1/${pathAndQuery}`, { headers: sbHeaders(env.SUPABASE_SERVICE_ROLE_KEY) });
+    if (!r.ok) return [];
+    return await r.json();
+  } catch { return []; }
+}
+
+async function handleMosqueHr(req, res, body, env) {
+  if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+  const month = today.slice(0, 7);
+  const [staff, rota, ts] = await Promise.all([
+    mhGet(env, `mosque_staff?mosque_id=eq.${body.mosqueId}&archived=eq.false&select=name,role,staff_type,dbs_status,dbs_expiry_date,invite_status,end_date`),
+    mhGet(env, `mosque_rotas?mosque_id=eq.${body.mosqueId}&week_start=eq.${monday}&select=slots`),
+    mhGet(env, `mosque_timesheets?mosque_id=eq.${body.mosqueId}&select=staff_id,week_start,hours,status`),
+  ]);
+  const context = {
+    mosque: mosque.name, today,
+    staff: (staff || []).map((s) => ({ name: s.name, role: s.role, type: s.staff_type, dbs: s.dbs_status, dbs_expiry: s.dbs_expiry_date, app_access: s.invite_status, cover_until: s.end_date })),
+    current_week_rota: (Array.isArray(rota) && rota[0]?.slots) || {},
+    timesheets_this_month: (ts || []).filter((t) => (t.week_start || '').slice(0, 7) === month).map((t) => ({ staff: t.staff_id, week: t.week_start, status: t.status, hours: t.hours })),
+  };
+  const q = (body.question || '').trim();
+  const system = `You are an HR assistant for "${mosque.name}", a UK mosque. You are given the mosque's real staff/rota/timesheet data as JSON. Answer ONLY from this data, concisely, in UK English. Today is ${today}. Treat a "verified" DBS with an expiry within 30 days as "expiring soon", and past expiry as "expired". Do not invent staff or data.`;
+  const userMsg = q
+    ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
+    : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 3 short, specific proactive suggestions (one line each, no preamble or numbering) on what the admin should act on — e.g. DBS renewals, uninvited staff, rota gaps, missing/unapproved timesheets.`;
+
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[mosque-hr] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const answer = tb?.text?.trim();
+    if (!answer) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json({ ok: true, answer });
+  } catch (err) { console.error('[mosque-hr] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -86,6 +148,14 @@ export default async function handler(req, res) {
   }
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     console.warn('[admin-brief] no service-role key — admin-gated counts will read 0 under RLS');
+  }
+
+  // Mosque HR assistant branch (folded in — see handleMosqueHr).
+  if (req.method === 'POST') {
+    const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch { return null; } })() : req.body;
+    if (body?.mode === 'mosque_hr') {
+      return handleMosqueHr(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
   }
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
