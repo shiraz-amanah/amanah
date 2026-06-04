@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock } from "lucide-react";
 import MosqueTimesheets from "./MosqueTimesheets";
+import MosqueBulkImport from "./MosqueBulkImport";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
 import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite } from "../auth";
 import { sendStaffInviteEmail } from "../lib/resend";
@@ -56,6 +57,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(null);
   const [histRole, setHistRole] = useState("all");
+  const [showImport, setShowImport] = useState(false);
 
   const refresh = () => getMosqueStaff(mosqueId).then(setStaff);
   useEffect(() => {
@@ -262,11 +264,13 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
           )}
 
           {!showForm && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button onClick={() => openAdd("permanent")} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add staff</button>
               <button onClick={() => openAdd("temporary")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add temporary cover</button>
+              <button onClick={() => setShowImport((v) => !v)} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Import staff</button>
             </div>
           )}
+          {showImport && !showForm && <MosqueBulkImport mosqueId={mosqueId} onDone={refresh} onClose={() => setShowImport(false)} />}
 
           {loading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (
             <div className="space-y-4">
