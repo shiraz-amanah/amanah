@@ -9732,6 +9732,20 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
                       </div>
                     </div>
 
+                    {/* Daily video embed (auto-created rooms only). The manual
+                        meeting-link editor below stays as an override escape
+                        hatch — editing it overwrites the Daily URL. */}
+                    {isDailyRoomUrl(b.meetingUrl) && (
+                      <div className="mb-3">
+                        <VideoCallEmbed
+                          bookingId={b.id}
+                          meetingUrl={b.meetingUrl}
+                          scheduledAt={b.scheduledAt}
+                          durationMinutes={b.durationMinutes}
+                        />
+                      </div>
+                    )}
+
                     {/* Meeting URL editor */}
                     {editingBookingId === b.id ? (
                       <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
