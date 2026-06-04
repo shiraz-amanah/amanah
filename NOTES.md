@@ -5873,6 +5873,79 @@ carries no PII** (verified). Browser render not exercised headless. Fixtures pur
 
 ---
 
+## Session V — Mosque HR overhaul + AI assistant + timesheets + payroll + bulk import ✅ (4 June 2026)
+
+Large multi-feature session, built in **4 gated chunks** with a migration
+apply-gate + dev smoke between each. **14/14 dev smoke green.** NOT pushed —
+prod needs 057–059 first. Migrations renumbered from the brief (057 = public
+staff cols, not timesheets).
+
+### Shipped (by chunk)
+- **Chunk 1** (`aa25014` migration 057, `7d2e972`) — tab restructure: Scholars→
+  **Staff** (public, new `MosqueStaffPublic` with `show_on_profile` toggle +
+  bio/speciality), Staff→**HR** (existing directory hub). Order: Profile|Staff|
+  HR|Events|Donations|Messages|Account. 057 adds show_on_profile/bio/speciality
+  + makes `get_mosque_team` **opt-in** (show_on_profile=true only). Day-1
+  scholar-linking **retired** (MosqueScholarsManager + public Scholars section
+  deleted; mosque_scholars table left unused).
+- **Chunk 2** (`93afef8` migration 058, `47f1a70`) — DBS **expiry warnings**
+  (`expiring_soon` <30d state + red attention banner) + **Timesheets** HR sub-tab
+  (weekly hours, submit/approve/reject, monthly summary) + **payroll CSV export**
+  (folded into MosqueTimesheets, not a separate file). 058 = mosque_timesheets.
+- **Chunk 3** (`c4779b7` migration 059, `6bcc168`/`bcf6d15`/`ff5e787`) — **bulk
+  staff import** (CSV preview/validate/import/invite/template); **event +
+  announcement posters** (059 image_url; mosque-photos {id}/events|announcements/;
+  shown on public profile + homepage); **shift + DBS-reminder emails** (two
+  send-transactional intents). Also fixed a latent saveEvent bug (mosqueId in
+  update payload).
+- **Chunk 4** (`8578858`) — **AI HR assistant** (`MosqueHRAssistant`, collapsible
+  top-of-HR panel: 3 proactive suggestions on open + free-text Q&A).
+
+### Key decisions / corrections from the brief
+- **AI is SERVER-SIDE, not client-side.** The brief said "ANTHROPIC_API_KEY used
+  client-side" — that would leak the key. Folded the assistant into
+  **`/api/admin-brief` as `mode:'mosque_hr'`** (owner-JWT authed, fetches the
+  mosque's data via service role). **Function count stays 11/12** — the assistant
+  is a branch, the two emails are intents. Stripe (W) still has one slot, but its
+  webhook may need a plan bump or consolidation.
+- **Tab restructure retired the Day-1 scholar-linking** (replaced by
+  show_on_profile staff) — confirmed with Shiraz.
+- **`get_mosque_team` is now opt-in** (show_on_profile) — existing public staff
+  hide until toggled on. Intended.
+- **Brief's migration list was incomplete** — added bio/speciality (public Staff)
+  + the get_mosque_team change to 057.
+- Payroll export folded into MosqueTimesheets; substitute-finder distance + staff
+  self-service rota view remain parked (Day-2 carry-overs).
+- **`ANTHROPIC_API_KEY` was only in `.env.local`** — needs `.env` for local
+  `vercel dev` AI smoke (Shiraz added it); already in Vercel prod env.
+
+### Smoke (dev) — 14/14 GREEN
+1/2 public Staff show_on_profile toggle → get_mosque_team ✓ · 3/4 DBS
+expiring_soon + attention count ✓ · 5 shift email (sent:1) ✓ · 6 timesheet
+submit→approve ✓ · 7 payroll monthly total (24.5h) ✓ · 8 bulk-import insert path
+✓ · 9 template (client) ✓ · 10/11 posters upload + image_url persists + anon read
+✓ · 12 AI suggestions from real data ✓ · 13 "who needs DBS renewal?" named the
+right staff ✓ · 14 tab order (code) ✓. Ownership authz: shift/DBS/AI all 403 for
+non-owners. ANTHROPIC key never client-side. Fixtures purged each chunk.
+
+### Parked / follow-ups
+- `mosque_scholars` table + its auth helpers now fully unused (drop in a cleanup
+  migration).
+- Substitute-finder distance ranking (scholar geocoding) + staff "my rota" view.
+- Rota PDF is window.print, not generated PDF.
+
+### Manual steps before push
+1. Apply **057 → 058 → 059 to prod** (dev done) + `NOTIFY pgrst, 'reload schema';`.
+2. `ANTHROPIC_API_KEY` + `RESEND_API_KEY` must be in Vercel prod env (they are).
+3. Then push (git pipeline, `amanah` project). Apply-before-push: HR/Staff tabs
+   error on missing columns/tables otherwise.
+
+### Next session
+- Stripe (Session W — last). `api/` at **11/12** — webhook will need a plan bump
+  or folding (e.g. into send-transactional).
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
