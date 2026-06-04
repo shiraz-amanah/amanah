@@ -264,6 +264,55 @@ export async function updateMosqueProfile(mosqueId, updates) {
   return { data, error }
 }
 
+// ==================== Mosque scholars (Session U Day 1) ====================
+
+// Active scholars available to link from the mosque dashboard.
+export async function getActiveScholars() {
+  const { data, error } = await supabase
+    .from('scholars')
+    .select('id, slug, name, title, avatar_initials, avatar_gradient, avatar_url, city')
+    .eq('status', 'active')
+    .order('name')
+  if (error) { console.error('Error fetching active scholars:', error); return [] }
+  return data || []
+}
+
+// scholar_ids currently linked to a mosque (for the dashboard toggle state).
+export async function getMosqueScholarLinks(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_scholars').select('scholar_id').eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching mosque scholar links:', error); return [] }
+  return (data || []).map(r => r.scholar_id)
+}
+
+// Full linked-scholar rows for the public mosque profile.
+export async function getMosqueScholars(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_scholars')
+    .select('scholar:scholars (id, slug, name, title, avatar_initials, avatar_gradient, avatar_url, city)')
+    .eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching mosque scholars:', error); return [] }
+  return (data || []).map(r => r.scholar).filter(Boolean)
+}
+
+// Link/unlink a scholar. RLS (migration 050) enforces mosque ownership on both
+// and that the scholar is active on insert.
+export async function toggleMosqueScholar(mosqueId, scholarId, link) {
+  if (!mosqueId || !scholarId) return { error: { message: 'mosqueId + scholarId required' } }
+  if (link) {
+    const user = await getUser()
+    const { error } = await supabase
+      .from('mosque_scholars')
+      .insert({ mosque_id: mosqueId, scholar_id: scholarId, added_by: user?.id || null })
+    return { error }
+  }
+  const { error } = await supabase
+    .from('mosque_scholars').delete().eq('mosque_id', mosqueId).eq('scholar_id', scholarId)
+  return { error }
+}
+
 // ==================== Mosque staff invites (Session M Part B) ====================
 
 // Admin-side: insert a row into mosque_staff_invites for the mosque
