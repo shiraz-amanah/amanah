@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock } from "lucide-react";
+import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail } from "lucide-react";
+import { sendDbsReminderEmail } from "../lib/email";
 import MosqueTimesheets from "./MosqueTimesheets";
 import MosqueBulkImport from "./MosqueBulkImport";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
@@ -58,6 +59,14 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const [inviteBusy, setInviteBusy] = useState(null);
   const [histRole, setHistRole] = useState("all");
   const [showImport, setShowImport] = useState(false);
+  const [dbsReminderBusy, setDbsReminderBusy] = useState(false);
+  const [dbsReminderMsg, setDbsReminderMsg] = useState(null);
+  const sendDbsReminders = async () => {
+    setDbsReminderBusy(true); setDbsReminderMsg(null);
+    const r = await sendDbsReminderEmail(mosqueId);
+    setDbsReminderBusy(false);
+    setDbsReminderMsg(r?.ok ? (r.count ? `Reminder emailed to you (${r.count} staff).` : "No staff currently need attention.") : "Couldn't send reminder.");
+  };
 
   const refresh = () => getMosqueStaff(mosqueId).then(setStaff);
   useEffect(() => {
@@ -192,15 +201,17 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
 
       {/* DBS attention banner — across all active staff, shown on every HR sub-tab */}
       {dbsAttention > 0 && (
-        <div className="flex items-center gap-2 text-sm bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5">
+        <div className="flex items-center gap-2 text-sm bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 flex-wrap">
           <AlertCircle size={16} className="flex-shrink-0" />
-          <span><strong>{dbsAttention}</strong> staff need DBS attention — {[
+          <span className="flex-1 min-w-0"><strong>{dbsAttention}</strong> staff need DBS attention — {[
             dbsCount.expired ? `${dbsCount.expired} expired` : null,
             dbsCount.expiring_soon ? `${dbsCount.expiring_soon} expiring soon` : null,
             dbsCount.not_checked ? `${dbsCount.not_checked} no DBS` : null,
           ].filter(Boolean).join(", ")}.</span>
+          <button onClick={sendDbsReminders} disabled={dbsReminderBusy} className="text-xs font-medium bg-white border border-rose-300 text-rose-800 hover:bg-rose-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 flex-shrink-0">{dbsReminderBusy ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />} Send DBS reminders</button>
         </div>
       )}
+      {dbsReminderMsg && <p className="text-sm text-stone-600">{dbsReminderMsg}</p>}
 
       {section === "team" && (
         <>

@@ -94,3 +94,15 @@ export function sendMosqueApplicationRejectedEmail(applicationId) {
   if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
   return postTransactional({ intent: 'mosque_application_rejected', applicationId });
 }
+
+// --- Session V: mosque HR emails -------------------------------------------
+// Per-staff shift email from a published rota (server derives each staff's slots).
+export function sendStaffShiftNotification(mosqueId, weekStart) {
+  if (!mosqueId || !weekStart) return Promise.resolve({ ok: false, error: 'missing_args' });
+  return postTransactional({ intent: 'staff_shift_notification', mosqueId, weekStart });
+}
+// DBS reminder to the mosque owner (server lists staff needing a check/renewal).
+export function sendDbsReminderEmail(mosqueId) {
+  if (!mosqueId) return Promise.resolve({ ok: false, error: 'missing_mosqueId' });
+  return postTransactional({ intent: 'dbs_reminder', mosqueId });
+}

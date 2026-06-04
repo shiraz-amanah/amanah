@@ -770,6 +770,73 @@ async function handleReminderSweep(env) {
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
+// Session V: per-staff shift email from a published rota. Caller must own the
+// mosque. Only staff with an active app account + email are notified, each with
+// only their own slots derived from the rota jsonb.
+const SHIFT_DAY_LABEL = { monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday' };
+const SHIFT_SLOT_LABEL = { fajr: 'Fajr', dhuhr: 'Dhuhr', asr: 'Asr', maghrib: 'Maghrib', isha: 'Isha', jumuah: "Jumu'ah", classes: 'Classes' };
+
+async function ownsMosque(env, caller, mosqueId) {
+  const rows = await sbGet(env, `mosques?id=eq.${mosqueId}&select=user_id,name`);
+  const m = Array.isArray(rows) ? rows[0] : null;
+  if (!m) return { mosque: null };
+  const ok = m.user_id === caller.id || (await isAdmin(env, caller.id));
+  return { mosque: m, ok };
+}
+
+async function handleStaffShiftNotification(env, caller, mosqueId, weekStart) {
+  const { mosque, ok } = await ownsMosque(env, caller, mosqueId);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+
+  const rrows = await sbGet(env, `mosque_rotas?mosque_id=eq.${mosqueId}&week_start=eq.${weekStart}&select=slots`);
+  const slots = (Array.isArray(rrows) && rrows[0]?.slots) || {};
+  const staff = await sbGet(env, `mosque_staff?mosque_id=eq.${mosqueId}&invite_status=eq.active&select=id,name,email,profile_id`);
+
+  let sent = 0;
+  for (const s of (staff || [])) {
+    if (!s.email || !s.profile_id) continue;
+    const shifts = [];
+    for (const [day, daySlots] of Object.entries(slots)) {
+      for (const [slot, sid] of Object.entries(daySlots || {})) {
+        if (sid === s.id) shifts.push([SHIFT_DAY_LABEL[day] || day, SHIFT_SLOT_LABEL[slot] || slot]);
+      }
+    }
+    if (shifts.length === 0) continue;
+    const rows = shifts.map(([d, sl]) => `<tr><td style="padding:6px 0;border-bottom:1px solid #eee;font-size:14px;color:#374151;">${escapeHtml(d)}</td><td style="padding:6px 0;border-bottom:1px solid #eee;font-size:14px;color:#059669;font-weight:600;text-align:right;">${escapeHtml(sl)}</td></tr>`).join('');
+    const inner = `${eGreeting(firstName(s.name))}${eHeading(`Your shifts — week of ${escapeHtml(weekStart)}`)}${ePara(`Here are your assigned slots at <strong>${escapeHtml(mosque.name)}</strong>:`)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin:0 0 20px 0;"><tr><td style="padding:8px 20px;"><table width="100%" cellpadding="0" cellspacing="0">${rows}</table></td></tr></table>${eSignoff}`;
+    await sendEmail(env, { to: s.email, subject: `Your shifts for week of ${weekStart} — Amanah`, html: wrapEmail('Your shifts', inner) });
+    sent++;
+  }
+  return { status: 200, body: { ok: true, sent } };
+}
+
+// Session V: DBS reminder to the mosque owner — lists staff needing a check/renewal.
+async function handleDbsReminder(env, caller, mosqueId) {
+  const { mosque, ok } = await ownsMosque(env, caller, mosqueId);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+
+  const staff = await sbGet(env, `mosque_staff?mosque_id=eq.${mosqueId}&archived=eq.false&select=name,role,dbs_status,dbs_expiry_date`);
+  const today = new Date().toISOString().slice(0, 10);
+  const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+  const attention = [];
+  for (const s of (staff || [])) {
+    let state = s.dbs_status;
+    if (s.dbs_status === 'verified' && s.dbs_expiry_date) {
+      state = s.dbs_expiry_date < today ? 'expired' : (s.dbs_expiry_date <= in30 ? 'expiring soon' : 'verified');
+    }
+    if (state === 'verified' || state === 'pending') continue;
+    const label = state === 'not_checked' ? 'no DBS' : state;
+    attention.push([s.name, `${s.role} — ${label}${s.dbs_expiry_date ? ` (expires ${s.dbs_expiry_date})` : ''}`]);
+  }
+  if (attention.length === 0) return { status: 200, body: { ok: true, sent: 0, count: 0 } };
+  const rows = attention.map(([n, d]) => `<tr><td style="padding:6px 0;border-bottom:1px solid #eee;font-size:14px;color:#111827;font-weight:600;">${escapeHtml(n)}</td><td style="padding:6px 0;border-bottom:1px solid #eee;font-size:13px;color:#6b7280;text-align:right;">${escapeHtml(d)}</td></tr>`).join('');
+  const inner = `${eHeading(`DBS attention needed — ${escapeHtml(mosque.name)}`)}${ePara(`${attention.length} staff member(s) need a DBS check or renewal:`)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin:0 0 20px 0;"><tr><td style="padding:8px 20px;"><table width="100%" cellpadding="0" cellspacing="0">${rows}</table></td></tr></table>${eSignoff}`;
+  await sendEmail(env, { to: caller.email, subject: `DBS attention needed — ${mosque.name}`, html: wrapEmail('DBS reminder', inner) });
+  return { status: 200, body: { ok: true, sent: 1, count: attention.length } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -861,6 +928,17 @@ export default async function handler(req, res) {
     if (body.intent === 'mosque_application_rejected') {
       if (!isUuid(body.applicationId)) return res.status(400).json({ ok: false, error: 'invalid_applicationId' });
       const out = await handleMosqueApplicationRejected(env, caller, body.applicationId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'staff_shift_notification') {
+      if (!isUuid(body.mosqueId)) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+      if (!body.weekStart) return res.status(400).json({ ok: false, error: 'missing_weekStart' });
+      const out = await handleStaffShiftNotification(env, caller, body.mosqueId, body.weekStart);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'dbs_reminder') {
+      if (!isUuid(body.mosqueId)) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+      const out = await handleDbsReminder(env, caller, body.mosqueId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

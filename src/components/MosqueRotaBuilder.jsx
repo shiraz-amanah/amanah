@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Loader2, Check, ChevronLeft, ChevronRight, Copy, Printer, AlertCircle } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, Copy, Printer, AlertCircle, Mail } from "lucide-react";
 import { getMosqueStaff, getMosqueRota, upsertMosqueRota } from "../auth";
+import { sendStaffShiftNotification } from "../lib/email";
 
 // Weekly rota grid (Session U Day 2). Rows = prayer/teaching slots, columns =
 // days. Each cell assigns a staff member. One rota row per (mosque, week_start);
@@ -58,6 +59,15 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
     if (error) { setMsg(error.message || "Couldn't save the rota."); return; }
     setSaved(true);
   };
+  const [notifyBusy, setNotifyBusy] = useState(false);
+  const notifyStaff = async () => {
+    setNotifyBusy(true); setMsg(null);
+    // Persist first so the email reflects the latest slots.
+    await upsertMosqueRota(mosqueId, week, slots);
+    const r = await sendStaffShiftNotification(mosqueId, week);
+    setNotifyBusy(false);
+    setMsg(r?.ok ? `Shift emails sent to ${r.sent} staff with app access.` : "Couldn't send shift emails.");
+  };
   const copyLastWeek = async () => {
     setMsg(null);
     const prev = await getMosqueRota(mosqueId, addDays(week, -7));
@@ -76,6 +86,7 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
         <div className="flex items-center gap-2">
           <button onClick={copyLastWeek} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Copy size={13} /> Copy last week</button>
           <button onClick={() => window.print()} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Printer size={13} /> Print</button>
+          <button onClick={notifyStaff} disabled={notifyBusy} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{notifyBusy ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />} Notify staff</button>
           <button onClick={save} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-1.5 rounded-lg inline-flex items-center gap-1.5">{saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null} {saved ? "Saved" : "Save rota"}</button>
         </div>
       </div>
