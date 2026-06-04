@@ -21,6 +21,7 @@ import CancelBookingModal from "./components/CancelBookingModal";
 import VideoCallEmbed from "./components/VideoCallEmbed";
 import MosqueProfileEditor from "./components/MosqueProfileEditor";
 import MosqueScholarsManager from "./components/MosqueScholarsManager";
+import MosqueEventsManager from "./components/MosqueEventsManager";
 import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "./data/mosqueTaxonomy";
@@ -2883,6 +2884,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
   const tabs = [
     { v: "profile", l: "Profile", icon: Building2 },
     { v: "scholars", l: "Scholars", icon: GraduationCap },
+    { v: "events", l: "Events", icon: Calendar },
     { v: "staff", l: "Staff", icon: Users },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
@@ -2948,6 +2950,10 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
         {tab === "scholars" && (
           <MosqueScholarsManager mosqueId={mosque.id} />
+        )}
+
+        {tab === "events" && (
+          <MosqueEventsManager mosqueId={mosque.id} />
         )}
 
         {tab === "staff" && (

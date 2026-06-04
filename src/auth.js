@@ -313,6 +313,84 @@ export async function toggleMosqueScholar(mosqueId, scholarId, link) {
   return { error }
 }
 
+// ==================== Mosque events + announcements (Session U Day 1) ========
+
+const todayDate = () => new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
+
+// --- Events (owner dashboard CRUD; RLS migration 051 gates to the owner) ---
+export async function createMosqueEvent({ mosqueId, title, description, date, time, type }) {
+  const { data, error } = await supabase
+    .from('mosque_events')
+    .insert({ mosque_id: mosqueId, title, description: description || null, date, time: time || null, type })
+    .select().single()
+  return { data, error }
+}
+export async function getMosqueEvents(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_events').select('*').eq('mosque_id', mosqueId).order('date', { ascending: true })
+  if (error) { console.error('Error fetching mosque events:', error); return [] }
+  return data || []
+}
+export async function updateMosqueEvent(id, updates) {
+  const { data, error } = await supabase
+    .from('mosque_events').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteMosqueEvent(id) {
+  const { error } = await supabase.from('mosque_events').delete().eq('id', id)
+  return { error }
+}
+
+// --- Announcements ---
+export async function createMosqueAnnouncement({ mosqueId, title, body, pinned }) {
+  const { data, error } = await supabase
+    .from('mosque_announcements')
+    .insert({ mosque_id: mosqueId, title, body: body || null, pinned: !!pinned })
+    .select().single()
+  return { data, error }
+}
+export async function getMosqueAnnouncements(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_announcements').select('*').eq('mosque_id', mosqueId)
+    .order('pinned', { ascending: false }).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching announcements:', error); return [] }
+  return data || []
+}
+export async function updateMosqueAnnouncement(id, updates) {
+  const { data, error } = await supabase
+    .from('mosque_announcements').update(updates).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteMosqueAnnouncement(id) {
+  const { error } = await supabase.from('mosque_announcements').delete().eq('id', id)
+  return { error }
+}
+
+// --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
+// Upcoming events across all active mosques, for the homepage. Joins the mosque
+// for card display (name/logo/slug).
+export async function getUpcomingEvents(limit = 10) {
+  const { data, error } = await supabase
+    .from('mosque_events')
+    .select('id, title, date, time, type, mosque:mosques (id, slug, name, logo_url, photo_url, city)')
+    .gte('date', todayDate())
+    .order('date', { ascending: true })
+    .limit(limit)
+  if (error) { console.error('Error fetching upcoming events:', error); return [] }
+  return data || []
+}
+// Upcoming events for one mosque (public profile).
+export async function getMosqueUpcomingEvents(mosqueId, limit = 5) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_events').select('*').eq('mosque_id', mosqueId)
+    .gte('date', todayDate()).order('date', { ascending: true }).limit(limit)
+  if (error) { console.error('Error fetching mosque upcoming events:', error); return [] }
+  return data || []
+}
+
 // ==================== Mosque staff invites (Session M Part B) ====================
 
 // Admin-side: insert a row into mosque_staff_invites for the mosque
