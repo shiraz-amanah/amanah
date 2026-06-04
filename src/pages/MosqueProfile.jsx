@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ShieldCheck, MapPin, Heart, Clock, Globe, Phone, HandCoins, Calendar, Pin, CheckCircle2, X, GraduationCap } from "lucide-react";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS, MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
-import { getMosqueScholars, getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam } from "../auth";
+import { getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam } from "../auth";
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
 // Works for logged-out visitors — all reads are anon-safe (RLS public-read on
@@ -24,7 +24,6 @@ const Section = ({ title, children }) => (
 );
 
 const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => {
-  const [scholars, setScholars] = useState([]);
   const [events, setEvents] = useState([]);
   const [anns, setAnns] = useState([]);
   const [team, setTeam] = useState([]);
@@ -34,8 +33,8 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
     const id = mosque?.id;
     if (!id) return;
     let alive = true;
-    Promise.all([getMosqueScholars(id), getMosqueUpcomingEvents(id, 5), getMosqueAnnouncements(id), getMosqueTeam(id)])
-      .then(([s, e, a, t]) => { if (alive) { setScholars(s); setEvents(e); setAnns(a); setTeam(t); } })
+    Promise.all([getMosqueUpcomingEvents(id, 5), getMosqueAnnouncements(id), getMosqueTeam(id)])
+      .then(([e, a, t]) => { if (alive) { setEvents(e); setAnns(a); setTeam(t); } })
       .catch((err) => console.error("MosqueProfile load failed:", err));
     return () => { alive = false; };
   }, [mosque?.id]);
@@ -173,25 +172,6 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
                     <p className="text-xs text-stone-500 truncate">{m.role}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Linked scholars */}
-        {scholars.length > 0 && (
-          <Section title="Scholars">
-            <div className="grid sm:grid-cols-2 gap-3">
-              {scholars.map((s) => (
-                <button key={s.id} onClick={() => onScholar?.(s)} className="flex items-center gap-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl p-3 text-left transition-colors">
-                  <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${s.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden`}>
-                    {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover" /> : (s.avatar_initials || initialsOf(s))}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-stone-900 truncate">{s.name}</p>
-                    <p className="text-xs text-stone-500 truncate flex items-center gap-1"><GraduationCap size={11} /> {[s.title, s.city].filter(Boolean).join(" · ") || "Scholar"}</p>
-                  </div>
-                </button>
               ))}
             </div>
           </Section>

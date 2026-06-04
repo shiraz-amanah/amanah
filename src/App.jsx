@@ -20,7 +20,7 @@ import WeekSlotPicker from "./components/WeekSlotPicker";
 import CancelBookingModal from "./components/CancelBookingModal";
 import VideoCallEmbed from "./components/VideoCallEmbed";
 import MosqueProfileEditor from "./components/MosqueProfileEditor";
-import MosqueScholarsManager from "./components/MosqueScholarsManager";
+import MosqueStaffPublic from "./components/MosqueStaffPublic";
 import MosqueEventsManager from "./components/MosqueEventsManager";
 import MosqueProfile from "./pages/MosqueProfile";
 import HomepageEvents from "./components/HomepageEvents";
@@ -2645,9 +2645,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
   const tabs = [
     { v: "profile", l: "Profile", icon: Building2 },
-    { v: "scholars", l: "Scholars", icon: GraduationCap },
-    { v: "events", l: "Events", icon: Calendar },
     { v: "staff", l: "Staff", icon: Users },
+    { v: "hr", l: "HR", icon: Briefcase },
+    { v: "events", l: "Events", icon: Calendar },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
     { v: "account", l: "Account", icon: User },
@@ -2710,15 +2710,15 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
         )}
 
-        {tab === "scholars" && (
-          <MosqueScholarsManager mosqueId={mosque.id} />
+        {tab === "staff" && (
+          <MosqueStaffPublic mosqueId={mosque.id} />
         )}
 
         {tab === "events" && (
           <MosqueEventsManager mosqueId={mosque.id} />
         )}
 
-        {tab === "staff" && (
+        {tab === "hr" && (
           <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
         )}
 
