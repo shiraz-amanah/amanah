@@ -36,7 +36,7 @@ import { slotsToWeekly } from "./lib/availability";
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours, parseDurationToMinutes, formatBookingDateTime } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
-import MosqueStaffInviteWizard from "./pages/MosqueStaffInviteWizard";
+import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
@@ -2719,11 +2719,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         )}
 
         {tab === "staff" && (
-          <MosqueStaffInviteWizard
-            mosque={mosque}
-            embedded
-            onBack={() => setTab("profile")}
-          />
+          <MosqueStaffDirectory mosqueId={mosque.id} />
         )}
 
         {tab === "donations" && (

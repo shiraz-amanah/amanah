@@ -112,6 +112,9 @@ async function uploadMosqueImage(file, mosqueId, bucket, prefix) {
 
 export const uploadMosqueLogo  = (file, mosqueId) => uploadMosqueImage(file, mosqueId, "mosque-logos", "logo-");
 export const uploadMosquePhoto = (file, mosqueId) => uploadMosqueImage(file, mosqueId, "mosque-photos", "");
+// Staff photos reuse the mosque-photos bucket under {mosqueId}/staff-… so the
+// existing 053 owner-write policy (folder = mosque id) covers them.
+export const uploadMosqueStaffPhoto = (file, mosqueId) => uploadMosqueImage(file, mosqueId, "mosque-photos", "staff-");
 
 // Best-effort delete of a gallery photo by its public URL. Extracts the
 // in-bucket path after `/object/public/mosque-photos/` and removes it.

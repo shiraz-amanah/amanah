@@ -391,6 +391,42 @@ export async function getMosqueUpcomingEvents(mosqueId, limit = 5) {
   return data || []
 }
 
+// ==================== Mosque staff directory (Session U Day 2) ================
+// Direct admin CRUD on mosque_staff (the admin-insert RLS policy lands in
+// migration 054; update/delete policies pre-exist from 030). Records may have a
+// null profile_id (no app account yet); app access is wired via the invite flow
+// (createStaffInvite + sendStaffInviteEmail) which sets invite_status, and the
+// accept RPC (055) links the account back.
+
+export async function getMosqueStaff(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_staff').select('*').eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: true })
+  if (error) { console.error('Error fetching mosque staff:', error); return [] }
+  return data || []
+}
+
+export async function createMosqueStaff({ mosqueId, ...fields }) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosque_staff').insert({ mosque_id: mosqueId, ...fields }).select().single()
+  return { data, error }
+}
+
+export async function updateMosqueStaff(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('mosque_staff').update(updates).eq('id', id).select().single()
+  return { data, error }
+}
+
+export async function deleteMosqueStaff(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('mosque_staff').delete().eq('id', id)
+  return { error }
+}
+
 // ==================== Mosque staff invites (Session M Part B) ====================
 
 // Admin-side: insert a row into mosque_staff_invites for the mosque

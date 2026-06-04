@@ -34,6 +34,16 @@ export const PRAYER_LABELS = {
   fajr: "Fajr", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha",
 };
 
+// Staff roles (mosque_staff.role is free text — these are the dropdown presets;
+// "Other" lets an admin type a custom role). Session U Day 2.
+export const MOSQUE_STAFF_ROLES = [
+  "Imam", "Assistant Imam", "Quran Teacher", "Arabic Teacher",
+  "Admin", "Caretaker", "Youth Worker",
+];
+
+// Temporary-staff cover reasons (mosque_staff.cover_reason).
+export const MOSQUE_COVER_REASONS = ["Holiday cover", "Illness cover", "Event", "Other"];
+
 // Event types (mosque_events.type CHECK in migration 051).
 export const MOSQUE_EVENT_TYPES = [
   { v: "prayer", l: "Prayer" },
