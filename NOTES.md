@@ -5698,6 +5698,78 @@ are unaffected (the call is fire-and-forget; createBooking only logs a warning).
 
 ---
 
+## Session U Day 1 — Mosque profile editing + public page + events ✅ (4 June 2026)
+
+Mosques get a fully editable profile, scholar links, events + announcements, and
+a rich public page; events surface on the homepage. 8 work commits
+(`229e792`…`8011eb0`) + this closure. **Built green at every step; NOT yet
+smoke-tested or pushed** (see below).
+
+### Shipped
+- **Migrations 049–052** (`229e792`) + **053 storage** (`63ff5be`). Pre-flight
+  found most of 049's brief was already in the schema — 049 adds only
+  `jumuah_language`, `donation_url`, `website_url`, `logo_url`, `photos[]`.
+- **Profile editor** (`34d6560`) — `MosqueProfileEditor` replaces the read-only
+  Profile tab; `updateMosqueProfile` (direct RLS update, owner policy from 024).
+  Taxonomy extracted to `src/data/mosqueTaxonomy.js`.
+- **Logo + gallery upload** (`351d792`) — `uploadMosqueLogo`/`uploadMosquePhoto`/
+  `removeMosquePhoto` to `{mosque_id}/<file>` (matches 053 RLS); media persists
+  immediately on upload.
+- **Scholar connection** (`80d532a`) — Scholars tab `MosqueScholarsManager`,
+  link/unlink (RLS gates ownership + active scholar).
+- **Events + announcements** (`7b3b486`) — Events tab `MosqueEventsManager`,
+  full CRUD; public reads `getUpcomingEvents`/`getMosqueUpcomingEvents`.
+- **Public page** (`da0a8a3`) — `src/pages/MosqueProfile.jsx` replaces the
+  ~245-line in-App `MosqueDetail`; `/mosque/:slug` repointed.
+- **Homepage events** (`8011eb0`) — `HomepageEvents` below featured mosques.
+
+### Decisions / corrections from the brief (pre-flight, all approved)
+- **049 mostly already existed** — `prayer_times` (jsonb), `jumuah_time`,
+  `phone`, `address`, `description` (used as "about") were already columns.
+- **`facilities` kept as `text[]`** (enabled keys), NOT converted to the brief's
+  jsonb booleans — backward-compatible with the wizard + existing rows. Reused
+  the existing `MOSQUE_FACILITIES`/`MOSQUE_SERVICES` taxonomy (richer than the
+  brief's 6) rather than inventing a parallel set.
+- **`MosqueProfile.jsx` replaces `MosqueDetail`** (Q answered) — route repointed,
+  old component deleted.
+- **App.jsx closed-file honoured** — all editors/managers/page are in
+  `src/components` + `src/pages`; App.jsx got imports + one-line tab/route renders
+  only. The shared `PublicHeader` is **passed to MosqueProfile as a prop** (it
+  depends on `AudienceDrawer`, also in App.jsx, so extracting it would cascade).
+- **Storage path `{mosque_id}/<file>`** (Q answered), diverging from the scholar
+  avatars' `{auth.uid()}/…` convention; 053's policy validates via `mosques.user_id`.
+
+### NOT verified — smoke test owed (flag for next session start)
+**Nothing has been run against a live app.** `npm run build` is green and all
+imports resolve, but the 9-step smoke plan is unexecuted. Specifically unverified:
+(a) the RLS write paths actually allow owner edits/links/events (the classic
+silent-write trap here); (b) storage uploads succeed under the 053 policies; (c)
+the public page renders for logged-out users; (d) homepage events show only
+active mosques'. **Depends on migrations 049–053 being applied to dev first** —
+until then the editor saves 400 on the new columns and events/announcements 404.
+
+### Parked / follow-ups
+- **Report affordance dropped** from the public mosque page (MosqueDetail had it;
+  MosqueProfile omits it — the brief's sections didn't include it). Re-add via a
+  root-level report flow if wanted.
+- `getMosqueInitials` may now be unused in App.jsx after the editor + MosqueDetail
+  removals — verify + delete if dead.
+- Day 2 scope: staff directory + rotas + DBS tracking; mosque claiming flow.
+
+### Manual steps before this works / pushes
+1. **Apply migrations 049 → 053 to dev (`pbej…`) → `NOTIFY pgrst` → probe → then
+   prod (`zgoyv…`).** 053 creates the two storage buckets + policies.
+2. **Push ordering:** migrations must be in the **prod** DB BEFORE this frontend
+   deploys, or the mosque dashboard/profile will error on missing columns/tables.
+   (Deploy = push to `main` on the `amanah` Vercel project; storage buckets must
+   exist in prod too.)
+3. Then smoke-test the 9-step plan signed-in as a mosque owner.
+
+### Next session
+- Session U Day 2 (mosque staff/rotas/DBS) — or smoke + fix Day 1 first.
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
