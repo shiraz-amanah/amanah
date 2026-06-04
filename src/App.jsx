@@ -18,6 +18,8 @@ import ScholarOnboardingSuccess from "./pages/ScholarOnboardingSuccess";
 import ScholarProfileEditor from "./components/ScholarProfileEditor";
 import WeekSlotPicker from "./components/WeekSlotPicker";
 import CancelBookingModal from "./components/CancelBookingModal";
+import VideoCallEmbed from "./components/VideoCallEmbed";
+import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { fmt, initialsFromName } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
@@ -8507,12 +8509,27 @@ setBookings(transformed);
                                 onConfirm={(reason) => handleCancelBooking(b.id, reason)}
                               />
                             ) : (
-                              /* Default: action buttons. items-center keeps
-                                 Reschedule/Cancel from stretching to match
-                                 the taller pill+button column when
-                                 meeting_url is set + > 15 min before start. */
-                              <div className="flex items-center gap-2 flex-wrap">
+                              /* Default: Daily video embed (auto-created rooms
+                                 only) above the action row. The inline button
+                                 below stays for manual Zoom/Meet links + the
+                                 no-link state. items-center keeps Reschedule/
+                                 Cancel from stretching to match the taller
+                                 pill+button column when a manual link is set
+                                 + > 15 min before start. */
+                              <div className="space-y-3">
+                                {isDailyRoomUrl(b.meetingUrl) && (
+                                  <VideoCallEmbed
+                                    bookingId={b.id}
+                                    meetingUrl={b.meetingUrl}
+                                    scheduledAt={b.rawScheduledAt}
+                                    durationMinutes={b.duration}
+                                  />
+                                )}
+                                <div className="flex items-center gap-2 flex-wrap">
                                 {(() => {
+                                  // Daily rooms render in the embed above; this
+                                  // inline button only covers manual links + null.
+                                  if (isDailyRoomUrl(b.meetingUrl)) return null;
                                   const startMs = b.rawScheduledAt
                                     ? new Date(b.rawScheduledAt).getTime()
                                     : new Date(`${b.date}T${b.time}:00`).getTime();
@@ -8565,6 +8582,7 @@ setBookings(transformed);
                                 })()}
                                 <button onClick={() => startRescheduling(b)} className="bg-white border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:border-stone-400">Reschedule</button>
                                 <button onClick={() => setCancellingBookingId(b.id)} className="text-sm text-stone-500 hover:text-rose-700 px-2 py-2">Cancel</button>
+                                </div>
                               </div>
                             )}
                           </div>

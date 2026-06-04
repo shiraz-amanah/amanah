@@ -10,6 +10,15 @@
 
 import { supabase } from '../supabaseClient';
 
+// True when a URL is a Daily.co room (host ends in `.daily.co`). Used by the
+// dashboards to decide between the embedded VideoCallEmbed (auto-created Daily
+// rooms) and the legacy external-tab button (manually-entered Zoom/Meet links).
+export function isDailyRoomUrl(url) {
+  if (!url) return false;
+  try { return new URL(url).hostname.toLowerCase().endsWith('.daily.co'); }
+  catch { return false; }
+}
+
 async function authHeader() {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
