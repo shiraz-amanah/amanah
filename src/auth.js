@@ -444,6 +444,37 @@ export async function upsertMosqueRota(mosqueId, weekStart, slots) {
   return { data, error }
 }
 
+// --- Timesheets (migration 058) ---
+export async function getMosqueTimesheets(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_timesheets').select('*').eq('mosque_id', mosqueId).order('week_start', { ascending: false })
+  if (error) { console.error('Error fetching timesheets:', error); return [] }
+  return data || []
+}
+export async function upsertTimesheet({ mosqueId, staffId, weekStart, hours, notes }) {
+  if (!mosqueId || !staffId || !weekStart) return { error: { message: 'mosqueId, staffId, weekStart required' } }
+  const { data, error } = await supabase
+    .from('mosque_timesheets')
+    .upsert({ mosque_id: mosqueId, staff_id: staffId, week_start: weekStart, hours: hours || {}, notes: notes || null }, { onConflict: 'staff_id,week_start' })
+    .select().single()
+  return { data, error }
+}
+// Approval lifecycle. Stamps submitted_at / approved_at + approved_by as relevant.
+export async function setTimesheetStatus(id, status) {
+  if (!id || !status) return { error: { message: 'id + status required' } }
+  const patch = { status }
+  if (status === 'submitted') patch.submitted_at = new Date().toISOString()
+  if (status === 'approved') {
+    const user = await getUser()
+    patch.approved_at = new Date().toISOString()
+    patch.approved_by = user?.id || null
+  }
+  const { data, error } = await supabase
+    .from('mosque_timesheets').update(patch).eq('id', id).select().single()
+  return { data, error }
+}
+
 // --- Substitute finder: active scholars only (never unverified) ---
 export async function searchSubstituteScholars({ keyword, city, dbsOnly } = {}) {
   let q = supabase

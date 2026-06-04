@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search } from "lucide-react";
+import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock } from "lucide-react";
+import MosqueTimesheets from "./MosqueTimesheets";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
 import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite } from "../auth";
 import { sendStaffInviteEmail } from "../lib/resend";
@@ -13,11 +14,22 @@ import MosqueSubstituteFinder from "./MosqueSubstituteFinder";
 // Our Team section reads via the get_mosque_team safe-shape RPC (056).
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const effectiveDbs = (s) =>
-  s.dbs_status === "verified" && s.dbs_expiry_date && s.dbs_expiry_date < todayStr() ? "expired" : s.dbs_status;
+const in30Str = () => new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+// Effective DBS state for the UI: a verified cert past its expiry → expired; a
+// verified cert expiring within 30 days → expiring_soon (Session V warning).
+const effectiveDbs = (s) => {
+  if (s.dbs_status === "verified" && s.dbs_expiry_date) {
+    if (s.dbs_expiry_date < todayStr()) return "expired";
+    if (s.dbs_expiry_date <= in30Str()) return "expiring_soon";
+  }
+  return s.dbs_status;
+};
+// States needing admin attention (red alert banner): expired / expiring soon / none.
+const DBS_ATTENTION = new Set(["expired", "expiring_soon", "not_checked"]);
 const DBS_BADGE = {
   verified: { cls: "bg-emerald-50 border-emerald-200 text-emerald-700", label: "DBS verified" },
   pending: { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "DBS pending" },
+  expiring_soon: { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "DBS expiring soon" },
   not_checked: { cls: "bg-rose-50 border-rose-200 text-rose-700", label: "No DBS" },
   expired: { cls: "bg-rose-50 border-rose-200 text-rose-700", label: "DBS expired" },
 };
@@ -29,7 +41,7 @@ const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-mediu
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 
 const SECTIONS = [
-  ["team", "Team", Users], ["history", "History", History], ["rota", "Rota", CalendarDays], ["finder", "Find substitute", Search],
+  ["team", "Team", Users], ["history", "History", History], ["rota", "Rota", CalendarDays], ["timesheets", "Timesheets", Clock], ["finder", "Find substitute", Search],
 ];
 
 const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
@@ -59,7 +71,10 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const currentTemp = active.filter((s) => s.staff_type === "temporary" && (!s.end_date || s.end_date >= todayStr()));
   const history = staff.filter((s) => s.staff_type === "temporary" && s.end_date && s.end_date < todayStr());
   const histFiltered = histRole === "all" ? history : history.filter((s) => s.role === histRole);
-  const summary = permanent.reduce((a, s) => { const d = effectiveDbs(s); a[d === "verified" ? "v" : d === "pending" ? "p" : "x"]++; return a; }, { v: 0, p: 0, x: 0 });
+  // DBS counts across all active staff (perm + current temp) for the summary +
+  // the red attention banner.
+  const dbsCount = active.reduce((a, s) => { const d = effectiveDbs(s); a[d] = (a[d] || 0) + 1; return a; }, {});
+  const dbsAttention = active.filter((s) => DBS_ATTENTION.has(effectiveDbs(s))).length;
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const openAdd = (type = "permanent") => { setForm({ ...blank, staff_type: type }); setEditingId(null); setShowForm(true); setError(null); };
@@ -173,13 +188,26 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
 
+      {/* DBS attention banner — across all active staff, shown on every HR sub-tab */}
+      {dbsAttention > 0 && (
+        <div className="flex items-center gap-2 text-sm bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5">
+          <AlertCircle size={16} className="flex-shrink-0" />
+          <span><strong>{dbsAttention}</strong> staff need DBS attention — {[
+            dbsCount.expired ? `${dbsCount.expired} expired` : null,
+            dbsCount.expiring_soon ? `${dbsCount.expiring_soon} expiring soon` : null,
+            dbsCount.not_checked ? `${dbsCount.not_checked} no DBS` : null,
+          ].filter(Boolean).join(", ")}.</span>
+        </div>
+      )}
+
       {section === "team" && (
         <>
-          {permanent.length > 0 && (
+          {active.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">{summary.v} DBS verified</span>
-              <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">{summary.p} pending</span>
-              <span className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">{summary.x} no / expired DBS</span>
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">{dbsCount.verified || 0} verified</span>
+              <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">{dbsCount.pending || 0} pending</span>
+              <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">{dbsCount.expiring_soon || 0} expiring soon</span>
+              <span className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">{(dbsCount.expired || 0) + (dbsCount.not_checked || 0)} expired / none</span>
             </div>
           )}
 
@@ -278,6 +306,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
       )}
 
       {section === "rota" && <MosqueRotaBuilder mosqueId={mosqueId} />}
+      {section === "timesheets" && <MosqueTimesheets mosqueId={mosqueId} mosqueName={mosque?.name} />}
       {section === "finder" && <MosqueSubstituteFinder mosque={mosque} onRequestCover={onRequestCover} onAddToTemp={addTempFromScholar} />}
     </div>
   );
