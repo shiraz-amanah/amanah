@@ -23,6 +23,7 @@ import MosqueProfileEditor from "./components/MosqueProfileEditor";
 import MosqueScholarsManager from "./components/MosqueScholarsManager";
 import MosqueEventsManager from "./components/MosqueEventsManager";
 import MosqueProfile from "./pages/MosqueProfile";
+import HomepageEvents from "./components/HomepageEvents";
 import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "./data/mosqueTaxonomy";
@@ -554,6 +555,9 @@ useEffect(() => {
     </div>
   )}
 </section>
+
+      {/* Upcoming events across active mosques (Session U Day 1) */}
+      <HomepageEvents onMosque={(m) => onMosqueDetail && onMosqueDetail(m)} />
 
       {/* Recent booking review prompt */}
       <section className="max-w-7xl mx-auto px-6">
