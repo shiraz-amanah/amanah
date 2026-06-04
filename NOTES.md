@@ -5663,9 +5663,38 @@ are unaffected (the call is fire-and-forget; createBooking only logs a warning).
    `*.daily.co` host.
 3. After setting the key, **verify on the deployed site signed-in** (browser
    steps 3/4/5 above were never observed headless).
+4. **Backfill existing bookings** (they predate Session T → `meeting_url` null):
+   once the key is set, run
+   `curl -X POST https://<app>/api/backfill-daily-rooms -H "Authorization: Bearer $CRON_SECRET"`.
+   Re-run until `eligible` reaches 0.
+
+### Post-ship follow-ups (shipped after the closure above — `b8f5e61..a43113b`)
+- **Demo-flash fix (`d51eff3`).** `userDashboard` flashed `MOCK_USER` /
+  `MOCK_USER_BOOKINGS` (the fake Google-Meet booking) on refresh for a
+  *signed-in* user, because `authLoading` clears only in the bootstrap `finally`
+  (until then `authedProfile` is null → `isDemo` true). Fix: gate the
+  `userDashboard` route on `authLoading` with a spinner, so mock data renders
+  only for a genuinely-anonymous demo view after auth resolves. This is the
+  same demo-mode trap that caused the "Join opened Google Meet" misdiagnosis.
+- **Backfill endpoint (`a43113b`).** `POST /api/backfill-daily-rooms`, a
+  re-runnable sibling of `api/backfill-embeddings.js`: service-role, provisions a
+  private Daily room for every **upcoming confirmed booking with `meeting_url IS
+  NULL`**, reusing `create-daily-room.js`'s exact room config. Differs from the
+  embeddings backfill: **CRON_SECRET-guarded** (creates billable rooms — not
+  world-triggerable) and scoped to `scheduled_at > now()` (a room whose `exp` is
+  already past is useless). Race-safe: guarded `meeting_url IS NULL` write, and
+  it tears down the orphan room if a row was filled mid-run. **Smoke-tested live
+  against dev** (this is the verification the closure above flagged as owed for
+  the room path): guard 401/405 ✓; fixtures across all four cases →
+  `eligible:2, created:2, skipped:0`; past / cancelled / already-has-a-link rows
+  untouched; re-run → `eligible:0` (idempotent). Fixtures + rooms cleaned up.
+- **⚠️ `api/` is now at 11 functions; the Vercel Hobby plan caps at 12.** The
+  next serverless function will hit the cap — consolidate (e.g. fold an intent
+  into an existing function) or bump the plan before adding one. Session W
+  (Stripe) likely needs a webhook endpoint → plan for this.
 
 ### Next session
-- Stripe Connect / payments (Session W — last)
+- Stripe Connect / payments (Session W — last). NOTE the 11/12 function cap above.
 
 ---
 
