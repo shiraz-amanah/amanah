@@ -7389,7 +7389,7 @@ const ResetPassword = ({ onDone }) => {
 // ==================== USER SIGN UP / LOGIN ====================
 const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchMode, onForgotPassword }) => {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ name: "", email: "", password: "", interest: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", interest: "", interests: [] });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -7408,7 +7408,10 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
     // stash a role-marker on auth metadata instead so post-auth
     // routing has a fallback signal even if the scholars / mosques
     // row hasn't been created yet (mid-wizard close-tab scenarios).
-    const interest = isScholar ? "scholar" : isMosque ? "mosque" : form.interest;
+    // Parents pick one or more interests (multi-select) → stored as an array;
+    // the role checks below compare against "mosque"/"scholar" strings, which
+    // an array never equals, so parent signups still route correctly.
+    const interest = isScholar ? "scholar" : isMosque ? "mosque" : form.interests;
     const { data, error: authError } = await signUp(form.email, form.password, form.name, interest);
     if (authError) {
       setError(authError.message || "Something went wrong");
@@ -7480,7 +7483,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
           {isSignUp && !skipsInterest && step === 2 && (
             <>
               <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Assalamu alaikum, {form.name.split(" ")[0]}</h2>
-              <p className="text-sm text-stone-500 mb-6">What brings you to Amanah?</p>
+              <p className="text-sm text-stone-500 mb-6">What brings you to Amanah? <span className="text-stone-400">Select all that apply.</span></p>
               <div className="space-y-2">
                 {[
                   { v: "parent", l: "Qur'an / Arabic lessons for my kids", i: Baby },
@@ -7490,21 +7493,23 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
                   { v: "browse", l: "Just browsing for now", i: Search }
                 ].map(opt => {
                   const Icon = opt.i;
+                  const selected = form.interests.includes(opt.v);
                   return (
                     <button
                       key={opt.v}
-                      onClick={() => setForm({...form, interest: opt.v})}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${form.interest === opt.v ? "bg-emerald-50 border-emerald-400" : "bg-white border-stone-200 hover:border-stone-400"}`}
+                      onClick={() => setForm(f => ({ ...f, interests: f.interests.includes(opt.v) ? f.interests.filter(x => x !== opt.v) : [...f.interests, opt.v] }))}
+                      aria-pressed={selected}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selected ? "bg-emerald-50 border-emerald-400" : "bg-white border-stone-200 hover:border-stone-400"}`}
                     >
-                      <Icon size={18} className={form.interest === opt.v ? "text-emerald-800" : "text-stone-500"} />
+                      <Icon size={18} className={selected ? "text-emerald-800" : "text-stone-500"} />
                       <span className="text-sm text-stone-900 flex-1">{opt.l}</span>
-                      {form.interest === opt.v && <CheckCircle2 size={16} className="text-emerald-700" />}
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${selected ? "bg-emerald-600 border-emerald-600 text-white" : "border-stone-300 text-transparent"}`}><Check size={13} /></span>
                     </button>
                   );
                 })}
               </div>
               {error && <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
-              <button onClick={handleSignUp} disabled={!form.interest || loading} className="w-full mt-5 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
+              <button onClick={handleSignUp} disabled={form.interests.length === 0 || loading} className="w-full mt-5 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
                 {loading ? "Creating account..." : <>Create account <CheckCircle2 size={14} /></>}
               </button>
             </>
