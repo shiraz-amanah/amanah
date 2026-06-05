@@ -35,13 +35,24 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
   const mosque = membership?.mosque || null;
   const staffId = membership?.id;
 
+  // Portal access level (migration 067), set by the admin at approval. NULL =
+  // legacy/unset → full access (existing active staff unaffected).
+  const access = membership?.portal_access || "full";
+  const showTimesheets = ["rota_timesheets", "rota_timesheets_messages", "full"].includes(access);
+  const showMessages = ["rota_timesheets_messages", "full"].includes(access);
+  const showProfile = access === "full";
   const tabs = [
     { v: "dashboard", l: "Dashboard", icon: LayoutDashboard },
     { v: "rota", l: "My Rota", icon: CalendarDays },
-    { v: "timesheets", l: "My Timesheets", icon: Clock },
-    { v: "profile", l: "My Profile", icon: User },
-    { v: "messages", l: "Messages", icon: MessageCircle },
+    ...(showTimesheets ? [{ v: "timesheets", l: "My Timesheets", icon: Clock }] : []),
+    ...(showProfile ? [{ v: "profile", l: "My Profile", icon: User }] : []),
+    ...(showMessages ? [{ v: "messages", l: "Messages", icon: MessageCircle }] : []),
   ];
+  // If the persisted tab is now hidden by the access level, fall back.
+  useEffect(() => {
+    if (!tabs.some((t) => t.v === tab)) setTab("dashboard");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [access]);
 
   // --- My Rota: current-week slots assigned to me -------------------
   const [rotaLoading, setRotaLoading] = useState(false);
@@ -170,7 +181,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
           </div>
         )}
 
-        {tab === "timesheets" && (
+        {tab === "timesheets" && showTimesheets && (
           <div>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My Timesheets</h2>
@@ -190,7 +201,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
           </div>
         )}
 
-        {tab === "profile" && (
+        {tab === "profile" && showProfile && (
           <div>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My Profile</h2>
@@ -220,7 +231,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
           </div>
         )}
 
-        {tab === "messages" && MessagesInbox && (
+        {tab === "messages" && showMessages && MessagesInbox && (
           <MessagesInbox
             embedded
             role="mosque"

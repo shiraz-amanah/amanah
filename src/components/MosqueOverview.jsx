@@ -96,8 +96,12 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   // Next 5 expiring docs (soonest first; already ordered by the query).
   const upcomingExpiry = docs.filter((d) => d.expiry_date).slice(0, 5);
 
+  // Staff who completed remote onboarding and await admin review/approval.
+  const reviewPending = staff.filter((s) => s.wizard_status === "completed" && s.invite_status === "not_invited");
+
   // Derived recent-activity feed (no audit log yet).
   const activity = [
+    ...reviewPending.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} completed onboarding — review pending`, flag: true })),
     ...staff.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} added to staff` })),
     ...events.map((e) => ({ when: e.created_at, text: `Event "${e.title}" created` })),
     ...docs.map((d) => ({ when: d.created_at, text: `Document "${d.label}" uploaded` })),
@@ -185,9 +189,11 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
         {loading ? <div className="flex justify-center py-4 text-stone-400"><Loader2 size={16} className="animate-spin" /></div>
           : activity.length === 0 ? <p className="text-sm text-stone-500">Nothing yet. Activity appears as you add staff, events and documents.</p>
           : <ul className="space-y-1.5">{activity.map((a, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-1.5 shrink-0" />
-                <span className="flex-1">{a.text}</span>
+              <li key={i} className={`flex items-start gap-2 text-sm ${a.flag ? "text-amber-800" : "text-stone-700"}`}>
+                <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.flag ? "bg-amber-500" : "bg-stone-300"}`} />
+                {a.flag
+                  ? <button onClick={() => onNavigate?.("staff")} className="flex-1 text-left font-medium hover:underline">{a.text}</button>
+                  : <span className="flex-1">{a.text}</span>}
                 <span className="text-xs text-stone-400 whitespace-nowrap">{(a.when || "").slice(0, 10)}</span>
               </li>
             ))}</ul>}
