@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Users, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { getMadrasaRoster } from "../auth";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaHifz from "./MadrasaHifz";
@@ -10,7 +10,7 @@ import MadrasaAnnouncements from "./MadrasaAnnouncements";
 // provides the surrounding back button + class header; this owns the tabs +
 // roster load. Both admin and teacher write under the 070/071/072 RLS.
 
-const MadrasaClassWorkspace = ({ classObj }) => {
+const MadrasaClassWorkspace = ({ classObj, onMessageParent }) => {
   const [mode, setMode] = useState("roster"); // roster | attendance | hifz
   const [hifzStudent, setHifzStudent] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -68,7 +68,16 @@ const MadrasaClassWorkspace = ({ classObj }) => {
                 <p className="font-medium text-stone-900 truncate">{e.student?.name || "Student"}</p>
                 <p className="text-xs text-stone-500">{[e.student?.age ? `age ${e.student.age}` : null, e.student?.relation].filter(Boolean).join(" · ") || "—"}</p>
               </div>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${e.status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{e.status}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {onMessageParent && e.student?.profile_id && (
+                  <button
+                    onClick={() => onMessageParent({ parentUserId: e.student.profile_id, childName: e.student.name })}
+                    className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"
+                    title="Message this child's parent"
+                  ><MessageCircle size={12} /> Message</button>
+                )}
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${e.status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{e.status}</span>
+              </div>
             </li>
           ))}</ul>
         )}

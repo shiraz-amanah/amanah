@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp, Megaphone } from "lucide-react";
+import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, MessageCircle } from "lucide-react";
 import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 
@@ -10,7 +10,7 @@ import MadrasaChildProgress from "./MadrasaChildProgress";
 const SUBJECT_LABEL = { quran: "Qur'an", hifz: "Hifz", arabic: "Arabic", islamic_studies: "Islamic Studies", other: "Other" };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "Schedule TBC";
 
-const MadrasaParent = ({ onBrowse }) => {
+const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [students, setStudents] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
@@ -99,7 +99,12 @@ const MadrasaParent = ({ onBrowse }) => {
                             <span className="inline-flex items-center gap-1"><Clock size={11} /> {scheduleText(e.class?.schedule)}</span>
                           </p>
                         </div>
-                        <button onClick={() => withdraw(e.id)} disabled={withdrawing === e.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 inline-flex items-center gap-1 disabled:opacity-50">{withdrawing === e.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Withdraw</button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {onMessageTeacher && (
+                            <button onClick={() => onMessageTeacher({ classId: e.class_id, className: e.class?.name })} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1" title="Message the teacher"><MessageCircle size={11} /> Message</button>
+                          )}
+                          <button onClick={() => withdraw(e.id)} disabled={withdrawing === e.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 inline-flex items-center gap-1 disabled:opacity-50">{withdrawing === e.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Withdraw</button>
+                        </div>
                       </li>
                     ))}</ul>
                   )}

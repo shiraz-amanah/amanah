@@ -666,7 +666,8 @@ export async function getMadrasaRoster(classId) {
   if (!classId) return []
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    .select('*, student:students(name, age, relation)')
+    // profile_id (the parent's user id) powers the teacher's "Message" button (2a-ii)
+    .select('*, student:students(id, name, age, relation, profile_id)')
     .eq('class_id', classId)
     .order('enrolled_at', { ascending: true })
   if (error) { console.error('Error fetching roster:', error); return [] }
@@ -1514,6 +1515,23 @@ export async function getOrCreateDirectConversation(otherUserId, myRole, theirRo
   })
   if (error) return { error }
   return { data } // data is the conversation uuid
+}
+
+// --- Madrasa parent↔teacher messaging (migration 074) ---
+// Both reuse the 1:1 conversations infra. The teacher knows the parent's user id
+// from the roster (students.profile_id); the parent resolves the teacher's user
+// id via the SECURITY DEFINER RPC (mosque_staff isn't parent-readable). Each
+// returns { data: conversationId } | { error }.
+export async function openThreadWithParent(parentUserId) {
+  if (!parentUserId) return { error: { message: 'parentUserId required' } }
+  return getOrCreateDirectConversation(parentUserId, 'teacher', 'parent')
+}
+export async function openThreadWithTeacher(classId) {
+  if (!classId) return { error: { message: 'classId required' } }
+  const { data: teacherUserId, error } = await supabase.rpc('madrasa_class_teacher_user', { p_class: classId })
+  if (error) return { error }
+  if (!teacherUserId) return { error: { message: 'This class has no teacher to message yet.' } }
+  return getOrCreateDirectConversation(teacherUserId, 'parent', 'teacher')
 }
 
 export async function markConversationRead(conversationId) {

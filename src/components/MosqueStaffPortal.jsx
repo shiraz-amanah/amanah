@@ -28,7 +28,7 @@ const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const in30Str = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); };
 
-const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversations, conversationsLoading, onConversation, onLogout, onPublic }) => {
+const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversations, conversationsLoading, onConversation, onMessageParent, onLogout, onPublic }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("staffPortalTab") || "dashboard"; } catch { return "dashboard"; }
   });
@@ -203,7 +203,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
                 <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{selectedClass.name}</h2>
                 <p className="text-sm text-stone-600 capitalize">{selectedClass.subject}{selectedClass.room ? ` · ${selectedClass.room}` : ""}</p>
               </div>
-              <MadrasaClassWorkspace classObj={selectedClass} />
+              <MadrasaClassWorkspace classObj={selectedClass} onMessageParent={onMessageParent} />
             </div>
           ) : (
             <div>

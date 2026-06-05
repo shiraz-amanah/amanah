@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -7566,7 +7566,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
   // replace:true so tab clicks don't pollute browser history. setTab kept
   // as a local alias for the internal references.
@@ -8144,7 +8144,7 @@ setBookings(transformed);
           </div>
         )}
 
-        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} />}
+        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} />}
 
         {tab === "donations" && (
           <div>
@@ -13198,6 +13198,15 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     staffMembership={myStaffMembership}
     onStaffPortal={() => setView("mosqueStaffPortal")}
     onMadrasaBrowse={() => setView("madrasaBrowse")}
+    onMessageTeacher={async ({ classId, className }) => {
+      // Parent → teacher (Madrasa 2a-ii). Resolves the teacher's user id via the
+      // gated RPC, then opens the 1:1 thread. role "user" → back to dashboard.
+      const { data, error } = await openThreadWithTeacher(classId);
+      if (error || !data) { console.error("openThreadWithTeacher failed:", error?.code, error?.message); showToast(error?.message || "Couldn't open chat. Please try again."); return; }
+      setRole("user");
+      setSelectedConversation({ id: data, counterparty: { name: className ? `${className} teacher` : "Teacher", initials: "TC", avatarGradient: "from-emerald-400 to-emerald-700", role: "Teacher", verified: false }, context: null, lastMessage: "", lastTime: "", unread: 0, pinned: false, online: false, messages: [] });
+      navigate("conversationView", { id: data });
+    }}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
@@ -13472,6 +13481,16 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     conversations={inboxData}
     conversationsLoading={conversationsLoading && !!authedProfile}
     onConversation={(c) => { setSelectedConversation(c); setRole("mosque"); navigate("conversationView", { id: c.id }); }}
+    onMessageParent={async ({ parentUserId, childName }) => {
+      // Teacher → parent (Madrasa 2a-ii). role stays the participant enum
+      // 'teacher'/'parent'; the UI role is "mosque" to match the staff portal's
+      // existing onConversation (back → messagesInbox).
+      const { data, error } = await openThreadWithParent(parentUserId);
+      if (error || !data) { console.error("openThreadWithParent failed:", error?.code, error?.message); showToast("Couldn't open chat. Please try again."); return; }
+      setRole("mosque");
+      setSelectedConversation({ id: data, counterparty: { name: childName ? `${childName}'s parent` : "Parent", initials: "PA", avatarGradient: "from-stone-400 to-stone-600", role: "Parent", verified: false }, context: null, lastMessage: "", lastTime: "", unread: 0, pinned: false, online: false, messages: [] });
+      navigate("conversationView", { id: data });
+    }}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
   />;
