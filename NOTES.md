@@ -6261,9 +6261,71 @@ recursion (parent reads via the definer helper — 068/069 lesson held).
 
 ### Parked / next (Madrasa Phase 2b+ candidates)
 - Photo sharing with per-student consent (heaviest; touches child-data/GDPR).
-- Homework/task setting; absence auto-email + consecutive-absence alert; termly
-  progress reports.
+- Homework/task setting; termly progress reports.
 - All Phase 2 **payments** items remain blocked on Stripe (Session Q).
+
+---
+
+## Session AA — Madrasa Phase 2b: absence notifications ✅ (6 June 2026)
+
+Auto-email a parent when their child is marked absent, plus a consecutive-absence
+alert to the mosque admin. Reuses the existing transactional-email architecture
+exactly (a new **intent** on `/api/send-transactional`, not a new endpoint), so
+it inherits the trust model: the client passes only a class id + date, the server
+resolves parent emails + content via service-role SECURITY DEFINER RPCs.
+
+### Decisions (with the user)
+- **Fire-on-save (instant):** after a teacher/admin saves attendance, the app
+  fires the notify intent for any *newly* absent child — not a cron sweep.
+- **Streak alert:** every absence emails the parent; at **3 consecutive** absences
+  the mosque admin is *also* emailed (fires once, at exactly 3).
+- Respect `profiles.notifications.email`; the admin alert always sends.
+
+### Shipped
+- **migrations 075 + 076** (`cbd5310`). 075: `absence_notified_at` column on
+  `madrasa_attendance` + three SECURITY DEFINER RPCs —
+  `madrasa_consecutive_absences` (streak length ending at a date),
+  `madrasa_absences_to_notify` (absent + un-notified rows for a class+date, with
+  parent contact/opt-in + owner contact + streak resolved), and
+  `madrasa_claim_absence_notification` (claim-before-send dedup, mirrors
+  `mark_reminder_sent`). 076: harvest-guard fix (see lesson below).
+- **`api/send-transactional.js`** (`db10af1`) — `handleMadrasaAbsence` + the
+  `madrasa_absence` intent. Authorizes the caller (owns the mosque / teaches the
+  class / admin), claims each absent row, emails the parent (with an "N absences
+  in a row" line at ≥3), and at exactly 3 emails the mosque owner + fires an ops
+  `sendAlert`. Built from the existing branded helpers (`wrapEmail`, `eGreeting`,
+  …) — no new endpoint, no new templates-as-constants.
+- **`src/lib/email.js`** — `sendMadrasaAbsenceNotifications(classId, sessionDate)`.
+- **`src/components/MadrasaAttendance.jsx`** — fire-and-forget after a successful
+  save when ≥1 child is absent, + a "Parents are emailed automatically when a
+  child is marked absent" helper line. No App.jsx change.
+
+### Verified
+- **Data-layer smoke** `scripts/smoke-madrasa-2b-absence.mjs` — **7/7** on dev.
+  Self-seeds a 3-session history (S1 absent×3 → streak 3; S2 absent/present/absent
+  → streak resets to 1, parent opt-**out**). Asserts: selection (absent +
+  un-notified only), streak incl. reset, opt-in flag, claim dedup (true then
+  false), and the harvest guard (authenticated RPC call → 42501).
+- **Manual `vercel dev` check** (the Resend + authorization path the smoke skips) —
+  all green: authorized teacher send → `{ok,sent:1,alerts:1}` + the absence email
+  (with the "3 in a row" line) **landed in a real inbox**; an identical re-send →
+  `{sent:0,alerts:0}` (dedup, no second email); a parent token → **403**.
+
+### Lesson — Supabase function EXECUTE grants (the 075→076 fix)
+`revoke all on function … from public` does **not** lock a SECURITY DEFINER
+function down on Supabase: `anon`/`authenticated` hold EXECUTE via an **explicit**
+grant, not via PUBLIC. The 2b smoke caught an authenticated parent still reading
+another family's resolved email through `madrasa_absences_to_notify`. Fix (076):
+`revoke execute … from anon, authenticated` explicitly; grant `service_role` only.
+**For any future service-role-only definer RPC: revoke from anon+authenticated, not
+just public.** (Same shape of "shipped ≠ hardened" as the 069 recursion fix.)
+
+### Parked / next (Phase 2b+)
+- Photo sharing with per-student consent; homework/tasks; termly progress reports.
+- A cron backstop for a missed client fire (fire-on-save chosen; no backstop yet).
+- Per-mosque on/off toggle for absence emails (parent prefs respected for now).
+- GDPR: emailing a parent about their own child is core-service legitimate use;
+  parent notification prefs are honoured.
 
 ---
 
