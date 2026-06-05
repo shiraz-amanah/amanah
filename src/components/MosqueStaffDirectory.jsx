@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail } from "lucide-react";
 import { sendDbsReminderEmail } from "../lib/email";
-import MosqueTimesheets from "./MosqueTimesheets";
 import MosqueBulkImport from "./MosqueBulkImport";
 import MosqueHRAssistant from "./MosqueHRAssistant";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
 import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite, createStaffWizardInvite } from "../auth";
 import { sendStaffInviteEmail, sendStaffWizardEmail } from "../lib/resend";
 import { uploadMosqueStaffPhoto } from "../lib/storage";
-import MosqueRotaBuilder from "./MosqueRotaBuilder";
-import MosqueSubstituteFinder from "./MosqueSubstituteFinder";
 import MosqueStaffWizard from "./MosqueStaffWizard";
 
 // Mosque dashboard → Staff tab hub (Session U Day 2). Segmented: Team (permanent
@@ -44,8 +41,10 @@ const csvCell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 
+// Session W — rota / timesheets / find-substitute moved to the dedicated Rota
+// tab. The directory now keeps just the team directory + history log.
 const SECTIONS = [
-  ["team", "Team", Users], ["history", "History", History], ["rota", "Rota", CalendarDays], ["timesheets", "Timesheets", Clock], ["finder", "Find substitute", Search],
+  ["team", "Team", Users], ["history", "History", History],
 ];
 
 const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
@@ -167,15 +166,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   };
 
   // Substitute finder → create a temporary record linked to the scholar.
-  const addTempFromScholar = async (sch) => {
-    const { error: e } = await createMosqueStaff({
-      mosqueId, name: sch.name, role: sch.title || "Cover", staff_type: "temporary",
-      linked_scholar_id: sch.id, start_date: todayStr(),
-      dbs_status: sch.dbs_verified ? "verified" : "not_checked",
-    });
-    if (e) { setError(e.message || "Couldn't add temp record."); return; }
-    await refresh(); setSection("team");
-  };
 
   const exportCsv = () => {
     const header = ["Name", "Role", "Cover reason", "From", "To"];
@@ -378,10 +368,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
           )}
         </div>
       )}
-
-      {section === "rota" && <MosqueRotaBuilder mosqueId={mosqueId} />}
-      {section === "timesheets" && <MosqueTimesheets mosqueId={mosqueId} mosqueName={mosque?.name} />}
-      {section === "finder" && <MosqueSubstituteFinder mosque={mosque} onRequestCover={onRequestCover} onAddToTemp={addTempFromScholar} />}
     </div>
   );
 };

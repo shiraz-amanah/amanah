@@ -522,6 +522,33 @@ export async function getMyStaffMembership() {
   return data || null
 }
 
+// --- Cover requests (migration 061) ---
+// Mosque sends a scholar a structured cover request (replaces the old
+// free-text message thread). Owner RLS on insert/select.
+export async function createCoverRequest({ mosqueId, scholarId, coverType, sessions, dateFrom, dateTo, notes }) {
+  if (!mosqueId || !scholarId) return { error: { message: 'mosqueId + scholarId required' } }
+  const { data, error } = await supabase
+    .from('cover_requests')
+    .insert({
+      mosque_id: mosqueId, scholar_id: scholarId,
+      cover_type: coverType || [], sessions: sessions || [],
+      date_from: dateFrom || null, date_to: dateTo || null, notes: notes || null,
+    })
+    .select().single()
+  return { data, error }
+}
+
+export async function getCoverRequestsForMosque(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('cover_requests')
+    .select('*, scholar:scholars(name)')
+    .eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching cover requests:', error); return [] }
+  return data || []
+}
+
 // --- Documents (migration 063, unified store) ---
 // Powers the Compliance → Document Expiry dashboard and the admin Dashboard
 // expiry widget. Owner+admin RLS; returns [] for non-owners. Ordered soonest

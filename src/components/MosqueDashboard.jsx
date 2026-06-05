@@ -10,6 +10,7 @@ import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
 import MosqueHR from "./MosqueHR";
+import MosqueRota from "./MosqueRota";
 
 // Session W — placeholder for tabs whose content lands in a later commit
 // (Dashboard widgets, Rota split, HR sub-tabs, Safeguarding, Compliance).
@@ -168,11 +169,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         )}
 
         {tab === "rota" && (
-          <TabPlaceholder
-            icon={CalendarDays}
-            title="Rota"
-            blurb="The weekly rota, timesheets and cover requests will move here. For now they remain under the Staff tab."
-          />
+          <MosqueRota mosqueId={mosque.id} mosque={mosque} />
         )}
 
         {tab === "hr" && (

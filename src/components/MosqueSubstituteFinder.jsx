@@ -68,7 +68,7 @@ const MosqueSubstituteFinder = ({ mosque, onRequestCover, onAddToTemp }) => {
                     {s.rating > 0 && <span className="inline-flex items-center gap-0.5"><Star size={10} className="fill-amber-400 text-amber-400" /> {Number(s.rating).toFixed(1)}</span>}
                   </p>
                 </div>
-                <button onClick={() => onRequestCover?.(s)} disabled={!s.user_id} title={s.user_id ? "Message" : "Scholar has no account to message"} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1 disabled:opacity-40"><MessageCircle size={12} /> Request cover</button>
+                <button onClick={() => onRequestCover?.(s)} title="Send a structured cover request" className="text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1"><MessageCircle size={12} /> Request cover</button>
                 <button onClick={() => addTemp(s)} disabled={addingId === s.id} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-white inline-flex items-center gap-1 disabled:opacity-60">{addingId === s.id ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />} Add to temp</button>
               </div>
             ))}
