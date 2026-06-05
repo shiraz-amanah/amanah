@@ -6205,6 +6205,138 @@ browser pass yet.
 
 ---
 
+## Madrasa Vision & Roadmap (planning session, captured 6 June 2026)
+
+The full strategic picture behind the madrasa module — why it exists, what makes
+it defensible, the phased build plan, and the data-protection obligations that
+come with storing children's data. Session Y shipped Phase 1; this section is the
+map for Phases 2–3 and beyond.
+
+### Why we're building this
+The UK has **2,000+ mosque madrasas teaching 250,000+ children**, and there is no
+dominant UK-specific Islamic education management system. The field today:
+
+- **ClassDojo** — American, free / ~£8, no Islamic features.
+- **iSAMS** — £3k+/yr, private-school focused.
+- **SIMS** — legacy, expensive (£5k+/yr).
+- **Spreadsheets / WhatsApp** — what most mosques actually use today.
+
+Amanah is the first platform built specifically for UK mosque madrasas.
+
+### Unique features (the competitive moat)
+- **Hifz tracker** — surah by surah, sabaq/sabqi/manzil, quality grades, ijaazah
+  record. No Western platform does this.
+- **Islamic calendar integration** — Ramadan, Eid, Dhul Hijjah term dates.
+- **Prayer-time-aware scheduling.**
+- **DBS-verified teacher badge** visible to parents.
+- **Scholar marketplace integration** — parent books a private lesson with a
+  madrasa teacher.
+- **Safeguarding built into the same system.**
+- **Ijaazah certificate generation.**
+
+### Placement in the product
+- **Madrasa tab** sits between **Compliance** and **Events** in the mosque
+  dashboard (10 tabs total).
+- **Students sub-tabs:** Classes | Students | Attendance | Payments | Reports.
+
+### Student data-model decision
+Reuse the existing **parent-owned `students` table** + a `madrasa_enrollments`
+junction — *not* a separate mosque-owned table. Parents register their existing
+children. Admin can also register walk-in students with an optional
+`parent_profile_id` link.
+
+### Teacher portal
+Extends the existing staff portal ("My Classes" added). Teachers are
+`mosque_staff` — same portal, an additional tab gated by class assignment.
+
+### Phase 1 — Foundation ✅ COMPLETE (Session Y, migrations 068–072)
+- **1a** — Admin class management (`madrasa_classes`, `madrasa_enrollments`).
+- **1b** — Parent registration (browse + enrol + withdraw).
+- **1c** — Attendance marking (present/absent/late/excused, admin + teacher).
+- **1d** — Qur'an/Hifz tracker (114 surahs, lesson types, quality grades).
+- **1e** — Teacher My Classes portal + parent viewing.
+- All 5 sub-phases smoke tested: **51/51 assertions green.**
+- Key RLS lesson: use **SECURITY DEFINER helpers** for cross-table checks to
+  prevent infinite recursion (069 pattern applied proactively in 070–072).
+
+### Phase 2 — Communications + Payments (Session Z, needs Stripe first)
+- Photo sharing with **per-student consent control.**
+- Class announcements (teacher → all parents in a class).
+- Individual parent messaging (teacher → specific parent).
+- Homework / task setting (parents mark as done).
+- Absence notification (auto-email when a child is marked absent).
+- Consecutive-absence alert.
+- Termly progress reports.
+- Madrasa fee collection via Stripe.
+- Sibling discount (auto-apply).
+- Bursary management (reduced / free places).
+- Gift Aid on fees (mosque is a charity).
+- Payment reminders + receipt generation.
+- Outstanding-payments report.
+
+### Phase 3 — Advanced (Session AA)
+- Full Hifz tracker (ijaazah record, completion certificates).
+- Behaviour + rewards system (stars, parent notified).
+- Certificate generation (completion, Qur'an graduation, achievement).
+- Waiting list with auto-notification.
+- AI madrasa assistant (attendance alerts, progress insights, timetable
+  optimisation).
+- Advanced reports + exports.
+- Prayer-time-aware scheduling (class builder warns if a slot clashes).
+
+### Parent portal extensions (family dashboard)
+- Child's class timetable.
+- Real-time attendance record.
+- Qur'an/Hifz progress tracker.
+- Upcoming sessions + holidays.
+- Payment status + history.
+- Messages from teacher.
+- Photos from class (consent-gated).
+- Homework / tasks.
+- Progress reports.
+- Pay fees online.
+- Book a private session with the same teacher (links to scholar marketplace).
+
+### Revenue model
+- Scholar booking commission: **15% platform fee.**
+- Mosque subscription: **£49–99/month.**
+- Madrasa module add-on: **£29–49/month.**
+- DBS processing referral fee with uCheck: **£5–15 per check.**
+
+### Competitive comparison
+| Capability | Amanah | ClassDojo | iSAMS | SIMS |
+| --- | --- | --- | --- | --- |
+| Hifz tracker | ✅ | ❌ | ❌ | ❌ |
+| Islamic calendar | ✅ | ❌ | ❌ | ❌ |
+| DBS-verified teachers | ✅ | ❌ | ❌ | ❌ |
+| Scholar marketplace | ✅ | ❌ | ❌ | ❌ |
+| Safeguarding built in | ✅ | partial | partial | partial |
+| Staff HR + rota | ✅ | ❌ | ✅ | ✅ |
+| Compliance tracking | ✅ | ❌ | ❌ | ❌ |
+| Price | £49–99/mo | free / £8 | £3k+/yr | £5k+/yr |
+
+### Data safety for children (UK GDPR — highest legal protection)
+- **Parental consent system** needed in the student registration flow.
+- **Data-retention policy** needed — flag for deletion when a student turns 18 or
+  7 years after leaving.
+- **ICO registration** required before storing children's data at scale.
+- **Audit logging** needed (who accessed what, when).
+- **Column-level encryption** for medical / sensitive fields (before scale).
+- **Pen test** recommended before 50+ mosques.
+
+### Parked for future
+- Capacity enforcement (currently app-level only).
+- Admin-initiated registration (mosque registers walk-in students).
+- `revoke all from anon` on madrasa tables (currently RLS-empty — no leak, but
+  less hardened).
+- Multilingual support (Arabic, Urdu, Somali).
+- uCheck API integration (automated DBS).
+- Bulk messaging via SMS / WhatsApp.
+- Ofsted inspection preparation tools.
+- Mobile app (React Native).
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
