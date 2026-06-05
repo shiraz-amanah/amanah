@@ -6038,21 +6038,51 @@ a plan bump or folding (noted since Session T).
   RTW-without-an-uploaded-doc only surfaces via the AI context (employment table),
   not the dashboard list.
 
-### Not smoke-tested by me
-All gates were **build-clean + `node --check` on admin-brief.js**, and Shiraz
-applied/probed every migration. The runtime flows (wizard save end-to-end, RPC
-round-trip, AI briefing text, private-bucket upload/signed-URL, RLS denial for
-non-owners on incidents/employment) are **not yet exercised** — Session W smoke
-plan items 1–18 remain to run. The `mosque_ops`/`mosque_hr` AI only returns text
-where `/api/admin-brief` is reachable (`vercel dev` or deploy + ANTHROPIC key).
+### Smoke test (headless, dev) — security layer 29/29 GREEN
+Ran a self-contained fixtures→assert→teardown Node script against **dev**
+(`pbejyukihhmybxxtheqq`, dev service-role key), driving RLS with **real per-role
+JWTs** (service role only for setup/teardown). **29/29 passed:**
+- **Owner-positive**: reads own employment/incidents/compliance (200, own rows).
+- **Anon-negative**: incidents + employment → **401** (table grant revoked from
+  anon — hardest denial, RLS never even reached).
+- **Non-owner (authed)**: incidents + employment → 200 but **0 rows** (RLS row
+  filter, despite data existing).
+- **Staff member**: `mosque_staff_employment` (bank) → **0 rows** (no staff-self
+  policy — bank hidden from staff ✓); incidents → 0 rows; own staff row → 1 row.
+- **Wizard RPC**: validate → submit → `wizard_status=completed` + token burned +
+  role updated + employment written; **re-submit rejected** (one-time token).
+- **Private bucket**: owner upload → anon public-read **400**; owner signed-URL
+  read works; **staff cannot sign** the owner's hr-doc (400). Cover request: owner
+  create 201 (`requested`). Teardown verified **0 residual** rows/users.
+
+**Still NOT exercised** (need a browser / a running `/api`): UI role-views +
+dashboard render (smoke items 1,2), upload/expiry *UI* (7,10,11), and the **AI
+briefing/chat CONTENT** (13,14,15). The `mosque_ops`/`mosque_hr` text wasn't fired
+because of the env finding below. Items 16/17/18 are code-verified.
+
+### ⚠️ Finding: `.env.local` is split-brain (local only)
+The Vite **client** `VITE_SUPABASE_URL` → dev (`pbejyukihhmybxxtheqq`), but the
+server-side `SUPABASE_URL` (read by `/api`, and `.env.local` overrides `.env`) →
+**PROD `zgoyvztooyxqkcftwylr`** (8 real mosques). So `vercel dev`'s functions hit
+**prod**, and the "dev owner" `mosque1@test.com` was actually a **prod** account.
+Deployed Vercel is unaffected (uses its own env). **Action:** repoint the server
+`SUPABASE_URL` in `.env.local` to dev before any local AI/server smoke. Saved to
+the smoke-fixtures memory.
+
+### Lesson: GoTrue admin user-delete teardown order
+Admin `DELETE /auth/v1/admin/users/:id` returns **500 `23503`** while a `profiles`
+row still references the user — `profiles_id_fkey` is **NOT** `on delete cascade`.
+FK-safe teardown: mosque children → mosque → scholar → **`profiles` row → auth
+user**. (A `while read id` over a newline-joined list also silently skips the last
+id with no trailing `\n` — bit me once.)
 
 ### Manual steps before push
 1. Migrations **060–066 already applied** to dev + prod (done).
-2. Confirm Vercel prod env: `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `RESEND_FROM`,
-   `PUBLIC_APP_URL`, `SUPABASE_*` (the wizard email + AI need them).
-3. Push (`amanah` project) — every push to `main` is a Production deploy.
-4. Run the Session W smoke plan, especially RLS denials on incidents/employment
-   and the private-bucket no-public-read check.
+2. Confirm Vercel **prod** env: `ANTHROPIC_API_KEY`, `RESEND_API_KEY`,
+   `RESEND_FROM`, `PUBLIC_APP_URL`, `SUPABASE_*` (wizard email + AI need them).
+3. Push (`amanah` project) — every push to `main` is a Production deploy. Schema
+   already in prod, so code+schema are consistent.
+4. Browser smoke the unexercised items (UI role-views, AI briefing/chat content).
 
 ### Next session
 - **Stripe Connect** (genuinely last big rock) — mind the 11/12 function cap.
