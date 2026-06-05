@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check } from "lucide-react";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone } from "../auth";
+import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download } from "lucide-react";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports } from "../auth";
 import { surahName } from "../data/surahs";
+// jsPDF is heavy — lazy-load it on download so it stays out of the main bundle.
+const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
 
 // Madrasa Phase 1e — read-only attendance + Hifz progress for a child, shown to
 // the parent on the family dashboard. Parent reads via the 070/071 RLS.
@@ -14,16 +16,18 @@ const MadrasaChildProgress = ({ student, classIds = [] }) => {
   const [hifz, setHifz] = useState([]);
   const [homework, setHomework] = useState([]);
   const [doneIds, setDoneIds] = useState(new Set()); // homework_ids this child has done
+  const [reports, setReports] = useState([]);
   const [busy, setBusy] = useState(null); // homework_id mid-toggle
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true; setLoading(true);
-    Promise.all([getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds), getStudentCompletions(student.id)])
-      .then(([a, h, hw, comps]) => {
+    Promise.all([getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds), getStudentCompletions(student.id), getStudentReports(student.id)])
+      .then(([a, h, hw, comps, reps]) => {
         if (!alive) return;
         setAttendance(a || []); setHifz(h || []); setHomework(hw || []);
         setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
+        setReports(reps || []);
       })
       .catch((e) => console.error("child progress load failed:", e))
       .finally(() => { if (alive) setLoading(false); });
@@ -107,6 +111,26 @@ const MadrasaChildProgress = ({ student, classIds = [] }) => {
           })}</ul>
         )}
       </div>
+
+      {/* Reports */}
+      {reports.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><FileText size={12} /> Progress reports</p>
+          <ul className="space-y-1.5">{reports.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 text-xs bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+              <div className="min-w-0">
+                <span className="font-medium text-stone-800">{r.term}</span>
+                {r.class?.name ? <span className="text-stone-400"> · {r.class.name}</span> : null}
+                {r.teacher_comment ? <p className="text-stone-500 truncate">{r.teacher_comment}</p> : null}
+              </div>
+              <button onClick={() => downloadReport({ report: r, studentName: student.name, className: r.class?.name, mosqueName: r.class?.mosque?.name })}
+                className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1">
+                <Download size={11} /> PDF
+              </button>
+            </li>
+          ))}</ul>
+        </div>
+      )}
     </div>
   );
 };

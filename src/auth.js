@@ -921,6 +921,70 @@ export async function unmarkHomeworkDone({ homeworkId, studentId }) {
   return { error }
 }
 
+// --- Madrasa termly reports (migration 078) ---
+// Teacher/admin write a per-(student, term) report whose summaries are
+// auto-populated from existing data (via the build-summary RPC); publishing
+// stamps published_at and exposes it to the parent (own child, published only).
+export async function getClassReports(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_reports')
+    .select('*, student:students(id, name), author:profiles!madrasa_reports_created_by_fkey(name)')
+    .eq('class_id', classId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching reports:', error); return [] }
+  return data || []
+}
+// Auto-populate attendance/hifz/homework summaries for a (class, student). The
+// RPC authorizes the caller (class manager) and returns null otherwise.
+export async function buildReportSummary(classId, studentId) {
+  if (!classId || !studentId) return null
+  const { data, error } = await supabase.rpc('madrasa_build_report_summary', { p_class: classId, p_student: studentId })
+  if (error) { console.error('Error building report summary:', error); return null }
+  return data
+}
+export async function createReport({ classId, studentId, mosqueId, term, teacherComment, attendanceSummary, hifzSummary, homeworkSummary }) {
+  if (!classId || !studentId || !mosqueId || !term?.trim()) return { error: { message: 'classId, studentId, mosqueId and term required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_reports')
+    .insert({
+      class_id: classId, student_id: studentId, mosque_id: mosqueId, term: term.trim(),
+      teacher_comment: teacherComment?.trim() || null, created_by: user?.id || null,
+      attendance_summary: attendanceSummary || {}, hifz_summary: hifzSummary || {}, homework_summary: homeworkSummary || {},
+    })
+    .select('*, student:students(id, name)').single()
+  return { data, error }
+}
+export async function updateReport(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('madrasa_reports').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function publishReport(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('madrasa_reports').update({ published_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteReport(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_reports').delete().eq('id', id)
+  return { error }
+}
+// Parent — a child's PUBLISHED reports (RLS hides drafts), newest first.
+export async function getStudentReports(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase
+    .from('madrasa_reports')
+    .select('*, class:madrasa_classes(name, subject, mosque:mosques(name))')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching student reports:', error); return [] }
+  return data || []
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.

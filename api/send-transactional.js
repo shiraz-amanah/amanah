@@ -481,7 +481,7 @@ async function sbGet(env, path) {
 // Resolve a recipient profile (email/name/role) by user id. profiles.email
 // mirrors auth.users, so this avoids needing an auth-schema RPC.
 async function getProfile(env, userId) {
-  const rows = await sbGet(env, `profiles?id=eq.${userId}&select=email,name,role`);
+  const rows = await sbGet(env, `profiles?id=eq.${userId}&select=email,name,role,notifications`);
   return Array.isArray(rows) ? rows[0] : null;
 }
 
@@ -919,6 +919,48 @@ ${ePara('You may wish to follow up with the family.')}${ctaButton('Open your das
   return { status: 200, body: { ok: true, sent, alerts } };
 }
 
+// Madrasa Phase 2C — a published report is available. Fired client-side after a
+// teacher/admin publishes. Authorizes the caller (manages the class), then
+// emails the parent (respecting their email pref). The report MUST be published.
+async function handleMadrasaReportPublished(env, caller, reportId) {
+  const rrows = await sbGet(env, `madrasa_reports?id=eq.${reportId}&select=class_id,student_id,mosque_id,term,published_at`);
+  const rep = Array.isArray(rrows) ? rrows[0] : null;
+  if (!rep) return { status: 404, body: { ok: false, error: 'report_not_found' } };
+  if (!rep.published_at) return { status: 400, body: { ok: false, error: 'not_published' } };
+
+  // Authorize: caller owns the mosque, teaches the class, or is an admin.
+  const crows = await sbGet(env, `madrasa_classes?id=eq.${rep.class_id}&select=teacher_staff_id`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  const mrows = await sbGet(env, `mosques?id=eq.${rep.mosque_id}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  const ownsMosque = mosque?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls?.teacher_staff_id) {
+    const srows = await sbGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  // Resolve the parent (students.profile_id → profiles) + child name.
+  const strows = await sbGet(env, `students?id=eq.${rep.student_id}&select=name,profile_id`);
+  const student = Array.isArray(strows) ? strows[0] : null;
+  if (!student?.profile_id) return { status: 404, body: { ok: false, error: 'no_parent' } };
+  const parent = await getProfile(env, student.profile_id);
+  if (!parent?.email) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  if (parent.notifications && parent.notifications.email === false) {
+    return { status: 200, body: { ok: true, sent: 0, skipped: 'opted_out' } };
+  }
+
+  const mosqueName = mosque?.name || 'your madrasa';
+  const inner = `${eGreeting(parent.name || 'there')}${eHeading('Progress report available')}
+${ePara(`${escapeHtml(student.name || 'Your child')}'s <strong>${escapeHtml(rep.term)}</strong> report from ${escapeHtml(mosqueName)} is now available to view.`)}
+${ctaButton('View the report', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to: parent.email, subject: `${student.name || 'Your child'}'s ${rep.term} report — ${mosqueName}`, html: wrapEmail('Progress report available', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1034,6 +1076,11 @@ export default async function handler(req, res) {
       if (!isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_classId' });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(body.sessionDate || '')) return res.status(400).json({ ok: false, error: 'invalid_sessionDate' });
       const out = await handleMadrasaAbsence(env, caller, body.classId, body.sessionDate);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_report_published') {
+      if (!isUuid(body.reportId)) return res.status(400).json({ ok: false, error: 'invalid_reportId' });
+      const out = await handleMadrasaReportPublished(env, caller, body.reportId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

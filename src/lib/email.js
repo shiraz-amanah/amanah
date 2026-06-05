@@ -117,6 +117,13 @@ export function sendMadrasaAbsenceNotifications(classId, sessionDate) {
   return postTransactional({ intent: 'madrasa_absence', classId, sessionDate });
 }
 
+// Madrasa Phase 2C — a published progress report. Fired after publishReport
+// succeeds; the server resolves the parent + emails them. Fire-and-forget.
+export function sendMadrasaReportPublished(reportId) {
+  if (!reportId) return Promise.resolve({ ok: false, error: 'missing_reportId' });
+  return postTransactional({ intent: 'madrasa_report_published', reportId });
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. The staffer is unauthenticated (no session), so this posts
 // WITHOUT a token; the server constrains the send to a real, just-completed

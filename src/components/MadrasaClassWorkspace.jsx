@@ -5,6 +5,7 @@ import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaHifz from "./MadrasaHifz";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
 import MadrasaHomework from "./MadrasaHomework";
+import MadrasaReports from "./MadrasaReports";
 
 // Shared class workspace — Roster / Attendance / Hifz for one class. Used by the
 // admin Madrasa tab and the teacher "My Classes" portal (1e). The caller
@@ -31,7 +32,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent }) => {
   return (
     <div>
       <div className="flex gap-1 border-b border-stone-200 mb-5">
-        {[["roster", "Roster"], ["attendance", "Attendance"], ["hifz", "Hifz"], ["announcements", "Announcements"], ["homework", "Homework"]].map(([v, l]) => (
+        {[["roster", "Roster"], ["attendance", "Attendance"], ["hifz", "Hifz"], ["announcements", "Announcements"], ["homework", "Homework"], ["reports", "Reports"]].map(([v, l]) => (
           <button key={v} onClick={() => { setMode(v); setHifzStudent(null); }} className={`px-3 py-2 text-sm font-medium border-b-2 ${mode === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
         ))}
       </div>
@@ -42,6 +43,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent }) => {
         <MadrasaAnnouncements classObj={classObj} />
       ) : mode === "homework" ? (
         <MadrasaHomework classObj={classObj} />
+      ) : mode === "reports" ? (
+        <MadrasaReports classObj={classObj} />
       ) : mode === "hifz" ? (
         hifzStudent ? (
           <div>
