@@ -79,6 +79,50 @@ async function mhGet(env, pathAndQuery) {
   } catch { return []; }
 }
 
+// Session W — shared mosque ops/HR context builder. Used by BOTH the chat
+// assistant (mosque_hr) and the dashboard briefing (mosque_ops) per the "one
+// context, two prompt modes" decision. `mosque` must carry name + prayer_times.
+async function buildMosqueContext(env, mosqueId, mosque) {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' });
+  const todayKey = dayName.toLowerCase();
+  const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+  const month = today.slice(0, 7);
+  const in30 = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+
+  const [staff, employment, rota, ts, docs, events, training, incidents, covers] = await Promise.all([
+    mhGet(env, `mosque_staff?mosque_id=eq.${mosqueId}&archived=eq.false&select=id,name,role,staff_type,dbs_status,dbs_expiry_date,invite_status,end_date`),
+    mhGet(env, `mosque_staff_employment?mosque_id=eq.${mosqueId}&select=staff_id,rtw_expiry_date`),
+    mhGet(env, `mosque_rotas?mosque_id=eq.${mosqueId}&week_start=eq.${monday}&select=slots`),
+    mhGet(env, `mosque_timesheets?mosque_id=eq.${mosqueId}&select=staff_id,week_start,hours,status`),
+    mhGet(env, `mosque_documents?mosque_id=eq.${mosqueId}&expiry_date=lte.${in30}&order=expiry_date.asc&select=label,category,expiry_date`),
+    mhGet(env, `mosque_events?mosque_id=eq.${mosqueId}&date=gte.${today}&order=date.asc&select=title,date,time`),
+    mhGet(env, `mosque_staff_training?mosque_id=eq.${mosqueId}&renewal_due=lte.${in30}&select=staff_id,training_type,renewal_due`),
+    mhGet(env, `mosque_safeguarding_incidents?mosque_id=eq.${mosqueId}&status=neq.closed&select=incident_date,nature,status`),
+    mhGet(env, `cover_requests?mosque_id=eq.${mosqueId}&status=eq.requested&select=scholar_id,cover_type,sessions,date_from,date_to`),
+  ]);
+
+  const staffArr = Array.isArray(staff) ? staff : [];
+  const nameById = {}; staffArr.forEach((s) => { nameById[s.id] = s.name; });
+  const rtwByStaff = {}; (Array.isArray(employment) ? employment : []).forEach((e) => { if (e.rtw_expiry_date) rtwByStaff[e.staff_id] = e.rtw_expiry_date; });
+  const todaySlots = ((Array.isArray(rota) && rota[0]?.slots) || {})[todayKey] || {};
+
+  return {
+    day: dayName, today,
+    prayer_times: mosque.prayer_times || {},
+    today_rota: Object.entries(todaySlots).map(([slot, id]) => ({ slot, leading: nameById[id] || 'unassigned' })),
+    staff: staffArr.map((s) => ({ name: s.name, role: s.role, type: s.staff_type, dbs: s.dbs_status, dbs_expiry: s.dbs_expiry_date, rtw_expiry: rtwByStaff[s.id] || null, app_access: s.invite_status, cover_until: s.end_date })),
+    timesheets_pending: (Array.isArray(ts) ? ts : []).filter((t) => (t.status || 'pending') !== 'approved').length,
+    timesheets_this_month: (Array.isArray(ts) ? ts : []).filter((t) => (t.week_start || '').slice(0, 7) === month).map((t) => ({ staff: nameById[t.staff_id] || t.staff_id, week: t.week_start, status: t.status, hours: t.hours })),
+    expiring_documents: (Array.isArray(docs) ? docs : []).map((d) => ({ label: d.label, category: d.category, expiry: d.expiry_date })),
+    upcoming_events: (Array.isArray(events) ? events : []).slice(0, 5),
+    training_renewals_due: (Array.isArray(training) ? training : []).map((t) => ({ staff: nameById[t.staff_id] || t.staff_id, type: t.training_type, due: t.renewal_due })),
+    open_incidents: (Array.isArray(incidents) ? incidents : []).length,
+    cover_requests_pending: (Array.isArray(covers) ? covers : []).length,
+  };
+}
+
 async function handleMosqueHr(req, res, body, env) {
   if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
@@ -90,30 +134,18 @@ async function handleMosqueHr(req, res, body, env) {
     caller = await r.json();
   } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
 
-  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name`);
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name,prayer_times`);
   const mosque = Array.isArray(mrows) ? mrows[0] : null;
   if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
   if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
 
-  const today = new Date().toISOString().slice(0, 10);
-  const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
-  const month = today.slice(0, 7);
-  const [staff, rota, ts] = await Promise.all([
-    mhGet(env, `mosque_staff?mosque_id=eq.${body.mosqueId}&archived=eq.false&select=name,role,staff_type,dbs_status,dbs_expiry_date,invite_status,end_date`),
-    mhGet(env, `mosque_rotas?mosque_id=eq.${body.mosqueId}&week_start=eq.${monday}&select=slots`),
-    mhGet(env, `mosque_timesheets?mosque_id=eq.${body.mosqueId}&select=staff_id,week_start,hours,status`),
-  ]);
-  const context = {
-    mosque: mosque.name, today,
-    staff: (staff || []).map((s) => ({ name: s.name, role: s.role, type: s.staff_type, dbs: s.dbs_status, dbs_expiry: s.dbs_expiry_date, app_access: s.invite_status, cover_until: s.end_date })),
-    current_week_rota: (Array.isArray(rota) && rota[0]?.slots) || {},
-    timesheets_this_month: (ts || []).filter((t) => (t.week_start || '').slice(0, 7) === month).map((t) => ({ staff: t.staff_id, week: t.week_start, status: t.status, hours: t.hours })),
-  };
+  const context = { mosque: mosque.name, ...(await buildMosqueContext(env, body.mosqueId, mosque)) };
+  const today = context.today;
   const q = (body.question || '').trim();
-  const system = `You are an HR assistant for "${mosque.name}", a UK mosque. You are given the mosque's real staff/rota/timesheet data as JSON. Answer ONLY from this data, concisely, in UK English. Today is ${today}. Treat a "verified" DBS with an expiry within 30 days as "expiring soon", and past expiry as "expired". Do not invent staff or data.`;
+  const system = `You are an operations & HR assistant for "${mosque.name}", a UK mosque. You are given the mosque's real data as JSON: today's rota (who is leading each prayer) and prayer times, every staff member's DBS and RTW expiry, safeguarding training renewals due, the count of open safeguarding incidents, expiring compliance documents, pending timesheets, upcoming events, and pending cover requests. Answer ONLY from this data, concisely, in UK English. Today is ${today} (${context.day}). Treat a "verified" DBS or an RTW with an expiry within 30 days as "expiring soon", and past expiry as "expired". Do not invent staff or data.`;
   const userMsg = q
     ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
-    : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 3 short, specific proactive suggestions (one line each, no preamble or numbering) on what the admin should act on — e.g. DBS renewals, uninvited staff, rota gaps, missing/unapproved timesheets.`;
+    : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 3 short, specific proactive suggestions (one line each, no preamble or numbering) on what the admin should act on — prioritise DBS/RTW expiries, safeguarding training renewals or open incidents, expiring compliance documents, rota gaps, pending timesheets, and pending cover requests.`;
 
   try {
     const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
@@ -153,45 +185,13 @@ async function handleMosqueOps(req, res, body, env) {
   if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
   if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
 
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' });
-  const todayKey = dayName.toLowerCase(); // monday..sunday — matches rota slots keys
-  const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
-  const in30 = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
-
-  const [staff, rota, ts, docs, events] = await Promise.all([
-    mhGet(env, `mosque_staff?mosque_id=eq.${body.mosqueId}&archived=eq.false&select=id,name,role,dbs_status,dbs_expiry_date,invite_status`),
-    mhGet(env, `mosque_rotas?mosque_id=eq.${body.mosqueId}&week_start=eq.${monday}&select=slots`),
-    mhGet(env, `mosque_timesheets?mosque_id=eq.${body.mosqueId}&select=status`),
-    mhGet(env, `mosque_documents?mosque_id=eq.${body.mosqueId}&expiry_date=lte.${in30}&order=expiry_date.asc&select=label,category,expiry_date`),
-    mhGet(env, `mosque_events?mosque_id=eq.${body.mosqueId}&date=gte.${today}&order=date.asc&select=title,date,time`),
-  ]);
-
-  const staffArr = Array.isArray(staff) ? staff : [];
-  const nameById = {};
-  staffArr.forEach((s) => { nameById[s.id] = s.name; });
-  const todaySlots = ((Array.isArray(rota) && rota[0]?.slots) || {})[todayKey] || {};
-  const today_rota = Object.entries(todaySlots).map(([slot, id]) => ({ slot, leading: nameById[id] || 'unassigned' }));
-
-  const context = {
-    mosque: mosque.name, day: dayName, today,
-    prayer_times: mosque.prayer_times || {},
-    today_rota,
-    staff_total: staffArr.length,
-    dbs_expiring: staffArr
-      .filter((s) => s.dbs_status === 'verified' && s.dbs_expiry_date && s.dbs_expiry_date <= in30)
-      .map((s) => ({ name: s.name, expiry: s.dbs_expiry_date })),
-    uninvited_staff: staffArr.filter((s) => s.invite_status === 'not_invited').length,
-    timesheets_pending: (Array.isArray(ts) ? ts : []).filter((t) => (t.status || 'pending') !== 'approved').length,
-    expiring_documents: (Array.isArray(docs) ? docs : []).map((d) => ({ label: d.label, category: d.category, expiry: d.expiry_date })),
-    upcoming_events: (Array.isArray(events) ? events : []).slice(0, 5),
-  };
+  const context = { mosque: mosque.name, ...(await buildMosqueContext(env, body.mosqueId, mosque)) };
+  const { day: dayName, today } = context;
 
   const system = `You are the operations assistant for "${mosque.name}", a UK mosque. Given today's real operations data as JSON, write the admin's morning briefing.
 Today is ${dayName} ${today}. Rules: 3-5 sentences, warm but professional, UK English. Open with a short greeting.
-Prioritise by urgency: who is leading prayers today (use prayer_times for the next prayer's time), DBS certificates expiring within 30 days (name them), rota gaps, timesheets pending approval, expiring documents, then upcoming events.
-A "verified" DBS with an expiry within 30 days is "expiring soon"; past its expiry it is "expired". Reference the real names and numbers. If an area is clear, you may briefly note it.
+Prioritise by urgency: who is leading prayers today (use prayer_times for the next prayer's time), DBS/RTW expiring within 30 days from staff[] (name them), open safeguarding incidents and training renewals due, rota gaps, timesheets pending approval, expiring compliance documents, pending cover requests, then upcoming events.
+A "verified" DBS or an RTW with an expiry within 30 days is "expiring soon"; past its expiry it is "expired". Reference the real names and numbers. If an area is clear, you may briefly note it.
 Output the briefing paragraph only — no greeting line breaks, no headings, no bullet points, no markdown.`;
 
   try {
