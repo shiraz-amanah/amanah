@@ -107,6 +107,16 @@ export function sendDbsReminderEmail(mosqueId) {
   return postTransactional({ intent: 'dbs_reminder', mosqueId });
 }
 
+// --- Madrasa Phase 2b: absence notifications -------------------------------
+// Fired after a teacher/admin saves attendance. The server re-derives which
+// children are newly absent for this class+date, emails each parent (respecting
+// their email pref), and alerts the mosque admin at 3 consecutive absences.
+// Fire-and-forget — the caller must NOT block the save UX on this.
+export function sendMadrasaAbsenceNotifications(classId, sessionDate) {
+  if (!classId || !sessionDate) return Promise.resolve({ ok: false, error: 'missing_args' });
+  return postTransactional({ intent: 'madrasa_absence', classId, sessionDate });
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. The staffer is unauthenticated (no session), so this posts
 // WITHOUT a token; the server constrains the send to a real, just-completed

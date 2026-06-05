@@ -857,6 +857,68 @@ async function handleStaffWizardSubmitted(env, email) {
   return { status: 200, body: { ok: true, sent: 1 } };
 }
 
+// Madrasa Phase 2b — absence notifications. Fired client-side after a teacher/
+// admin saves attendance. Re-derives the newly-absent children for this class+
+// date via SECURITY DEFINER RPCs (075), emails each parent (respecting their
+// email pref), and at 3 consecutive absences also alerts the mosque admin. The
+// claim RPC makes a double-save a no-op (claim-before-send).
+async function handleMadrasaAbsence(env, caller, classId, sessionDate) {
+  // Authorize: caller must own the mosque, teach the class, or be an admin.
+  const crows = await sbGet(env, `madrasa_classes?id=eq.${classId}&select=mosque_id,teacher_staff_id,name`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  if (!cls) return { status: 404, body: { ok: false, error: 'class_not_found' } };
+
+  const mrows = await sbGet(env, `mosques?id=eq.${cls.mosque_id}&select=user_id`);
+  const ownsMosque = Array.isArray(mrows) && mrows[0]?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls.teacher_staff_id) {
+    const srows = await sbGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  const rows = await callRpc(env, 'madrasa_absences_to_notify', { p_class: classId, p_session_date: sessionDate });
+  const list = Array.isArray(rows) ? rows : [];
+  const when = formatDate(sessionDate);
+  let sent = 0, alerts = 0;
+
+  for (const r of list) {
+    // Claim first so an overlapping save can't double-send.
+    const claimed = await callRpc(env, 'madrasa_claim_absence_notification', { p_id: r.attendance_id });
+    if (claimed !== true) continue;
+
+    const child = r.student_name || 'Your child';
+    const streak = Number(r.consecutive_count) || 1;
+
+    // Parent email (skip if they opted out of email or have no address).
+    if (r.parent_email && r.parent_email_opt_in !== false) {
+      const streakLine = streak >= 3
+        ? ePara(`This is <strong>${escapeHtml(String(streak))} absences in a row</strong>. If there's anything we should know, please get in touch with the madrasa.`)
+        : '';
+      const inner = `${eGreeting(r.parent_name || 'there')}${eHeading('Attendance update')}
+${ePara(`${escapeHtml(child)} was marked <strong>absent</strong> at ${escapeHtml(r.class_name || 'class')} on ${escapeHtml(when)}.`)}
+${streakLine}${ctaButton('View attendance', env.PUBLIC_APP_URL)}${eSignoff}`;
+      await sendEmail(env, { to: r.parent_email, subject: `${child} was marked absent — ${r.class_name || 'Madrasa'}`, html: wrapEmail('Attendance update', inner) });
+      sent++;
+    }
+
+    // Consecutive-absence alert to the mosque admin — fires once, at exactly 3.
+    if (streak === 3 && r.owner_email) {
+      const inner = `${eGreeting(r.owner_name || 'there')}${eHeading('Consecutive absence alert')}
+${ePara(`<strong>${escapeHtml(child)}</strong> (in ${escapeHtml(r.class_name || 'class')}) has now been marked absent <strong>3 sessions in a row</strong>, most recently on ${escapeHtml(when)}.`)}
+${ePara('You may wish to follow up with the family.')}${ctaButton('Open your dashboard', env.PUBLIC_APP_URL)}${eSignoff}`;
+      await sendEmail(env, { to: r.owner_email, subject: `Attendance alert: ${child} — 3 absences in a row`, html: wrapEmail('Consecutive absence alert', inner) });
+      await sendAlert(env, { event: 'madrasa_consecutive_absence', link: env.PUBLIC_APP_URL, lines: [
+        ['Child', child], ['Class', r.class_name], ['Streak', String(streak)],
+      ] });
+      alerts++;
+    }
+  }
+  return { status: 200, body: { ok: true, sent, alerts } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -966,6 +1028,12 @@ export default async function handler(req, res) {
     if (body.intent === 'dbs_reminder') {
       if (!isUuid(body.mosqueId)) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
       const out = await handleDbsReminder(env, caller, body.mosqueId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_absence') {
+      if (!isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_classId' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(body.sessionDate || '')) return res.status(400).json({ ok: false, error: 'invalid_sessionDate' });
+      const out = await handleMadrasaAbsence(env, caller, body.classId, body.sessionDate);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

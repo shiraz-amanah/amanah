@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, Check, Users, AlertCircle } from "lucide-react";
 import { getMadrasaRoster, getMadrasaAttendance, upsertMadrasaAttendance } from "../auth";
+import { sendMadrasaAbsenceNotifications } from "../lib/email";
 
 // Madrasa Phase 1c — reusable attendance marking. Used by the admin Madrasa tab
 // now and the teacher portal (1e) later — both write under the 070 RLS (owner
@@ -61,6 +62,11 @@ const MadrasaAttendance = ({ classObj }) => {
     setSaving(false);
     if (err) { setError(err.message || "Couldn't save attendance."); return; }
     setSaved(true);
+    // Fire-and-forget: email parents of any newly-absent children (server
+    // re-derives + dedups). Never block the save UX on this.
+    if (records.some((r) => r.status === "absent")) {
+      sendMadrasaAbsenceNotifications(classId, sessionDate).catch(() => {});
+    }
   };
 
   return (
@@ -76,6 +82,7 @@ const MadrasaAttendance = ({ classObj }) => {
       </div>
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-3"><AlertCircle size={14} /> {error}</p>}
+      {roster.length > 0 && <p className="text-xs text-stone-400 mb-3">Parents are emailed automatically when a child is marked absent.</p>}
 
       {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : roster.length === 0 ? (
