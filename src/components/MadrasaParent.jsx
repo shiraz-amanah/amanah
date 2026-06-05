@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp } from "lucide-react";
-import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment } from "../auth";
+import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp, Megaphone } from "lucide-react";
+import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 
 // Madrasa Phase 1b — family-dashboard view. Each child with their active
@@ -13,14 +13,16 @@ const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => 
 const MadrasaParent = ({ onBrowse }) => {
   const [students, setStudents] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [withdrawing, setWithdrawing] = useState(null);
   const [expanded, setExpanded] = useState(null); // child id whose progress is open
+  const [showAll, setShowAll] = useState(false);
 
   const reload = () => {
     setLoading(true);
-    Promise.all([getStudents(), getMyMadrasaEnrollments()])
-      .then(([s, e]) => { setStudents(s || []); setEnrollments(e || []); })
+    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements()])
+      .then(([s, e, a]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); })
       .catch((err) => console.error("madrasa parent load failed:", err))
       .finally(() => setLoading(false));
   };
@@ -50,6 +52,25 @@ const MadrasaParent = ({ onBrowse }) => {
         </div>
         <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Search size={14} /> Browse classes</button>
       </div>
+
+      {!loading && announcements.length > 0 && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-3 flex items-center gap-1.5"><Megaphone size={12} /> Announcements</p>
+          <ul className="space-y-3">{(showAll ? announcements : announcements.slice(0, 4)).map((a) => (
+            <li key={a.id} className="text-sm">
+              {a.title && <p className="font-semibold text-stone-900">{a.title}</p>}
+              <p className="text-stone-700 whitespace-pre-wrap break-words">{a.body}</p>
+              <p className="text-[11px] text-stone-400 mt-1">
+                {a.class?.name ? `${a.class.name}` : ""}{a.class?.mosque?.name ? ` · ${a.class.mosque.name}` : ""}{" · "}
+                {new Date(a.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              </p>
+            </li>
+          ))}</ul>
+          {announcements.length > 4 && (
+            <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900">{showAll ? "Show fewer" : `Show all ${announcements.length}`}</button>
+          )}
+        </div>
+      )}
 
       {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : students.length === 0 ? (

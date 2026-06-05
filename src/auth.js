@@ -804,6 +804,48 @@ export async function getStudentAttendance(studentId) {
   return data || []
 }
 
+// --- Madrasa announcements (migration 073) ---
+// Teacher/owner post a notice to a whole class; parents of enrolled children
+// read it. Write RLS = owner-of-mosque OR class teacher; read RLS = parent of
+// an active-enrolled child (or owner/admin). mosque_id is forced to match the
+// class by the policy WITH CHECK, so the caller passes it but can't spoof it.
+export async function getClassAnnouncements(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_announcements')
+    .select('*, author:profiles!madrasa_announcements_author_profile_id_fkey(name)')
+    .eq('class_id', classId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching announcements:', error); return [] }
+  return data || []
+}
+export async function createAnnouncement({ classId, mosqueId, title, body }) {
+  if (!classId || !mosqueId || !body?.trim()) return { error: { message: 'classId, mosqueId and body required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_announcements')
+    .insert({ class_id: classId, mosque_id: mosqueId, author_profile_id: user?.id || null, title: title?.trim() || null, body: body.trim() })
+    .select('*, author:profiles!madrasa_announcements_author_profile_id_fkey(name)')
+    .single()
+  return { data, error }
+}
+export async function deleteAnnouncement(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_announcements').delete().eq('id', id)
+  return { error }
+}
+// Family dashboard — announcements across every class the signed-in parent's
+// children are enrolled in (parent read policy gates the rows), newest first.
+export async function getMyMadrasaAnnouncements() {
+  const { data, error } = await supabase
+    .from('madrasa_announcements')
+    .select('*, class:madrasa_classes(name, subject, mosque:mosques(name))')
+    .order('created_at', { ascending: false })
+    .limit(60)
+  if (error) { console.error('Error fetching my announcements:', error); return [] }
+  return data || []
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.
