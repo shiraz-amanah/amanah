@@ -735,6 +735,16 @@ export async function withdrawEnrollment(id) {
   return { data, error }
 }
 
+// Classes a staff member teaches (active), for the teacher portal "My Classes".
+export async function getMyTeacherClasses(staffId) {
+  if (!staffId) return []
+  const { data, error } = await supabase
+    .from('madrasa_classes').select('*').eq('teacher_staff_id', staffId).eq('status', 'active')
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching teacher classes:', error); return [] }
+  return data || []
+}
+
 // --- Madrasa attendance (migration 070) ---
 // Existing attendance for a class on a given session date (to prefill marking).
 export async function getMadrasaAttendance(classId, sessionDate) {
@@ -779,6 +789,19 @@ export async function deleteHifzEntry(id) {
   if (!id) return { error: { message: 'id required' } }
   const { error } = await supabase.from('madrasa_hifz_progress').delete().eq('id', id)
   return { error }
+}
+// A student's recent attendance (parent reads own child via 070 RLS), joined
+// to the class name for the family-dashboard progress view.
+export async function getStudentAttendance(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase
+    .from('madrasa_attendance')
+    .select('*, class:madrasa_classes(name)')
+    .eq('student_id', studentId)
+    .order('session_date', { ascending: false })
+    .limit(60)
+  if (error) { console.error('Error fetching student attendance:', error); return [] }
+  return data || []
 }
 
 // --- Cover requests (migration 061) ---

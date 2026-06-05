@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import {
   ShieldCheck, LogOut, LayoutDashboard, CalendarDays, Clock, User,
-  MessageCircle, Loader2, CheckCircle2, AlertCircle,
+  MessageCircle, Loader2, CheckCircle2, AlertCircle, GraduationCap, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { getMosqueRota, getMosqueTimesheets } from "../auth";
+import { getMosqueRota, getMosqueTimesheets, getMyTeacherClasses } from "../auth";
+import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 
 // Session W — personalised staff portal. Rendered (opt-in) when a signed-in
 // user is ACTIVE staff at a mosque (mosque_staff.profile_id match,
@@ -42,9 +43,21 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
   const showTimesheets = ["rota_timesheets", "rota_timesheets_messages", "full"].includes(access);
   const showMessages = ["rota_timesheets_messages", "full"].includes(access);
   const showProfile = access === "full";
+
+  // Madrasa Phase 1e — teacher "My Classes". Shown when this staff member is
+  // the teacher of one or more active classes (independent of portal_access).
+  const [teacherClasses, setTeacherClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState(null);
+  useEffect(() => {
+    if (!staffId) return;
+    getMyTeacherClasses(staffId).then(setTeacherClasses).catch(() => {});
+  }, [staffId]);
+  const showClasses = teacherClasses.length > 0;
+
   const tabs = [
     { v: "dashboard", l: "Dashboard", icon: LayoutDashboard },
     { v: "rota", l: "My Rota", icon: CalendarDays },
+    ...(showClasses ? [{ v: "classes", l: "My Classes", icon: GraduationCap }] : []),
     ...(showTimesheets ? [{ v: "timesheets", l: "My Timesheets", icon: Clock }] : []),
     ...(showProfile ? [{ v: "profile", l: "My Profile", icon: User }] : []),
     ...(showMessages ? [{ v: "messages", l: "Messages", icon: MessageCircle }] : []),
@@ -53,7 +66,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
   useEffect(() => {
     if (!tabs.some((t) => t.v === tab)) setTab("dashboard");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access]);
+  }, [access, showClasses]);
 
   // --- My Rota: current-week slots assigned to me -------------------
   const [rotaLoading, setRotaLoading] = useState(false);
@@ -180,6 +193,38 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
                   ))}</ul>}
             </div>
           </div>
+        )}
+
+        {tab === "classes" && showClasses && (
+          selectedClass ? (
+            <div>
+              <button onClick={() => setSelectedClass(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> Back to my classes</button>
+              <div className="mb-4">
+                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{selectedClass.name}</h2>
+                <p className="text-sm text-stone-600 capitalize">{selectedClass.subject}{selectedClass.room ? ` · ${selectedClass.room}` : ""}</p>
+              </div>
+              <MadrasaClassWorkspace classObj={selectedClass} />
+            </div>
+          ) : (
+            <div>
+              <div className="mb-6">
+                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My Classes</h2>
+                <p className="text-sm text-stone-600">Mark attendance and log Hifz progress for your classes.</p>
+              </div>
+              <div className="space-y-2">
+                {teacherClasses.map((c) => (
+                  <button key={c.id} onClick={() => setSelectedClass(c)} className="w-full flex items-center gap-3 bg-white border border-stone-200 hover:border-stone-300 rounded-2xl p-4 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-stone-900 truncate">{c.name}</p>
+                      <p className="text-xs text-stone-500 capitalize">{c.subject}{c.room ? ` · ${c.room}` : ""}</p>
+                    </div>
+                    <ChevronRight size={16} className="text-stone-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
         )}
 
         {tab === "timesheets" && showTimesheets && (

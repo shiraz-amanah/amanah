@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X } from "lucide-react";
+import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp } from "lucide-react";
 import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment } from "../auth";
+import MadrasaChildProgress from "./MadrasaChildProgress";
 
 // Madrasa Phase 1b — family-dashboard view. Each child with their active
 // enrolments (class, mosque, schedule) + a withdraw option, plus a "Browse
@@ -14,6 +15,7 @@ const MadrasaParent = ({ onBrowse }) => {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [withdrawing, setWithdrawing] = useState(null);
+  const [expanded, setExpanded] = useState(null); // child id whose progress is open
 
   const reload = () => {
     setLoading(true);
@@ -80,6 +82,10 @@ const MadrasaParent = ({ onBrowse }) => {
                       </li>
                     ))}</ul>
                   )}
+                  <button onClick={() => setExpanded(expanded === child.id ? null : child.id)} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1">
+                    {expanded === child.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Attendance &amp; Hifz
+                  </button>
+                  {expanded === child.id && <MadrasaChildProgress student={child} />}
                 </div>
               );
             })}
