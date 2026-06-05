@@ -637,6 +637,52 @@ export async function upsertSaferRecruitment(staffId, mosqueId, fields) {
   return { data, error }
 }
 
+// --- Madrasa classes + enrollments (migration 068) ---
+export async function getMadrasaClasses(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_classes')
+    .select('*, teacher:mosque_staff(name)')
+    .eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching madrasa classes:', error); return [] }
+  return data || []
+}
+export async function createMadrasaClass({ mosqueId, ...fields }) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('madrasa_classes').insert({ mosque_id: mosqueId, ...fields }).select().single()
+  return { data, error }
+}
+export async function updateMadrasaClass(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('madrasa_classes').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+// Roster for a class — owner reads enrolled students via the relaxed students
+// SELECT policy (068). Returns enrollments joined to the student.
+export async function getMadrasaRoster(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_enrollments')
+    .select('*, student:students(name, age, relation)')
+    .eq('class_id', classId)
+    .order('enrolled_at', { ascending: true })
+  if (error) { console.error('Error fetching roster:', error); return [] }
+  return data || []
+}
+// Active-enrollment counts per class for the mosque, for the class list.
+export async function getMadrasaEnrollmentCounts(mosqueId) {
+  if (!mosqueId) return {}
+  const { data, error } = await supabase
+    .from('madrasa_enrollments').select('class_id').eq('mosque_id', mosqueId).eq('status', 'active')
+  if (error) { console.error('Error fetching enrollment counts:', error); return {} }
+  const counts = {}
+  for (const r of (data || [])) counts[r.class_id] = (counts[r.class_id] || 0) + 1
+  return counts
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.

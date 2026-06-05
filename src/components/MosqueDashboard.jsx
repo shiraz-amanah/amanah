@@ -2,13 +2,14 @@ import { useState } from "react";
 import {
   Building2, Users, Briefcase, Calendar, HandCoins, MessageCircle,
   User, ShieldCheck, CheckCircle2, AlertCircle, LogOut,
-  LayoutDashboard, CalendarDays, ShieldAlert, ClipboardCheck,
+  LayoutDashboard, CalendarDays, ShieldAlert, ClipboardCheck, GraduationCap,
 } from "lucide-react";
 import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
+import MosqueMadrasa from "./MosqueMadrasa";
 import MosqueRota from "./MosqueRota";
 import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
@@ -74,6 +75,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
     { v: "rota", l: "Rota", icon: CalendarDays },
     { v: "safeguarding", l: "Safeguarding", icon: ShieldAlert },
     { v: "compliance", l: "Compliance", icon: ClipboardCheck },
+    { v: "madrasa", l: "Madrasa", icon: GraduationCap },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
     { v: "account", l: "Account", icon: User },
@@ -174,6 +176,10 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
         {activeTab === "compliance" && (
           <MosqueCompliance mosqueId={mosque.id} />
+        )}
+
+        {activeTab === "madrasa" && (
+          <MosqueMadrasa mosqueId={mosque.id} mosque={mosque} />
         )}
 
         {activeTab === "donations" && (
