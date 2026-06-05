@@ -55,6 +55,43 @@ const Field = ({ label, required, children }) => (
   <div><label className={labelCls}>{label}{required && <span className="text-rose-500"> *</span>}</label>{children}</div>
 );
 
+// Human labels for required-field validation messages.
+const LABELS = {
+  name: "full name", dob: "date of birth", phone: "phone",
+  emergency_contact_name: "emergency contact name", emergency_contact_phone: "emergency contact number",
+  rtw_check_type: "RTW check type", rtw_document_type: "RTW document type", rtw_expiry_date: "RTW expiry date",
+  dbs_check_type: "DBS check type", dbs_workforce_type: "DBS workforce type",
+  start_date: "start date", p46_statement: "P46 statement",
+};
+
+// Module-level (NOT defined inside the wizard) so they keep a stable component
+// identity across renders — otherwise React remounts them on every keystroke,
+// which is what made fields appear to reset when navigating Back.
+const FileField = ({ label, required, value, remoteMode, onSelect, onClear, error }) => (
+  <Field label={label} required={required}>
+    {remoteMode ? (
+      <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">Your mosque admin will attach this document for you.</p>
+    ) : value ? (
+      <div className="flex items-center justify-between gap-2 text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+        <span className="truncate text-stone-700">{value.name}</span>
+        <button onClick={onClear} className="text-stone-400 hover:text-rose-600"><X size={14} /></button>
+      </div>
+    ) : (
+      <label className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer border ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-dashed border-stone-300 text-stone-500 hover:border-emerald-500"}`}>
+        <Upload size={14} /> Upload (PDF/JPG/PNG, ≤10MB){required ? " — required" : ""}
+        <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
+      </label>
+    )}
+  </Field>
+);
+
+const NotRequiredToggle = ({ checked, onChange }) => (
+  <label className="flex items-center gap-2 text-sm text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer">
+    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    Not required / not applicable for this person
+  </label>
+);
+
 const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = false, token = null, prefillName = "", staffEmail = "" }) => {
   const [step, setStep] = useState(1); // 1..7
   const [form, setForm] = useState(() => ({ ...blank, name: prefillName || "" }));
@@ -66,12 +103,30 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
   const roleValue = form.role === "Other" ? (form.roleOther.trim() || "Other") : form.role;
 
   const stepSkipped = (s) => (s === 2 && form.rtw_na) || (s === 3 && form.dbs_na);
-  const missingForStep = (s) => (stepSkipped(s) ? [] : (REQUIRED[s] || []).filter((k) => isEmpty(form[k])));
-  const allMissing = () => [1, 2, 3, 4, 5].flatMap((s) => missingForStep(s).map((k) => ({ step: s, key: k })));
-  // red highlight once Confirm was attempted
+  // A document upload is mandatory once a check type is chosen — but only in
+  // fill-now mode (remote staff can't upload; the admin attaches it later).
+  const uploadReq = (kind) => !remoteMode && (kind === "rtw" ? (!form.rtw_na && !!form.rtw_check_type) : (!form.dbs_na && !!form.dbs_check_type));
+  // Human-readable list of what's still missing on a step (respects skips).
+  const stepIssues = (s) => {
+    const out = [];
+    if (!stepSkipped(s)) for (const k of (REQUIRED[s] || [])) if (isEmpty(form[k])) out.push(LABELS[k] || k);
+    if (s === 2 && uploadReq("rtw") && !form.rtw_file) out.push("Right to Work document upload");
+    if (s === 3 && uploadReq("dbs") && !form.dbs_file) out.push("DBS certificate upload");
+    return out;
+  };
+  const firstIncompleteStep = () => { for (let s = 1; s <= 6; s++) if (stepIssues(s).length) return s; return 0; };
+  // red highlight once a Next/Confirm was attempted with gaps
   const errCls = (key, s) => (attempted && (REQUIRED[s] || []).includes(key) && !stepSkipped(s) && isEmpty(form[key]) ? " border-rose-400 ring-1 ring-rose-200" : "");
 
-  const next = () => { setError(null); if (step < 7) setStep(step + 1); };
+  // Next is gated on the current step being complete — blocks advancing past
+  // an empty required field (e.g. name) or a missing mandatory upload.
+  const next = () => {
+    const issues = stepIssues(step);
+    if (issues.length) { setAttempted(true); setError(`Please complete: ${issues.join(", ")}.`); return; }
+    setError(null);
+    if (step < 7) setStep(step + 1);
+  };
+  // Back never validates and never resets data (single form state).
   const back = () => { setError(null); if (step > 1) setStep(step - 1); };
 
   const dbsStatusFromForm = () => {
@@ -105,12 +160,12 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
   });
 
   const save = async () => {
-    // Required-field gate (respects "not required" skips).
-    const miss = allMissing();
-    if (miss.length) {
+    // Final gate — required fields + mandatory uploads, respecting skips.
+    const bad = firstIncompleteStep();
+    if (bad) {
       setAttempted(true);
       setError("Please complete the highlighted required fields before submitting.");
-      setStep(miss[0].step);
+      setStep(bad);
       return;
     }
     setSaving(true); setError(null);
@@ -197,32 +252,6 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
     }
   };
 
-  const FileField = ({ label, fileKey }) => (
-    <Field label={label}>
-      {remoteMode ? (
-        <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">Your mosque admin will attach this document for you.</p>
-      ) : form[fileKey] ? (
-        <div className="flex items-center justify-between gap-2 text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-          <span className="truncate text-stone-700">{form[fileKey].name}</span>
-          <button onClick={() => set(fileKey, null)} className="text-stone-400 hover:text-rose-600"><X size={14} /></button>
-        </div>
-      ) : (
-        <label className="flex items-center gap-2 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer">
-          <Upload size={14} /> Upload (PDF/JPG/PNG, ≤10MB)
-          <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => set(fileKey, e.target.files?.[0] || null)} />
-        </label>
-      )}
-    </Field>
-  );
-
-  // "Not required" toggle for the RTW / DBS steps.
-  const NotRequiredToggle = ({ flag }) => (
-    <label className="flex items-center gap-2 text-sm text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer">
-      <input type="checkbox" checked={form[flag]} onChange={(e) => set(flag, e.target.checked)} />
-      Not required / not applicable for this person
-    </label>
-  );
-
   return (
     <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
       <div className="flex items-center justify-between mb-5">
@@ -253,7 +282,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
         </>)}
 
         {step === 2 && (<>
-          <NotRequiredToggle flag="rtw_na" />
+          <NotRequiredToggle checked={form.rtw_na} onChange={(v) => set("rtw_na", v)} />
           {form.rtw_na ? (
             <p className="text-sm text-stone-500 py-2">Right to Work marked as not required for this person.</p>
           ) : (<>
@@ -276,12 +305,12 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <Field label="Expiry date" required><input type="date" className={inputCls + errCls("rtw_expiry_date", 2)} value={form.rtw_expiry_date} onChange={(e) => set("rtw_expiry_date", e.target.value)} /></Field>
             </div>
             <Field label="Checked by"><input className={inputCls} value={form.rtw_checked_by} onChange={(e) => set("rtw_checked_by", e.target.value)} /></Field>
-            <FileField label="Document upload" fileKey="rtw_file" />
+            <FileField label="Document upload" required={uploadReq("rtw")} value={form.rtw_file} remoteMode={remoteMode} onSelect={(f) => set("rtw_file", f)} onClear={() => set("rtw_file", null)} error={attempted && uploadReq("rtw") && !form.rtw_file} />
           </>)}
         </>)}
 
         {step === 3 && (<>
-          <NotRequiredToggle flag="dbs_na" />
+          <NotRequiredToggle checked={form.dbs_na} onChange={(v) => set("dbs_na", v)} />
           {form.dbs_na ? (
             <p className="text-sm text-stone-500 py-2">DBS marked as not required for this person.</p>
           ) : (<>
@@ -310,7 +339,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <Field label="Expiry date"><input type="date" className={inputCls} value={form.dbs_expiry_date} onChange={(e) => set("dbs_expiry_date", e.target.value)} /></Field>
               <Field label="Checked by"><input className={inputCls} value={form.dbs_checked_by} onChange={(e) => set("dbs_checked_by", e.target.value)} /></Field>
             </div>
-            <FileField label="Certificate upload" fileKey="dbs_file" />
+            <FileField label="Certificate upload" required={uploadReq("dbs")} value={form.dbs_file} remoteMode={remoteMode} onSelect={(f) => set("dbs_file", f)} onClear={() => set("dbs_file", null)} error={attempted && uploadReq("dbs") && !form.dbs_file} />
           </>)}
         </>)}
 
