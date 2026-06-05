@@ -490,6 +490,23 @@ export async function submitStaffWizard(token, payload) {
   return row?.ok ? { ok: true } : { ok: false, error: row?.reason || 'submit_failed' }
 }
 
+// --- Compliance (migration 063) — owner+admin only ---
+export async function getMosqueCompliance(mosqueId) {
+  if (!mosqueId) return null
+  const { data, error } = await supabase
+    .from('mosque_compliance').select('*').eq('mosque_id', mosqueId).maybeSingle()
+  if (error) { console.error('Error fetching compliance:', error); return null }
+  return data
+}
+export async function upsertMosqueCompliance(mosqueId, fields) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosque_compliance')
+    .upsert({ mosque_id: mosqueId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'mosque_id' })
+    .select().single()
+  return { data, error }
+}
+
 // --- Unified document records (migration 063) ---
 export async function createMosqueDocument({ mosqueId, category, label, provider, issue_date, expiry_date, file_path, staff_id }) {
   if (!mosqueId || !category || !label) return { error: { message: 'mosqueId, category and label required' } }

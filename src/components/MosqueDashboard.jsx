@@ -12,21 +12,7 @@ import MosqueOverview from "./MosqueOverview";
 import MosqueHR from "./MosqueHR";
 import MosqueRota from "./MosqueRota";
 import MosqueSafeguarding from "./MosqueSafeguarding";
-
-// Session W — placeholder for tabs whose content lands in a later commit
-// (Dashboard widgets, Rota split, HR sub-tabs, Safeguarding, Compliance).
-// Keeps the restructured nav fully working while each tab is built out.
-const TabPlaceholder = ({ icon: Icon, title, blurb }) => (
-  <div>
-    <div className="mb-6">
-      <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{title}</h2>
-    </div>
-    <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
-      <Icon className="mx-auto text-stone-300 mb-3" size={36} />
-      <p className="text-stone-600 text-sm max-w-md mx-auto">{blurb}</p>
-    </div>
-  </div>
-);
+import MosqueCompliance from "./MosqueCompliance";
 
 // New mosque dashboard — replaces the legacy mock-driven version
 // in place per Q7. Tabs locked from Q5: Profile / Donations /
@@ -182,11 +168,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         )}
 
         {tab === "compliance" && (
-          <TabPlaceholder
-            icon={ClipboardCheck}
-            title="Compliance"
-            blurb="Charity, GDPR, health & safety, financial and madrasah records, plus a single document-expiry dashboard."
-          />
+          <MosqueCompliance mosqueId={mosque.id} />
         )}
 
         {tab === "events" && (
