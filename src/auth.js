@@ -735,6 +735,27 @@ export async function withdrawEnrollment(id) {
   return { data, error }
 }
 
+// --- Madrasa attendance (migration 070) ---
+// Existing attendance for a class on a given session date (to prefill marking).
+export async function getMadrasaAttendance(classId, sessionDate) {
+  if (!classId || !sessionDate) return []
+  const { data, error } = await supabase
+    .from('madrasa_attendance').select('*').eq('class_id', classId).eq('session_date', sessionDate)
+  if (error) { console.error('Error fetching attendance:', error); return [] }
+  return data || []
+}
+// Upsert a batch of attendance rows (one per student) for a session. Keyed by
+// (class_id, student_id, session_date) so re-marking updates in place. Stamps
+// marked_by. Admin OR class teacher may write (RLS 070).
+export async function upsertMadrasaAttendance(records) {
+  if (!Array.isArray(records) || records.length === 0) return { data: [], error: null }
+  const user = await getUser()
+  const rows = records.map((r) => ({ ...r, marked_by: user?.id || null, updated_at: new Date().toISOString() }))
+  const { data, error } = await supabase
+    .from('madrasa_attendance').upsert(rows, { onConflict: 'class_id,student_id,session_date' }).select()
+  return { data, error }
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.

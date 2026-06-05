@@ -4,6 +4,7 @@ import {
   Users, Clock, MapPin, ChevronLeft, Trash2,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaRoster, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
+import MadrasaAttendance from "./MadrasaAttendance";
 
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
@@ -34,7 +35,8 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const [rosterClass, setRosterClass] = useState(null); // class object when viewing roster
+  const [rosterClass, setRosterClass] = useState(null); // class object when viewing detail
+  const [detailMode, setDetailMode] = useState("roster"); // roster | attendance
   const [roster, setRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
 
@@ -76,7 +78,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   };
 
   const openRoster = async (c) => {
-    setRosterClass(c); setRosterLoading(true);
+    setRosterClass(c); setDetailMode("roster"); setRosterLoading(true);
     const r = await getMadrasaRoster(c.id);
     setRoster(r); setRosterLoading(false);
   };
@@ -91,11 +93,18 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
     return (
       <div>
         <button onClick={() => setRosterClass(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> Back to classes</button>
-        <div className="mb-5">
+        <div className="mb-4">
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{rosterClass.name}</h2>
           <p className="text-sm text-stone-600">{SUBJECT_LABEL[rosterClass.subject]}{rosterClass.teacher?.name ? ` · ${rosterClass.teacher.name}` : ""} · {scheduleText(rosterClass.schedule)}</p>
         </div>
-        {rosterLoading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+        <div className="flex gap-1 border-b border-stone-200 mb-5">
+          {[["roster", "Roster"], ["attendance", "Attendance"]].map(([v, l]) => (
+            <button key={v} onClick={() => setDetailMode(v)} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailMode === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
+          ))}
+        </div>
+        {detailMode === "attendance" ? (
+          <MadrasaAttendance classObj={rosterClass} />
+        ) : rosterLoading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
           : roster.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
               <Users className="mx-auto text-stone-300 mb-3" size={36} />
