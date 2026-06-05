@@ -6091,6 +6091,67 @@ id with no trailing `\n` — bit me once.)
 
 ---
 
+## Session X — post-W fixes + Staff/HR/Events tab restructure ✅ (5–6 June 2026)
+
+Iteration on Session W from live testing, then a tab restructure to prep for
+the Madrasa module. All pushed to prod; migration **067** applied dev+prod.
+
+### Shipped (by commit)
+- **`019ee95`** — null-name display fixes (activity feed "null added to staff"
+  → "Unnamed staff member"; HR DBS doc label "— null" cleaned + empty-state).
+- **`fa79925` / `30ee0e8`** — wizard fixes: RTW check-type relabel (Manual /
+  Online IDVT / Share code), RTW document-type dropdown, "Not required" skip on
+  RTW+DBS (persists `*_check_type='not_required'`; dbs_status stays not_checked
+  per its CHECK), salary removed from the remote wizard, PAYE removed, required-
+  field validation gating Next + Confirm, Back/Next functional setState,
+  FileField always allows replace, and a `staff_wizard_submitted` confirmation
+  email intent (unauthenticated, recipient constrained server-side).
+- **`cb87731` (migration 067) / `7c31c49`** — admin **approve flow**:
+  `mosque_staff.portal_access` (rota / rota_timesheets / rota_timesheets_messages
+  / full); Review-pending badge → review modal (submitted details + access-level
+  selector) → sets access, emails the invite, marks invited. Portal gates tabs
+  by access level.
+- **`99e87f6`** — staff-card actions: View details (read-only modal), Edit access
+  (change portal_access anytime), Reset password (resetPasswordForEmail + notice);
+  staff-portal My Profile shows human-readable DBS status.
+- **`9e3cf79`** — **welcome-email platform-wide fix**: the welcome was sent only
+  from signUp() and is JWT-gated, so it silently no-op'd whenever email
+  confirmation was on (no session yet) and never ran for staff invite accepts.
+  New `sendWelcomeIfNew()` fires once per new account the first time it's
+  authenticated (deduped via `user_metadata.welcomed`, gated to <7-day-old
+  accounts), called from signUp() AND the app bootstrap (catches every path).
+- **`4e9626d`** — signup "What brings you?" is now **multi-select** (array in
+  `user_metadata.interests`); the `interest` string still carries the
+  scholar/mosque role marker.
+- **`8b56deb`** — **tab restructure** (11 → 9): Staff + HR merged (Staff sub-bar
+  Team / History / DBS / RTW / Employment; DBS/RTW/Employment embed MosqueHR via
+  a new `embeddedSub` prop). Events folded into the Dashboard tab as an Overview
+  / Events sub-tab. Stale persisted tabs (hr/events) fall back to Dashboard.
+
+### Verified vs not
+- **Approve path: 16/16 headless dev smoke green** (review-pending detection,
+  CHECK-guarded portal_access, invite creation, status transition, staff reads
+  own level via RLS, tab-gating mapping). Earlier Session-W security smoke
+  (29/29) still stands.
+- **NOT smoke-tested** (need the deployed `/api` + Resend; local server env
+  points at prod): the email sends — `staff_wizard_submitted` confirmation, the
+  approve invite, and the welcome email. Verify post-deploy with a
+  `delivered@resend.dev` account. UI flows (wizard nav, modals, tab render) are
+  build-verified only.
+
+### Decisions for Madrasa Phase 1 (next)
+- **Students:** reuse the existing parent-owned `students` table + a new
+  `madrasa_enrollments` link; registration is **parent-initiated** (parents own
+  the student rows), admin manages classes + rosters. Students RLS to be relaxed
+  so the enrolling mosque's admin/teacher can read enrolled students.
+- **Teacher portal:** extend the existing staff portal (MosqueStaffPortal "My
+  Classes"), not a separate surface.
+- **Phasing:** incremental — 1a admin classes → 1b parent registration → 1c
+  attendance → 1d Hifz tracker → 1e parent viewing + teacher My Classes. Each
+  with its own migration apply-gate.
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
