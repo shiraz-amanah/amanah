@@ -10,6 +10,7 @@ import { sendStaffInviteEmail } from "../lib/resend";
 import { uploadMosqueStaffPhoto } from "../lib/storage";
 import MosqueRotaBuilder from "./MosqueRotaBuilder";
 import MosqueSubstituteFinder from "./MosqueSubstituteFinder";
+import MosqueStaffWizard from "./MosqueStaffWizard";
 
 // Mosque dashboard → Staff tab hub (Session U Day 2). Segmented: Team (permanent
 // + current temporary), History (ended cover, filter + CSV), Rota, Find
@@ -55,6 +56,10 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const [form, setForm] = useState(blank);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  // Session W — 7-step onboarding wizard. `wizardChoice` opens the
+  // fill-now / send-to-staff modal; `showWizard` mounts the inline wizard.
+  const [wizardChoice, setWizardChoice] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(null);
@@ -261,14 +266,48 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
             </div>
           )}
 
-          {!showForm && (
+          {!showForm && !showWizard && (
             <div className="flex gap-2 flex-wrap">
-              <button onClick={() => openAdd("permanent")} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add staff</button>
+              <button onClick={() => setWizardChoice(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Onboard staff</button>
+              <button onClick={() => openAdd("permanent")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Quick add</button>
               <button onClick={() => openAdd("temporary")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add temporary cover</button>
               <button onClick={() => setShowImport((v) => !v)} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Import staff</button>
             </div>
           )}
-          {showImport && !showForm && <MosqueBulkImport mosqueId={mosqueId} onDone={refresh} onClose={() => setShowImport(false)} />}
+
+          {/* Onboarding choice modal */}
+          {wizardChoice && (
+            <div className="fixed inset-0 z-30 bg-stone-900/40 flex items-center justify-center p-4" onClick={() => setWizardChoice(false)}>
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Onboard a staff member</h3>
+                  <button onClick={() => setWizardChoice(false)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
+                </div>
+                <p className="text-sm text-stone-600 mb-4">Collect personal, RTW, DBS, employment and payroll details in seven steps.</p>
+                <div className="space-y-2">
+                  <button onClick={() => { setWizardChoice(false); setShowWizard(true); }} className="w-full text-left bg-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-xl px-4 py-3">
+                    <p className="text-sm font-semibold text-emerald-900">Fill in now</p>
+                    <p className="text-xs text-emerald-800/80">You complete the form on the staff member's behalf.</p>
+                  </button>
+                  <button disabled title="Coming next in this session" className="w-full text-left bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 opacity-60 cursor-not-allowed">
+                    <p className="text-sm font-semibold text-stone-700">Send to staff member</p>
+                    <p className="text-xs text-stone-500">Email them a secure link to complete it themselves — coming next.</p>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showWizard && (
+            <MosqueStaffWizard
+              mosqueId={mosqueId}
+              mosque={mosque}
+              onDone={() => { setShowWizard(false); refresh(); }}
+              onCancel={() => setShowWizard(false)}
+            />
+          )}
+
+          {showImport && !showForm && !showWizard && <MosqueBulkImport mosqueId={mosqueId} onDone={refresh} onClose={() => setShowImport(false)} />}
 
           {loading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (
             <div className="space-y-4">

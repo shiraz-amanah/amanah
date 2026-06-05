@@ -427,6 +427,37 @@ export async function deleteMosqueStaff(id) {
   return { error }
 }
 
+// --- Employment records (migration 060 + 065 DBS/RTW detail) ---
+// Owner+admin only (never staff-readable). One row per staff member,
+// keyed by staff_id (unique).
+export async function getMosqueStaffEmployment(staffId) {
+  if (!staffId) return null
+  const { data, error } = await supabase
+    .from('mosque_staff_employment').select('*').eq('staff_id', staffId).maybeSingle()
+  if (error) { console.error('Error fetching employment record:', error); return null }
+  return data
+}
+
+export async function upsertMosqueStaffEmployment(staffId, mosqueId, fields) {
+  if (!staffId || !mosqueId) return { error: { message: 'staffId + mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosque_staff_employment')
+    .upsert({ staff_id: staffId, mosque_id: mosqueId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'staff_id' })
+    .select().single()
+  return { data, error }
+}
+
+// --- Unified document records (migration 063) ---
+export async function createMosqueDocument({ mosqueId, category, label, provider, issue_date, expiry_date, file_path, staff_id }) {
+  if (!mosqueId || !category || !label) return { error: { message: 'mosqueId, category and label required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('mosque_documents')
+    .insert({ mosque_id: mosqueId, category, label, provider: provider || null, issue_date: issue_date || null, expiry_date: expiry_date || null, file_path: file_path || null, staff_id: staff_id || null, created_by: user?.id || null })
+    .select().single()
+  return { data, error }
+}
+
 // Session W — staff portal detection. Returns the caller's ACTIVE staff row
 // (invite_status='active', linked by profile_id) joined to its mosque, or
 // null. Drives the opt-in staff portal: a user who is active staff somewhere

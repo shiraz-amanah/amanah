@@ -187,6 +187,37 @@ export async function uploadPrivateDoc(file, bucket) {
   return { path, error: null };
 }
 
+// Session W — upload to the PRIVATE mosque-hr-docs bucket (064). Unlike
+// uploadPrivateDoc (keyed on auth.uid()), the mosque-hr-docs RLS requires the
+// FIRST path segment to be the MOSQUE id (owner-write checks
+// foldername(name)[1] against mosques the caller owns). Path:
+// `{mosqueId}/{prefix}{timestamp}.{ext}`. Returns { path, error }; resolve a
+// viewable link with getSignedDocUrl("mosque-hr-docs", path).
+export async function uploadMosqueHrDoc(file, mosqueId, prefix = "") {
+  if (!file) return { path: null, error: "No file selected." };
+  if (!mosqueId) return { path: null, error: "Missing mosque." };
+  const ext = DOC_ALLOWED[file.type];
+  if (!ext) return { path: null, error: "Use a PDF, JPG, PNG or WebP file." };
+  if (file.size > DOC_MAX_BYTES) return { path: null, error: "File must be under 10MB." };
+
+  const path = `${mosqueId}/${prefix}${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("mosque-hr-docs")
+    .upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+
+  if (error) {
+    console.error("uploadMosqueHrDoc failed:", { message: error?.message, statusCode: error?.statusCode, path, error });
+    const blob = `${error?.message || ""} ${error?.statusCode || ""}`;
+    const msg = /bucket|not found/i.test(blob)
+      ? "Secure document storage isn't set up yet. Contact support."
+      : /row-level security|policy|unauthor|403/i.test(blob)
+      ? "Upload was blocked by storage permissions. Contact support."
+      : "Couldn't upload the document — try again.";
+    return { path: null, error: msg };
+  }
+  return { path, error: null };
+}
+
 // Mint a short-lived signed URL for a private document path (admin "View …"
 // links). `expiresIn` is seconds. Returns { url, error }.
 export async function getSignedDocUrl(bucket, path, expiresIn = 3600) {
