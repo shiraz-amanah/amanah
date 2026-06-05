@@ -5946,6 +5946,121 @@ non-owners. ANTHROPIC key never client-side. Fixtures purged each chunk.
 
 ---
 
+## Session W — Mosque management platform: dashboard, staff portal, HR, safeguarding, compliance, AI ops ✅ (5 June 2026)
+
+Largest session to date. Built in **12 gated commits across 3 "days"**, each
+build-clean, with a migration apply-gate (dev→probe→prod) before any code that
+depended on new schema. **Not yet pushed** — prod has migrations 060–066 applied
+(confirmed by Shiraz each gate), but the code commits are local until a push.
+
+### Scope discrepancy up front
+The roadmap + Sessions R–V all say "**Session W = Stripe (last)**". This W is the
+mosque-platform overhaul instead (per the brief). **Stripe shifts to a later
+session.** The 11/12 Vercel function cap still holds — Stripe's webhook will need
+a plan bump or folding (noted since Session T).
+
+### Shipped (by commit)
+- **1** (`07490ef`) — migrations **060–064**: `mosque_staff_employment` (owner-only
+  payroll + bank, no staff-self read) + wizard cols on `mosque_staff`;
+  `cover_requests`; safeguarding (settings/training/incidents/safer-recruitment);
+  `mosque_compliance` + **unified `mosque_documents`**; PRIVATE `mosque-hr-docs`
+  bucket.
+- **2** (`a0126df`) — extracted the in-App `MosqueDashboard` shell to
+  `src/components/MosqueDashboard.jsx` (behavior-preserving move). MessagesInbox
+  passed as a **component prop** to dodge a circular import.
+- **3** (`958add2`) — 11-tab restructure (Dashboard default landing) + **opt-in
+  staff portal** (`MosqueStaffPortal`, role-detected via `mosque_staff.profile_id`
+  + `invite_status='active'`).
+- **4** (`8703eea`) — admin **Dashboard** (`MosqueOverview`): AI briefing
+  (`mosque_ops`), stats, today's rota, doc-expiry, derived activity, quick
+  actions. Removed the static DBS banner/pills; invite-null fix opens the edit form.
+- **065** (`d82cf2d`) + **5a** (`baf0efc`) — migration 065 (DBS/RTW detail on the
+  owner-only employment table) + 7-step **onboarding wizard** (fill-now path).
+- **066** (`403311b`) + **5b** (`17dd5fa`) — migration 066 (raw-uuid `validate_/
+  submit_staff_wizard` SECURITY DEFINER RPCs) + remote **send-to-staff** path
+  (email link → `/staff/onboard/:token` → wizard in remote mode → RPC submit).
+- **6** (`409abf4`) — **HR tab** (DBS/RTW/Employment sub-tabs) editing the
+  owner-only record, doc uploads to the private bucket with signed-URL view.
+- **7** (`e44672b`) — **Rota tab** (rota+timesheets+finder, moved out of the
+  directory) + structured **cover-request popup** writing `cover_requests`.
+- **8** (`fea0222`) — **Safeguarding tab** (6 sub-tabs).
+- **9** (`6e3d5f5`) — **Compliance tab** (6 sub-tabs) + merged **Document Expiry**
+  traffic-light dashboard.
+- **7b** (`e234f6c`) — **scholar-side cover accept/decline** (new "Cover" tab) +
+  mosque one-click "Add to temp".
+- **10** (`e746b8f`) — **AI context unified** (`buildMosqueContext` shared by
+  `mosque_hr` chat + `mosque_ops` briefing): rota/prayer, DBS+RTW expiry, training
+  renewals, open incidents, expiring docs, pending timesheets, events, cover.
+- **11** — this closure.
+
+### Key decisions / corrections from the brief
+- **App.jsx is closed for new feature code**, but the brief required heavy edits
+  to the in-App mosque shell. Resolved by **extracting** the shell first (commit 2),
+  then building every tab as an imported component (one-line router entries). Chosen
+  with Shiraz over keeping a thin shell in App.jsx.
+- **Brief's migration list (060–064) was incomplete.** The wizard/HR collect rich
+  **DBS/RTW detail** (ID numbers, share codes, uCheck refs) with **no columns** —
+  added **065** (on the owner-only employment table, since it's identity PII). The
+  remote wizard needs a token-authorised write path → added **066** (RPCs). Both
+  surfaced as apply-gated amendments mid-build.
+- **Token storage: raw uuid** (matches the existing `mosque_staff_invites` posture
+  + SECURITY DEFINER RPC), NOT hashed — chosen with Shiraz over the brief's "hashed".
+- **AI: one shared context, two prompt modes** (not two separate `mosque_ops`/
+  `mosque_hr` context builders) — chosen with Shiraz. Both fold into admin-brief;
+  **function count stays 11/12**.
+- **Unified `mosque_documents`** powers the expiry dashboard in one indexed query
+  (vs UNION-ing 6 tables) — chosen with Shiraz.
+- **Sensitive RLS = owner + `is_admin()`** (bank details, incident log), never staff,
+  never public — chosen with Shiraz (brief said strict owner-only).
+- The **invite-null bug was already fixed** in Session V (friendly inline message);
+  this session only enhanced it to open the edit form.
+
+### Honest deviations / what's NOT fully there
+- **Cover "auto-add on accept" is a one-click, not auto.** A scholar can't INSERT
+  into the owner-only `mosque_staff`; rather than add another RPC + apply-gate
+  mid-Day-3, the scholar confirms and the **mosque adds with one click** (also keeps
+  the mosque in control). The true-auto RPC remains an option.
+- **Wizard "In progress" status isn't tracked** — there's no server-side per-step
+  draft, so a remote record is `Onboarding sent` until submit, then `Onboarded`
+  (the two states with real backing). Fill-now draft is client-only (survives
+  Back/Next, not a reload).
+- **Recent-activity feed is DERIVED** from `created_at` across staff/events/docs —
+  there is **no audit-log table**.
+- **Staff portal greeting is client-computed**, not LLM — staff can't call the
+  owner-gated AI endpoint under RLS.
+- **Per-document reminder emails deferred** (the Document Expiry "email me the DBS
+  summary" reuses the real `sendDbsReminderEmail`; generic per-doc reminders need
+  an email endpoint and the cap is 11/12).
+- **Compliance conflicts-of-interest + SAR logs** have columns (063) but **no UI
+  yet**. Remote-wizard **document uploads deferred** (private bucket is owner-write;
+  admin attaches after).
+- **Doc-expiry dashboard merges `mosque_documents` + `mosque_staff` DBS expiry**;
+  RTW-without-an-uploaded-doc only surfaces via the AI context (employment table),
+  not the dashboard list.
+
+### Not smoke-tested by me
+All gates were **build-clean + `node --check` on admin-brief.js**, and Shiraz
+applied/probed every migration. The runtime flows (wizard save end-to-end, RPC
+round-trip, AI briefing text, private-bucket upload/signed-URL, RLS denial for
+non-owners on incidents/employment) are **not yet exercised** — Session W smoke
+plan items 1–18 remain to run. The `mosque_ops`/`mosque_hr` AI only returns text
+where `/api/admin-brief` is reachable (`vercel dev` or deploy + ANTHROPIC key).
+
+### Manual steps before push
+1. Migrations **060–066 already applied** to dev + prod (done).
+2. Confirm Vercel prod env: `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `RESEND_FROM`,
+   `PUBLIC_APP_URL`, `SUPABASE_*` (the wizard email + AI need them).
+3. Push (`amanah` project) — every push to `main` is a Production deploy.
+4. Run the Session W smoke plan, especially RLS denials on incidents/employment
+   and the private-bucket no-public-read check.
+
+### Next session
+- **Stripe Connect** (genuinely last big rock) — mind the 11/12 function cap.
+- Cover true-auto RPC, wizard reload-survival draft + remote uploads, audit-log
+  table for real activity, per-document reminder emails, conflicts/SAR UI.
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
