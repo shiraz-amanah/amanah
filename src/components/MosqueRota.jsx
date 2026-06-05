@@ -45,6 +45,17 @@ const MosqueRota = ({ mosqueId, mosque }) => {
     setToast(`${sch.name} added as temporary cover.`);
   };
 
+  // From a confirmed cover request: add the scholar as temporary cover.
+  const addTempFromRequest = async (r) => {
+    const { error } = await createMosqueStaff({
+      mosqueId, name: r.scholar?.name || "Cover", role: "Cover", staff_type: "temporary",
+      linked_scholar_id: r.scholar_id, start_date: r.date_from || todayStr(), end_date: r.date_to || null,
+      cover_reason: "Cover request",
+    });
+    if (error) { setToast("Couldn't add temp record."); return; }
+    setToast(`${r.scholar?.name || "Scholar"} added as temporary cover.`);
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -76,7 +87,10 @@ const MosqueRota = ({ mosqueId, mosque }) => {
                       <p className="font-medium text-stone-800 truncate">{r.scholar?.name || "Scholar"}</p>
                       <p className="text-xs text-stone-500 truncate">{[...(r.cover_type || []), ...(r.sessions || [])].join(", ") || "—"}{r.date_from ? ` · ${r.date_from}${r.date_to ? `–${r.date_to}` : ""}` : ""}</p>
                     </div>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${STATUS_CLS[r.status] || STATUS_CLS.requested}`}>{r.status}</span>
+                    <div className="flex items-center gap-2">
+                      {r.status === "confirmed" && <button onClick={() => addTempFromRequest(r)} className="text-[11px] px-2 py-1 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50">Add to temp</button>}
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap capitalize ${STATUS_CLS[r.status] || STATUS_CLS.requested}`}>{r.status}</span>
+                    </div>
                   </li>
                 ))}</ul>}
           </div>

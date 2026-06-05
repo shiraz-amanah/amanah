@@ -629,6 +629,27 @@ export async function createCoverRequest({ mosqueId, scholarId, coverType, sessi
   return { data, error }
 }
 
+// Scholar side — RLS returns only requests addressed to the caller's scholar
+// record (061 scholar-read policy).
+export async function getCoverRequestsForScholar() {
+  const { data, error } = await supabase
+    .from('cover_requests')
+    .select('*, mosque:mosques(name, city)')
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching scholar cover requests:', error); return [] }
+  return data || []
+}
+
+// Scholar accepts/declines (061 scholar-update policy restricts to own rows).
+export async function updateCoverRequestStatus(id, status) {
+  if (!id || !status) return { error: { message: 'id + status required' } }
+  const { data, error } = await supabase
+    .from('cover_requests')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single()
+  return { data, error }
+}
+
 export async function getCoverRequestsForMosque(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase

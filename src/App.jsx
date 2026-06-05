@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership } from "./auth";
-import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
+import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
@@ -40,6 +40,7 @@ import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
+import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
@@ -9149,6 +9150,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
     { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
     { v: "profile", l: "Profile", i: User, badge: null },
     { v: "availability", l: "Availability", i: Clock, badge: null },
+    { v: "cover", l: "Cover", i: CalendarDays, badge: null },
     { v: "reviews", l: "Reviews", i: Star, badge: reviews.length || null },
     { v: "dbs", l: "DBS", i: FileCheck, badge: null },
     { v: "messages", l: "Messages", i: MessageCircle, badge: null },
@@ -9376,6 +9378,8 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             <ScholarProfileEditor scholar={scholar} onScholarUpdate={onScholarUpdate} />
           </div>
         )}
+
+        {tab === "cover" && <ScholarCoverRequests />}
 
         {tab === "availability" && (
           <div>
