@@ -98,7 +98,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
 
   // Derived recent-activity feed (no audit log yet).
   const activity = [
-    ...staff.map((s) => ({ when: s.created_at, text: `${s.name} added to staff` })),
+    ...staff.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} added to staff` })),
     ...events.map((e) => ({ when: e.created_at, text: `Event "${e.title}" created` })),
     ...docs.map((d) => ({ when: d.created_at, text: `Document "${d.label}" uploaded` })),
   ].filter((a) => a.when).sort((a, b) => (a.when < b.when ? 1 : -1)).slice(0, 10);

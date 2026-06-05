@@ -25,6 +25,9 @@ const P46_STATEMENTS = [["A", "A"], ["B", "B"], ["C", "C"]];
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
+// Display-clean for legacy doc labels built with a null staff name
+// (e.g. "DBS certificate — null") — show a placeholder instead of "null".
+const cleanLabel = (l) => (l || "").replace(/[—-]\s*(null|undefined)\s*$/i, "— Unnamed staff member");
 
 const MosqueHR = ({ mosqueId, mosque }) => {
   const [sub, setSub] = useState("dbs");
@@ -115,7 +118,8 @@ const MosqueHR = ({ mosqueId, mosque }) => {
     setUploadBusy(true); setError(null);
     const up = await uploadMosqueHrDoc(file, mosqueId, `${sub}/`);
     if (up.error) { setError(up.error); setUploadBusy(false); return; }
-    const label = sub === "dbs" ? `DBS certificate — ${selectedStaff.name}` : `Right to Work — ${selectedStaff.name}`;
+    const sn = selectedStaff?.name || "Unnamed staff member";
+    const label = sub === "dbs" ? `DBS certificate — ${sn}` : `Right to Work — ${sn}`;
     const expiry = sub === "dbs" ? (form.dbs_expiry_date || null) : (form.rtw_expiry_date || null);
     const { error: e } = await createMosqueDocument({ mosqueId, category: sub, label, expiry_date: expiry, file_path: up.path, staff_id: selectedId });
     if (e) { setError(e.message); setUploadBusy(false); return; }
@@ -236,13 +240,15 @@ const MosqueHR = ({ mosqueId, mosque }) => {
               {(sub === "dbs" || sub === "rtw") && (
                 <div className="pt-3 border-t border-stone-100">
                   <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2">Documents</p>
-                  {subDocs.length > 0 && (
+                  {subDocs.length > 0 ? (
                     <ul className="mb-2 space-y-1">{subDocs.map((d) => (
                       <li key={d.id} className="flex items-center justify-between text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5">
-                        <span className="truncate text-stone-700 flex items-center gap-1.5"><FileText size={13} /> {d.label}{d.expiry_date ? ` · exp ${d.expiry_date}` : ""}</span>
+                        <span className="truncate text-stone-700 flex items-center gap-1.5"><FileText size={13} /> {cleanLabel(d.label)}{d.expiry_date ? ` · exp ${d.expiry_date}` : ""}</span>
                         {d.file_path && <button onClick={() => viewDoc(d.file_path)} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">View</button>}
                       </li>
                     ))}</ul>
+                  ) : (
+                    <p className="text-sm text-stone-400 mb-2">{sub === "dbs" ? "No certificate uploaded yet" : "No document uploaded yet"}</p>
                   )}
                   <label className="inline-flex items-center gap-2 text-sm text-stone-600 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer">
                     {uploadBusy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Upload {sub === "dbs" ? "certificate" : "document"}
