@@ -9,7 +9,6 @@ import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
-import MosqueHR from "./MosqueHR";
 import MosqueRota from "./MosqueRota";
 import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
@@ -45,6 +44,8 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
     try { sessionStorage.setItem("mosqueDashboardTab", newTab); } catch {}
     setTabRaw(newTab);
   };
+  // Session X — Dashboard hosts an Overview / Events sub-tab (Events tab merged in).
+  const [dashSub, setDashSub] = useState("overview");
 
   if (!mosque) {
     // Reachable from the legacy LoginScreen path until commit 11
@@ -64,22 +65,21 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
     );
   }
 
-  // Session W — final tab order. Dashboard is the new default landing.
-  // Staff now hosts the team directory (was under HR); HR / Rota /
-  // Safeguarding / Compliance / Dashboard fill in across Session W commits.
+  // Session X — Staff + HR merged (HR sub-tabs live under Staff); Events folded
+  // into the Dashboard tab (Overview / Events sub-tab). 9 tabs.
   const tabs = [
     { v: "dashboard", l: "Dashboard", icon: LayoutDashboard },
     { v: "profile", l: "Profile", icon: Building2 },
     { v: "staff", l: "Staff", icon: Users },
     { v: "rota", l: "Rota", icon: CalendarDays },
-    { v: "hr", l: "HR", icon: Briefcase },
     { v: "safeguarding", l: "Safeguarding", icon: ShieldAlert },
     { v: "compliance", l: "Compliance", icon: ClipboardCheck },
-    { v: "events", l: "Events", icon: Calendar },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
     { v: "account", l: "Account", icon: User },
   ];
+  // A persisted tab that no longer exists (hr/events removed) → fall back.
+  const activeTab = tabs.some((t) => t.v === tab) ? tab : "dashboard";
 
   // Iqama keys for prayer-time render (matches MosqueDetail)
   const iqamaKeys = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
@@ -119,7 +119,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto">
           {tabs.map(t => {
             const Icon = t.icon;
-            const active = tab === t.v;
+            const active = activeTab === t.v;
             return (
               <button
                 key={t.v}
@@ -134,11 +134,20 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
       </header>
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10">
-        {tab === "dashboard" && (
-          <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={setTab} />
+        {activeTab === "dashboard" && (
+          <div>
+            <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
+              {[["overview", "Overview", LayoutDashboard], ["events", "Events", Calendar]].map(([v, l, Icon]) => (
+                <button key={v} onClick={() => setDashSub(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${dashSub === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+              ))}
+            </div>
+            {dashSub === "overview"
+              ? <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={setTab} />
+              : <MosqueEventsManager mosqueId={mosque.id} />}
+          </div>
         )}
 
-        {tab === "profile" && (
+        {activeTab === "profile" && (
           <div className="space-y-8">
             <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
             {/* Public "Our Team" visibility — a public-profile concern, so it
@@ -151,31 +160,23 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           </div>
         )}
 
-        {tab === "staff" && (
+        {activeTab === "staff" && (
           <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
         )}
 
-        {tab === "rota" && (
+        {activeTab === "rota" && (
           <MosqueRota mosqueId={mosque.id} mosque={mosque} />
         )}
 
-        {tab === "hr" && (
-          <MosqueHR mosqueId={mosque.id} mosque={mosque} />
-        )}
-
-        {tab === "safeguarding" && (
+        {activeTab === "safeguarding" && (
           <MosqueSafeguarding mosqueId={mosque.id} />
         )}
 
-        {tab === "compliance" && (
+        {activeTab === "compliance" && (
           <MosqueCompliance mosqueId={mosque.id} />
         )}
 
-        {tab === "events" && (
-          <MosqueEventsManager mosqueId={mosque.id} />
-        )}
-
-        {tab === "donations" && (
+        {activeTab === "donations" && (
           <div>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Donations</h2>
@@ -188,7 +189,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           </div>
         )}
 
-        {tab === "messages" && (
+        {activeTab === "messages" && (
           <MessagesInbox
             embedded
             role="mosque"
@@ -199,7 +200,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           />
         )}
 
-        {tab === "account" && (
+        {activeTab === "account" && (
           <div>
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Account</h2>

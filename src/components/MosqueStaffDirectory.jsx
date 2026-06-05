@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock, Key, SlidersHorizontal } from "lucide-react";
+import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock, Key, SlidersHorizontal, FileCheck, Briefcase } from "lucide-react";
+import MosqueHR from "./MosqueHR";
 import { sendDbsReminderEmail } from "../lib/email";
 import MosqueBulkImport from "./MosqueBulkImport";
 import MosqueHRAssistant from "./MosqueHRAssistant";
@@ -52,8 +53,11 @@ const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:bord
 
 // Session W — rota / timesheets / find-substitute moved to the dedicated Rota
 // tab. The directory now keeps just the team directory + history log.
+// Session X — Staff + HR merged into one tab. Team/History are the directory's
+// own sections; DBS/RTW/Employment embed MosqueHR (its own bar hidden).
 const SECTIONS = [
   ["team", "Team", Users], ["history", "History", History],
+  ["dbs", "DBS", ShieldCheck], ["rtw", "RTW", FileCheck], ["employment", "Employment", Briefcase],
 ];
 
 const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
@@ -296,7 +300,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff</h2>
-        <p className="text-sm text-stone-600">Your team, rotas, and substitute cover.</p>
+        <p className="text-sm text-stone-600">Your team directory and HR records (DBS, Right to Work, employment).</p>
       </div>
 
       {notice && <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 flex items-center justify-between gap-2"><span>{notice}</span><button onClick={() => setNotice(null)} className="text-emerald-700 hover:text-emerald-900"><X size={14} /></button></p>}
@@ -538,6 +542,10 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
             </div>
           )}
         </div>
+      )}
+
+      {(section === "dbs" || section === "rtw" || section === "employment") && (
+        <MosqueHR embeddedSub={section} mosqueId={mosqueId} mosque={mosque} />
       )}
     </div>
   );

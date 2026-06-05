@@ -29,8 +29,12 @@ const Field = ({ label, children }) => (<div><label className={labelCls}>{label}
 // (e.g. "DBS certificate — null") — show a placeholder instead of "null".
 const cleanLabel = (l) => (l || "").replace(/[—-]\s*(null|undefined)\s*$/i, "— Unnamed staff member");
 
-const MosqueHR = ({ mosqueId, mosque }) => {
-  const [sub, setSub] = useState("dbs");
+// `embeddedSub` — when MosqueHR is hosted inside the merged Staff tab, the
+// parent owns the sub-tab bar, so we render only that sub and hide our own
+// header + bar.
+const MosqueHR = ({ mosqueId, mosque, embeddedSub }) => {
+  const [subState, setSub] = useState("dbs");
+  const sub = embeddedSub || subState;
   const [staff, setStaff] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -138,17 +142,18 @@ const MosqueHR = ({ mosqueId, mosque }) => {
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>HR</h2>
-        <p className="text-sm text-stone-600 flex items-center gap-1.5"><Lock size={13} /> DBS, Right to Work and employment records — visible only to mosque admins.</p>
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
-        {SUBS.map(([val, label, Icon]) => (
-          <button key={val} onClick={() => { setSub(val); setSaved(false); }} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === val ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {label}</button>
-        ))}
-      </div>
+      {!embeddedSub && (<>
+        <div className="mb-6">
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>HR</h2>
+          <p className="text-sm text-stone-600 flex items-center gap-1.5"><Lock size={13} /> DBS, Right to Work and employment records — visible only to mosque admins.</p>
+        </div>
+        {/* Sub-tabs (hidden when embedded — the Staff tab owns the bar) */}
+        <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
+          {SUBS.map(([val, label, Icon]) => (
+            <button key={val} onClick={() => { setSub(val); setSaved(false); }} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === val ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {label}</button>
+          ))}
+        </div>
+      </>)}
 
       {loadingStaff ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : staff.length === 0 ? <p className="text-sm text-stone-500 py-6 text-center">No staff yet. Add your team under the Staff tab.</p>
