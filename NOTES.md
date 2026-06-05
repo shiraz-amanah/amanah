@@ -6152,6 +6152,59 @@ the Madrasa module. All pushed to prod; migration **067** applied dev+prod.
 
 ---
 
+## Session Y — Madrasa Phase 1 ✅ (6 June 2026)
+
+A full madrasa module built in 5 gated sub-phases (migrations 068–072), each
+dev-first + headless RLS smoke before commit. All pushed; schema applied dev+prod.
+
+### Shipped (by sub-phase)
+- **1a** (`6bb8711` migr 068+069, `43240ab`) — admin **class management** (Madrasa
+  tab): create/edit/archive classes (subject/teacher/schedule/capacity/room) +
+  rosters. Students REUSE the parent-owned `students` table; `madrasa_enrollments`
+  links them. **069 fixed an RLS infinite-recursion** (students↔enrollments) the
+  smoke caught — a SECURITY DEFINER helper breaks the cycle.
+- **1b** (`0413b85`) — **parent registration**: MadrasaBrowse (filter mosque/
+  subject/day, enrol-child modal, add-child inline) + a Madrasa tab on the family
+  dashboard (enrolments + withdraw). Parent-initiated (parents own student rows);
+  `enrolChild` reactivates a withdrawn row vs a duplicate insert.
+- **1c** (`59d7a0e` migr 070) — **attendance**: reusable MadrasaAttendance (per-
+  session present/late/absent/excused). Teacher write via a SECURITY DEFINER
+  helper (`madrasa_is_class_teacher`). Admin surface (class detail → Attendance).
+- **1d** (`cbfe9d4` migr 071) — **Hifz tracker**: MadrasaHifz (per-student log:
+  surah 1–114 + ayah range, sabaq/sabqi/manzil, status, quality). `src/data/
+  surahs.js` (114 names). Admin surface (class detail → Hifz).
+- **1e** (this commit, migr 072) — **teacher portal + parent viewing**. Teacher
+  "My Classes" in MosqueStaffPortal (reuses the new shared **MadrasaClassWorkspace**
+  = Roster/Attendance/Hifz, also retrofitted into the admin tab). Parent viewing:
+  per-child Attendance & Hifz expander on the family dashboard. **072** adds the
+  teacher roster read (enrollments + enrolled students) that 068 missed — without
+  it the teacher portal showed an empty roster.
+
+### RLS shape (consistent across the module)
+Owner+admin manage own-mosque; **class teacher** manages own classes via
+`madrasa_is_class_teacher`; **parent** reads own children. `mosque_id` is
+denormalized + forced to match the class in every WITH CHECK. Every cross-table
+check that could re-enter RLS goes through a SECURITY DEFINER helper
+(`madrasa_owner_can_see_student` / `madrasa_is_class_teacher` /
+`madrasa_teacher_can_see_student`) — the 068/069 recursion lesson applied
+proactively in 070/071/072.
+
+### Verified
+Headless dev RLS smokes, all green: **1a 14/14, 1b 7/7, 1c 9/9, 1d 9/9, 1e 12/12.**
+Covered: owner/teacher/parent positive paths, cross-tenant + cross-class denials,
+mosque_id spoof → 403, CHECK constraints, duplicate/reactivate, and recursion
+safety (no 500s on enrollments/students reads). UI is build-verified only — no
+browser pass yet.
+
+### Parked / next (Madrasa Phase 2 candidates)
+- Capacity enforcement (app-level today, not a DB constraint).
+- Attendance/Hifz reminders + reports; term/cohort rollups.
+- Admin-initiated registration (current model is parent-initiated).
+- Anon hardening: `revoke all from anon` on the madrasa tables (currently anon is
+  RLS-empty, not table-grant-denied — no leak, but inconsistent with Session W).
+
+---
+
 ## Full product roadmap — all 52 items (captured 1 June 2026)
 
 ### Phase 1 — Do now (pre-launch blockers)
