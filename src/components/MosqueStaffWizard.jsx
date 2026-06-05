@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { MOSQUE_STAFF_ROLES } from "../data/mosqueTaxonomy";
-import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument } from "../auth";
+import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, submitStaffWizard } from "../auth";
 import { uploadMosqueHrDoc } from "../lib/storage";
 
 // Session W — 7-step staff onboarding wizard (fill-now / admin path). The
@@ -49,9 +49,13 @@ const Field = ({ label, children }) => (
   <div><label className={labelCls}>{label}</label>{children}</div>
 );
 
-const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel }) => {
+// `remoteMode` = the staff member is completing this themselves via a token
+// link (signed out). They can't write owner-only tables or the owner-write
+// bucket, so the save goes through the submit_staff_wizard RPC and document
+// uploads are skipped (the admin attaches files afterwards).
+const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = false, token = null, prefillName = "" }) => {
   const [step, setStep] = useState(1); // 1..7
-  const [form, setForm] = useState(blank);
+  const [form, setForm] = useState(() => ({ ...blank, name: prefillName || "" }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -74,8 +78,41 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel }) => {
     return "not_checked";
   };
 
+  // Flat field payload shared by the remote RPC path (no File objects).
+  const buildPayload = () => ({
+    name: form.name.trim(), role: roleValue, phone: form.phone.trim(),
+    start_date: form.start_date, dbs_status: dbsStatusFromForm(),
+    dbs_certificate_number: form.dbs_certificate_number.trim(), dbs_expiry_date: form.dbs_expiry_date,
+    ni_number: form.ni_number.trim(), dob: form.dob, address: form.address.trim(),
+    emergency_contact_name: form.emergency_contact_name.trim(), emergency_contact_phone: form.emergency_contact_phone.trim(),
+    bank_account_name: form.bank_account_name.trim(), bank_sort_code: form.bank_sort_code.trim(), bank_account_number: form.bank_account_number.trim(),
+    contract_type: form.contract_type, hours_per_week: form.hours_per_week === "" ? "" : String(form.hours_per_week), salary_rate: form.salary_rate.trim(),
+    p46_statement: form.p46_statement, student_loan: !!form.student_loan, student_loan_plan: form.student_loan ? form.student_loan_plan : "",
+    dbs_check_type: form.dbs_check_type, dbs_workforce_type: form.dbs_workforce_type,
+    dbs_id_document_type: form.dbs_id_document_type.trim(), dbs_id_document_number: form.dbs_id_document_number.trim(),
+    dbs_ucheck_reference: form.dbs_ucheck_reference.trim(), dbs_result_date: form.dbs_result_date, dbs_checked_by: form.dbs_checked_by.trim(),
+    rtw_check_type: form.rtw_check_type, rtw_document_type: form.rtw_document_type.trim(), rtw_document_number: form.rtw_document_number.trim(),
+    rtw_share_code: form.rtw_share_code.trim(), rtw_check_date: form.rtw_check_date, rtw_expiry_date: form.rtw_expiry_date, rtw_checked_by: form.rtw_checked_by.trim(),
+  });
+
   const save = async () => {
     setSaving(true); setError(null);
+
+    // Remote (token) path — write via the SECURITY DEFINER RPC. No uploads.
+    if (remoteMode) {
+      const r = await submitStaffWizard(token, buildPayload());
+      setSaving(false);
+      if (!r.ok) {
+        setError(r.error === "expired" ? "This link has expired — ask your mosque admin to resend it."
+          : r.error === "completed" ? "This onboarding has already been completed."
+          : r.error === "not_found" ? "This link is no longer valid."
+          : "Something went wrong submitting your details. Please try again.");
+        return;
+      }
+      onDone?.();
+      return;
+    }
+
     try {
       // 1. Documents → private mosque-hr-docs bucket (admin = owner-write).
       let dbsPath = null, rtwPath = null;
@@ -154,7 +191,9 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel }) => {
 
   const FileField = ({ label, fileKey }) => (
     <Field label={label}>
-      {form[fileKey] ? (
+      {remoteMode ? (
+        <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">Your mosque admin will attach this document for you.</p>
+      ) : form[fileKey] ? (
         <div className="flex items-center justify-between gap-2 text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
           <span className="truncate text-stone-700">{form[fileKey].name}</span>
           <button onClick={() => set(fileKey, null)} className="text-stone-400 hover:text-rose-600"><X size={14} /></button>

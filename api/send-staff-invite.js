@@ -111,6 +111,54 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'server_misconfigured' });
   }
 
+  // Session W — remote onboarding wizard email. Looks up the recipient via
+  // validate_staff_wizard (single source of truth), builds the /staff/onboard
+  // link and sends. Returns early so the invite path below is untouched.
+  if (body.kind === 'wizard') {
+    let wiz;
+    try {
+      const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/validate_staff_wizard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ p_token: body.token }),
+      });
+      if (!rpc.ok) { const t = await rpc.text(); console.error('[send-staff-invite] wizard rpc_failed', rpc.status, t); return res.status(502).json({ ok: false, error: 'rpc_failed' }); }
+      const rows = await rpc.json();
+      wiz = Array.isArray(rows) ? rows[0] : rows;
+    } catch (err) {
+      console.error('[send-staff-invite] wizard rpc_exception', err?.message);
+      return res.status(502).json({ ok: false, error: 'rpc_exception' });
+    }
+    if (!wiz || !wiz.valid) return res.status(400).json({ ok: false, error: `wizard_invalid:${wiz?.reason || 'unknown'}` });
+    if (!wiz.staff_email) return res.status(400).json({ ok: false, error: 'wizard_no_email' });
+
+    const onboardUrl = `${PUBLIC_APP_URL.replace(/\/$/, '')}/staff/onboard/${encodeURIComponent(body.token)}`;
+    const subject = `Complete your onboarding for ${wiz.mosque_name} on Amanah`;
+    const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:480px;margin:0 auto;padding:32px 24px;">
+<p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${wiz.staff_name ? ' ' + escapeHtml(wiz.staff_name) : ''},</p>
+<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;"><strong>${escapeHtml(wiz.mosque_name)}</strong> has asked you to complete your staff onboarding on Amanah — personal, right-to-work, DBS, employment and payroll details. It takes a few minutes and your information is held securely.</p>
+<p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Complete onboarding</a></p>
+<p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">This secure link expires in 7 days.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.<br>If you weren't expecting this, you can ignore this email.</p>
+</div></body></html>`;
+    const text = `Assalamu alaikum${wiz.staff_name ? ' ' + wiz.staff_name : ''},\n\n${wiz.mosque_name} has asked you to complete your staff onboarding on Amanah.\n\nComplete it here: ${onboardUrl}\n\nThis secure link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
+
+    try {
+      const sendRes = await fetch(RESEND_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+        body: JSON.stringify({ from: RESEND_FROM, to: [wiz.staff_email], subject, html, text }),
+      });
+      const sendJson = await sendRes.json().catch(() => ({}));
+      if (!sendRes.ok) { console.error('[send-staff-invite] wizard resend_failed', sendRes.status, sendJson?.message || sendJson?.name); return res.status(502).json({ ok: false, error: `resend_failed:${sendJson?.name || sendRes.status}` }); }
+      return res.status(200).json({ ok: true, id: sendJson.id });
+    } catch (err) {
+      console.error('[send-staff-invite] wizard resend_exception', err?.message);
+      return res.status(502).json({ ok: false, error: 'resend_exception' });
+    }
+  }
+
   // Look up the invite via the anon-callable validate_staff_invite
   // RPC. Single source of truth — client cannot inject email/name/role.
   const rpcUrl = `${SUPABASE_URL}/rest/v1/rpc/validate_staff_invite`;

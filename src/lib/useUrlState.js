@@ -93,6 +93,8 @@ const ROUTES = [
   // /staff/accept/:token     — invitee-facing accept page
   { view: 'mosqueStaff',                 path: '/mosque-dashboard/staff' },
   { view: 'staffAccept',                 path: '/staff/accept/:token' },
+  // Session W — remote staff onboarding wizard landing.
+  { view: 'staffWizard',                 path: '/staff/onboard/:token' },
 ];
 
 const COMPILED = ROUTES.map(r => {

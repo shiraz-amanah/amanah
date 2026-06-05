@@ -5,8 +5,8 @@ import MosqueTimesheets from "./MosqueTimesheets";
 import MosqueBulkImport from "./MosqueBulkImport";
 import MosqueHRAssistant from "./MosqueHRAssistant";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
-import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite } from "../auth";
-import { sendStaffInviteEmail } from "../lib/resend";
+import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite, createStaffWizardInvite } from "../auth";
+import { sendStaffInviteEmail, sendStaffWizardEmail } from "../lib/resend";
 import { uploadMosqueStaffPhoto } from "../lib/storage";
 import MosqueRotaBuilder from "./MosqueRotaBuilder";
 import MosqueSubstituteFinder from "./MosqueSubstituteFinder";
@@ -60,6 +60,23 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   // fill-now / send-to-staff modal; `showWizard` mounts the inline wizard.
   const [wizardChoice, setWizardChoice] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [choiceStep, setChoiceStep] = useState("choose"); // choose | send
+  const [sendForm, setSendForm] = useState({ name: "", email: "" });
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendMsg, setSendMsg] = useState(null);
+
+  const openWizardChoice = () => { setChoiceStep("choose"); setSendForm({ name: "", email: "" }); setSendMsg(null); setWizardChoice(true); };
+  const sendWizardLink = async () => {
+    const name = sendForm.name.trim(), email = sendForm.email.trim();
+    if (!name || !email) { setSendMsg("Enter a name and email."); return; }
+    setSendBusy(true); setSendMsg(null);
+    const { data, error: e } = await createStaffWizardInvite({ mosqueId, name, email });
+    if (e || !data) { setSendBusy(false); setSendMsg(e?.message || "Couldn't create the record."); return; }
+    const sent = await sendStaffWizardEmail({ token: data.token });
+    setSendBusy(false);
+    if (!sent?.ok) { setSendMsg("Record created, but the email failed to send."); refresh(); return; }
+    setWizardChoice(false); refresh();
+  };
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(null);
@@ -186,6 +203,10 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
         {s.invite_status === "active" ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">App active</span>
           : s.invite_status === "invited" ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-stone-50 border-stone-200 text-stone-500">Invited</span>
           : <button onClick={() => invite(s)} disabled={inviteBusy === s.id} className="text-[11px] px-2 py-1 rounded-full border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1 disabled:opacity-60">{inviteBusy === s.id ? <Loader2 size={10} className="animate-spin" /> : <UserPlus size={10} />} Invite</button>}
+        {s.wizard_status === "completed"
+          ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">Onboarded</span>
+          : s.wizard_token ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700">Onboarding sent</span>
+          : null}
         <button onClick={() => openEdit(s)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
         <button onClick={() => archive(s)} title="Archive (keeps records, off public profile)" className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
       </div>
@@ -268,7 +289,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
 
           {!showForm && !showWizard && (
             <div className="flex gap-2 flex-wrap">
-              <button onClick={() => setWizardChoice(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Onboard staff</button>
+              <button onClick={openWizardChoice} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Onboard staff</button>
               <button onClick={() => openAdd("permanent")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Quick add</button>
               <button onClick={() => openAdd("temporary")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add temporary cover</button>
               <button onClick={() => setShowImport((v) => !v)} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Import staff</button>
@@ -284,16 +305,28 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
                   <button onClick={() => setWizardChoice(false)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
                 </div>
                 <p className="text-sm text-stone-600 mb-4">Collect personal, RTW, DBS, employment and payroll details in seven steps.</p>
-                <div className="space-y-2">
-                  <button onClick={() => { setWizardChoice(false); setShowWizard(true); }} className="w-full text-left bg-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-xl px-4 py-3">
-                    <p className="text-sm font-semibold text-emerald-900">Fill in now</p>
-                    <p className="text-xs text-emerald-800/80">You complete the form on the staff member's behalf.</p>
-                  </button>
-                  <button disabled title="Coming next in this session" className="w-full text-left bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 opacity-60 cursor-not-allowed">
-                    <p className="text-sm font-semibold text-stone-700">Send to staff member</p>
-                    <p className="text-xs text-stone-500">Email them a secure link to complete it themselves — coming next.</p>
-                  </button>
-                </div>
+                {choiceStep === "choose" ? (
+                  <div className="space-y-2">
+                    <button onClick={() => { setWizardChoice(false); setShowWizard(true); }} className="w-full text-left bg-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-xl px-4 py-3">
+                      <p className="text-sm font-semibold text-emerald-900">Fill in now</p>
+                      <p className="text-xs text-emerald-800/80">You complete the form on the staff member's behalf.</p>
+                    </button>
+                    <button onClick={() => { setChoiceStep("send"); setSendMsg(null); }} className="w-full text-left bg-white border border-stone-200 hover:border-stone-300 rounded-xl px-4 py-3">
+                      <p className="text-sm font-semibold text-stone-800">Send to staff member</p>
+                      <p className="text-xs text-stone-500">Email them a secure link to complete it themselves (expires in 7 days).</p>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div><label className={labelCls}>Name</label><input className={inputCls} value={sendForm.name} onChange={(e) => setSendForm((f) => ({ ...f, name: e.target.value }))} /></div>
+                    <div><label className={labelCls}>Email</label><input type="email" className={inputCls} value={sendForm.email} onChange={(e) => setSendForm((f) => ({ ...f, email: e.target.value }))} placeholder="them@example.com" /></div>
+                    {sendMsg && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {sendMsg}</p>}
+                    <div className="flex items-center justify-between pt-1">
+                      <button onClick={() => setChoiceStep("choose")} className="text-sm text-stone-500 hover:text-stone-800">Back</button>
+                      <button onClick={sendWizardLink} disabled={sendBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{sendBusy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send link</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

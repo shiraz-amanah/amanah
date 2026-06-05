@@ -39,6 +39,7 @@ import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQi
 import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
+import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
@@ -13482,6 +13483,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onHome={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
+  if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   return null;
   };
 

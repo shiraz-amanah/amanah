@@ -447,6 +447,49 @@ export async function upsertMosqueStaffEmployment(staffId, mosqueId, fields) {
   return { data, error }
 }
 
+// --- Remote onboarding wizard (migration 066) ---
+// Admin creates a stub mosque_staff row with a random wizard_token + 7-day
+// expiry, then emails the link. Token is a raw uuid string (matches the
+// invites posture). Returns { data: { id, token }, error }.
+export async function createStaffWizardInvite({ mosqueId, name, email }) {
+  if (!mosqueId || !name || !email) return { data: null, error: { message: 'mosqueId, name and email are required' } }
+  const token = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('mosque_staff')
+    .insert({
+      mosque_id: mosqueId,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      role: 'Imam',           // placeholder; the wizard's Employment step overwrites it
+      staff_type: 'permanent',
+      invite_status: 'not_invited',
+      wizard_status: 'not_started',
+      wizard_token: token,
+      wizard_token_expires_at: expires,
+    })
+    .select('id, wizard_token')
+    .single()
+  if (error) return { data: null, error }
+  return { data: { id: data.id, token: data.wizard_token }, error: null }
+}
+
+// Anon-callable (token is the auth). Returns the first row or null.
+export async function validateStaffWizard(token) {
+  if (!token) return null
+  const { data, error } = await supabase.rpc('validate_staff_wizard', { p_token: token })
+  if (error) { console.error('validate_staff_wizard failed:', error); return null }
+  return Array.isArray(data) ? data[0] : data
+}
+
+export async function submitStaffWizard(token, payload) {
+  if (!token) return { ok: false, error: 'missing_token' }
+  const { data, error } = await supabase.rpc('submit_staff_wizard', { p_token: token, p_payload: payload })
+  if (error) { console.error('submit_staff_wizard failed:', error); return { ok: false, error: error.message } }
+  const row = Array.isArray(data) ? data[0] : data
+  return row?.ok ? { ok: true } : { ok: false, error: row?.reason || 'submit_failed' }
+}
+
 // --- Unified document records (migration 063) ---
 export async function createMosqueDocument({ mosqueId, category, label, provider, issue_date, expiry_date, file_path, staff_id }) {
   if (!mosqueId || !category || !label) return { error: { message: 'mosqueId, category and label required' } }

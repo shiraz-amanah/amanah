@@ -27,3 +27,25 @@ export async function sendStaffInviteEmail({ token }) {
     return { ok: false, error: 'network_exception' };
   }
 }
+
+// Session W — remote onboarding wizard email. Same serverless function
+// (kind:'wizard'), which looks up the recipient via validate_staff_wizard so
+// no email content is client-supplied. Returns { ok } / { ok:false, error }.
+export async function sendStaffWizardEmail({ token }) {
+  if (!token) return { ok: false, error: 'missing_token' };
+  try {
+    const res = await fetch('/api/send-staff-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, kind: 'wizard' }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.ok) {
+      return { ok: false, error: body?.error || `http_${res.status}` };
+    }
+    return { ok: true, id: body.id };
+  } catch (err) {
+    console.error('[resend] sendStaffWizardEmail failed', err?.message);
+    return { ok: false, error: 'network_exception' };
+  }
+}
