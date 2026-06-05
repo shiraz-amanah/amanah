@@ -847,6 +847,80 @@ export async function getMyMadrasaAnnouncements() {
   return data || []
 }
 
+// --- Madrasa homework / tasks (migration 077) ---
+// Teacher/owner side: list + manage a class's homework; read completions to see
+// who's done. Parent side: read homework for a child's classes + mark own child
+// done. Write RLS = owner-of-mosque OR class teacher; completions are parent-owned.
+export async function getClassHomework(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_homework')
+    .select('*, author:profiles!madrasa_homework_author_profile_id_fkey(name)')
+    .eq('class_id', classId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching homework:', error); return [] }
+  return data || []
+}
+// Completion rows for a class (teacher/owner read) — for "N done" counts.
+export async function getClassHomeworkCompletions(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_homework_completions').select('homework_id, student_id').eq('class_id', classId)
+  if (error) { console.error('Error fetching completions:', error); return [] }
+  return data || []
+}
+export async function createHomework({ classId, mosqueId, title, body, dueDate }) {
+  if (!classId || !mosqueId || !title?.trim()) return { error: { message: 'classId, mosqueId and title required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_homework')
+    .insert({ class_id: classId, mosque_id: mosqueId, author_profile_id: user?.id || null, title: title.trim(), body: body?.trim() || null, due_date: dueDate || null })
+    .select('*, author:profiles!madrasa_homework_author_profile_id_fkey(name)')
+    .single()
+  return { data, error }
+}
+export async function deleteHomework(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_homework').delete().eq('id', id)
+  return { error }
+}
+// Parent side — homework across a set of classes (the child's enrolments). RLS
+// returns only classes the caller's children are enrolled in.
+export async function getHomeworkForClasses(classIds) {
+  if (!classIds || classIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('madrasa_homework')
+    .select('*, class:madrasa_classes(name)')
+    .in('class_id', classIds)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching class homework:', error); return [] }
+  return data || []
+}
+// A student's completion rows (parent reads own child via RLS).
+export async function getStudentCompletions(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase
+    .from('madrasa_homework_completions').select('homework_id').eq('student_id', studentId)
+  if (error) { console.error('Error fetching student completions:', error); return [] }
+  return data || []
+}
+// Parent marks a child done (class_id/mosque_id must match the homework — RLS).
+export async function markHomeworkDone({ homeworkId, studentId, classId, mosqueId }) {
+  if (!homeworkId || !studentId || !classId || !mosqueId) return { error: { message: 'homeworkId, studentId, classId and mosqueId required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_homework_completions')
+    .insert({ homework_id: homeworkId, student_id: studentId, class_id: classId, mosque_id: mosqueId, marked_by: user?.id || null })
+    .select().single()
+  return { data, error }
+}
+export async function unmarkHomeworkDone({ homeworkId, studentId }) {
+  if (!homeworkId || !studentId) return { error: { message: 'homeworkId and studentId required' } }
+  const { error } = await supabase
+    .from('madrasa_homework_completions').delete().eq('homework_id', homeworkId).eq('student_id', studentId)
+  return { error }
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.
