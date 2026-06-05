@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, Trash2,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaRoster, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaAttendance from "./MadrasaAttendance";
+import MadrasaHifz from "./MadrasaHifz";
 
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
@@ -36,7 +37,8 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const [rosterClass, setRosterClass] = useState(null); // class object when viewing detail
-  const [detailMode, setDetailMode] = useState("roster"); // roster | attendance
+  const [detailMode, setDetailMode] = useState("roster"); // roster | attendance | hifz
+  const [hifzStudent, setHifzStudent] = useState(null);
   const [roster, setRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
 
@@ -98,12 +100,28 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
           <p className="text-sm text-stone-600">{SUBJECT_LABEL[rosterClass.subject]}{rosterClass.teacher?.name ? ` · ${rosterClass.teacher.name}` : ""} · {scheduleText(rosterClass.schedule)}</p>
         </div>
         <div className="flex gap-1 border-b border-stone-200 mb-5">
-          {[["roster", "Roster"], ["attendance", "Attendance"]].map(([v, l]) => (
-            <button key={v} onClick={() => setDetailMode(v)} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailMode === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
+          {[["roster", "Roster"], ["attendance", "Attendance"], ["hifz", "Hifz"]].map(([v, l]) => (
+            <button key={v} onClick={() => { setDetailMode(v); setHifzStudent(null); }} className={`px-3 py-2 text-sm font-medium border-b-2 ${detailMode === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
           ))}
         </div>
         {detailMode === "attendance" ? (
           <MadrasaAttendance classObj={rosterClass} />
+        ) : detailMode === "hifz" ? (
+          hifzStudent ? (
+            <div>
+              <button onClick={() => setHifzStudent(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> Back to students</button>
+              <MadrasaHifz classObj={rosterClass} student={hifzStudent} />
+            </div>
+          ) : rosterLoading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+            : roster.length === 0 ? <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center"><Users className="mx-auto text-stone-300 mb-3" size={36} /><p className="text-stone-600 text-sm">No students enrolled — nobody to track yet.</p></div>
+            : (
+              <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{roster.map((e) => (
+                <li key={e.id}><button onClick={() => setHifzStudent({ id: e.student?.id || e.student_id, name: e.student?.name || "Student" })} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex items-center justify-between">
+                  <span className="text-sm font-medium text-stone-900">{e.student?.name || "Student"}</span>
+                  <ChevronRight size={15} className="text-stone-400" />
+                </button></li>
+              ))}</ul>
+            )
         ) : rosterLoading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
           : roster.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">

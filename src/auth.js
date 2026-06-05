@@ -756,6 +756,31 @@ export async function upsertMadrasaAttendance(records) {
   return { data, error }
 }
 
+// --- Madrasa Hifz progress (migration 071) ---
+// A student's hifz log (most recent first), optionally scoped to a class.
+export async function getHifzProgress(studentId, { classId } = {}) {
+  if (!studentId) return []
+  let q = supabase
+    .from('madrasa_hifz_progress').select('*').eq('student_id', studentId)
+    .order('session_date', { ascending: false }).order('created_at', { ascending: false })
+  if (classId) q = q.eq('class_id', classId)
+  const { data, error } = await q
+  if (error) { console.error('Error fetching hifz progress:', error); return [] }
+  return data || []
+}
+export async function createHifzEntry(record) {
+  if (!record?.class_id || !record?.student_id || !record?.mosque_id) return { error: { message: 'class_id, student_id and mosque_id required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_hifz_progress').insert({ ...record, logged_by: user?.id || null }).select().single()
+  return { data, error }
+}
+export async function deleteHifzEntry(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_hifz_progress').delete().eq('id', id)
+  return { error }
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.
