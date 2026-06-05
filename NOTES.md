@@ -6321,11 +6321,47 @@ another family's resolved email through `madrasa_absences_to_notify`. Fix (076):
 just public.** (Same shape of "shipped ≠ hardened" as the 069 recursion fix.)
 
 ### Parked / next (Phase 2b+)
-- Photo sharing with per-student consent; homework/tasks; termly progress reports.
+- Photo sharing with per-student consent; termly progress reports.
 - A cron backstop for a missed client fire (fire-on-save chosen; no backstop yet).
 - Per-mosque on/off toggle for absence emails (parent prefs respected for now).
 - GDPR: emailing a parent about their own child is core-service legitimate use;
   parent notification prefs are honoured.
+
+---
+
+## Session AB — Madrasa Phase 2b: homework / tasks ✅ (6 June 2026)
+
+A teacher (or mosque admin) sets a class task; PARENTS mark their own child as
+done. Self-contained CRUD — no email, no Stripe — the cleanest 2b slice.
+
+### Shipped
+- **migration 077** (`5982342`). Two tables: `madrasa_homework` (class-level
+  task — title/body/due_date; write RLS = owner-of-mosque OR class teacher; parent
+  read via `madrasa_parent_can_see_class`, identical to 073 announcements) and
+  `madrasa_homework_completions` (per (homework, student) done-state, **presence of
+  a row = done**; parent manages own-child rows, teacher/owner read for their
+  class). `class_id`+`mosque_id` denormalized and forced to match the task in every
+  WITH CHECK. Reuses the 070/073 SECURITY DEFINER helpers — **no new RPCs**, so no
+  harvest-guard surface (unlike 075/076).
+- **feature** (`097e6eb`). auth.js: 4 teacher/admin helpers (`getClassHomework`,
+  `getClassHomeworkCompletions`, `createHomework`, `deleteHomework`) + 4 parent
+  helpers (`getHomeworkForClasses`, `getStudentCompletions`, `markHomeworkDone`,
+  `unmarkHomeworkDone`). `MadrasaHomework` composer + list with "N marked done"
+  counts → 5th **Homework** sub-tab in the shared `MadrasaClassWorkspace`.
+  `MadrasaChildProgress` gained a per-child Homework section with optimistic
+  mark-done checkboxes (presence-of-row toggle); `classIds` threaded from
+  `MadrasaParent`. No App.jsx change.
+
+### Verified
+- **RLS smoke** `scripts/smoke-madrasa-2b-homework.mjs` — **13/13** on dev.
+  Homework: anon 0, owner/teacher create, owner mosque_id spoof + teacher
+  wrong-class both blocked, enrolled vs non-enrolled parent reads. Completions:
+  parent marks own child, class-spoof blocked, parent can't mark another's child,
+  teacher + owner read their class, anon 0. UI build-verified only.
+
+### Parked / next
+- Termly progress reports (next 2b candidate); photo sharing + consent (heaviest).
+- Homework "due soon" reminder email (could reuse the 2b absence email plumbing).
 
 ---
 
