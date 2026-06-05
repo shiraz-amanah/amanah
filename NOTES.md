@@ -6360,8 +6360,59 @@ done. Self-contained CRUD — no email, no Stripe — the cleanest 2b slice.
   teacher + owner read their class, anon 0. UI build-verified only.
 
 ### Parked / next
-- Termly progress reports (next 2b candidate); photo sharing + consent (heaviest).
 - Homework "due soon" reminder email (could reuse the 2b absence email plumbing).
+
+---
+
+## Session AC — Madrasa Phase 2C: termly progress reports ✅ (6 June 2026)
+
+First slice of a larger remaining-features brief (2C, 2D, 3A–3E). A teacher/admin
+writes a per-(student, term) report whose attendance / Hifz / homework summaries
+are **auto-populated** from existing Phase 1/2 data; draft → publish makes it
+visible to the parent + emails them; the parent downloads a branded PDF.
+
+### Pre-flight review (brief required it; findings)
+- Next migration = **078** ✓. All 4 base SECURITY DEFINER helpers present.
+- **Vercel functions: 11/12** — one slot free. All new email goes in as
+  `send-transactional` **intents** (no new function); the 3D AI assistant will fold
+  into `admin-brief.js` (already raw-fetch Anthropic). Non-negotiable cap respected.
+- **No PDF lib** → added **jsPDF** (user's call). Lazy-loaded so it stays out of
+  the main bundle (392KB `reportPdf` chunk + html2canvas chunk, on-demand).
+- `mosque-madrasa-photos` private bucket (2D) is a manual SQL-editor step — flagged.
+- **3D spec contradiction flagged for later:** "aggregates only" vs named-individual
+  queries ("What's Aisha's Hifz position?") — resolve the privacy boundary at 3D.
+
+### Shipped
+- **migration 078** (`4c38934`). `madrasa_reports` (draft/published via
+  `published_at`; owner/teacher manage, parent reads own-child **published** only).
+  `madrasa_build_report_summary(class, student)` SECURITY DEFINER RPC — internally
+  authorized (class manager → else null), auto-computes the three jsonb summaries;
+  granted to `authenticated` (safe: counts only, for a class you manage — unlike the
+  075 parent-email RPC which had to be service_role-only). **Unpublish-guard trigger:**
+  once published, only a platform admin can revert `published_at` to null (DB-enforced).
+- **feature** (`54c3bda`). 7 auth.js helpers; `madrasa_report_published` intent (15th;
+  `getProfile` now also selects `notifications` to honour email opt-out); branded
+  `lib/reportPdf.js` (jsPDF); `MadrasaReports` 6th **Reports** sub-tab (student picker,
+  **Auto-fill** from records, draft/publish); parent Progress-reports section + PDF
+  download in `MadrasaChildProgress`.
+
+### Verified
+- **RLS smoke** `scripts/smoke-madrasa-2c-reports.mjs` — **11/11** on dev. anon 0,
+  build_summary counts correct (2 present/1 absent, surah 67, hw 1/1), unauthorized
+  build_summary → null, draft hidden from parent, publish → parent sees it, other
+  child 0, **teacher unpublish blocked (P0001 trigger)**, owner reads all, spoof
+  blocked. Email-send + 403 path is the manual `vercel dev` check (same recipe as 2b).
+
+### Notes
+- Summaries are **cumulative** (all class data to date), not term-date-bounded — term
+  is a free-text label. Add a date range later if term-scoped numbers are wanted.
+- Reports are a snapshot at creation: the stored jsonb is what the teacher saw, even
+  if later attendance changes.
+
+### Next (this brief's sequence)
+2D photos+consent (GDPR, private bucket, signed URLs) → 3A waiting list → 3B rewards
+→ 3C certificates (jsPDF, no migration) → 3D AI assistant (fold into admin-brief) →
+3E reports/exports. Stripe-dependent items (fees/gift aid/bursary) stay out.
 
 ---
 
