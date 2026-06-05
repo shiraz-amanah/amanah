@@ -6205,6 +6205,68 @@ browser pass yet.
 
 ---
 
+## Session Z — Madrasa Phase 2a: communications ✅ (6 June 2026)
+
+The communications slice of Madrasa Phase 2 (payments stay blocked on Stripe /
+Session Q). Two gated sub-phases (migrations 073–074), each dev-first + headless
+RLS smoke before commit, then applied to dev **and** prod. UI build-verified only
+(no browser pass yet), matching Phase 1.
+
+### Shipped (by sub-phase)
+- **2a-i** (`9d3ff1f` migr 073, `56c979c`) — **class announcements**. New
+  `madrasa_announcements` table (one-to-many notice board, distinct from the 1:1
+  conversations infra) + `madrasa_parent_can_see_class` SECURITY DEFINER helper.
+  RLS mirrors 070: owner-of-mosque manage, class-teacher manage (definer helper),
+  parent-of-enrolled-child read (definer helper). New shared
+  `MadrasaAnnouncements` component (composer + list) wired as a 4th **Announcements**
+  sub-tab in `MadrasaClassWorkspace` (so both the admin Madrasa tab and the teacher
+  My Classes portal get it); parents see a combined feed on the family Madrasa tab.
+  auth.js: `getClassAnnouncements` / `createAnnouncement` / `deleteAnnouncement` /
+  `getMyMadrasaAnnouncements`.
+- **2a-ii** (`83d2932` migr 074, `acdff15`) — **parent↔teacher 1:1 messaging**.
+  **Reuses** the 004 conversations/messages infra (realtime + unread + soft-delete
+  + optimistic send for free) rather than a parallel table. 074: (1) relax the
+  `conversation_participants.role` CHECK to add `'teacher'`; (2) the
+  `madrasa_class_teacher_user(p_class)` SECURITY DEFINER RPC resolves the class
+  teacher's user id, gated to enrolled-child parent / owner / admin — needed
+  because **parents have no read on `mosque_staff`** (030 grants owner/staff-self/
+  platform-admin only). Teacher→parent needs no new grant (roster already exposes
+  `students.profile_id`). UI: a "Message" button on each teacher-portal roster row
+  + each family-dashboard enrolled class, both reusing the canonical
+  `PublicScholarDetail.onMessage` open-and-navigate pattern (`onMessageParent` /
+  `onMessageTeacher` threaded through `MosqueStaffPortal` + `UserDashboard`).
+  auth.js: `openThreadWithParent` / `openThreadWithTeacher`.
+
+### Verified
+Headless dev RLS smokes, both green: **2a-i 8/8** (`scripts/smoke-madrasa-2a-announce.mjs`),
+**2a-ii 8/8** (`scripts/smoke-madrasa-2a-msg.mjs`). Self-seeding (owner/teacher/2
+parents/classes/enrolment via service role, torn down after). Covered: owner+
+teacher post, cross-class + mosque_id-spoof denials, enrolled vs non-enrolled +
+anon parent reads, the `'teacher'`-role insert, RPC gating (non-enrolled→null),
+conversation **dedup** across both directions, and a round-trip message. No
+recursion (parent reads via the definer helper — 068/069 lesson held).
+
+### Gotchas / things to watch
+- **`.env` / `.env.local` are mirror-swapped (the Session W split-brain):** in
+  `.env`, `VITE_*` = **prod** (`zgoyvztooyxqkcftwylr`) but non-`VITE` `SUPABASE_*`
+  = **dev** (`pbejyukihhmybxxtheqq`); `.env.local` is the reverse. The smokes
+  deliberately use the non-`VITE` `SUPABASE_*` keys (dev) and hard-assert the dev
+  project ref before doing anything, so the split-brain can't redirect a seeding
+  run at prod. Worth a permanent fix.
+- Teacher-side conversation back button → `messagesInbox` (role set to `"mosque"`,
+  matching the staff portal's existing `onConversation`), not the staff portal.
+  Acceptable; revisit if teachers find it jarring.
+- Announcements are poll-on-load (no realtime) — fine for a notice board; messaging
+  inherits realtime from the 004 infra.
+
+### Parked / next (Madrasa Phase 2b+ candidates)
+- Photo sharing with per-student consent (heaviest; touches child-data/GDPR).
+- Homework/task setting; absence auto-email + consecutive-absence alert; termly
+  progress reports.
+- All Phase 2 **payments** items remain blocked on Stripe (Session Q).
+
+---
+
 ## Madrasa Vision & Roadmap (planning session, captured 6 June 2026)
 
 The full strategic picture behind the madrasa module — why it exists, what makes
