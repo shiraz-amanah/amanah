@@ -12,12 +12,36 @@ export async function signUp(email, password, name, interest) {
     email, password,
     options: { data: { name: name, interest: interest } }
   })
-  // Fire-and-forget welcome email (+ new_parent_signup alert, server-side).
-  // Relies on signups being auto-confirmed so a session/token exists now.
+  // Welcome email. Auto-confirmed signups have a session now; email-confirm
+  // signups don't yet — sendWelcomeIfNew sends only when a session exists and
+  // the bootstrap re-fires it once the user lands authenticated. Idempotent.
   if (data?.user && !error) {
-    sendWelcomeEmail().then((r) => { if (!r.ok) console.warn('[signup] welcome email not sent:', r.error) })
+    sendWelcomeIfNew().catch((e) => console.warn('[signup] welcome failed:', e?.message))
   }
   return { data, error }
+}
+
+// Platform-wide welcome email — fires ONCE per new account the first time it is
+// authenticated, covering every signup path (parent, scholar, and staff invite
+// acceptance via signUpForStaffInvite). The welcome handler is JWT-gated, so the
+// old in-signUp call silently no-op'd whenever email confirmation was on (no
+// session yet) and never ran at all for staff invites. This runs from signUp AND
+// the app bootstrap; a user_metadata.welcomed flag dedupes, and a 7-day
+// created_at gate avoids welcoming pre-existing users on their next login. No DB
+// migration — the flag lives in auth user metadata.
+export async function sendWelcomeIfNew() {
+  const user = await getUser()
+  if (!user || user.user_metadata?.welcomed) return { ok: false, error: 'skip' }
+  const created = user.created_at ? new Date(user.created_at).getTime() : Date.now()
+  if (Date.now() - created > 7 * 24 * 60 * 60 * 1000) return { ok: false, error: 'not_new' }
+  const r = await sendWelcomeEmail()
+  if (r?.ok) {
+    try { await supabase.auth.updateUser({ data: { ...(user.user_metadata || {}), welcomed: true } }) }
+    catch (e) { console.warn('[welcome] mark failed:', e?.message) }
+  } else {
+    console.warn('[welcome] not sent:', r?.error)
+  }
+  return r
 }
 
 export async function signIn(email, password) {
