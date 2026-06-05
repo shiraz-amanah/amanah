@@ -130,6 +130,85 @@ async function handleMosqueHr(req, res, body, env) {
   } catch (err) { console.error('[mosque-hr] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Session W — mosque DASHBOARD briefing (mode:'mosque_ops'). Same owner-JWT
+// auth as mosque_hr; richer ops context (prayer times + who's leading today,
+// DBS expiry, rota gaps, pending timesheets, expiring documents, upcoming
+// events) → a written morning briefing. Per the "one context, two prompt
+// modes" decision; Commit 10 unifies the mosque_hr chat context onto the same
+// builder. The auth preamble mirrors handleMosqueHr (a shared owner-auth
+// helper is the Commit-10 cleanup).
+async function handleMosqueOps(req, res, body, env) {
+  if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name,prayer_times`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' });
+  const todayKey = dayName.toLowerCase(); // monday..sunday — matches rota slots keys
+  const monday = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+  const in30 = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+
+  const [staff, rota, ts, docs, events] = await Promise.all([
+    mhGet(env, `mosque_staff?mosque_id=eq.${body.mosqueId}&archived=eq.false&select=id,name,role,dbs_status,dbs_expiry_date,invite_status`),
+    mhGet(env, `mosque_rotas?mosque_id=eq.${body.mosqueId}&week_start=eq.${monday}&select=slots`),
+    mhGet(env, `mosque_timesheets?mosque_id=eq.${body.mosqueId}&select=status`),
+    mhGet(env, `mosque_documents?mosque_id=eq.${body.mosqueId}&expiry_date=lte.${in30}&order=expiry_date.asc&select=label,category,expiry_date`),
+    mhGet(env, `mosque_events?mosque_id=eq.${body.mosqueId}&date=gte.${today}&order=date.asc&select=title,date,time`),
+  ]);
+
+  const staffArr = Array.isArray(staff) ? staff : [];
+  const nameById = {};
+  staffArr.forEach((s) => { nameById[s.id] = s.name; });
+  const todaySlots = ((Array.isArray(rota) && rota[0]?.slots) || {})[todayKey] || {};
+  const today_rota = Object.entries(todaySlots).map(([slot, id]) => ({ slot, leading: nameById[id] || 'unassigned' }));
+
+  const context = {
+    mosque: mosque.name, day: dayName, today,
+    prayer_times: mosque.prayer_times || {},
+    today_rota,
+    staff_total: staffArr.length,
+    dbs_expiring: staffArr
+      .filter((s) => s.dbs_status === 'verified' && s.dbs_expiry_date && s.dbs_expiry_date <= in30)
+      .map((s) => ({ name: s.name, expiry: s.dbs_expiry_date })),
+    uninvited_staff: staffArr.filter((s) => s.invite_status === 'not_invited').length,
+    timesheets_pending: (Array.isArray(ts) ? ts : []).filter((t) => (t.status || 'pending') !== 'approved').length,
+    expiring_documents: (Array.isArray(docs) ? docs : []).map((d) => ({ label: d.label, category: d.category, expiry: d.expiry_date })),
+    upcoming_events: (Array.isArray(events) ? events : []).slice(0, 5),
+  };
+
+  const system = `You are the operations assistant for "${mosque.name}", a UK mosque. Given today's real operations data as JSON, write the admin's morning briefing.
+Today is ${dayName} ${today}. Rules: 3-5 sentences, warm but professional, UK English. Open with a short greeting.
+Prioritise by urgency: who is leading prayers today (use prayer_times for the next prayer's time), DBS certificates expiring within 30 days (name them), rota gaps, timesheets pending approval, expiring documents, then upcoming events.
+A "verified" DBS with an expiry within 30 days is "expiring soon"; past its expiry it is "expired". Reference the real names and numbers. If an area is clear, you may briefly note it.
+Output the briefing paragraph only — no greeting line breaks, no headings, no bullet points, no markdown.`;
+
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: `Ops data (JSON): ${JSON.stringify(context)}` }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[mosque-ops] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const brief = tb?.text?.trim();
+    if (!brief) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json({ ok: true, brief });
+  } catch (err) { console.error('[mosque-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -155,6 +234,9 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch { return null; } })() : req.body;
     if (body?.mode === 'mosque_hr') {
       return handleMosqueHr(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'mosque_ops') {
+      return handleMosqueOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 

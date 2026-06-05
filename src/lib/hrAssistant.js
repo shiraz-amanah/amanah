@@ -25,3 +25,27 @@ export async function askMosqueHr(mosqueId, question = "") {
     return { ok: false, error: "network_exception" };
   }
 }
+
+// Session W — mosque DASHBOARD morning briefing (mode:'mosque_ops'). Same
+// server-side Anthropic call + owner-JWT auth as askMosqueHr; returns a
+// written daily briefing for the admin dashboard. Returns { ok, brief } or
+// { ok:false, error }.
+export async function getMosqueBriefing(mosqueId) {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return { ok: false, error: "not_signed_in" };
+    const res = await fetch("/api/admin-brief", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ mode: "mosque_ops", mosqueId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
+    return body;
+  } catch (err) {
+    console.error("[hrAssistant] getMosqueBriefing failed", err?.message);
+    return { ok: false, error: "network_exception" };
+  }
+}

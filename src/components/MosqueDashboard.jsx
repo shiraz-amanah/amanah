@@ -8,6 +8,7 @@ import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
+import MosqueOverview from "./MosqueOverview";
 
 // Session W — placeholder for tabs whose content lands in a later commit
 // (Dashboard widgets, Rota split, HR sub-tabs, Safeguarding, Compliance).
@@ -145,11 +146,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10">
         {tab === "dashboard" && (
-          <TabPlaceholder
-            icon={LayoutDashboard}
-            title="Dashboard"
-            blurb="Your daily briefing, key stats, today's rota and document-expiry alerts will appear here."
-          />
+          <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={setTab} />
         )}
 
         {tab === "profile" && (

@@ -131,7 +131,10 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const archive = async (s) => { const { error: e } = await updateMosqueStaff(s.id, { archived: true }); if (e) setError(e.message); else refresh(); };
 
   const invite = async (s) => {
-    if (!s.email) { setError(`Add an email for ${s.name} before inviting.`); return; }
+    // Friendly validation: a staff record with no email can't be invited.
+    // Open their edit form so the admin can add one right away rather than
+    // hunting for it (Session W bug fix).
+    if (!s.email) { setError(`Add an email for ${s.name} before inviting — opening their record.`); openEdit(s); return; }
     setInviteBusy(s.id); setError(null);
     const { data, error: e } = await createStaffInvite({ mosqueId, email: s.email, name: s.name, role: s.role });
     if (e) { setError(e.message || "Invite failed."); setInviteBusy(null); return; }
@@ -202,31 +205,12 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
 
-      {/* DBS attention banner — across all active staff, shown on every HR sub-tab */}
-      {dbsAttention > 0 && (
-        <div className="flex items-center gap-2 text-sm bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 flex-wrap">
-          <AlertCircle size={16} className="flex-shrink-0" />
-          <span className="flex-1 min-w-0"><strong>{dbsAttention}</strong> staff need DBS attention — {[
-            dbsCount.expired ? `${dbsCount.expired} expired` : null,
-            dbsCount.expiring_soon ? `${dbsCount.expiring_soon} expiring soon` : null,
-            dbsCount.not_checked ? `${dbsCount.not_checked} no DBS` : null,
-          ].filter(Boolean).join(", ")}.</span>
-          <button onClick={sendDbsReminders} disabled={dbsReminderBusy} className="text-xs font-medium bg-white border border-rose-300 text-rose-800 hover:bg-rose-100 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 flex-shrink-0">{dbsReminderBusy ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />} Send DBS reminders</button>
-        </div>
-      )}
-      {dbsReminderMsg && <p className="text-sm text-stone-600">{dbsReminderMsg}</p>}
+      {/* Session W: the static DBS attention banner + aggregate count pills were
+          removed here. DBS/RTW intelligence now lives in the AI assistant and
+          the Dashboard. Per-staff DBS badges remain on each card below. */}
 
       {section === "team" && (
         <>
-          {active.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">{dbsCount.verified || 0} verified</span>
-              <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">{dbsCount.pending || 0} pending</span>
-              <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700">{dbsCount.expiring_soon || 0} expiring soon</span>
-              <span className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">{(dbsCount.expired || 0) + (dbsCount.not_checked || 0)} expired / none</span>
-            </div>
-          )}
-
           {showForm && (
             <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3">
               <div className="flex items-center justify-between">
