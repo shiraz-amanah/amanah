@@ -70,6 +70,7 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
         remoteMode
         token={token}
         prefillName={row.staff_name || ""}
+        staffEmail={row.staff_email || ""}
         mosque={{ name: row.mosque_name }}
         onDone={() => setDone(true)}
         onCancel={onBrowse}

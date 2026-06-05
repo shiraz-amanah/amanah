@@ -106,3 +106,23 @@ export function sendDbsReminderEmail(mosqueId) {
   if (!mosqueId) return Promise.resolve({ ok: false, error: 'missing_mosqueId' });
   return postTransactional({ intent: 'dbs_reminder', mosqueId });
 }
+
+// Session W — confirmation to a staff member after they complete the REMOTE
+// onboarding wizard. The staffer is unauthenticated (no session), so this posts
+// WITHOUT a token; the server constrains the send to a real, just-completed
+// mosque_staff record for that email (no injection). Fire-and-forget.
+export async function sendStaffWizardSubmitted(email) {
+  if (!email) return { ok: false, error: 'missing_email' };
+  try {
+    const res = await fetch('/api/send-transactional', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intent: 'staff_wizard_submitted', email }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok && body?.ok ? body : { ok: false, error: body?.error || `http_${res.status}` };
+  } catch (err) {
+    console.error('[email] sendStaffWizardSubmitted failed', err?.message);
+    return { ok: false, error: 'network_exception' };
+  }
+}

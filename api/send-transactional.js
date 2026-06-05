@@ -837,6 +837,26 @@ async function handleDbsReminder(env, caller, mosqueId) {
   return { status: 200, body: { ok: true, sent: 1, count: attention.length } };
 }
 
+// Session W — confirmation to a staff member after they complete the REMOTE
+// onboarding wizard. UNAUTHENTICATED intent (the staffer has no session). The
+// recipient is constrained server-side to a real mosque_staff row for that
+// email whose wizard_status='completed' (just submitted), so it can't spam
+// arbitrary addresses; the mosque name is resolved from the DB, not the client.
+async function handleStaffWizardSubmitted(env, email) {
+  if (!email || typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+    return { status: 400, body: { ok: false, error: 'invalid_email' } };
+  }
+  const e = email.trim().toLowerCase();
+  const rows = await sbGet(env, `mosque_staff?email=eq.${encodeURIComponent(e)}&wizard_status=eq.completed&select=name,mosque_id&order=created_at.desc&limit=1`);
+  const staff = Array.isArray(rows) ? rows[0] : null;
+  if (!staff) return { status: 200, body: { ok: true, sent: 0 } }; // no match → silent no-op
+  const mrows = await sbGet(env, `mosques?id=eq.${staff.mosque_id}&select=name`);
+  const mosqueName = (Array.isArray(mrows) && mrows[0]?.name) || 'your mosque';
+  const inner = `${eGreeting(firstName(staff.name))}${eHeading('Onboarding received')}${ePara(`JazakAllah khair for completing your onboarding. Your details have been submitted to <strong>${escapeHtml(mosqueName)}</strong> for review.`)}${eSignoff}`;
+  await sendEmail(env, { to: e, subject: `Onboarding received — ${mosqueName}`, html: wrapEmail('Onboarding received', inner) });
+  return { status: 200, body: { ok: true, sent: 1 } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -879,6 +899,13 @@ export default async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'unauthorized' });
       }
       const out = await handleReminderSweep(env);
+      return res.status(out.status).json(out.body);
+    }
+
+    // Unauthenticated intent — the remote onboarding staffer has no session.
+    // Recipient is constrained server-side (see handler), so no caller needed.
+    if (body.intent === 'staff_wizard_submitted') {
+      const out = await handleStaffWizardSubmitted(env, body.email);
       return res.status(out.status).json(out.body);
     }
 
