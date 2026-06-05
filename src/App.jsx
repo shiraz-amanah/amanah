@@ -41,6 +41,8 @@ import MosqueDashboard from "./components/MosqueDashboard";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
+import MadrasaBrowse from "./components/MadrasaBrowse";
+import MadrasaParent from "./components/MadrasaParent";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
@@ -7564,7 +7566,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
   // replace:true so tab clicks don't pollute browser history. setTab kept
   // as a local alias for the internal references.
@@ -7876,6 +7878,7 @@ setBookings(transformed);
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
           {[
             { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
+            { v: "madrasa", l: "Madrasa", i: GraduationCap, badge: null },
             { v: "donations", l: "My giving", i: HandCoins, badge: null },
             { v: "saved", l: "My scholars", i: Heart, badge: savedScholars.length },
             { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosqueIds?.size || 0 },
@@ -8140,6 +8143,8 @@ setBookings(transformed);
             )}
           </div>
         )}
+
+        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} />}
 
         {tab === "donations" && (
           <div>
@@ -13192,6 +13197,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     isDemo={!authedProfile}
     staffMembership={myStaffMembership}
     onStaffPortal={() => setView("mosqueStaffPortal")}
+    onMadrasaBrowse={() => setView("madrasaBrowse")}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
@@ -13497,6 +13503,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   />;
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
+  if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => window.history.back()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };
 

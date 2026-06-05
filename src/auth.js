@@ -683,6 +683,58 @@ export async function getMadrasaEnrollmentCounts(mosqueId) {
   return counts
 }
 
+// --- Madrasa parent browse + enrolment (migration 068/069) ---
+// Active classes across mosques (anon/auth can read active classes). Optional
+// mosque/subject filters server-side; day filter is applied client-side on the
+// schedule jsonb.
+export async function getActiveMadrasaClasses({ mosqueId, subject } = {}) {
+  let q = supabase
+    .from('madrasa_classes')
+    .select('*, mosque:mosques(name, city, slug), teacher:mosque_staff(name)')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+  if (mosqueId) q = q.eq('mosque_id', mosqueId)
+  if (subject) q = q.eq('subject', subject)
+  const { data, error } = await q
+  if (error) { console.error('Error fetching active classes:', error); return [] }
+  return data || []
+}
+
+// The signed-in parent's enrolments (own children only, via RLS), joined to
+// class + mosque + student for the family-dashboard grouping.
+export async function getMyMadrasaEnrollments() {
+  const { data, error } = await supabase
+    .from('madrasa_enrollments')
+    .select('*, student:students(id, name), class:madrasa_classes(name, subject, schedule, mosque:mosques(name))')
+    .order('enrolled_at', { ascending: true })
+  if (error) { console.error('Error fetching my enrolments:', error); return [] }
+  return data || []
+}
+
+// Enrol a child. If a (class, student) enrolment already exists, reactivate it
+// (the unique index blocks a duplicate insert); otherwise insert. mosque_id is
+// the class's mosque (the RLS forces it to match).
+export async function enrolChild({ classId, studentId, mosqueId }) {
+  if (!classId || !studentId || !mosqueId) return { error: { message: 'classId, studentId and mosqueId required' } }
+  const { data: existing } = await supabase
+    .from('madrasa_enrollments').select('id, status').eq('class_id', classId).eq('student_id', studentId).maybeSingle()
+  if (existing) {
+    if (existing.status === 'active') return { error: { message: 'This child is already enrolled in that class.' } }
+    const { data, error } = await supabase.from('madrasa_enrollments').update({ status: 'active' }).eq('id', existing.id).select().single()
+    return { data, error }
+  }
+  const { data, error } = await supabase
+    .from('madrasa_enrollments').insert({ class_id: classId, student_id: studentId, mosque_id: mosqueId, status: 'active' }).select().single()
+  return { data, error }
+}
+
+export async function withdrawEnrollment(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('madrasa_enrollments').update({ status: 'withdrawn' }).eq('id', id).select().single()
+  return { data, error }
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.
