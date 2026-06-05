@@ -427,6 +427,27 @@ export async function deleteMosqueStaff(id) {
   return { error }
 }
 
+// Session W — staff portal detection. Returns the caller's ACTIVE staff row
+// (invite_status='active', linked by profile_id) joined to its mosque, or
+// null. Drives the opt-in staff portal: a user who is active staff somewhere
+// sees a "go to staff portal" entry on their dashboard. If someone is active
+// staff at more than one mosque we take the first — rare; revisit if it comes
+// up. Reads only the caller's own row (RLS "Staff read own row", 030).
+export async function getMyStaffMembership() {
+  const user = await getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('mosque_staff')
+    .select('*, mosque:mosques(id, name, city, slug, status, prayer_times)')
+    .eq('profile_id', user.id)
+    .eq('invite_status', 'active')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) { console.error('Error fetching staff membership:', error); return null }
+  return data || null
+}
+
 // --- Rotas (migration 056) ---
 export async function getMosqueRota(mosqueId, weekStart) {
   if (!mosqueId || !weekStart) return null

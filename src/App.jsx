@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -38,6 +38,7 @@ import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
 import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
+import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
@@ -7556,7 +7557,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
   // replace:true so tab clicks don't pollute browser history. setTab kept
   // as a local alias for the internal references.
@@ -7890,6 +7891,18 @@ setBookings(transformed);
       </header>
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8">
+        {staffMembership?.mosque && onStaffPortal && (
+          <button
+            onClick={onStaffPortal}
+            className="w-full mb-6 flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-2xl px-5 py-3.5 text-left transition-colors"
+          >
+            <span className="flex items-center gap-2.5">
+              <Briefcase size={17} className="text-emerald-700 shrink-0" />
+              <span className="text-sm text-emerald-900">You're a staff member at <span className="font-semibold">{staffMembership.mosque.name}</span>.</span>
+            </span>
+            <span className="text-sm font-medium text-emerald-800 inline-flex items-center gap-1 whitespace-nowrap">Open staff portal <ArrowRight size={14} /></span>
+          </button>
+        )}
         {tab === "bookings" && (
           <div>
             <div className="mb-6">
@@ -12484,6 +12497,12 @@ export default function App() {
   // dashboard/detail components read camelCase aliases (photo,
   // iqamaTimes, jumuahTime).
   const [myMosque, setMyMosque] = useState(null);
+  // Session W — the authed user's ACTIVE staff membership (mosque_staff row
+  // joined to its mosque), or null. Set on bootstrap only when the user owns
+  // no mosque. Drives the OPT-IN staff portal: UserDashboard surfaces a "go to
+  // staff portal" entry; we don't auto-route staff away from their parent
+  // dashboard. The mosqueStaffPortal view reads this.
+  const [myStaffMembership, setMyStaffMembership] = useState(null);
   // Latest mosque application for the authed user (any status). Drives
   // the mosque-side routing branches in routeAuthedMosque. Null means
   // the user hasn't applied yet → wizard.
@@ -12715,6 +12734,13 @@ useEffect(() => {
           const mosqueApp = await getMyMosqueApplication();
           if (mosqueApp) setMyMosqueApplication(mosqueApp);
 
+          // Staff portal (opt-in) — only probe when the user owns no mosque;
+          // an owner managing their own mosque isn't "staff" of it.
+          if (!mosque) {
+            const membership = await getMyStaffMembership();
+            if (membership) setMyStaffMembership(membership);
+          }
+
           // Populate the UI role state so it survives a cold refresh — role
           // is otherwise null until an in-session interaction sets it, which
           // left views like messagesInbox unable to tell user from mosque on
@@ -12800,6 +12826,7 @@ useEffect(() => {
     setMyScholarApplication(null);
     setMyMosque(null);
     setMyMosqueApplication(null);
+    setMyStaffMembership(null);
   };
 
   // Suspended-user bounce — sign out, return to publicHome, and
@@ -13149,6 +13176,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
     isDemo={!authedProfile}
+    staffMembership={myStaffMembership}
+    onStaffPortal={() => setView("mosqueStaffPortal")}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
@@ -13415,6 +13444,16 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       });
       navigate("conversationView", { id: data });
     }}
+  />;
+  if (view === "mosqueStaffPortal") return <MosqueStaffPortal
+    membership={myStaffMembership}
+    authedUser={authedUser}
+    MessagesInbox={MessagesInbox}
+    conversations={inboxData}
+    conversationsLoading={conversationsLoading && !!authedProfile}
+    onConversation={(c) => { setSelectedConversation(c); setRole("mosque"); navigate("conversationView", { id: c.id }); }}
+    onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
+    onPublic={() => setView("publicHome")}
   />;
   if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
   if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {

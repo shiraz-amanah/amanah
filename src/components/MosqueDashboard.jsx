@@ -2,11 +2,27 @@ import { useState } from "react";
 import {
   Building2, Users, Briefcase, Calendar, HandCoins, MessageCircle,
   User, ShieldCheck, CheckCircle2, AlertCircle, LogOut,
+  LayoutDashboard, CalendarDays, ShieldAlert, ClipboardCheck,
 } from "lucide-react";
 import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
+
+// Session W — placeholder for tabs whose content lands in a later commit
+// (Dashboard widgets, Rota split, HR sub-tabs, Safeguarding, Compliance).
+// Keeps the restructured nav fully working while each tab is built out.
+const TabPlaceholder = ({ icon: Icon, title, blurb }) => (
+  <div>
+    <div className="mb-6">
+      <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{title}</h2>
+    </div>
+    <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+      <Icon className="mx-auto text-stone-300 mb-3" size={36} />
+      <p className="text-stone-600 text-sm max-w-md mx-auto">{blurb}</p>
+    </div>
+  </div>
+);
 
 // New mosque dashboard — replaces the legacy mock-driven version
 // in place per Q7. Tabs locked from Q5: Profile / Donations /
@@ -33,7 +49,7 @@ import MosqueStaffDirectory from "./MosqueStaffDirectory";
 // passed in as a component prop to avoid a circular import.
 const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox }) => {
   const [tab, setTabRaw] = useState(() => {
-    try { return sessionStorage.getItem("mosqueDashboardTab") || "profile"; } catch { return "profile"; }
+    try { return sessionStorage.getItem("mosqueDashboardTab") || "dashboard"; } catch { return "dashboard"; }
   });
   const setTab = (newTab) => {
     try { sessionStorage.setItem("mosqueDashboardTab", newTab); } catch {}
@@ -58,10 +74,17 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
     );
   }
 
+  // Session W — final tab order. Dashboard is the new default landing.
+  // Staff now hosts the team directory (was under HR); HR / Rota /
+  // Safeguarding / Compliance / Dashboard fill in across Session W commits.
   const tabs = [
+    { v: "dashboard", l: "Dashboard", icon: LayoutDashboard },
     { v: "profile", l: "Profile", icon: Building2 },
     { v: "staff", l: "Staff", icon: Users },
+    { v: "rota", l: "Rota", icon: CalendarDays },
     { v: "hr", l: "HR", icon: Briefcase },
+    { v: "safeguarding", l: "Safeguarding", icon: ShieldAlert },
+    { v: "compliance", l: "Compliance", icon: ClipboardCheck },
     { v: "events", l: "Events", icon: Calendar },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
@@ -121,20 +144,65 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
       </header>
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10">
+        {tab === "dashboard" && (
+          <TabPlaceholder
+            icon={LayoutDashboard}
+            title="Dashboard"
+            blurb="Your daily briefing, key stats, today's rota and document-expiry alerts will appear here."
+          />
+        )}
+
         {tab === "profile" && (
-          <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
+          <div className="space-y-8">
+            <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
+            {/* Public "Our Team" visibility — a public-profile concern, so it
+                lives with the profile editor (the Staff tab is now the HR
+                team directory). Same mosque_staff rows, show_on_profile. */}
+            <div>
+              <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public team listing</h3>
+              <MosqueStaffPublic mosqueId={mosque.id} />
+            </div>
+          </div>
         )}
 
         {tab === "staff" && (
-          <MosqueStaffPublic mosqueId={mosque.id} />
+          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
+        )}
+
+        {tab === "rota" && (
+          <TabPlaceholder
+            icon={CalendarDays}
+            title="Rota"
+            blurb="The weekly rota, timesheets and cover requests will move here. For now they remain under the Staff tab."
+          />
+        )}
+
+        {tab === "hr" && (
+          <TabPlaceholder
+            icon={Briefcase}
+            title="HR"
+            blurb="DBS checks, Right to Work and employment records will live here, with documents held in a private store."
+          />
+        )}
+
+        {tab === "safeguarding" && (
+          <TabPlaceholder
+            icon={ShieldAlert}
+            title="Safeguarding"
+            blurb="Policies, your DSL, training log, incident log, safer-recruitment checklist and key contacts will appear here."
+          />
+        )}
+
+        {tab === "compliance" && (
+          <TabPlaceholder
+            icon={ClipboardCheck}
+            title="Compliance"
+            blurb="Charity, GDPR, health & safety, financial and madrasah records, plus a single document-expiry dashboard."
+          />
         )}
 
         {tab === "events" && (
           <MosqueEventsManager mosqueId={mosque.id} />
-        )}
-
-        {tab === "hr" && (
-          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
         )}
 
         {tab === "donations" && (
