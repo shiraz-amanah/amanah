@@ -9,6 +9,7 @@ import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
+import MosqueHR from "./MosqueHR";
 
 // Session W — placeholder for tabs whose content lands in a later commit
 // (Dashboard widgets, Rota split, HR sub-tabs, Safeguarding, Compliance).
@@ -175,11 +176,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         )}
 
         {tab === "hr" && (
-          <TabPlaceholder
-            icon={Briefcase}
-            title="HR"
-            blurb="DBS checks, Right to Work and employment records will live here, with documents held in a private store."
-          />
+          <MosqueHR mosqueId={mosque.id} mosque={mosque} />
         )}
 
         {tab === "safeguarding" && (
