@@ -71,16 +71,20 @@ const FileField = ({ label, required, value, remoteMode, onSelect, onClear, erro
   <Field label={label} required={required}>
     {remoteMode ? (
       <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">Your mosque admin will attach this document for you.</p>
-    ) : value ? (
-      <div className="flex items-center justify-between gap-2 text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-        <span className="truncate text-stone-700">{value.name}</span>
-        <button onClick={onClear} className="text-stone-400 hover:text-rose-600"><X size={14} /></button>
-      </div>
     ) : (
-      <label className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer border ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-dashed border-stone-300 text-stone-500 hover:border-emerald-500"}`}>
-        <Upload size={14} /> Upload (PDF/JPG/PNG, ≤10MB){required ? " — required" : ""}
-        <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
-      </label>
+      <div className="space-y-1.5">
+        {value && (
+          <div className="flex items-center justify-between gap-2 text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+            <span className="truncate text-stone-700">{value.name}</span>
+            <button onClick={onClear} className="text-stone-400 hover:text-rose-600" title="Remove"><X size={14} /></button>
+          </div>
+        )}
+        {/* Always available — allows replacing an already-selected file. */}
+        <label className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer border ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-dashed border-stone-300 text-stone-500 hover:border-emerald-500"}`}>
+          <Upload size={14} /> {value ? "Replace file" : "Upload"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
+          <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
+        </label>
+      </div>
     )}
   </Field>
 );
@@ -124,10 +128,11 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
     const issues = stepIssues(step);
     if (issues.length) { setAttempted(true); setError(`Please complete: ${issues.join(", ")}.`); return; }
     setError(null);
-    if (step < 7) setStep(step + 1);
+    setStep((s) => Math.min(7, s + 1)); // strictly the next step in sequence
   };
-  // Back never validates and never resets data (single form state).
-  const back = () => { setError(null); if (step > 1) setStep(step - 1); };
+  // Back never validates and never resets data (single form state); functional
+  // update so it always lands on the immediately previous step.
+  const back = () => { setError(null); setStep((s) => Math.max(1, s - 1)); };
 
   const dbsStatusFromForm = () => {
     if (form.dbs_certificate_number.trim()) return "verified";

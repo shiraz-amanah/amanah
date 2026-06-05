@@ -22,6 +22,7 @@ const SLOTS = [
   ["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"],
   ["isha", "Isha"], ["jumuah", "Jumu'ah"], ["classes", "Classes"],
 ];
+const DBS_STATUS_LABEL = { not_checked: "Not checked", pending: "Pending", verified: "Verified", expired: "Expired", expiring_soon: "Expiring soon", not_required: "Not required" };
 const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x.toISOString().slice(0, 10); };
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const in30Str = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); };
@@ -216,7 +217,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
                 ["Start date", membership.start_date || "—"],
                 ["Email", membership.email || authedUser?.email || "—"],
                 ["Phone", membership.phone || "—"],
-                ["DBS status", membership.dbs_status],
+                ["DBS status", DBS_STATUS_LABEL[membership.dbs_status] || "—"],
                 ["DBS expiry", membership.dbs_expiry_date || "—"],
               ].map(([k, v]) => (
                 <div key={k} className="px-5 py-3 flex items-center justify-between gap-3">

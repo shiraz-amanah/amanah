@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock } from "lucide-react";
+import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock, Key, SlidersHorizontal } from "lucide-react";
 import { sendDbsReminderEmail } from "../lib/email";
 import MosqueBulkImport from "./MosqueBulkImport";
 import MosqueHRAssistant from "./MosqueHRAssistant";
 import { MOSQUE_STAFF_ROLES, MOSQUE_COVER_REASONS } from "../data/mosqueTaxonomy";
-import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite, createStaffWizardInvite, getMosqueStaffEmployment } from "../auth";
+import { getMosqueStaff, createMosqueStaff, updateMosqueStaff, createStaffInvite, createStaffWizardInvite, getMosqueStaffEmployment, requestPasswordReset } from "../auth";
 import { sendStaffInviteEmail, sendStaffWizardEmail } from "../lib/resend";
 
 // Portal access levels set at approval (migration 067). Gates the staff
@@ -73,18 +73,49 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const [sendBusy, setSendBusy] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
 
-  // Review & approve a completed remote onboarding (migration 067).
+  // Review / details / access modal (migration 067). mode = approve | view | access.
   const [reviewStaff, setReviewStaff] = useState(null);
+  const [reviewMode, setReviewMode] = useState("approve");
   const [reviewEmp, setReviewEmp] = useState(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [accessLevel, setAccessLevel] = useState("full");
   const [approveBusy, setApproveBusy] = useState(false);
   const [approveErr, setApproveErr] = useState(null);
+  const [notice, setNotice] = useState(null); // success toast (reset / access saved)
 
-  const openReview = async (s) => {
-    setReviewStaff(s); setReviewEmp(null); setAccessLevel("full"); setApproveErr(null); setReviewLoading(true);
-    const emp = await getMosqueStaffEmployment(s.id);
-    setReviewEmp(emp); setReviewLoading(false);
+  // Reset-password confirm.
+  const [resetStaff, setResetStaff] = useState(null);
+  const [resetBusy, setResetBusy] = useState(false);
+
+  const openModal = async (s, mode) => {
+    setReviewStaff(s); setReviewMode(mode); setReviewEmp(null);
+    setAccessLevel(s.portal_access || "full"); setApproveErr(null);
+    if (mode === "approve" || mode === "view") {
+      setReviewLoading(true);
+      const emp = await getMosqueStaffEmployment(s.id);
+      setReviewEmp(emp); setReviewLoading(false);
+    }
+  };
+  const openReview = (s) => openModal(s, "approve");
+  const openDetails = (s) => openModal(s, "view");
+  const openAccess = (s) => openModal(s, "access");
+
+  const saveAccess = async () => {
+    const s = reviewStaff;
+    setApproveBusy(true); setApproveErr(null);
+    const up = await updateMosqueStaff(s.id, { portal_access: accessLevel });
+    setApproveBusy(false);
+    if (up.error) { setApproveErr(up.error.message || "Couldn't save access level."); return; }
+    setReviewStaff(null); setNotice(`Portal access updated for ${s.name}.`); refresh();
+  };
+
+  const confirmReset = async () => {
+    const s = resetStaff;
+    if (!s?.email) { setResetStaff(null); setError(`No email on file for ${s?.name || "this person"}.`); return; }
+    setResetBusy(true);
+    await requestPasswordReset(s.email);
+    setResetBusy(false); setResetStaff(null);
+    setNotice(`Password reset email sent to ${s.name} at ${s.email}.`);
   };
   const approve = async () => {
     const s = reviewStaff;
@@ -229,8 +260,21 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
           <p className="text-xs text-stone-500 truncate">{s.role}{temp && s.end_date ? ` · until ${s.end_date}` : ""}{temp && s.cover_reason ? ` · ${s.cover_reason}` : ""}</p>
         </div>
         <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.cls} inline-flex items-center gap-1`}><ShieldCheck size={10} /> {badge.label}</span>
-        {s.invite_status === "active" ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">App active</span>
-          : s.invite_status === "invited" ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-stone-50 border-stone-200 text-stone-500">Invited</span>
+        {s.invite_status === "active" ? (
+            <>
+              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">App active</span>
+              <button onClick={() => openDetails(s)} title="View details" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Eye size={10} /> Details</button>
+              <button onClick={() => openAccess(s)} title="Edit portal access" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><SlidersHorizontal size={10} /> Access</button>
+              <button onClick={() => setResetStaff(s)} title="Send password reset" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Key size={10} /> Reset</button>
+            </>
+          )
+          : s.invite_status === "invited" ? (
+            <>
+              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-stone-50 border-stone-200 text-stone-500">Invited</span>
+              <button onClick={() => openDetails(s)} title="View details" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Eye size={10} /> Details</button>
+              <button onClick={() => openAccess(s)} title="Edit portal access" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><SlidersHorizontal size={10} /> Access</button>
+            </>
+          )
           : s.wizard_status === "completed" ? (
             <>
               <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700">Review pending</span>
@@ -255,27 +299,36 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
         <p className="text-sm text-stone-600">Your team, rotas, and substitute cover.</p>
       </div>
 
-      {/* Review & approve a completed remote onboarding */}
+      {notice && <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 flex items-center justify-between gap-2"><span>{notice}</span><button onClick={() => setNotice(null)} className="text-emerald-700 hover:text-emerald-900"><X size={14} /></button></p>}
+
+      {/* Review (approve) / View details / Edit access modal */}
       {reviewStaff && (
         <div className="fixed inset-0 z-40 bg-stone-900/40 flex items-center justify-center p-4" onClick={() => !approveBusy && setReviewStaff(null)}>
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Review onboarding — {reviewStaff.name}</h3>
+              <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                {reviewMode === "approve" ? "Review onboarding" : reviewMode === "view" ? "Staff details" : "Portal access"} — {reviewStaff.name}
+              </h3>
               <button onClick={() => setReviewStaff(null)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
             </div>
-            <p className="text-sm text-stone-600 mb-4 flex items-center gap-1.5"><Lock size={12} /> Submitted details. Approve to set portal access and email the Amanah invite.</p>
+            <p className="text-sm text-stone-600 mb-4 flex items-center gap-1.5"><Lock size={12} />
+              {reviewMode === "approve" ? "Submitted details. Approve to set portal access and email the Amanah invite."
+                : reviewMode === "view" ? "Submitted onboarding details — admin-only, read-only."
+                : "Change which tabs this staff member sees in their portal."}
+            </p>
 
-            {reviewLoading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (() => {
+            {(reviewMode === "approve" || reviewMode === "view") && (reviewLoading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (() => {
               const e = reviewEmp || {};
               const rtwNA = e.rtw_check_type === "not_required";
               const dbsNA = e.dbs_check_type === "not_required";
               const rows = [
-                ["Role", reviewStaff.role], ["Start date", rv(reviewStaff.start_date)],
+                ["Role", reviewStaff.role], ["Start date", rv(reviewStaff.start_date)], ["Phone", rv(reviewStaff.phone)],
                 ["Date of birth", rv(e.dob)], ["NI number", rv(e.ni_number)], ["Address", rv(e.address)],
                 ["Emergency contact", `${rv(e.emergency_contact_name)}${e.emergency_contact_phone ? ` · ${e.emergency_contact_phone}` : ""}`],
-                ["Right to Work", rtwNA ? "Not required" : `${rv(e.rtw_check_type)}${e.rtw_document_type ? ` · ${e.rtw_document_type}` : ""}${e.rtw_expiry_date ? ` · exp ${e.rtw_expiry_date}` : ""}`],
-                ["DBS", dbsNA ? "Not required" : `${rv(reviewStaff.dbs_status)}${e.dbs_check_type ? ` · ${e.dbs_check_type}` : ""}${reviewStaff.dbs_expiry_date ? ` · exp ${reviewStaff.dbs_expiry_date}` : ""}`],
-                ["Contract", `${rv(e.contract_type)}${e.hours_per_week ? ` · ${e.hours_per_week} hrs/wk` : ""}`],
+                ["Right to Work", rtwNA ? "Not required" : `${rv(e.rtw_check_type)}${e.rtw_document_type ? ` · ${e.rtw_document_type}` : ""}${e.rtw_document_number ? ` · ${e.rtw_document_number}` : ""}${e.rtw_expiry_date ? ` · exp ${e.rtw_expiry_date}` : ""}`],
+                ["DBS", dbsNA ? "Not required" : `${rv(reviewStaff.dbs_status)}${e.dbs_check_type ? ` · ${e.dbs_check_type}` : ""}${e.dbs_workforce_type ? ` · ${e.dbs_workforce_type}` : ""}${reviewStaff.dbs_expiry_date ? ` · exp ${reviewStaff.dbs_expiry_date}` : ""}`],
+                ["DBS reference", dbsNA ? "—" : `${rv(e.dbs_certificate_number)}${e.dbs_ucheck_reference ? ` · uCheck ${e.dbs_ucheck_reference}` : ""}`],
+                ["Contract", `${rv(e.contract_type)}${e.hours_per_week ? ` · ${e.hours_per_week} hrs/wk` : ""}${e.salary_rate ? ` · ${e.salary_rate}` : ""}`],
                 ["P46 / student loan", `${rv(e.p46_statement)}${e.student_loan ? ` · loan plan ${e.student_loan_plan || "?"}` : ""}`],
                 ["Bank", e.bank_account_number ? `${rv(e.bank_account_name)} · ${e.bank_sort_code || ""} ${e.bank_account_number}` : "—"],
               ];
@@ -289,23 +342,40 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
                   ))}
                 </div>
               );
-            })()}
+            })())}
 
-            <div className="mb-4">
-              <label className={labelCls}>Portal access level</label>
-              <div className="space-y-1.5">
-                {ACCESS_LEVELS.map(([v, l]) => (
-                  <label key={v} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${accessLevel === v ? "bg-emerald-50 border-emerald-300 text-emerald-900" : "bg-white border-stone-200 text-stone-700"}`}>
-                    <input type="radio" name="access" checked={accessLevel === v} onChange={() => setAccessLevel(v)} /> {l}
-                  </label>
-                ))}
+            {(reviewMode === "approve" || reviewMode === "access") && (
+              <div className="mb-4">
+                <label className={labelCls}>Portal access level</label>
+                <div className="space-y-1.5">
+                  {ACCESS_LEVELS.map(([v, l]) => (
+                    <label key={v} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${accessLevel === v ? "bg-emerald-50 border-emerald-300 text-emerald-900" : "bg-white border-stone-200 text-stone-700"}`}>
+                      <input type="radio" name="access" checked={accessLevel === v} onChange={() => setAccessLevel(v)} /> {l}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {approveErr && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-3"><AlertCircle size={14} /> {approveErr}</p>}
             <div className="flex items-center justify-end gap-2">
-              <button onClick={() => setReviewStaff(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-              <button onClick={approve} disabled={approveBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{approveBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve &amp; send invite</button>
+              <button onClick={() => setReviewStaff(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">{reviewMode === "view" ? "Close" : "Cancel"}</button>
+              {reviewMode === "approve" && <button onClick={approve} disabled={approveBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{approveBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve &amp; send invite</button>}
+              {reviewMode === "access" && <button onClick={saveAccess} disabled={approveBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{approveBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save access level</button>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset-password confirm */}
+      {resetStaff && (
+        <div className="fixed inset-0 z-40 bg-stone-900/40 flex items-center justify-center p-4" onClick={() => !resetBusy && setResetStaff(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Send password reset?</h3>
+            <p className="text-sm text-stone-600 mb-5">Send a password reset email to <strong>{resetStaff.name}</strong> at <strong>{resetStaff.email || "—"}</strong>?</p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setResetStaff(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
+              <button onClick={confirmReset} disabled={resetBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{resetBusy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send reset email</button>
             </div>
           </div>
         </div>
