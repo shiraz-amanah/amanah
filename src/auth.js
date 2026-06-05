@@ -522,6 +522,80 @@ export async function getMyStaffMembership() {
   return data || null
 }
 
+// --- Safeguarding (migration 062) — all owner+admin only ---
+export async function getSafeguardingSettings(mosqueId) {
+  if (!mosqueId) return null
+  const { data, error } = await supabase
+    .from('mosque_safeguarding_settings').select('*').eq('mosque_id', mosqueId).maybeSingle()
+  if (error) { console.error('Error fetching safeguarding settings:', error); return null }
+  return data
+}
+export async function upsertSafeguardingSettings(mosqueId, fields) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosque_safeguarding_settings')
+    .upsert({ mosque_id: mosqueId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'mosque_id' })
+    .select().single()
+  return { data, error }
+}
+
+export async function getStaffTraining(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_staff_training').select('*').eq('mosque_id', mosqueId).order('completion_date', { ascending: false })
+  if (error) { console.error('Error fetching training:', error); return [] }
+  return data || []
+}
+export async function createStaffTraining({ mosqueId, staffId, training_type, completion_date, renewal_due, certificate_path }) {
+  if (!mosqueId || !staffId || !training_type) return { error: { message: 'mosqueId, staffId and training_type required' } }
+  const { data, error } = await supabase
+    .from('mosque_staff_training')
+    .insert({ mosque_id: mosqueId, staff_id: staffId, training_type, completion_date: completion_date || null, renewal_due: renewal_due || null, certificate_path: certificate_path || null })
+    .select().single()
+  return { data, error }
+}
+export async function deleteStaffTraining(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('mosque_staff_training').delete().eq('id', id)
+  return { error }
+}
+
+export async function getSafeguardingIncidents(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_safeguarding_incidents').select('*').eq('mosque_id', mosqueId).order('incident_date', { ascending: false })
+  if (error) { console.error('Error fetching incidents:', error); return [] }
+  return data || []
+}
+export async function createIncident({ mosqueId, ...fields }) {
+  if (!mosqueId) return { error: { message: 'mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosque_safeguarding_incidents').insert({ mosque_id: mosqueId, ...fields }).select().single()
+  return { data, error }
+}
+export async function updateIncident(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('mosque_safeguarding_incidents').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+
+export async function getSaferRecruitment(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_safer_recruitment').select('*').eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching safer recruitment:', error); return [] }
+  return data || []
+}
+export async function upsertSaferRecruitment(staffId, mosqueId, fields) {
+  if (!staffId || !mosqueId) return { error: { message: 'staffId + mosqueId required' } }
+  const { data, error } = await supabase
+    .from('mosque_safer_recruitment')
+    .upsert({ staff_id: staffId, mosque_id: mosqueId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'staff_id' })
+    .select().single()
+  return { data, error }
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.

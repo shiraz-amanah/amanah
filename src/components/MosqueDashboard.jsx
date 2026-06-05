@@ -11,6 +11,7 @@ import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
 import MosqueHR from "./MosqueHR";
 import MosqueRota from "./MosqueRota";
+import MosqueSafeguarding from "./MosqueSafeguarding";
 
 // Session W — placeholder for tabs whose content lands in a later commit
 // (Dashboard widgets, Rota split, HR sub-tabs, Safeguarding, Compliance).
@@ -177,11 +178,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
         )}
 
         {tab === "safeguarding" && (
-          <TabPlaceholder
-            icon={ShieldAlert}
-            title="Safeguarding"
-            blurb="Policies, your DSL, training log, incident log, safer-recruitment checklist and key contacts will appear here."
-          />
+          <MosqueSafeguarding mosqueId={mosque.id} />
         )}
 
         {tab === "compliance" && (
