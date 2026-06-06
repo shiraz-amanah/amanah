@@ -1,14 +1,22 @@
 import { useState, useEffect } from "react";
-import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, MessageCircle } from "lucide-react";
-import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements } from "../auth";
+import { Loader2, GraduationCap, Clock, MapPin, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, MessageCircle, ListOrdered, Check } from "lucide-react";
+import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 
 // Madrasa Phase 1b — family-dashboard view. Each child with their active
 // enrolments (class, mosque, schedule) + a withdraw option, plus a "Browse
-// classes" entry to the browse page.
+// classes" entry to the browse page. Phase 3A adds a waiting-list section
+// (offers to accept/decline + waiting positions).
 
 const SUBJECT_LABEL = { quran: "Qur'an", hifz: "Hifz", arabic: "Arabic", islamic_studies: "Islamic Studies", other: "Other" };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "Schedule TBC";
+const offerCountdown = (iso) => {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "this offer has expired";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h >= 1 ? `respond within ${h}h ${m}m` : `respond within ${m}m`;
+};
 
 const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [students, setStudents] = useState([]);
@@ -18,11 +26,14 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [withdrawing, setWithdrawing] = useState(null);
   const [expanded, setExpanded] = useState(null); // child id whose progress is open
   const [showAll, setShowAll] = useState(false);
+  const [waitlist, setWaitlist] = useState([]);
+  const [acting, setActing] = useState(null); // waitlist row id being acted on
+  const [wlMsg, setWlMsg] = useState("");
 
   const reload = () => {
     setLoading(true);
-    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements()])
-      .then(([s, e, a]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); })
+    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist()])
+      .then(([s, e, a, w]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); })
       .catch((err) => console.error("madrasa parent load failed:", err))
       .finally(() => setLoading(false));
   };
@@ -34,6 +45,31 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
     setWithdrawing(null);
     if (!error) setEnrollments((es) => es.map((e) => (e.id === id ? { ...e, status: "withdrawn" } : e)));
   };
+
+  // Accept a place — the RPC creates the enrolment; reload surfaces it and drops
+  // the row from the waiting list (status → enrolled, filtered out of getMyWaitlist).
+  const accept = async (id) => {
+    setActing(id); setWlMsg("");
+    const { error } = await acceptWaitlistOffer(id);
+    setActing(null);
+    if (error) { setWlMsg(error.message === "offer is not open" ? "That offer has expired or been withdrawn." : "Couldn't accept the offer just now."); }
+    reload();
+  };
+  const decline = async (id) => {
+    setActing(id);
+    const { error } = await declineWaitlistOffer(id);
+    setActing(null);
+    if (!error) setWaitlist((w) => w.filter((r) => r.id !== id));
+  };
+  const leave = async (id) => {
+    setActing(id);
+    const { error } = await cancelWaitlist(id);
+    setActing(null);
+    if (!error) setWaitlist((w) => w.filter((r) => r.id !== id));
+  };
+
+  const offered = waitlist.filter((r) => r.status === "offered");
+  const waiting = waitlist.filter((r) => r.status === "waiting");
 
   // active enrolments grouped by student id
   const byStudent = {};
@@ -69,6 +105,34 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
           {announcements.length > 4 && (
             <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900">{showAll ? "Show fewer" : `Show all ${announcements.length}`}</button>
           )}
+        </div>
+      )}
+
+      {!loading && waitlist.length > 0 && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-3 flex items-center gap-1.5"><ListOrdered size={12} /> Waiting list</p>
+          {wlMsg && <p className="text-xs text-stone-600 mb-2">{wlMsg}</p>}
+          <ul className="space-y-2">
+            {offered.map((r) => (
+              <li key={r.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-sm text-stone-900"><strong>A place has opened up</strong> for {r.student?.name || "your child"} in {r.class?.name || "a class"}{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}.</p>
+                <p className="text-[11px] text-amber-700 mt-0.5 inline-flex items-center gap-1"><Clock size={11} /> {r.offer_expires_at ? offerCountdown(r.offer_expires_at) : "offered"}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <button onClick={() => accept(r.id)} disabled={acting === r.id} className="text-xs font-medium bg-emerald-900 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1 disabled:opacity-50">{acting === r.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Accept place</button>
+                  <button onClick={() => decline(r.id)} disabled={acting === r.id} className="text-xs font-medium border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 px-3 py-1.5 rounded-lg disabled:opacity-50">Decline</button>
+                </div>
+              </li>
+            ))}
+            {waiting.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 text-sm border border-stone-100 rounded-xl px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-stone-800 truncate"><span className="font-medium">{r.student?.name || "Child"}</span> · {r.class?.name || "Class"}{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}</p>
+                  <p className="text-[11px] text-stone-500">Position {r.position} on the waiting list</p>
+                </div>
+                <button onClick={() => leave(r.id)} disabled={acting === r.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 inline-flex items-center gap-1 disabled:opacity-50 shrink-0">{acting === r.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Leave</button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
