@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (6 June 2026): **Madrasa Phase 2 shipped end-to-end** across one day — Sessions Z, AA, AB, AC, AD. All pushed to `main` (`0adfe15` vision doc → `ad9e7ed` 2D closure); migrations **073–080 applied to dev + prod**; every RLS smoke green. Slices: **2a** announcements + parent↔teacher 1:1 messaging (073/074 — messaging reuses the existing conversations infra, added `'teacher'` to the participant role CHECK); **2b** absence notifications (075/076 — fire-on-save email + 3-in-a-row admin alert via service-role-only RPCs) + homework/tasks (077 — per-student completions); **2C** termly reports (078 — auto-summary RPC, draft/publish, unpublish-guard trigger, branded jsPDF download, `madrasa_report_published` email); **2D** consent-gated photos (079/080 — private `mosque-madrasa-photos` bucket, signed-URL reads, consent default-off, withdrawal-flag trigger). Per-slice closures are in the Session Z–AD blocks below. **Standing constraints:** Vercel is at **11/12 functions** — ALL new email goes in as `send-transactional` intents (now 15), the 3D AI assistant must fold into `admin-brief.js` (never add an `api/*.js`). **`jspdf`** added (lazy-loaded, kept out of the main bundle). **Lesson reinforced (076):** Supabase grants EXECUTE to `anon`/`authenticated` explicitly, so a service-role-only definer RPC must `revoke execute … from anon, authenticated`, not just `public`. **Pending manual checks (none blocking, all browser/`vercel dev`):** 2b absence email send, 2C report-published email send, and 2D storage signed-URL upload/download (the bytes the headless RLS smokes can't exercise). **Next: Madrasa Phase 3, in order** — 3A waiting list (migr 081: integer `position` so admins can reorder, `madrasa_waitlist_offer` email, 48h expiry checked on next-enrol, no cron) → 3B rewards (082) → 3C certificates (jsPDF, no migration) → 3D AI assistant (fold into `admin-brief.js`; **resolve the spec's aggregates-only vs named-individual-query privacy boundary first**) → 3E reports/exports. Stripe-dependent madrasa items (fees, Gift Aid, sibling discount, bursary) stay parked for a dedicated Stripe session. Pre-flight before 3A: next migration is **081**.
+> Last action (6 June 2026): **Madrasa Phase 3A (waiting list) shipped end-to-end** (Session AE). Pushed to `main` (`df558e2` migr 081 → `72af672` browse); migrations **081 + 082 applied to dev + prod**, both probed green; RLS/RPC smokes green (waitlist **14/14**, seat-counts **6/6**). The loop: parent joins a full class → admin "Offer next seat" → 48h `madrasa_waitlist_offer` email → parent Accept (enrols) / Decline / expire → next in line. **081** `madrasa_waitlist` — admin-reorderable `position` via a BEFORE INSERT trigger (parents can't queue-jump), partial-unique live row (re-join after a terminal row), `make_next_offer` (lazy 48h reap + capacity gate [active + outstanding offers] + service-role-only offer/email RPC) and `accept` (ownership + 48h freshness, creates/reactivates the enrolment) — both per the 076 revoke-from-anon+authenticated lesson. **082** `madrasa_class_active_counts()` — definer aggregate (counts only, no PII) so the public browse can detect "full" (RLS hides other families' enrolments); full = active + offered ≥ capacity. Offer trigger is **admin-initiated** (auto-on-withdrawal parked — looser auth). UI: admin/teacher **Waitlist** sub-tab, parent family-dashboard waitlist section, browse Enrol→Join-waitlist swap. **Standing constraints:** Vercel still **11/12 functions** — the offer email is a `send-transactional` intent (now **16**), no new `api/*.js`. **Detours (see Session AE):** opening "Phase 2 missing" call was a stale-read false alarm (reflog corrected it); the smoke caught two real RPC bugs pre-prod (OUT-param/column ambiguity; futile in-`accept` reap); a "create-or-replace succeeds but body unchanged" gremlin was **wrong-project targeting** (use a `to_regclass` fingerprint probe + DROP/CREATE); a stale esbuild binary needed `npm rebuild esbuild`. **Pending manual checks (non-blocking, browser/`vercel dev`):** one browser pass of the three 3A surfaces + a real offer-email send (`delivered@resend.dev`) — the headless smokes hit the RPC, not Resend. Carried-forward Phase 2 checks still open (2b/2C email, 2D storage bytes). **Next: Madrasa Phase 3 continues** — 3B rewards (next migration **083**) → 3C certificates (jsPDF, no migration) → 3D AI assistant (fold into `admin-brief.js`; **resolve the spec's aggregates-only vs named-individual-query privacy boundary first**) → 3E reports/exports. Stripe-dependent madrasa items (fees, Gift Aid, sibling discount, bursary) stay parked for a dedicated Stripe session. Pre-flight before 3B: next migration is **083**.
 
 ---
 
@@ -6467,6 +6467,94 @@ photos their child appears in.
 3A waiting list → 3B rewards → 3C certificates (jsPDF, no migration) → 3D AI
 assistant (fold into admin-brief; resolve the aggregates-vs-named-individual
 privacy boundary) → 3E reports/exports.
+
+---
+
+## Session AE — Madrasa Phase 3A: waiting list ✅ (6 June 2026)
+
+Class waiting lists with admin-controlled ordering and 48h offers, no cron. Built
+as gated sub-commits (3A-i data → 3A-ii email → 3A-iii admin → 3A-iv parent), with
+two migrations apply-gated dev→prod *before* any dependent code shipped.
+
+### Shipped (by commit)
+- **migration 081 + smoke** (`df558e2`). `madrasa_waitlist` (class↔student,
+  `mosque_id` denormalized for RLS, admin-reorderable integer `position`, status
+  waiting/offered/enrolled/declined/expired/cancelled, 48h `offer_expires_at`).
+  5 RLS policies (owner/admin manage; class-teacher read; parent read/join/leave
+  own-child) in the 068/073/077 shape. **BEFORE INSERT trigger** server-assigns
+  `position` (append) so parents can't queue-jump; **partial-unique**
+  `(class_id, student_id) WHERE status IN ('waiting','offered')` lets a family
+  re-join after a terminal row. Two SECURITY DEFINER RPCs: `make_next_offer`
+  (lazy reap of >48h offers → capacity gate [active + outstanding offers] → offer
+  next by position → returns the parent email payload; **service_role-only**,
+  EXECUTE revoked from anon+authenticated per the 076 lesson) and `accept`
+  (parent-callable; ownership + 48h freshness; creates/reactivates the enrolment +
+  marks 'enrolled'). `scripts/smoke-madrasa-3a-waitlist.mjs` **14/14**.
+- **3A-i data layer** (`0fc4926`). auth.js join/getMy/getClass/reorder/cancel/
+  decline/accept; email.js `sendMadrasaWaitlistOffer(classId)`.
+- **3A-ii email intent** (`cc59ce6`). `madrasa_waitlist_offer` handler in
+  `send-transactional.js` (auth like absence/report → `make_next_offer` → email).
+  No new `api/*.js` — Vercel stays 11/12 (intents now 16).
+- **3A-iii admin panel** (`8f4141e`). `MadrasaWaitlist.jsx` + a **Waitlist**
+  sub-tab in `MadrasaClassWorkspace` — seats, ▲/▼ reorder, "Offer next seat",
+  outstanding-offer 48h countdowns.
+- **3A-iv parent** (`e94bbd6` dashboard, `72af672` browse). Family-dashboard
+  waitlist section (offer Accept/Decline + waiting position + Leave); browse shows
+  enrolled/capacity + a Full pill and swaps Enrol→Join-waitlist when full.
+- **migration 082 + smoke** (`29eae94`). `madrasa_class_active_counts()` — definer
+  aggregate (active_count, offered_count) per active class, granted anon+authed,
+  counts only (RLS hides per-family enrolments from parents). `scripts/
+  smoke-madrasa-3a-counts.mjs` **6/6**. Full = active + offered ≥ capacity
+  (mirrors `make_next_offer`'s seat gate so an enrol can't grab a mid-offer seat).
+
+### Verified
+RLS/RPC smokes green on dev (waitlist 14/14, counts 6/6); **081 + 082 probed green
+on dev AND prod** (table, 5 policies, function bodies, harvest guard
+service_role-only, anon/authed grants on counts). Every `npm run build` clean.
+**UI is build-verified only** (Phase 1/2 convention) — no browser pass yet.
+**Offer email send is NOT in the smoke** (it hits the RPC, not Resend) — manual
+`delivered@resend.dev` check pending.
+
+### Design decisions
+- **Offer trigger is admin-initiated** ("Offer next seat"). Auto-offer-on-
+  withdrawal was considered but parked — the withdrawing parent isn't owner/
+  teacher/admin, so it needs a looser auth model (abuse surface). 3A enhancement.
+- **No cron:** the 48h expiry is reaped lazily inside `make_next_offer` and
+  re-checked in `accept` ("checked on next-enrol").
+- **Seat counts need a definer aggregate (082):** parents can't read others'
+  enrolments and capacity isn't DB-enforced, so client-side "full" detection is
+  impossible — exposed counts-only via RPC rather than leaking rows. Surfaced as
+  mid-phase scope and apply-gated properly rather than hacked.
+- **`accept` does not reap on failure:** an in-line UPDATE rolls back with its own
+  RAISE; `make_next_offer` is the sole reaper.
+
+### Detours (honest record)
+- **Opening false alarm:** I first concluded "Phase 2 doesn't exist" from a stale
+  read of git/NOTES; `git reflog` showed HEAD was already at the Phase 2 closure.
+  Corrected before acting — trust `reflog`/`git log -1`, not the system snapshot
+  or a single stale `wc -l`.
+- **Smoke caught two real RPC bugs pre-prod:** (1) `make_next_offer`'s OUT-param
+  `offer_expires_at` shadowed the table column → "ambiguous" (fixed with
+  `#variable_conflict use_column` + a qualified reap, the 033 lesson); (2) `accept`
+  tried to reap an expired offer in-line — futile because the RAISE rolls it back
+  (removed).
+- **"create-or-replace succeeds but body unchanged" gremlin:** root cause was
+  **wrong-project targeting** (the replace ran against the wrong Supabase project).
+  Reliable disambiguator on this dev/prod-split repo: a
+  `to_regclass('public.madrasa_waitlist')` fingerprint in the same query (non-null
+  = dev, null = prod), plus DROP+CREATE (can't silently no-op) and a self-verifying
+  proof SELECT instead of trusting the editor's "Success" banner.
+- **Build env:** a stale `@esbuild/darwin-arm64` binary broke `vite build`
+  ("installed for another platform"); `npm rebuild esbuild` fixed it (not code).
+
+### Parked / next
+- Auto-offer-on-withdrawal (3A enhancement candidate).
+- Manual checks: browser pass of the 3 surfaces + a real offer-email send.
+- `migrations/README.md` status table stalled at 033 — backfilling 034→082 is a
+  separate housekeeping task.
+- **Next:** 3B rewards (migration **083**) → 3C certificates (jsPDF, no migration)
+  → 3D AI assistant (fold into `admin-brief.js`; resolve aggregates-vs-named-
+  individual privacy boundary first) → 3E reports/exports.
 
 ---
 
