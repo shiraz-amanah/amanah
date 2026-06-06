@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award } from "lucide-react";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward } from "../auth";
+import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, Upload, X } from "lucide-react";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl } from "../auth";
 import { surahName } from "../data/surahs";
 // jsPDF is heavy — lazy-load it on download so it stays out of the main bundle.
 const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
@@ -17,6 +17,8 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
   const [hifz, setHifz] = useState([]);
   const [homework, setHomework] = useState([]);
   const [doneIds, setDoneIds] = useState(new Set()); // homework_ids this child has done
+  const [subFiles, setSubFiles] = useState({}); // homework_id → submission files [{path,name,size}]
+  const [hwBusy, setHwBusy] = useState(null); // homework_id mid file-op
   const [reports, setReports] = useState([]);
   const [rewards, setRewards] = useState([]);
   const [photos, setPhotos] = useState([]);
@@ -37,6 +39,7 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
         if (!alive) return;
         setAttendance(a || []); setHifz(h || []); setHomework(hw || []);
         setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
+        setSubFiles(Object.fromEntries((comps || []).map((c) => [c.homework_id, c.files || []])));
         setReports(reps || []); setPhotos(pics || []); setRewards(rw || []);
         setConsentByMosque(Object.fromEntries(consents || []));
       })
@@ -70,6 +73,28 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
       setDoneIds((prev) => { const n = new Set(prev); isDone ? n.add(h.id) : n.delete(h.id); return n; });
     }
     setBusy(null);
+  };
+
+  const openFile = async (path) => { const url = await homeworkFileUrl(path); if (url) window.open(url, "_blank", "noopener"); };
+
+  // Parent uploads a submission file for one homework task (own child's folder).
+  const uploadSubmission = async (h, file) => {
+    if (!file || hwBusy) return;
+    setHwBusy(h.id);
+    const { data: meta, error: upErr } = await uploadHomeworkFile({ mosqueId: h.mosque_id, classId: h.class_id, homeworkId: h.id, studentId: student.id, file });
+    if (!upErr && meta) {
+      const next = [...(subFiles[h.id] || []), meta];
+      const { error } = await submitHomeworkFiles({ homeworkId: h.id, studentId: student.id, classId: h.class_id, mosqueId: h.mosque_id, files: next });
+      if (!error) { setSubFiles((p) => ({ ...p, [h.id]: next })); setDoneIds((p) => new Set(p).add(h.id)); }
+    }
+    setHwBusy(null);
+  };
+  const removeSubmission = async (h, meta) => {
+    setHwBusy(h.id);
+    const next = (subFiles[h.id] || []).filter((f) => f.path !== meta.path);
+    const { error } = await submitHomeworkFiles({ homeworkId: h.id, studentId: student.id, classId: h.class_id, mosqueId: h.mosque_id, files: next });
+    if (!error) { setSubFiles((p) => ({ ...p, [h.id]: next })); await removeHomeworkFiles([meta.path]); }
+    setHwBusy(null);
   };
 
   // Parent generates a certificate on demand from the data already loaded here.
@@ -161,10 +186,29 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
                   className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${done ? "bg-emerald-600 border-emerald-600 text-white" : "border-stone-300 bg-white hover:border-emerald-500"}`}>
                   {busy === h.id ? <Loader2 size={10} className="animate-spin text-stone-500" /> : done ? <Check size={11} /> : null}
                 </button>
-                <span className="min-w-0">
+                <span className="min-w-0 flex-1">
                   <span className={`font-medium ${done ? "text-stone-400 line-through" : "text-stone-800"}`}>{h.title}</span>
                   {h.class?.name ? <span className="text-stone-400"> · {h.class.name}</span> : null}
                   {h.due_date ? <span className="text-stone-400 inline-flex items-center gap-0.5 ml-1"><CalendarClock size={10} /> {new Date(h.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span> : null}
+                  {/* teacher resource files */}
+                  {(h.files || []).length > 0 && (
+                    <span className="flex flex-wrap gap-1.5 mt-1">{h.files.map((f, i) => (
+                      <button key={i} onClick={() => openFile(f.path)} className="text-[11px] text-emerald-700 hover:underline inline-flex items-center gap-1"><Paperclip size={10} /> {f.name}</button>
+                    ))}</span>
+                  )}
+                  {/* own submission files + upload */}
+                  <span className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {(subFiles[h.id] || []).map((f, i) => (
+                      <span key={i} className="text-[11px] bg-stone-100 text-stone-700 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
+                        <button onClick={() => openFile(f.path)} className="inline-flex items-center gap-1 hover:underline"><Download size={10} /> {f.name}</button>
+                        <button onClick={() => removeSubmission(h, f)} title="Remove" className="text-stone-400 hover:text-rose-600"><X size={10} /></button>
+                      </span>
+                    ))}
+                    <label className="text-[11px] text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1">
+                      {hwBusy === h.id ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />} Upload work
+                      <input type="file" className="hidden" disabled={hwBusy === h.id} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadSubmission(h, f); }} />
+                    </label>
+                  </span>
                 </span>
               </li>
             );

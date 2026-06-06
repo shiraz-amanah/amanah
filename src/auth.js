@@ -986,18 +986,57 @@ export async function getClassHomework(classId) {
 export async function getClassHomeworkCompletions(classId) {
   if (!classId) return []
   const { data, error } = await supabase
-    .from('madrasa_homework_completions').select('homework_id, student_id').eq('class_id', classId)
+    .from('madrasa_homework_completions').select('homework_id, student_id, files, student:students(name)').eq('class_id', classId)
   if (error) { console.error('Error fetching completions:', error); return [] }
   return data || []
 }
-export async function createHomework({ classId, mosqueId, title, body, dueDate }) {
+export async function createHomework({ classId, mosqueId, title, body, dueDate, files }) {
   if (!classId || !mosqueId || !title?.trim()) return { error: { message: 'classId, mosqueId and title required' } }
   const user = await getUser()
   const { data, error } = await supabase
     .from('madrasa_homework')
-    .insert({ class_id: classId, mosque_id: mosqueId, author_profile_id: user?.id || null, title: title.trim(), body: body?.trim() || null, due_date: dueDate || null })
+    .insert({ class_id: classId, mosque_id: mosqueId, author_profile_id: user?.id || null, title: title.trim(), body: body?.trim() || null, due_date: dueDate || null, files: files || [] })
     .select('*, author:profiles!madrasa_homework_author_profile_id_fkey(name)')
     .single()
+  return { data, error }
+}
+
+// --- Madrasa homework file uploads (migration 084) ---
+// Teacher resources upload under .../_resource/, parent submissions under
+// .../<student_id>/ (storage RLS gates by that 4th path segment). Bytes live in
+// the private bucket; metadata ([{path,name,size}]) rides on the row's files jsonb.
+export async function uploadHomeworkFile({ mosqueId, classId, homeworkId, studentId, file }) {
+  if (!mosqueId || !classId || !homeworkId || !file) return { error: { message: 'mosqueId, classId, homeworkId and file required' } }
+  const seg = studentId || '_resource'
+  const ext = (file.name?.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
+  const path = `${mosqueId}/${classId}/${homeworkId}/${seg}/${crypto.randomUUID()}.${ext}`
+  const { error } = await supabase.storage.from(MADRASA_HW_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false })
+  if (error) return { error }
+  return { data: { path, name: file.name || `file.${ext}`, size: file.size || 0 } }
+}
+export async function homeworkFileUrl(path) {
+  if (!path) return null
+  const { data } = await supabase.storage.from(MADRASA_HW_BUCKET).createSignedUrl(path, 3600)
+  return data?.signedUrl || null
+}
+export async function removeHomeworkFiles(paths) {
+  if (!paths?.length) return
+  await supabase.storage.from(MADRASA_HW_BUCKET).remove(paths)
+}
+// Teacher: replace the resource files attached to a homework row.
+export async function setHomeworkFiles(homeworkId, files) {
+  if (!homeworkId) return { error: { message: 'homeworkId required' } }
+  const { data, error } = await supabase.from('madrasa_homework').update({ files: files || [] }).eq('id', homeworkId).select().single()
+  return { data, error }
+}
+// Parent: upsert the child's completion carrying submission files (presence = done).
+export async function submitHomeworkFiles({ homeworkId, studentId, classId, mosqueId, files }) {
+  if (!homeworkId || !studentId || !classId || !mosqueId) return { error: { message: 'homeworkId, studentId, classId and mosqueId required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_homework_completions')
+    .upsert({ homework_id: homeworkId, student_id: studentId, class_id: classId, mosque_id: mosqueId, files: files || [], marked_by: user?.id || null }, { onConflict: 'homework_id,student_id' })
+    .select().single()
   return { data, error }
 }
 export async function deleteHomework(id) {
@@ -1021,7 +1060,7 @@ export async function getHomeworkForClasses(classIds) {
 export async function getStudentCompletions(studentId) {
   if (!studentId) return []
   const { data, error } = await supabase
-    .from('madrasa_homework_completions').select('homework_id').eq('student_id', studentId)
+    .from('madrasa_homework_completions').select('homework_id, files').eq('student_id', studentId)
   if (error) { console.error('Error fetching student completions:', error); return [] }
   return data || []
 }
@@ -1108,6 +1147,7 @@ export async function getStudentReports(studentId) {
 
 // --- Madrasa photos + consent (migrations 079/080) ---
 const MADRASA_PHOTO_BUCKET = 'mosque-madrasa-photos'
+const MADRASA_HW_BUCKET = 'madrasa-homework-uploads'
 
 // Teacher/owner — consent map for a mosque's students (RLS returns only the
 // students the caller may see). Returns { student_id: consent_given }.
