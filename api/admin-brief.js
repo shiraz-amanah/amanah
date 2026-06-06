@@ -209,6 +209,127 @@ Output the briefing paragraph only — no greeting line breaks, no headings, no 
   } catch (err) { console.error('[mosque-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Phase 3D — madrasa AI assistant context. Owner-JWT authed (like mosque_ops).
+// Returns { aggregates } (NO student names — for the briefing) and { students }
+// (named per-student rows — for chat ONLY), so the briefing can't leak PII even
+// via the prompt. top_stars carry names (positive recognition is allowed).
+async function buildMadrasaContext(env, mosqueId) {
+  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [classes, enrol, waitlist, attendance, hifz, homework, completions, rewards] = await Promise.all([
+    mhGet(env, `madrasa_classes?mosque_id=eq.${mosqueId}&status=eq.active&select=id,name,subject,capacity,term`),
+    mhGet(env, `madrasa_enrollments?mosque_id=eq.${mosqueId}&status=eq.active&select=class_id,student_id,student:students(name)`),
+    mhGet(env, `madrasa_waitlist?mosque_id=eq.${mosqueId}&status=in.(waiting,offered)&select=class_id,status`),
+    mhGet(env, `madrasa_attendance?mosque_id=eq.${mosqueId}&session_date=gte.${since}&order=session_date.desc&select=class_id,student_id,status,session_date`),
+    mhGet(env, `madrasa_hifz_progress?mosque_id=eq.${mosqueId}&select=class_id,student_id,surah_number`),
+    mhGet(env, `madrasa_homework?mosque_id=eq.${mosqueId}&select=id,class_id`),
+    mhGet(env, `madrasa_homework_completions?mosque_id=eq.${mosqueId}&select=class_id,student_id`),
+    mhGet(env, `madrasa_rewards?mosque_id=eq.${mosqueId}&select=student_id,type`),
+  ]);
+  const C = Array.isArray(classes) ? classes : [];
+  const E = Array.isArray(enrol) ? enrol : [];
+  const W = Array.isArray(waitlist) ? waitlist : [];
+  const A = Array.isArray(attendance) ? attendance : []; // desc by session_date
+  const H = Array.isArray(hifz) ? hifz : [];
+  const HW = Array.isArray(homework) ? homework : [];
+  const HC = Array.isArray(completions) ? completions : [];
+  const RW = Array.isArray(rewards) ? rewards : [];
+
+  const className = {}; C.forEach((c) => { className[c.id] = c.name; });
+  const nameByStudent = {}; E.forEach((e) => { if (e.student?.name) nameByStudent[e.student_id] = e.student.name; });
+
+  const classAgg = C.map((c) => {
+    const enrolled = E.filter((e) => e.class_id === c.id).length;
+    const att = A.filter((a) => a.class_id === c.id);
+    const present = att.filter((a) => a.status === 'present').length;
+    const byStu = {}; H.filter((h) => h.class_id === c.id).forEach((h) => { byStu[h.student_id] = Math.max(byStu[h.student_id] || 0, h.surah_number || 0); });
+    const surahs = Object.values(byStu);
+    const tasks = HW.filter((h) => h.class_id === c.id).length;
+    const comps = HC.filter((h) => h.class_id === c.id).length;
+    return {
+      class: c.name, subject: c.subject, capacity: c.capacity, enrolled,
+      at_capacity_pct: c.capacity ? Math.round((enrolled / c.capacity) * 100) : null,
+      waitlist: W.filter((w) => w.class_id === c.id).length,
+      attendance_rate_30d: att.length ? Math.round((present / att.length) * 100) : null,
+      hifz_avg_surah: surahs.length ? Math.round(surahs.reduce((a, b) => a + b, 0) / surahs.length) : null,
+      homework_completion_pct: (tasks && enrolled) ? Math.round((comps / (tasks * enrolled)) * 100) : null,
+    };
+  });
+
+  // 3+ leading consecutive absences in the window — COUNT only (no names).
+  const attByKey = {};
+  A.forEach((a) => { const k = `${a.class_id}:${a.student_id}`; (attByKey[k] = attByKey[k] || []).push(a); });
+  let chronic = 0;
+  for (const k of Object.keys(attByKey)) {
+    let streak = 0;
+    for (const r of attByKey[k]) { if (r.status === 'absent') streak++; else break; }
+    if (streak >= 3) chronic++;
+  }
+
+  const starBy = {};
+  RW.filter((r) => ['star', 'merit', 'achievement'].includes(r.type)).forEach((r) => { starBy[r.student_id] = (starBy[r.student_id] || 0) + 1; });
+  const top_stars = Object.entries(starBy).map(([sid, n]) => ({ name: nameByStudent[sid] || 'A student', stars: n })).sort((a, b) => b.stars - a.stars).slice(0, 5);
+
+  // Named per-student rows — CHAT ONLY (never sent with the briefing).
+  const sAgg = {};
+  E.forEach((e) => { sAgg[e.student_id] = { name: nameByStudent[e.student_id] || 'Student', class: className[e.class_id] || '', present: 0, absent: 0, late: 0, last_surah: 0, stars: starBy[e.student_id] || 0, homework_done: 0 }; });
+  A.forEach((a) => { const s = sAgg[a.student_id]; if (s && (a.status === 'present' || a.status === 'absent' || a.status === 'late')) s[a.status]++; });
+  H.forEach((h) => { const s = sAgg[h.student_id]; if (s) s.last_surah = Math.max(s.last_surah, h.surah_number || 0); });
+  HC.forEach((c) => { const s = sAgg[c.student_id]; if (s) s.homework_done++; });
+
+  return {
+    aggregates: { total_classes: C.length, total_enrolled: E.length, total_waitlisted: W.length, chronic_absence_students: chronic, top_stars, classes: classAgg },
+    students: Object.values(sAgg),
+  };
+}
+
+// mode:'madrasa_ops' — owner-JWT madrasa assistant. No question → proactive
+// briefing from AGGREGATES ONLY (no per-student names). With a question → chat
+// over aggregates + the named per-student array (admin already sees these names;
+// data is RLS-scoped to their mosque).
+async function handleMadrasaOps(req, res, body, env) {
+  if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const ctx = await buildMadrasaContext(env, body.mosqueId);
+  const q = (body.question || '').trim();
+  const today = new Date().toISOString().slice(0, 10);
+
+  let system, userMsg;
+  if (q) {
+    system = `You are the madrasa assistant for "${mosque.name}", a UK mosque madrasa. Answer ONLY from the JSON, concisely, in UK English. Today is ${today}. The data has per-class aggregates and a per-student array (name, attendance counts over the last 30 days, latest memorised surah number, stars earned, homework completed). You MAY name individual students. Do not invent students or numbers.`;
+    userMsg = `Data (JSON): ${JSON.stringify(ctx)}\n\nQuestion: ${q}`;
+  } else {
+    system = `You are the madrasa assistant for "${mosque.name}", a UK mosque madrasa. Given per-class AGGREGATE data as JSON, give exactly 3-4 short, specific proactive suggestions (one line each; no preamble, numbering, or markdown) on what the admin should act on. Prioritise: classes at/near capacity with a waiting list (suggest opening a section), low attendance rates, low homework completion, and the count of students with 3+ consecutive absences (you do NOT have their names — refer to the count). You may celebrate top star earners by name. UK English. Today is ${today}.`;
+    userMsg = `Aggregates (JSON): ${JSON.stringify(ctx.aggregates)}`;
+  }
+
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[madrasa-ops] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const out = tb?.text?.trim();
+    if (!out) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json(q ? { ok: true, answer: out } : { ok: true, brief: out });
+  } catch (err) { console.error('[madrasa-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -237,6 +358,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'mosque_ops') {
       return handleMosqueOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'madrasa_ops') {
+      return handleMadrasaOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 
