@@ -2,14 +2,14 @@ import { supabase } from "../supabaseClient";
 
 // Map the raw error codes the wrappers below return into a human-readable,
 // self-diagnosing message. The point is that a prod failure tells you WHY
-// (e.g. a missing server API key) instead of a generic "unavailable", so the
-// cause is visible in the UI without opening the network tab. Shared by the
-// HR + Madrasah assistant panels.
+// (e.g. a missing server API key, or a timeout) instead of a generic
+// "unavailable" or an endless spinner. Shared by the HR + Madrasah panels.
 export function assistantErrorMessage(code) {
   switch (code) {
     case "not_signed_in":      return "Sign in to use the assistant.";
     case "missing_mosqueId":   return "No mosque is linked to this account.";
     case "missing_classId":    return "No class selected.";
+    case "timeout":            return "The assistant timed out after 10s. The server may be waking up or misconfigured — try again.";
     case "server_misconfigured": return "AI isn't configured on the server (missing API key). Check the Vercel environment variables.";
     case "network_exception":  return "Couldn't reach the assistant — check your connection and try again.";
     case "http_401":           return "Session expired (401). Please sign in again.";
@@ -24,99 +24,64 @@ export function assistantErrorMessage(code) {
   }
 }
 
-// Mosque HR assistant — thin client wrapper. The Anthropic call is SERVER-SIDE
-// (folded into /api/admin-brief as mode:'mosque_hr' — the key never reaches the
-// browser). Sends only mosqueId + an optional question + the owner's JWT; the
-// function authorizes ownership and fetches the staff data server-side.
-// Empty question → 3 proactive suggestions. Returns { ok, answer } or
-// { ok:false, error }.
+// Shared POST to /api/admin-brief. The Anthropic call is SERVER-SIDE (the key
+// never reaches the browser); we send the owner's JWT + a mode-specific body.
+// A 10s AbortController timeout guarantees the caller's spinner always resolves
+// — a hung/unreachable function now surfaces { error: "timeout" } instead of
+// spinning forever.
+async function postBrief(body, { timeoutMs = 10000 } = {}) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return { ok: false, error: "not_signed_in" };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch("/api/admin-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok || !parsed?.ok) return { ok: false, error: parsed?.error || `http_${res.status}` };
+      return parsed;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (err) {
+    if (err?.name === "AbortError") return { ok: false, error: "timeout" };
+    console.error("[hrAssistant] postBrief failed", err?.message);
+    return { ok: false, error: "network_exception" };
+  }
+}
+
+// Mosque HR assistant. Empty question → 3 proactive suggestions; otherwise a
+// free-text answer. Returns { ok, answer } or { ok:false, error }.
 export async function askMosqueHr(mosqueId, question = "") {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return { ok: false, error: "not_signed_in" };
-    const res = await fetch("/api/admin-brief", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ mode: "mosque_hr", mosqueId, question }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
-    return body;
-  } catch (err) {
-    console.error("[hrAssistant] askMosqueHr failed", err?.message);
-    return { ok: false, error: "network_exception" };
-  }
+  return postBrief({ mode: "mosque_hr", mosqueId, question });
 }
 
-// Session W — mosque DASHBOARD morning briefing (mode:'mosque_ops'). Same
-// server-side Anthropic call + owner-JWT auth as askMosqueHr; returns a
-// written daily briefing for the admin dashboard. Returns { ok, brief } or
-// { ok:false, error }.
+// Mosque DASHBOARD morning briefing (mode:'mosque_ops'). Returns { ok, brief }.
 export async function getMosqueBriefing(mosqueId) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return { ok: false, error: "not_signed_in" };
-    const res = await fetch("/api/admin-brief", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ mode: "mosque_ops", mosqueId }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
-    return body;
-  } catch (err) {
-    console.error("[hrAssistant] getMosqueBriefing failed", err?.message);
-    return { ok: false, error: "network_exception" };
-  }
+  return postBrief({ mode: "mosque_ops", mosqueId });
 }
 
-// Phase 3D — madrasa assistant (mode:'madrasa_ops', owner-JWT, server-side AI).
-// No question → proactive briefing from aggregates only ({ ok, brief }). With a
-// question → chat over aggregates + named per-student data ({ ok, answer }).
+// Madrasa assistant (mode:'madrasa_ops'). No question → proactive briefing
+// ({ ok, brief }); with a question → chat answer ({ ok, answer }).
 async function postMadrasa(mosqueId, question) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return { ok: false, error: "not_signed_in" };
-    const res = await fetch("/api/admin-brief", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ mode: "madrasa_ops", mosqueId, question }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
-    return body;
-  } catch (err) {
-    console.error("[hrAssistant] postMadrasa failed", err?.message);
-    return { ok: false, error: "network_exception" };
-  }
+  return postBrief({ mode: "madrasa_ops", mosqueId, question });
 }
 export const getMadrasaBriefing = (mosqueId) => postMadrasa(mosqueId, "");
 export const askMadrasa = (mosqueId, question) => postMadrasa(mosqueId, question);
 
-// Fix 3 — generate a parent-friendly AI summary from a report's structured
-// sections (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
+// Parent-friendly AI summary from a report's structured sections
+// (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
 export async function generateReportSummary({ classId, sections, overall, studentName, term }) {
   if (!classId) return { ok: false, error: "missing_classId" };
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return { ok: false, error: "not_signed_in" };
-    const res = await fetch("/api/admin-brief", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ mode: "report_summary", classId, sections, overall, studentName, term }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
-    return body;
-  } catch (err) {
-    console.error("[hrAssistant] generateReportSummary failed", err?.message);
-    return { ok: false, error: "network_exception" };
-  }
+  return postBrief({ mode: "report_summary", classId, sections, overall, studentName, term });
 }
