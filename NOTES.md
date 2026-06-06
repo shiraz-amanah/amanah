@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (6 June 2026): **Madrasa Phase 3C (certificates) built** (Session AG) — 3B (rewards) shipped before it (Session AF). 3C: branded PDF certificates (attendance / Hifz / homework / custom), client-side jsPDF (`src/lib/madrasaCertificate.js`, lazy, A4 landscape), **download-only** (no email — `sendEmail` has no attachment support). Admin via a **Certificates** sub-tab (`MadrasaCertificates.jsx`, data from `buildReportSummary`); parent via a Certificates section in `MadrasaChildProgress` (from already-loaded data). `mosqueName` threaded through `MadrasaClassWorkspace` from both callers. **No migration, no headless smoke** (client-side PDF — browser-verify only). The class workspace is now **10 sub-tabs** (roster/attendance/hifz/rewards/announcements/homework/reports/photos/waitlist/certificates) — crowding flagged for a future grouping pass. **3B recap (Session AF, migration 083 live dev+prod, smoke 10/10):** `madrasa_rewards` (positive star/merit/achievement → parent email; private warning/concern; leaderboard) + `madrasa_reward_email_data` (service-role, positive-only, harvest-guarded) + folded-in 3E `madrasa_export_roster` (owner/admin definer, authz-in-query, parent contact + attendance). Intents now **17**; Vercel 11/12. **Pre-flight facts for 3D/3E:** `students.age` (no `dob`); `profiles.phone` exists; **`MadrasaReports.jsx` is taken** → 3E exports = **`MadrasaReportsCenter.jsx`**; **no papaparse** → native CSV; `admin-brief.js` = fetch + `claude-sonnet-4-6` + `mode` routing → 3D folds in `mode:'madrasa_ops'`. **Pending manual checks (non-blocking):** browser pass of 3C certs (each type) + 3B rewards surfaces + the reward-awarded email send (`delivered@resend.dev`); carried-forward 3A (offer email) + Phase 2 (2b/2C email, 2D storage). **Next (no more migrations):** 3D AI assistant (`madrasa_ops`; **briefing aggregates-only, chat may name** — RLS-scoped) → 3E reports/exports (uses `madrasa_export_roster`; `MadrasaReportsCenter.jsx`; native CSV + jsPDF). Stripe-dependent madrasa items stay parked. Whether 3C commits are pushed yet: **check `git log origin/main..HEAD`** (AF closure + 3C-i/ii + AG closure were pending push at handoff).
+> Last action (6 June 2026): **Madrasa Phase 3D (AI assistant) built** (Session AH) — 3B rewards (AF) + 3C certificates (AG) shipped before it. 3D: collapsible AI assistant on the Madrasa tab, folded into `admin-brief.js` as `mode:'madrasa_ops'` (owner-JWT; no new Vercel function — still **11 api files**). Briefing (no question) = proactive class suggestions from **aggregates only**; chat (question) answers over aggregates + a **named per-student array** — the briefing payload literally omits names (structural PII guard, not just a prompt rule). `buildMadrasaContext` rolls up per class: enrolment/waitlist/capacity %, attendance % (30d), hifz avg surah, homework %, top stars (named), 3+-consecutive-absence count. Client: `hrAssistant.js` `getMadrasaBriefing`/`askMadrasa`; `MadrasaAssistant.jsx` card in `MosqueMadrasa` (collapsed by default). Owner-only (panel lives on the owner Madrasa tab). **No migration, no headless smoke** (AI needs deployed `/api` + `ANTHROPIC_API_KEY` → `vercel dev`/browser check). Model `claude-sonnet-4-6`. **Recap:** 3B = migration **083** (live dev+prod, smoke 10/10): `madrasa_rewards` + positive-only `madrasa_reward_email_data` + folded-in 3E `madrasa_export_roster` (owner/admin definer, authz-in-query, parent contact + attendance). 3C = client-side jsPDF certs (A4 landscape, download-only). Intents **17**; class workspace now **10 sub-tabs** (crowding flagged). **Pre-flight facts for 3E:** `students.age` (no `dob`); `profiles.phone` exists; **`MadrasaReports.jsx` is taken** → use **`MadrasaReportsCenter.jsx`**; **no papaparse** → native CSV; jsPDF lazy; `madrasa_export_roster` is the GDPR/bulk source (admin-only). **Pending manual checks (non-blocking):** browser pass of 3D (briefing names nobody; chat answers), 3C certs, 3B rewards + reward email (`delivered@resend.dev`); carried-forward 3A offer email + Phase 2 (2b/2C email, 2D storage). **Next: 3E reports/exports (LAST phase, no migration)** — `MadrasaReportsCenter.jsx`: class register, attendance/Hifz/homework/rewards/waitlist summaries, GDPR per-student + bulk export; native CSV + jsPDF; GDPR/bulk admin-only. Then Madrasa Phase 3 is complete; Stripe-dependent madrasa items stay parked. Push state: **check `git log origin/main..HEAD`**.
 
 ---
 
@@ -6663,6 +6663,55 @@ PDF (counts, surah name, custom text, branding).
 3D AI assistant (`mode:'madrasa_ops'` in admin-brief; briefing aggregates-only,
 chat may name — RLS-scoped) → 3E reports/exports (`madrasa_export_roster`,
 `MadrasaReportsCenter.jsx`).
+
+---
+
+## Session AH — Madrasa Phase 3D: AI assistant ✅ (6 June 2026)
+
+A collapsible AI assistant on the Madrasa tab — proactive class suggestions +
+free-text Q&A — folded into `admin-brief.js` as `mode:'madrasa_ops'` (no new
+Vercel function). No migration.
+
+### Shipped (by commit)
+- **3D-i context builder** (`91c0f58`). `admin-brief.js` gains `madrasa_ops`
+  (owner-JWT, same auth as `mosque_ops`). `buildMadrasaContext` returns
+  `{ aggregates, students }`: per-class enrolment / waitlist / capacity %,
+  attendance % (30d), hifz avg surah, homework %, top stars (names — positive
+  recognition), and a 3+-consecutive-absence **count**; plus a named per-student
+  array. **PII boundary enforced structurally:** the briefing (no question) sends
+  **`aggregates` only** — the named `students` array is never included, so names
+  can't leak via the prompt; chat (with a question) sends aggregates + students
+  (admin already sees these names; data is RLS/owner-scoped). `hrAssistant.js`:
+  `getMadrasaBriefing` + `askMadrasa`.
+- **3D-ii panel** (`7292523`). `MadrasaAssistant.jsx` — collapsible emerald card
+  at the top of `MosqueMadrasa` (collapsed by default), proactive suggestions on
+  first open ("Reviewing your classes…") + a chat input. Mirrors
+  `MosqueHRAssistant`.
+
+### Verified
+Build clean; `admin-brief.js` syntax-checked; still **11 api files**. **No headless
+smoke** — the AI call needs the deployed `/api` + `ANTHROPIC_API_KEY`, so it's a
+`vercel dev`/browser check: briefing loads with real class data, chat answers
+("who hasn't attended this month?", "lowest attendance?", "most stars?"), and the
+**briefing names no individual student** (aggregates-only — the structural guard).
+Pending. Model stays `claude-sonnet-4-6`.
+
+### Design decisions
+- **Owner-only** — the panel sits on the owner's Madrasa tab (`MosqueMadrasa`),
+  and `madrasa_ops` checks `mosques.user_id = caller`. The brief's "teacher/admin"
+  is owner-scoped here (same as `mosque_ops`/`mosque_hr`); teacher access via the
+  staff portal is out of scope.
+- **Structural PII boundary** (not just prompt instruction): briefing payload
+  literally omits the names array — defense in depth for "no PII in the briefing".
+- **Aggregates approximations:** homework % = completions / (tasks × enrolled);
+  hifz avg = mean of each student's max surah; consecutive-absence = leading
+  absent streak in the 30d window (count only).
+
+### Next
+3E reports/exports — `MadrasaReportsCenter.jsx` (class register, attendance/Hifz/
+homework/rewards/waitlist summaries, GDPR per-student + bulk export via
+`madrasa_export_roster`); native CSV (no papaparse) + jsPDF (lazy). Admin-only for
+GDPR/bulk.
 
 ---
 
