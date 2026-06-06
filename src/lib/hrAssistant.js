@@ -74,3 +74,25 @@ async function postMadrasa(mosqueId, question) {
 }
 export const getMadrasaBriefing = (mosqueId) => postMadrasa(mosqueId, "");
 export const askMadrasa = (mosqueId, question) => postMadrasa(mosqueId, question);
+
+// Fix 3 — generate a parent-friendly AI summary from a report's structured
+// sections (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
+export async function generateReportSummary({ classId, sections, overall, studentName, term }) {
+  if (!classId) return { ok: false, error: "missing_classId" };
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return { ok: false, error: "not_signed_in" };
+    const res = await fetch("/api/admin-brief", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ mode: "report_summary", classId, sections, overall, studentName, term }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
+    return body;
+  } catch (err) {
+    console.error("[hrAssistant] generateReportSummary failed", err?.message);
+    return { ok: false, error: "network_exception" };
+  }
+}

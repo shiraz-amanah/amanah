@@ -330,6 +330,53 @@ async function handleMadrasaOps(req, res, body, env) {
   } catch (err) { console.error('[madrasa-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Fix 3 — mode:'report_summary'. Teacher/owner-authed (a teacher writes reports,
+// so unlike the owner-only modes this also accepts the class teacher). Turns the
+// structured section ratings + notes into a short parent-friendly summary. The
+// summary text is passed in (no DB read needed beyond the authz class lookup).
+async function handleReportSummary(req, res, body, env) {
+  if (!body.classId) return res.status(400).json({ ok: false, error: 'invalid_classId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const crows = await mhGet(env, `madrasa_classes?id=eq.${body.classId}&select=mosque_id,teacher_staff_id`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  if (!cls) return res.status(404).json({ ok: false, error: 'class_not_found' });
+  const mrows = await mhGet(env, `mosques?id=eq.${cls.mosque_id}&select=user_id`);
+  const ownsMosque = Array.isArray(mrows) && mrows[0]?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls.teacher_staff_id) {
+    const srows = await mhGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const child = (body.studentName || 'The student').toString().slice(0, 80);
+  const sections = (body.sections && typeof body.sections === 'object') ? body.sections : {};
+  const lines = Object.entries(sections).map(([k, v]) => `${k}: ${v?.rating || '—'}${v?.comment ? ` (${v.comment})` : ''}`).join('; ');
+  const system = `You are a UK madrasah teacher writing a short, warm, parent-friendly progress summary for a child. UK English, 2-3 sentences, refer to the child by name. Base it ONLY on the ratings and notes provided — do not invent facts or numbers. No greeting, no sign-off, no markdown; output the summary paragraph only.`;
+  const userMsg = `Child: ${child}\nTerm: ${(body.term || '').toString().slice(0, 40)}\nSection ratings/notes: ${lines || '(none)'}\nTeacher's overall note: ${(body.overall || '').toString().slice(0, 500)}`;
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 300, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[report-summary] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const summary = tb?.text?.trim();
+    if (!summary) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json({ ok: true, summary });
+  } catch (err) { console.error('[report-summary] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -361,6 +408,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'madrasa_ops') {
       return handleMadrasaOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'report_summary') {
+      return handleReportSummary(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 

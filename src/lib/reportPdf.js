@@ -3,6 +3,7 @@
 // DB row the parent already sees). surahName is reused for the Hifz line.
 import { jsPDF } from "jspdf";
 import { surahName } from "../data/surahs";
+import { parseReportComment, REPORT_SECTIONS } from "./madrasaReport";
 
 const EMERALD = [5, 150, 105];
 const INK = [17, 24, 39];
@@ -68,12 +69,20 @@ export function downloadReportPdf({ report, studentName, className, mosqueName }
   line(`Completed ${hw.completed || 0} of ${hw.assigned || 0} tasks${hw.assigned ? ` (${Math.round(((hw.completed || 0) / hw.assigned) * 100)}%)` : ""}`);
   y += 12;
 
-  // Teacher comment
-  if (report.teacher_comment) {
-    section("Teacher's comment");
-    line(report.teacher_comment);
+  // Assessment sections + summary + overall comment (Fix 3 structured report;
+  // legacy plain-text reports fall back to a single overall comment).
+  const parsed = parseReportComment(report.teacher_comment);
+  if (Object.values(parsed.sections).some((v) => v && (v.rating || v.comment))) {
+    section("Assessment");
+    for (const sec of REPORT_SECTIONS) {
+      const v = parsed.sections[sec.key];
+      if (!v || (!v.rating && !v.comment)) continue;
+      line(`${sec.label}: ${v.rating || "—"}${v.comment ? ` — ${v.comment}` : ""}`);
+    }
     y += 12;
   }
+  if (parsed.ai_summary) { section("Summary"); line(parsed.ai_summary); y += 12; }
+  if (parsed.overall) { section("Teacher's comment"); line(parsed.overall); y += 12; }
 
   // Footer
   const footY = doc.internal.pageSize.getHeight() - 48;
