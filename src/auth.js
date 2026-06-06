@@ -736,6 +736,80 @@ export async function withdrawEnrollment(id) {
   return { data, error }
 }
 
+// --- Madrasa waiting list (migration 081) ---
+// Join a child to a class waitlist. The partial-unique index allows only one LIVE
+// (waiting/offered) row per (class, student) — a 23505 means they're already on
+// it; a terminal row (declined/expired/cancelled) coexists as history, so a fresh
+// insert succeeds and the BEFORE INSERT trigger assigns the position (append). RLS
+// forces status='waiting' and mosque_id to match the class.
+export async function joinWaitlist({ classId, studentId, mosqueId }) {
+  if (!classId || !studentId || !mosqueId) return { error: { message: 'classId, studentId and mosqueId required' } }
+  const { data, error } = await supabase
+    .from('madrasa_waitlist').insert({ class_id: classId, student_id: studentId, mosque_id: mosqueId, status: 'waiting' }).select().single()
+  if (error && error.code === '23505') return { error: { message: 'This child is already on the waiting list for that class.' } }
+  return { data, error }
+}
+
+// The signed-in parent's LIVE waitlist rows (own children only, via RLS), joined
+// to class + mosque + student for the family dashboard. waiting → show position;
+// offered → show Accept/Decline + the 48h countdown (offer_expires_at).
+export async function getMyWaitlist() {
+  const { data, error } = await supabase
+    .from('madrasa_waitlist')
+    .select('*, student:students(id, name), class:madrasa_classes(name, subject, schedule, mosque:mosques(id, name))')
+    .in('status', ['waiting', 'offered'])
+    .order('created_at', { ascending: true })
+  if (error) { console.error('Error fetching my waitlist:', error); return [] }
+  return data || []
+}
+
+// A class's live waitlist (admin/teacher), in admin-controlled position order.
+export async function getClassWaitlist(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_waitlist')
+    .select('*, student:students(id, name)')
+    .eq('class_id', classId)
+    .in('status', ['waiting', 'offered'])
+    .order('position', { ascending: true })
+  if (error) { console.error('Error fetching class waitlist:', error); return [] }
+  return data || []
+}
+
+// Admin reorder — set a waitlist row's position (RLS: owner/admin only).
+export async function reorderWaitlist(id, position) {
+  if (!id || position == null) return { error: { message: 'id and position required' } }
+  const { data, error } = await supabase
+    .from('madrasa_waitlist').update({ position }).eq('id', id).select().single()
+  return { data, error }
+}
+
+// Parent leaves the waitlist (status → cancelled; RLS permits waiting/cancelled/declined).
+export async function cancelWaitlist(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('madrasa_waitlist').update({ status: 'cancelled' }).eq('id', id).select().single()
+  return { data, error }
+}
+
+// Parent declines an offer (status → declined). Frees the seat for the next offer.
+export async function declineWaitlistOffer(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase
+    .from('madrasa_waitlist').update({ status: 'declined' }).eq('id', id).select().single()
+  return { data, error }
+}
+
+// Parent accepts an offer. The SECURITY DEFINER RPC checks ownership + 48h
+// freshness, then creates/reactivates the enrolment and marks the row 'enrolled'.
+// Returns { data: <enrolment id>, error } — error.message is 'offer is not open'
+// for a lapsed/withdrawn offer or 'not authorised' for the wrong parent.
+export async function acceptWaitlistOffer(waitlistId) {
+  if (!waitlistId) return { error: { message: 'waitlistId required' } }
+  const { data, error } = await supabase.rpc('madrasa_waitlist_accept', { p_waitlist_id: waitlistId })
+  return { data, error }
+}
+
 // Classes a staff member teaches (active), for the teacher portal "My Classes".
 export async function getMyTeacherClasses(staffId) {
   if (!staffId) return []

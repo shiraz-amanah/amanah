@@ -124,6 +124,16 @@ export function sendMadrasaReportPublished(reportId) {
   return postTransactional({ intent: 'madrasa_report_published', reportId });
 }
 
+// Madrasa Phase 3A — offer the next waitlisted child a freed seat. Admin/teacher-
+// initiated ("Offer next seat"): the server reaps stale offers, makes the next
+// 48h offer for this class via madrasa_waitlist_make_next_offer, and emails the
+// resolved parent. Returns { ok, sent } — sent:0 means no free seat / empty
+// queue. Fire-and-forget from the panel.
+export function sendMadrasaWaitlistOffer(classId) {
+  if (!classId) return Promise.resolve({ ok: false, error: 'missing_classId' });
+  return postTransactional({ intent: 'madrasa_waitlist_offer', classId });
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. The staffer is unauthenticated (no session), so this posts
 // WITHOUT a token; the server constrains the send to a real, just-completed
