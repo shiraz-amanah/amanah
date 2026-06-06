@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock, Key, SlidersHorizontal, FileCheck, Briefcase } from "lucide-react";
+import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock, Key, SlidersHorizontal, FileCheck, Briefcase, ChevronRight } from "lucide-react";
 import MosqueHR from "./MosqueHR";
 import { sendDbsReminderEmail } from "../lib/email";
 import MosqueBulkImport from "./MosqueBulkImport";
@@ -18,6 +18,7 @@ const ACCESS_LEVELS = [
 ];
 import { uploadMosqueStaffPhoto } from "../lib/storage";
 import MosqueStaffWizard from "./MosqueStaffWizard";
+import MosqueStaffRecord from "./MosqueStaffRecord";
 
 // Mosque dashboard → Staff tab hub (Session U Day 2). Segmented: Team (permanent
 // + current temporary), History (ended cover, filter + CSV), Rota, Find
@@ -62,6 +63,7 @@ const SECTIONS = [
 
 const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const [section, setSection] = useState("team");
+  const [selectedStaffId, setSelectedStaffId] = useState(null);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -224,6 +226,10 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   };
 
   const archive = async (s) => { const { error: e } = await updateMosqueStaff(s.id, { archived: true }); if (e) setError(e.message); else refresh(); };
+  // From the single-person record: archive then return to the team list.
+  const archiveAndBack = async (s) => { await archive(s); setSelectedStaffId(null); };
+  // Open the record's inline edit form: close the record, ensure Team section.
+  const editFromRecord = (s) => { setSelectedStaffId(null); setSection("team"); openEdit(s); };
 
   const invite = async (s) => {
     // Friendly validation: a staff record with no email can't be invited.
@@ -250,10 +256,22 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
     URL.revokeObjectURL(url);
   };
 
+  // Clicking a row opens that person's single-page HR record (all sections +
+  // actions). The list itself stays a clean directory: avatar, name, role, an
+  // at-a-glance DBS badge and a portal-status pill.
   const StaffRow = ({ s, temp }) => {
     const d = effectiveDbs(s); const badge = DBS_BADGE[d] || DBS_BADGE.not_checked;
+    const statusPill = s.invite_status === "active"
+      ? { cls: "bg-emerald-50 border-emerald-200 text-emerald-700", label: "App active" }
+      : s.invite_status === "invited"
+      ? { cls: "bg-stone-50 border-stone-200 text-stone-500", label: "Invited" }
+      : s.wizard_status === "completed"
+      ? { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "Review pending" }
+      : s.wizard_token
+      ? { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "Onboarding sent" }
+      : { cls: "bg-stone-50 border-stone-200 text-stone-500", label: "Not invited" };
     return (
-      <div className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3">
+      <button onClick={() => setSelectedStaffId(s.id)} className="w-full text-left flex items-center gap-3 bg-white border border-stone-200 hover:border-emerald-300 hover:shadow-sm transition-all rounded-xl p-3">
         <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
           {s.photo_url ? <img src={s.photo_url} alt="" className="w-full h-full object-cover" /> : initials(s.name)}
         </div>
@@ -263,38 +281,18 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
           </p>
           <p className="text-xs text-stone-500 truncate">{s.role}{temp && s.end_date ? ` · until ${s.end_date}` : ""}{temp && s.cover_reason ? ` · ${s.cover_reason}` : ""}</p>
         </div>
-        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.cls} inline-flex items-center gap-1`}><ShieldCheck size={10} /> {badge.label}</span>
-        {s.invite_status === "active" ? (
-            <>
-              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">App active</span>
-              <button onClick={() => openDetails(s)} title="View details" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Eye size={10} /> Details</button>
-              <button onClick={() => openAccess(s)} title="Edit portal access" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><SlidersHorizontal size={10} /> Access</button>
-              <button onClick={() => setResetStaff(s)} title="Send password reset" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Key size={10} /> Reset</button>
-            </>
-          )
-          : s.invite_status === "invited" ? (
-            <>
-              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-stone-50 border-stone-200 text-stone-500">Invited</span>
-              <button onClick={() => openDetails(s)} title="View details" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Eye size={10} /> Details</button>
-              <button onClick={() => openAccess(s)} title="Edit portal access" className="text-[11px] px-2 py-1 rounded-full border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><SlidersHorizontal size={10} /> Access</button>
-            </>
-          )
-          : s.wizard_status === "completed" ? (
-            <>
-              <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700">Review pending</span>
-              <button onClick={() => openReview(s)} className="text-[11px] px-2 py-1 rounded-full border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1"><Eye size={10} /> Review &amp; approve</button>
-            </>
-          )
-          : s.wizard_token ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700">Onboarding sent</span>
-          : <button onClick={() => invite(s)} disabled={inviteBusy === s.id} className="text-[11px] px-2 py-1 rounded-full border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1 disabled:opacity-60">{inviteBusy === s.id ? <Loader2 size={10} className="animate-spin" /> : <UserPlus size={10} />} Invite</button>}
-        <button onClick={() => openEdit(s)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
-        <button onClick={() => archive(s)} title="Archive (keeps records, off public profile)" className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
-      </div>
+        <span className={`hidden sm:inline-flex text-[11px] px-2 py-0.5 rounded-full border ${badge.cls} items-center gap-1`}><ShieldCheck size={10} /> {badge.label}</span>
+        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${statusPill.cls}`}>{statusPill.label}</span>
+        <ChevronRight size={16} className="text-stone-300 shrink-0" />
+      </button>
     );
   };
 
   // Read-only review value helper.
   const rv = (v) => (v === null || v === undefined || v === "" ? "—" : v);
+
+  // Live object for the open record (re-renders after refresh() updates staff).
+  const selectedStaff = staff.find((s) => s.id === selectedStaffId) || null;
 
   return (
     <div className="space-y-4">
@@ -385,6 +383,21 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
         </div>
       )}
 
+      {selectedStaff ? (
+        <MosqueStaffRecord
+          staff={selectedStaff}
+          mosqueId={mosqueId}
+          onBack={() => setSelectedStaffId(null)}
+          onEdit={editFromRecord}
+          onReview={openReview}
+          onAccess={openAccess}
+          onReset={setResetStaff}
+          onInvite={invite}
+          onArchive={archiveAndBack}
+          inviteBusy={inviteBusy}
+        />
+      ) : (
+      <>
       <MosqueHRAssistant mosqueId={mosqueId} />
 
       {/* Segmented control */}
@@ -455,8 +468,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
           {!showForm && !showWizard && (
             <div className="flex gap-2 flex-wrap">
               <button onClick={openWizardChoice} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Onboard staff</button>
-              <button onClick={() => openAdd("permanent")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Quick add</button>
-              <button onClick={() => openAdd("temporary")} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add temporary cover</button>
               <button onClick={() => setShowImport((v) => !v)} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Import staff</button>
             </div>
           )}
@@ -546,6 +557,8 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
 
       {(section === "dbs" || section === "rtw" || section === "employment") && (
         <MosqueHR embeddedSub={section} mosqueId={mosqueId} mosque={mosque} />
+      )}
+      </>
       )}
     </div>
   );

@@ -1,0 +1,263 @@
+import { useState, useEffect } from "react";
+import {
+  Loader2, ChevronLeft, ShieldCheck, FileCheck, Briefcase, User, FileText,
+  CalendarDays, Clock, Pencil, Archive, UserPlus, Eye, SlidersHorizontal, Key,
+  ExternalLink, Mail, Phone,
+} from "lucide-react";
+import { getMosqueStaffEmployment, getMosqueDocuments, getMosqueTimesheets, getMosqueRota } from "../auth";
+import { getSignedDocUrl } from "../lib/storage";
+
+// People → Team → single-person HR record. One scrollable page consolidating
+// everything about a staff member: personal details, employment, DBS, Right to
+// Work, this week's rota, recent timesheets and their documents. Adding staff is
+// wizard-only now; this record is the per-person hub for view + the existing
+// approve/invite/access/reset/edit/archive actions (delegated to the directory
+// via callbacks so the proven modal flows are reused).
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const in30Str = () => new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+const mondayOf = (iso) => { const d = new Date(iso + "T00:00:00"); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d.toISOString().slice(0, 10); };
+const initials = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
+const effectiveDbs = (s) => {
+  if (s.dbs_status === "verified" && s.dbs_expiry_date) {
+    if (s.dbs_expiry_date < todayStr()) return "expired";
+    if (s.dbs_expiry_date <= in30Str()) return "expiring_soon";
+  }
+  return s.dbs_status;
+};
+const DBS_BADGE = {
+  verified: { cls: "bg-emerald-50 border-emerald-200 text-emerald-700", label: "DBS verified" },
+  pending: { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "DBS pending" },
+  expiring_soon: { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "DBS expiring soon" },
+  not_checked: { cls: "bg-rose-50 border-rose-200 text-rose-700", label: "No DBS" },
+  expired: { cls: "bg-rose-50 border-rose-200 text-rose-700", label: "DBS expired" },
+};
+const HDAYS = [["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"], ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"]];
+const weekTotal = (h) => HDAYS.reduce((t, [k]) => t + (Number(h?.[k]) || 0), 0);
+const RDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const RSLOTS = { fajr: "Fajr", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha", jumuah: "Jumu'ah", classes: "Classes" };
+const TS_STATUS = {
+  draft: "bg-stone-50 border-stone-200 text-stone-500",
+  submitted: "bg-amber-50 border-amber-200 text-amber-700",
+  approved: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  rejected: "bg-rose-50 border-rose-200 text-rose-700",
+};
+
+const rv = (v) => (v === null || v === undefined || v === "" ? "—" : v);
+
+const Section = ({ title, icon: Icon, children }) => (
+  <div className="bg-white border border-stone-200 rounded-2xl p-5">
+    <h3 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5">{Icon && <Icon size={15} className="text-stone-500" />} {title}</h3>
+    {children}
+  </div>
+);
+const Rows = ({ rows }) => (
+  <div className="space-y-1 text-sm">
+    {rows.map(([k, v]) => (
+      <div key={k} className="flex items-start justify-between gap-3 border-b border-stone-100 py-1.5 last:border-0">
+        <span className="text-[11px] uppercase tracking-wider text-stone-500 font-medium shrink-0">{k}</span>
+        <span className="text-stone-900 text-right break-words">{v}</span>
+      </div>
+    ))}
+  </div>
+);
+
+const MosqueStaffRecord = ({ staff, mosqueId, onBack, onEdit, onReview, onAccess, onReset, onInvite, onArchive, inviteBusy }) => {
+  const [emp, setEmp] = useState(null);
+  const [docs, setDocs] = useState([]);
+  const [timesheets, setTimesheets] = useState([]);
+  const [rota, setRota] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [opening, setOpening] = useState(null);
+
+  useEffect(() => {
+    if (!staff?.id) return;
+    let alive = true; setLoading(true);
+    Promise.all([
+      getMosqueStaffEmployment(staff.id),
+      getMosqueDocuments(mosqueId),
+      getMosqueTimesheets(mosqueId),
+      getMosqueRota(mosqueId, mondayOf(todayStr())),
+    ])
+      .then(([e, d, t, r]) => {
+        if (!alive) return;
+        setEmp(e || {});
+        setDocs((d || []).filter((x) => x.staff_id === staff.id));
+        setTimesheets((t || []).filter((x) => x.staff_id === staff.id).slice(0, 6));
+        setRota(r?.slots || {});
+      })
+      .catch((err) => console.error("staff record load failed:", err))
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [staff?.id, mosqueId]);
+
+  const open = async (d) => {
+    if (!d.file_path) return;
+    setOpening(d.id);
+    try { const url = await getSignedDocUrl(d.file_path); if (url) window.open(url, "_blank", "noopener,noreferrer"); }
+    catch (e) { console.error("open doc failed:", e); }
+    finally { setOpening(null); }
+  };
+
+  const d = effectiveDbs(staff); const badge = DBS_BADGE[d] || DBS_BADGE.not_checked;
+  const temp = staff.staff_type === "temporary";
+  const e = emp || {};
+  const rtwNA = e.rtw_check_type === "not_required";
+  const dbsNA = e.dbs_check_type === "not_required";
+
+  // This week's rota slots assigned to this person.
+  const myShifts = [];
+  RDAYS.forEach((day) => {
+    const slots = rota[day] || {};
+    Object.entries(slots).forEach(([slot, id]) => { if (id === staff.id) myShifts.push({ day, slot }); });
+  });
+
+  return (
+    <div className="space-y-4">
+      <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5"><ChevronLeft size={15} /> Back to team</button>
+
+      {/* Header */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-5">
+        <div className="flex items-start gap-4 flex-wrap">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-lg font-semibold overflow-hidden shrink-0">
+            {staff.photo_url ? <img src={staff.photo_url} alt="" className="w-full h-full object-cover" /> : initials(staff.name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl md:text-2xl font-semibold text-stone-900 tracking-tight flex items-center gap-2 flex-wrap" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+              {staff.name}
+              {temp && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-sans">Visiting</span>}
+            </h2>
+            <p className="text-sm text-stone-600">{staff.role}{temp && staff.end_date ? ` · until ${staff.end_date}` : ""}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className={`text-[11px] px-2 py-0.5 rounded-full border ${badge.cls} inline-flex items-center gap-1`}><ShieldCheck size={10} /> {badge.label}</span>
+              {staff.invite_status === "active" && <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700">App active</span>}
+              {staff.invite_status === "invited" && <span className="text-[11px] px-2 py-0.5 rounded-full border bg-stone-50 border-stone-200 text-stone-500">Invited</span>}
+              {staff.wizard_status === "completed" && staff.invite_status === "not_invited" && <span className="text-[11px] px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700">Review pending</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap mt-4 pt-4 border-t border-stone-100">
+          {staff.wizard_status === "completed" && staff.invite_status === "not_invited" && (
+            <button onClick={() => onReview?.(staff)} className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1.5"><Eye size={12} /> Review &amp; approve</button>
+          )}
+          {staff.invite_status === "not_invited" && !staff.wizard_status && !staff.wizard_token && (
+            <button onClick={() => onInvite?.(staff)} disabled={inviteBusy === staff.id} className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1.5 disabled:opacity-60">{inviteBusy === staff.id ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />} Invite to portal</button>
+          )}
+          {(staff.invite_status === "active" || staff.invite_status === "invited") && (
+            <button onClick={() => onAccess?.(staff)} className="text-[12px] px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 inline-flex items-center gap-1.5"><SlidersHorizontal size={12} /> Portal access</button>
+          )}
+          {staff.invite_status === "active" && (
+            <button onClick={() => onReset?.(staff)} className="text-[12px] px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 inline-flex items-center gap-1.5"><Key size={12} /> Reset password</button>
+          )}
+          <button onClick={() => onEdit?.(staff)} className="text-[12px] px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 inline-flex items-center gap-1.5"><Pencil size={12} /> Edit details</button>
+          <button onClick={() => onArchive?.(staff)} className="text-[12px] px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 inline-flex items-center gap-1.5 ml-auto"><Archive size={12} /> Archive</button>
+        </div>
+      </div>
+
+      {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (
+        <div className="grid md:grid-cols-2 gap-4">
+          <Section title="Personal details" icon={User}>
+            <Rows rows={[
+              ["Email", staff.email ? <span className="inline-flex items-center gap-1"><Mail size={12} /> {staff.email}</span> : "—"],
+              ["Phone", staff.phone ? <span className="inline-flex items-center gap-1"><Phone size={12} /> {staff.phone}</span> : "—"],
+              ["Date of birth", rv(e.dob)],
+              ["NI number", rv(e.ni_number)],
+              ["Address", rv(e.address)],
+              ["Emergency contact", `${rv(e.emergency_contact_name)}${e.emergency_contact_phone ? ` · ${e.emergency_contact_phone}` : ""}`],
+            ]} />
+          </Section>
+
+          <Section title="Employment" icon={Briefcase}>
+            <Rows rows={[
+              ["Type", temp ? "Temporary cover" : "Permanent"],
+              ["Start date", rv(staff.start_date)],
+              ["Contract", rv(e.contract_type)],
+              ["Hours / week", e.hours_per_week ? `${e.hours_per_week} hrs` : "—"],
+              ["Salary / rate", rv(e.salary_rate)],
+              ["P46 / student loan", `${rv(e.p46_statement)}${e.student_loan ? ` · loan plan ${e.student_loan_plan || "?"}` : ""}`],
+              ["Bank", e.bank_account_number ? `${rv(e.bank_account_name)} · ${e.bank_sort_code || ""} ${e.bank_account_number}` : "—"],
+            ]} />
+          </Section>
+
+          <Section title="DBS" icon={ShieldCheck}>
+            {dbsNA ? <p className="text-sm text-stone-500">Not required for this role.</p> : <Rows rows={[
+              ["Status", rv(staff.dbs_status)],
+              ["Check type", rv(e.dbs_check_type)],
+              ["Workforce", rv(e.dbs_workforce_type)],
+              ["Certificate #", rv(e.dbs_certificate_number || staff.dbs_certificate)],
+              ["uCheck ref", rv(e.dbs_ucheck_reference)],
+              ["Issued", rv(staff.dbs_issue_date)],
+              ["Expires", rv(staff.dbs_expiry_date)],
+            ]} />}
+          </Section>
+
+          <Section title="Right to Work" icon={FileCheck}>
+            {rtwNA ? <p className="text-sm text-stone-500">Not required for this role.</p> : <Rows rows={[
+              ["Check type", rv(e.rtw_check_type)],
+              ["Document", rv(e.rtw_document_type)],
+              ["Document #", rv(e.rtw_document_number)],
+              ["Share code", rv(e.rtw_share_code)],
+              ["Checked", rv(e.rtw_check_date)],
+              ["Expires", rv(e.rtw_expiry_date)],
+            ]} />}
+          </Section>
+
+          <Section title="This week's rota" icon={CalendarDays}>
+            {myShifts.length === 0 ? <p className="text-sm text-stone-500">No shifts assigned this week.</p> : (
+              <ul className="space-y-1.5 text-sm">
+                {myShifts.map(({ day, slot }, i) => (
+                  <li key={i} className="flex items-center justify-between border-b border-stone-100 py-1.5 last:border-0">
+                    <span className="capitalize text-stone-700">{day}</span>
+                    <span className="font-medium text-stone-900">{RSLOTS[slot] || slot}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <Section title="Recent timesheets" icon={Clock}>
+            {timesheets.length === 0 ? <p className="text-sm text-stone-500">No timesheets logged yet.</p> : (
+              <ul className="space-y-1.5 text-sm">
+                {timesheets.map((t) => (
+                  <li key={t.id} className="flex items-center justify-between gap-2 border-b border-stone-100 py-1.5 last:border-0">
+                    <span className="text-stone-700">w/c {t.week_start}</span>
+                    <span className="text-stone-900 font-medium">{weekTotal(t.hours)} h</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${TS_STATUS[t.status] || TS_STATUS.draft}`}>{t.status || "draft"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <div className="md:col-span-2">
+            <Section title="Documents" icon={FileText}>
+              {docs.length === 0 ? <p className="text-sm text-stone-500">No documents attached. DBS / RTW files attached during onboarding appear here.</p> : (
+                <ul className="divide-y divide-stone-100">
+                  {docs.map((doc) => (
+                    <li key={doc.id} className="py-2 flex items-center gap-3 text-sm">
+                      <FileText size={15} className="text-stone-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-stone-800 truncate">{doc.label || doc.category || "Document"}</p>
+                        {doc.expiry_date && <p className="text-xs text-stone-500">Expires {doc.expiry_date}</p>}
+                      </div>
+                      {doc.file_path && (
+                        <button onClick={() => open(doc)} disabled={opening === doc.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1.5">
+                          {opening === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />} View
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MosqueStaffRecord;
