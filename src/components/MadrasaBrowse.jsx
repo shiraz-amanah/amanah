@@ -89,7 +89,7 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
         <div className="max-w-4xl mx-auto px-5 md:px-6 py-3.5 flex items-center gap-3">
           <button onClick={onBack} className="text-stone-500 hover:text-stone-900"><ArrowLeft size={18} /></button>
           <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
-          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasa classes</h1>
+          <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah classes</h1>
         </div>
       </header>
 

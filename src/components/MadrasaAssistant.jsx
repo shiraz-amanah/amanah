@@ -39,7 +39,7 @@ const MadrasaAssistant = ({ mosqueId }) => {
   return (
     <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl overflow-hidden mb-4">
       <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left">
-        <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900"><Sparkles size={16} /> Madrasa assistant</span>
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900"><Sparkles size={16} /> Madrasah assistant</span>
         {open ? <ChevronUp size={16} className="text-emerald-700" /> : <ChevronDown size={16} className="text-emerald-700" />}
       </button>
 

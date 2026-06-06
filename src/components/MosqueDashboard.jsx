@@ -75,7 +75,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
     { v: "rota", l: "Rota", icon: CalendarDays },
     { v: "safeguarding", l: "Safeguarding", icon: ShieldAlert },
     { v: "compliance", l: "Compliance", icon: ClipboardCheck },
-    { v: "madrasa", l: "Madrasa", icon: GraduationCap },
+    { v: "madrasa", l: "Madrasah", icon: GraduationCap },
     { v: "donations", l: "Donations", icon: HandCoins },
     { v: "messages", l: "Messages", icon: MessageCircle },
     { v: "account", l: "Account", icon: User },

@@ -308,10 +308,10 @@ async function handleMadrasaOps(req, res, body, env) {
 
   let system, userMsg;
   if (q) {
-    system = `You are the madrasa assistant for "${mosque.name}", a UK mosque madrasa. Answer ONLY from the JSON, concisely, in UK English. Today is ${today}. The data has per-class aggregates and a per-student array (name, attendance counts over the last 30 days, latest memorised surah number, stars earned, homework completed). You MAY name individual students. Do not invent students or numbers.`;
+    system = `You are the madrasah assistant for "${mosque.name}", a UK mosque madrasah. Answer ONLY from the JSON, concisely, in UK English. Today is ${today}. The data has per-class aggregates and a per-student array (name, attendance counts over the last 30 days, latest memorised surah number, stars earned, homework completed). You MAY name individual students. Do not invent students or numbers.`;
     userMsg = `Data (JSON): ${JSON.stringify(ctx)}\n\nQuestion: ${q}`;
   } else {
-    system = `You are the madrasa assistant for "${mosque.name}", a UK mosque madrasa. Given per-class AGGREGATE data as JSON, give exactly 3-4 short, specific proactive suggestions (one line each; no preamble, numbering, or markdown) on what the admin should act on. Prioritise: classes at/near capacity with a waiting list (suggest opening a section), low attendance rates, low homework completion, and the count of students with 3+ consecutive absences (you do NOT have their names — refer to the count). You may celebrate top star earners by name. UK English. Today is ${today}.`;
+    system = `You are the madrasah assistant for "${mosque.name}", a UK mosque madrasah. Given per-class AGGREGATE data as JSON, give exactly 3-4 short, specific proactive suggestions (one line each; no preamble, numbering, or markdown) on what the admin should act on. Prioritise: classes at/near capacity with a waiting list (suggest opening a section), low attendance rates, low homework completion, and the count of students with 3+ consecutive absences (you do NOT have their names — refer to the count). You may celebrate top star earners by name. UK English. Today is ${today}.`;
     userMsg = `Aggregates (JSON): ${JSON.stringify(ctx.aggregates)}`;
   }
 

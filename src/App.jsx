@@ -7878,7 +7878,7 @@ setBookings(transformed);
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
           {[
             { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
-            { v: "madrasa", l: "Madrasa", i: GraduationCap, badge: null },
+            { v: "madrasa", l: "Madrasah", i: GraduationCap, badge: null },
             { v: "donations", l: "My giving", i: HandCoins, badge: null },
             { v: "saved", l: "My scholars", i: Heart, badge: savedScholars.length },
             { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosqueIds?.size || 0 },

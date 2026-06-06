@@ -107,7 +107,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
     <div>
       <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasa</h2>
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
           <p className="text-sm text-stone-600">Your classes, teachers and rosters.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         : classes.length === 0 && !showForm ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
             <GraduationCap className="mx-auto text-stone-300 mb-3" size={36} />
-            <p className="text-stone-600 text-sm max-w-md mx-auto">No classes yet. Create your first class to start building your madrasa.</p>
+            <p className="text-stone-600 text-sm max-w-md mx-auto">No classes yet. Create your first class to start building your madrasah.</p>
           </div>
         ) : (
           <div className="space-y-2">

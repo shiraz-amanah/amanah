@@ -898,12 +898,12 @@ async function handleMadrasaAbsence(env, caller, classId, sessionDate) {
     // Parent email (skip if they opted out of email or have no address).
     if (r.parent_email && r.parent_email_opt_in !== false) {
       const streakLine = streak >= 3
-        ? ePara(`This is <strong>${escapeHtml(String(streak))} absences in a row</strong>. If there's anything we should know, please get in touch with the madrasa.`)
+        ? ePara(`This is <strong>${escapeHtml(String(streak))} absences in a row</strong>. If there's anything we should know, please get in touch with the madrasah.`)
         : '';
       const inner = `${eGreeting(r.parent_name || 'there')}${eHeading('Attendance update')}
 ${ePara(`${escapeHtml(child)} was marked <strong>absent</strong> at ${escapeHtml(r.class_name || 'class')} on ${escapeHtml(when)}.`)}
 ${streakLine}${ctaButton('View attendance', env.PUBLIC_APP_URL)}${eSignoff}`;
-      await sendEmail(env, { to: r.parent_email, subject: `${child} was marked absent — ${r.class_name || 'Madrasa'}`, html: wrapEmail('Attendance update', inner) });
+      await sendEmail(env, { to: r.parent_email, subject: `${child} was marked absent — ${r.class_name || 'Madrasah'}`, html: wrapEmail('Attendance update', inner) });
       sent++;
     }
 
@@ -998,7 +998,7 @@ async function handleMadrasaWaitlistOffer(env, caller, classId) {
   }
   const child = r.student_name || 'your child';
   const className = r.class_name || 'the class';
-  const mosqueName = r.mosque_name || 'the madrasa';
+  const mosqueName = r.mosque_name || 'the madrasah';
   const by = formatDate(r.offer_expires_at);
   const inner = `${eGreeting(r.parent_name || 'there')}${eHeading('A place has opened up')}
 ${ePara(`A place has become available for <strong>${escapeHtml(child)}</strong> in <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)}.`)}
@@ -1044,7 +1044,7 @@ async function handleMadrasaRewardAwarded(env, caller, rewardId) {
   const child = r.student_name || 'Your child';
   const label = REWARD_LABEL[r.type] || 'a reward';
   const className = r.class_name || 'class';
-  const mosqueName = r.mosque_name || 'the madrasa';
+  const mosqueName = r.mosque_name || 'the madrasah';
   const noteLine = r.note ? ePara(`Teacher's note: “${escapeHtml(r.note)}”`) : '';
   const inner = `${eGreeting(r.parent_name || 'there')}${eHeading('MashAllah! 🌟')}
 ${ePara(`${escapeHtml(child)} earned <strong>${escapeHtml(label)}</strong> in ${escapeHtml(className)} at ${escapeHtml(mosqueName)}.`)}
