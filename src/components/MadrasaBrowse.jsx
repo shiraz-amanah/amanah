@@ -3,7 +3,7 @@ import {
   Loader2, GraduationCap, ArrowLeft, ShieldCheck, MapPin, Clock, Users,
   X, Check, AlertCircle, Plus,
 } from "lucide-react";
-import { getMosques, getActiveMadrasaClasses, getStudents, addStudent, enrolChild } from "../auth";
+import { getMosques, getActiveMadrasaClasses, getStudents, addStudent, enrolChild, joinWaitlist, getClassActiveCounts } from "../auth";
 
 // Madrasa Phase 1b — public/parent browse + enrol. Parents browse active
 // classes (filter by mosque / subject / day), pick which child to enrol, and
@@ -21,20 +21,23 @@ const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-mediu
 const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
   const [mosques, setMosques] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [counts, setCounts] = useState({}); // { classId: { active, offered } } via 082
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ mosqueId: "", subject: "", day: "" });
   const [toast, setToast] = useState(null);
 
-  // Enrol modal
+  // Enrol / waitlist modal
   const [enrolClass, setEnrolClass] = useState(null);
+  const [enrolMode, setEnrolMode] = useState("enrol"); // enrol | waitlist
   const [studentId, setStudentId] = useState("");
   const [addingChild, setAddingChild] = useState(false);
   const [childForm, setChildForm] = useState({ name: "", age: "", relation: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => { getMosques().then((m) => setMosques(m || [])).catch(() => {}); }, []);
+  const loadCounts = () => getClassActiveCounts().then(setCounts).catch(() => {});
+  useEffect(() => { getMosques().then((m) => setMosques(m || [])).catch(() => {}); loadCounts(); }, []);
   useEffect(() => { if (authedUser) getStudents().then((s) => setStudents(s || [])).catch(() => {}); }, [authedUser]);
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -46,9 +49,15 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
 
   const shown = classes.filter((c) => classHasDay(c.schedule, filters.day));
 
-  const openEnrol = (c) => {
+  // Seat state from 082 counts — full when active + outstanding offers >= capacity.
+  const seatsOf = (c) => {
+    const n = counts[c.id]; const active = n?.active || 0; const taken = active + (n?.offered || 0);
+    return { active, full: c.capacity != null && taken >= c.capacity };
+  };
+
+  const openEnrol = (c, mode = "enrol") => {
     if (!authedUser) { onSignIn?.("user"); return; }
-    setEnrolClass(c); setStudentId(students[0]?.id || ""); setAddingChild(students.length === 0); setChildForm({ name: "", age: "", relation: "" }); setError(null);
+    setEnrolClass(c); setEnrolMode(mode); setStudentId(students[0]?.id || ""); setAddingChild(students.length === 0); setChildForm({ name: "", age: "", relation: "" }); setError(null);
   };
 
   const confirmEnrol = async () => {
@@ -61,11 +70,17 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
       childId = data.id; setStudents((s) => [...s, data]);
     }
     if (!childId) { setError("Select a child."); setBusy(false); return; }
-    const { error: e } = await enrolChild({ classId: enrolClass.id, studentId: childId, mosqueId: enrolClass.mosque_id });
+    const waitlistMode = enrolMode === "waitlist";
+    const action = waitlistMode ? joinWaitlist : enrolChild;
+    const { error: e } = await action({ classId: enrolClass.id, studentId: childId, mosqueId: enrolClass.mosque_id });
     setBusy(false);
-    if (e) { setError(e.message || "Couldn't enrol."); return; }
+    if (e) { setError(e.message || (waitlistMode ? "Couldn't join the waiting list." : "Couldn't enrol.")); return; }
+    const name = enrolClass.name;
     setEnrolClass(null);
-    setToast(`Enrolled in ${enrolClass.name}. You'll see it under your child on your dashboard.`);
+    setToast(waitlistMode
+      ? `Added to the waiting list for ${name}. We'll email you if a place opens up.`
+      : `Enrolled in ${name}. You'll see it under your child on your dashboard.`);
+    loadCounts();
   };
 
   return (
@@ -95,20 +110,28 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
             </div>
           ) : (
             <div className="space-y-2">
-              {shown.map((c) => (
+              {shown.map((c) => {
+                const s = seatsOf(c);
+                return (
                 <div key={c.id} className="flex items-center gap-3 bg-white border border-stone-200 rounded-2xl p-4">
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span></p>
+                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span>{s.full && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Full</span>}</p>
                     <p className="text-xs text-stone-500 truncate flex items-center gap-2 mt-0.5">
                       {c.mosque?.name && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {c.mosque.name}{c.mosque.city ? `, ${c.mosque.city}` : ""}</span>}
                       <span className="inline-flex items-center gap-1"><Clock size={11} /> {scheduleText(c.schedule)}</span>
+                      {c.capacity != null && <span className="inline-flex items-center gap-1"><Users size={11} /> {s.active}/{c.capacity}</span>}
                       {c.teacher?.name && <span>· {c.teacher.name}</span>}
                     </p>
                   </div>
-                  <button onClick={() => openEnrol(c)} className="text-[12px] px-3 py-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-white font-medium whitespace-nowrap">Enrol child</button>
+                  {s.full ? (
+                    <button onClick={() => openEnrol(c, "waitlist")} className="text-[12px] px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium whitespace-nowrap">Join waitlist</button>
+                  ) : (
+                    <button onClick={() => openEnrol(c, "enrol")} className="text-[12px] px-3 py-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-white font-medium whitespace-nowrap">Enrol child</button>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
       </main>
@@ -118,10 +141,11 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
         <div className="fixed inset-0 z-40 bg-stone-900/40 flex items-center justify-center p-4" onClick={() => !busy && setEnrolClass(null)}>
           <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Enrol in {enrolClass.name}</h3>
+              <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{enrolMode === "waitlist" ? `Join waiting list — ${enrolClass.name}` : `Enrol in ${enrolClass.name}`}</h3>
               <button onClick={() => setEnrolClass(null)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
             </div>
             <p className="text-sm text-stone-600 mb-4">{SUBJECT_LABEL[enrolClass.subject]} · {enrolClass.mosque?.name} · {scheduleText(enrolClass.schedule)}</p>
+            {enrolMode === "waitlist" && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">This class is full. Your child joins the waiting list — we'll email you if a place opens up, and you'll have 48 hours to accept it.</p>}
 
             {!addingChild ? (
               <div className="space-y-3">
@@ -147,7 +171,7 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
             {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mt-3"><AlertCircle size={14} /> {error}</p>}
             <div className="flex items-center justify-end gap-2 mt-5">
               <button onClick={() => setEnrolClass(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-              <button onClick={confirmEnrol} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Confirm enrolment</button>
+              <button onClick={confirmEnrol} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {enrolMode === "waitlist" ? "Join waiting list" : "Confirm enrolment"}</button>
             </div>
           </div>
         </div>

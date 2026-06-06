@@ -810,6 +810,18 @@ export async function acceptWaitlistOffer(waitlistId) {
   return { data, error }
 }
 
+// Public aggregate seat counts per active class (migration 082) — parents can't
+// read other families' enrolments, so this definer RPC exposes counts only.
+// Returns { [classId]: { active, offered } }; the browse treats a class as full
+// when active + offered >= capacity (mirrors make_next_offer's seat gate).
+export async function getClassActiveCounts() {
+  const { data, error } = await supabase.rpc('madrasa_class_active_counts')
+  if (error) { console.error('Error fetching class seat counts:', error); return {} }
+  const map = {}
+  for (const r of (data || [])) map[r.class_id] = { active: r.active_count, offered: r.offered_count }
+  return map
+}
+
 // Classes a staff member teaches (active), for the teacher portal "My Classes".
 export async function getMyTeacherClasses(staffId) {
   if (!staffId) return []
