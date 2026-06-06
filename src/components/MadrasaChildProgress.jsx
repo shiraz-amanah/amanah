@@ -1,32 +1,38 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, Upload, X } from "lucide-react";
+import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, Upload, X, MessageCircle, ChevronDown, ChevronUp, CalendarDays } from "lucide-react";
 import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl } from "../auth";
 import { surahName } from "../data/surahs";
-// jsPDF is heavy — lazy-load it on download so it stays out of the main bundle.
+import { parseReportComment, REPORT_SECTIONS, ratingStyle } from "../lib/madrasaReport";
 const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
-const downloadCert = (args) => import("../lib/madrasaCertificate").then((m) => m.downloadCertificate(args));
 
-// Madrasa Phase 1e — read-only attendance + Hifz progress for a child, shown to
-// the parent on the family dashboard. Parent reads via the 070/071 RLS.
+// Fix 6 — clean, parent-friendly per-child card (ClassDojo-style): a header with
+// quick-stat pills, then only the sections that have content. No raw attendance
+// log, no certificate buttons (teachers email those now), no red anxiety text.
+const SUBJECT_LABEL = { quran: "Qur'an", hifz: "Hifz", arabic: "Arabic", islamic_studies: "Islamic Studies", other: "Other" };
+const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}`).join(", ") : "Schedule TBC";
+const initials = (name) => (name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const RW_EMOJI = { star: "⭐", merit: "🏅", achievement: "🏆", warning: "📝", concern: "📝" };
 
-const ATT_CLS = { present: "text-emerald-700", late: "text-amber-700", absent: "text-rose-700", excused: "text-stone-500" };
-const HIFZ_CLS = { memorized: "bg-emerald-50 border-emerald-200 text-emerald-700", revising: "bg-amber-50 border-amber-200 text-amber-700", in_progress: "bg-stone-50 border-stone-200 text-stone-500" };
+const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onWithdraw }) => {
+  const classIds = enrollments.map((e) => e.class_id);
+  const mosques = Object.values(enrollments.reduce((acc, e) => { const m = e.class?.mosque; if (m?.id) acc[m.id] = { id: m.id, name: m.name }; return acc; }, {}));
 
-const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
   const [attendance, setAttendance] = useState([]);
   const [hifz, setHifz] = useState([]);
   const [homework, setHomework] = useState([]);
-  const [doneIds, setDoneIds] = useState(new Set()); // homework_ids this child has done
-  const [subFiles, setSubFiles] = useState({}); // homework_id → submission files [{path,name,size}]
-  const [hwBusy, setHwBusy] = useState(null); // homework_id mid file-op
+  const [doneIds, setDoneIds] = useState(new Set());
+  const [subFiles, setSubFiles] = useState({});
+  const [hwBusy, setHwBusy] = useState(null);
   const [reports, setReports] = useState([]);
   const [rewards, setRewards] = useState([]);
   const [photos, setPhotos] = useState([]);
-  const [consentByMosque, setConsentByMosque] = useState({}); // mosque_id → bool
+  const [consentByMosque, setConsentByMosque] = useState({});
   const [consentBusy, setConsentBusy] = useState(null);
-  const [busy, setBusy] = useState(null); // homework_id mid-toggle
-  const [certBusy, setCertBusy] = useState(null); // cert type mid-generate
+  const [busy, setBusy] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [openReport, setOpenReport] = useState(null); // report row in the modal
+  const [showLog, setShowLog] = useState(false);      // hifz log expander
+  const [showDone, setShowDone] = useState(false);    // completed homework expander
 
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -49,35 +55,18 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id]);
 
-  const toggleConsent = async (mosqueId) => {
-    if (consentBusy) return;
-    setConsentBusy(mosqueId);
-    const next = !consentByMosque[mosqueId];
-    setConsentByMosque((p) => ({ ...p, [mosqueId]: next })); // optimistic
-    const { error } = await setPhotoConsent({ studentId: student.id, mosqueId, consentGiven: next });
-    if (error) setConsentByMosque((p) => ({ ...p, [mosqueId]: !next })); // rollback
-    else if (!next) getStudentPhotos(student.id).then(setPhotos); // withdrawal may flag; refresh
-    setConsentBusy(null);
-  };
-
   const toggleDone = async (h) => {
     if (busy) return;
     setBusy(h.id);
     const isDone = doneIds.has(h.id);
-    // optimistic
     setDoneIds((prev) => { const n = new Set(prev); isDone ? n.delete(h.id) : n.add(h.id); return n; });
     const { error } = isDone
       ? await unmarkHomeworkDone({ homeworkId: h.id, studentId: student.id })
       : await markHomeworkDone({ homeworkId: h.id, studentId: student.id, classId: h.class_id, mosqueId: h.mosque_id });
-    if (error) { // rollback
-      setDoneIds((prev) => { const n = new Set(prev); isDone ? n.add(h.id) : n.delete(h.id); return n; });
-    }
+    if (error) setDoneIds((prev) => { const n = new Set(prev); isDone ? n.add(h.id) : n.delete(h.id); return n; });
     setBusy(null);
   };
-
   const openFile = async (path) => { const url = await homeworkFileUrl(path); if (url) window.open(url, "_blank", "noopener"); };
-
-  // Parent uploads a submission file for one homework task (own child's folder).
   const uploadSubmission = async (h, file) => {
     if (!file || hwBusy) return;
     setHwBusy(h.id);
@@ -96,188 +85,201 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
     if (!error) { setSubFiles((p) => ({ ...p, [h.id]: next })); await removeHomeworkFiles([meta.path]); }
     setHwBusy(null);
   };
-
-  // Parent generates a certificate on demand from the data already loaded here.
-  const makeCert = async (type) => {
-    if (certBusy) return;
-    setCertBusy(type);
-    try {
-      let data = {};
-      if (type === "attendance") data = { present: attendance.filter((r) => r.status === "present").length, total: attendance.length };
-      else if (type === "hifz") data = { surahNumber: hifz.length ? (Math.max(...hifz.map((e) => e.surah_number || 0)) || null) : null };
-      else if (type === "homework") data = { completed: homework.filter((h) => doneIds.has(h.id)).length, assigned: homework.length };
-      await downloadCert({ type, childName: student.name, mosqueName: mosques[0]?.name, data });
-    } catch (e) { console.error("certificate generate failed:", e); }
-    setCertBusy(null);
+  const toggleConsent = async (mosqueId) => {
+    if (consentBusy) return;
+    setConsentBusy(mosqueId);
+    const next = !consentByMosque[mosqueId];
+    setConsentByMosque((p) => ({ ...p, [mosqueId]: next }));
+    const { error } = await setPhotoConsent({ studentId: student.id, mosqueId, consentGiven: next });
+    if (error) setConsentByMosque((p) => ({ ...p, [mosqueId]: !next }));
+    else if (!next) getStudentPhotos(student.id).then(setPhotos);
+    setConsentBusy(null);
   };
 
-  if (loading) return <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>;
+  // derived stats
+  const attTotal = attendance.length;
+  const attPct = attTotal ? Math.round((attendance.filter((r) => r.status === "present").length / attTotal) * 100) : null;
+  const topSurah = hifz.length ? Math.max(...hifz.map((e) => e.surah_number || 0)) : 0;
+  const starCount = rewards.filter((r) => r.type === "star").length;
+  const pendingHw = homework.filter((h) => !doneIds.has(h.id));
+  const doneHw = homework.filter((h) => doneIds.has(h.id));
+  const publishedReports = reports.filter((r) => r.published_at);
 
-  const counts = attendance.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
-  const totalSessions = attendance.length;
+  const primary = enrollments[0];
+  const pill = "text-[11px] px-2 py-1 rounded-full inline-flex items-center gap-1";
 
   return (
-    <div className="mt-3 pt-3 border-t border-stone-100 space-y-4">
-      <div className="grid md:grid-cols-2 gap-4">
-      {/* Attendance */}
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><CalendarCheck size={12} /> Attendance{totalSessions ? ` · ${totalSessions} sessions` : ""}</p>
-        {totalSessions === 0 ? <p className="text-xs text-stone-400">No attendance recorded yet.</p> : (<>
-          <div className="flex flex-wrap gap-2 mb-2 text-[11px]">
-            {["present", "late", "absent", "excused"].map((s) => counts[s] ? <span key={s} className={`${ATT_CLS[s]} capitalize`}>{counts[s]} {s}</span> : null)}
-          </div>
-          <ul className="space-y-0.5">{attendance.slice(0, 6).map((r) => (
-            <li key={r.id} className="flex items-center justify-between text-xs">
-              <span className="text-stone-600 truncate">{r.session_date}{r.class?.name ? ` · ${r.class.name}` : ""}</span>
-              <span className={`${ATT_CLS[r.status]} capitalize font-medium`}>{r.status}</span>
-            </li>
-          ))}</ul>
-        </>)}
-      </div>
-
-      {/* Hifz */}
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><BookOpen size={12} /> Hifz progress</p>
-        {hifz.length === 0 ? <p className="text-xs text-stone-400">No Hifz entries yet.</p> : (
-          <ul className="space-y-1">{hifz.slice(0, 6).map((e) => (
-            <li key={e.id} className="text-xs">
-              <span className="text-stone-800 font-medium">{surahName(e.surah_number)}{e.ayah_from ? ` ${e.ayah_from}${e.ayah_to && e.ayah_to !== e.ayah_from ? `–${e.ayah_to}` : ""}` : ""}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ml-1.5 ${HIFZ_CLS[e.status]}`}>{e.status.replace("_", " ")}</span>
-              <span className="text-stone-400 ml-1.5">{e.session_date}</span>
-            </li>
-          ))}</ul>
+    <div className="bg-white border border-stone-200 rounded-2xl shadow-sm p-5">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="w-11 h-11 rounded-full bg-emerald-600 text-white flex items-center justify-center text-sm font-semibold shrink-0">{initials(student.name)}</div>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold text-stone-900">{student.name}{student.age ? <span className="text-stone-400 font-normal text-sm"> · {student.age}{student.relation ? `, ${student.relation}` : ""}</span> : null}</p>
+          <p className="text-xs text-stone-500 truncate">
+            {enrollments.map((e) => e.class?.name).filter(Boolean).join(", ") || "No classes"}
+            {primary?.class?.mosque?.name ? ` · ${primary.class.mosque.name}` : ""}
+            {primary?.class?.schedule ? ` · ${scheduleText(primary.class.schedule)}` : ""}
+          </p>
+        </div>
+        {onMessageTeacher && primary && (
+          <button onClick={() => onMessageTeacher({ classId: primary.class_id, className: primary.class?.name })} className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><MessageCircle size={11} /> Message</button>
         )}
       </div>
+
+      {/* Quick stats */}
+      <div className="flex flex-wrap gap-2 mt-3">
+        {attPct !== null && <span className={`${pill} bg-emerald-50 text-emerald-700`}>📅 {attPct}% attendance</span>}
+        {topSurah > 0 && <span className={`${pill} bg-stone-100 text-stone-700`}>📖 {surahName(topSurah)}</span>}
+        {starCount > 0 && <span className={`${pill} bg-amber-50 text-amber-700`}>⭐ {starCount} star{starCount === 1 ? "" : "s"}</span>}
       </div>
 
-      {/* Rewards */}
-      {rewards.length > 0 && (() => {
-        const starCount = rewards.filter((r) => r.type === "star").length;
-        const RW_EMOJI = { star: "⭐", merit: "🏅", achievement: "🏆", warning: "📝", concern: "📝" };
-        const rwLabel = (t) => t === "star" ? "Star" : t === "merit" ? "Merit" : t === "achievement" ? "Achievement" : "Note from teacher";
-        return (
+      {loading ? <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div> : (
+      <div className="mt-4 space-y-4">
+        {/* Homework */}
+        {homework.length > 0 && (
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><Award size={12} /> Rewards</p>
-            {starCount > 0 && <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-2">MashAllah — {student.name} has earned {starCount} star{starCount === 1 ? "" : "s"} this term! ⭐</p>}
-            <ul className="space-y-1">{rewards.slice(0, 8).map((r) => (
-              <li key={r.id} className={`text-xs flex items-start gap-2 ${isPositiveReward(r.type) ? "" : "text-stone-600"}`}>
-                <span className="shrink-0">{RW_EMOJI[r.type]}</span>
-                <span className="min-w-0">
-                  <span className="font-medium text-stone-800">{rwLabel(r.type)}</span>
-                  {r.class?.name ? <span className="text-stone-400"> · {r.class.name}</span> : null}
-                  {r.note ? <span className="text-stone-500"> — {r.note}</span> : null}
-                  <span className="text-stone-400"> · {new Date(r.awarded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-                </span>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><ClipboardList size={12} /> Homework</p>
+            {pendingHw.length === 0 ? <p className="text-xs text-stone-400">All caught up 🎉</p> : (
+              <ul className="space-y-2">{pendingHw.map((h) => (
+                <li key={h.id} className="flex items-start gap-2 text-xs">
+                  <button onClick={() => toggleDone(h)} disabled={busy === h.id} aria-label="Mark done"
+                    className="mt-0.5 w-4 h-4 rounded border border-stone-300 bg-white hover:border-emerald-500 flex items-center justify-center shrink-0">
+                    {busy === h.id ? <Loader2 size={10} className="animate-spin text-stone-500" /> : null}
+                  </button>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium text-stone-800">{h.title}</span>
+                    {h.due_date ? <span className="text-stone-400 inline-flex items-center gap-0.5 ml-1"><CalendarClock size={10} /> {new Date(h.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span> : null}
+                    {(h.files || []).length > 0 && <span className="flex flex-wrap gap-1.5 mt-1">{h.files.map((f, i) => <button key={i} onClick={() => openFile(f.path)} className="text-[11px] text-emerald-700 hover:underline inline-flex items-center gap-1"><Paperclip size={10} /> {f.name}</button>)}</span>}
+                    <span className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {(subFiles[h.id] || []).map((f, i) => (
+                        <span key={i} className="text-[11px] bg-stone-100 text-stone-700 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
+                          <button onClick={() => openFile(f.path)} className="inline-flex items-center gap-1 hover:underline"><Download size={10} /> {f.name}</button>
+                          <button onClick={() => removeSubmission(h, f)} className="text-stone-400 hover:text-rose-600"><X size={10} /></button>
+                        </span>
+                      ))}
+                      <label className="text-[11px] text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1">
+                        {hwBusy === h.id ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />} Upload work
+                        <input type="file" className="hidden" disabled={hwBusy === h.id} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadSubmission(h, f); }} />
+                      </label>
+                    </span>
+                  </span>
+                </li>
+              ))}</ul>
+            )}
+            {doneHw.length > 0 && (
+              <button onClick={() => setShowDone((v) => !v)} className="mt-2 text-[11px] text-stone-500 hover:text-stone-800 inline-flex items-center gap-1">{showDone ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {doneHw.length} completed</button>
+            )}
+            {showDone && <ul className="mt-1 space-y-1">{doneHw.map((h) => (
+              <li key={h.id} className="text-xs text-stone-400 flex items-center gap-2"><Check size={11} className="text-emerald-600" /> <span className="line-through">{h.title}</span></li>
+            ))}</ul>}
+          </div>
+        )}
+
+        {/* Progress report */}
+        {publishedReports.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><FileText size={12} /> Progress reports</p>
+            <ul className="space-y-1.5">{publishedReports.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 text-xs bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                <span className="font-medium text-stone-800">{r.term}{r.class?.name ? <span className="text-stone-400 font-normal"> · {r.class.name}</span> : null}</span>
+                <button onClick={() => setOpenReport(r)} className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700">View report</button>
               </li>
             ))}</ul>
           </div>
-        );
-      })()}
-
-      {/* Homework */}
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><ClipboardList size={12} /> Homework</p>
-        {homework.length === 0 ? <p className="text-xs text-stone-400">No homework set yet.</p> : (
-          <ul className="space-y-1.5">{homework.map((h) => {
-            const done = doneIds.has(h.id);
-            return (
-              <li key={h.id} className="flex items-start gap-2 text-xs">
-                <button onClick={() => toggleDone(h)} disabled={busy === h.id} aria-label={done ? "Mark not done" : "Mark done"}
-                  className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${done ? "bg-emerald-600 border-emerald-600 text-white" : "border-stone-300 bg-white hover:border-emerald-500"}`}>
-                  {busy === h.id ? <Loader2 size={10} className="animate-spin text-stone-500" /> : done ? <Check size={11} /> : null}
-                </button>
-                <span className="min-w-0 flex-1">
-                  <span className={`font-medium ${done ? "text-stone-400 line-through" : "text-stone-800"}`}>{h.title}</span>
-                  {h.class?.name ? <span className="text-stone-400"> · {h.class.name}</span> : null}
-                  {h.due_date ? <span className="text-stone-400 inline-flex items-center gap-0.5 ml-1"><CalendarClock size={10} /> {new Date(h.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span> : null}
-                  {/* teacher resource files */}
-                  {(h.files || []).length > 0 && (
-                    <span className="flex flex-wrap gap-1.5 mt-1">{h.files.map((f, i) => (
-                      <button key={i} onClick={() => openFile(f.path)} className="text-[11px] text-emerald-700 hover:underline inline-flex items-center gap-1"><Paperclip size={10} /> {f.name}</button>
-                    ))}</span>
-                  )}
-                  {/* own submission files + upload */}
-                  <span className="flex flex-wrap items-center gap-1.5 mt-1">
-                    {(subFiles[h.id] || []).map((f, i) => (
-                      <span key={i} className="text-[11px] bg-stone-100 text-stone-700 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
-                        <button onClick={() => openFile(f.path)} className="inline-flex items-center gap-1 hover:underline"><Download size={10} /> {f.name}</button>
-                        <button onClick={() => removeSubmission(h, f)} title="Remove" className="text-stone-400 hover:text-rose-600"><X size={10} /></button>
-                      </span>
-                    ))}
-                    <label className="text-[11px] text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1">
-                      {hwBusy === h.id ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />} Upload work
-                      <input type="file" className="hidden" disabled={hwBusy === h.id} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadSubmission(h, f); }} />
-                    </label>
-                  </span>
-                </span>
-              </li>
-            );
-          })}</ul>
         )}
-      </div>
 
-      {/* Reports */}
-      {reports.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><FileText size={12} /> Progress reports</p>
-          <ul className="space-y-1.5">{reports.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-3 text-xs bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-              <div className="min-w-0">
-                <span className="font-medium text-stone-800">{r.term}</span>
-                {r.class?.name ? <span className="text-stone-400"> · {r.class.name}</span> : null}
-                {r.teacher_comment ? <p className="text-stone-500 truncate">{r.teacher_comment}</p> : null}
-              </div>
-              <button onClick={() => downloadReport({ report: r, studentName: student.name, className: r.class?.name, mosqueName: r.class?.mosque?.name })}
-                className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1">
-                <Download size={11} /> PDF
-              </button>
-            </li>
-          ))}</ul>
-        </div>
-      )}
+        {/* Hifz */}
+        {hifz.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><BookOpen size={12} /> Hifz progress</p>
+            <p className="text-sm text-stone-800">Currently on <span className="font-medium">{surahName(topSurah)}</span></p>
+            <div className="h-1.5 bg-stone-100 rounded-full mt-1.5 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.round((topSurah / 114) * 100)}%` }} /></div>
+            <p className="text-[10px] text-stone-400 mt-1">Surah {topSurah} of 114</p>
+            <button onClick={() => setShowLog((v) => !v)} className="mt-1.5 text-[11px] text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1">{showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />} View full log</button>
+            {showLog && <ul className="mt-1 space-y-0.5">{hifz.slice(0, 10).map((e) => (
+              <li key={e.id} className="text-xs text-stone-600">{surahName(e.surah_number)} <span className="text-stone-400">· {e.session_date}</span></li>
+            ))}</ul>}
+          </div>
+        )}
 
-      {/* Certificates (generated on demand from the data above) */}
-      {(attendance.length > 0 || hifz.length > 0 || homework.length > 0) && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><Award size={12} /> Certificates</p>
-          <div className="flex flex-wrap gap-2">
-            {[["attendance", "Attendance", attendance.length > 0], ["hifz", "Hifz", hifz.length > 0], ["homework", "Homework", homework.length > 0]].filter(([, , show]) => show).map(([t, label]) => (
-              <button key={t} onClick={() => makeCert(t)} disabled={certBusy === t}
-                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1 disabled:opacity-50">
-                {certBusy === t ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />} {label} certificate
-              </button>
+        {/* Rewards */}
+        {rewards.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><Award size={12} /> Rewards</p>
+            {starCount > 0 && <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-2">MashAllah — {student.name} has earned {starCount} star{starCount === 1 ? "" : "s"} this term! ⭐</p>}
+            <ul className="space-y-1">{rewards.slice(0, 6).map((r) => (
+              <li key={r.id} className={`text-xs flex items-start gap-2 ${isPositiveReward(r.type) ? "" : "text-stone-600"}`}>
+                <span>{RW_EMOJI[r.type]}</span>
+                <span className="min-w-0"><span className="font-medium text-stone-800">{isPositiveReward(r.type) ? (r.type[0].toUpperCase() + r.type.slice(1)) : "Note from teacher"}</span>{r.note ? <span className="text-stone-500"> — {r.note}</span> : null}</span>
+              </li>
+            ))}</ul>
+          </div>
+        )}
+
+        {/* Photos & consent */}
+        {mosques.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><ImageIcon size={12} /> Class photos</p>
+            <div className="space-y-1.5 mb-2">{mosques.map((m) => {
+              const given = consentByMosque[m.id];
+              return (
+                <div key={m.id} className="flex items-center justify-between gap-3 text-xs bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                  <span className="text-stone-700 min-w-0 truncate"><ShieldCheck size={11} className={`inline mr-1 ${given ? "text-emerald-600" : "text-stone-300"}`} /> {given ? "Photo consent given" : "Give consent to receive class photos"} · {m.name}</span>
+                  <button onClick={() => toggleConsent(m.id)} disabled={consentBusy === m.id} className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full border ${given ? "bg-white border-stone-300 text-stone-500 hover:border-rose-300 hover:text-rose-700" : "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"}`}>{consentBusy === m.id ? "…" : given ? "Withdraw" : "Give consent"}</button>
+                </div>
+              );
+            })}</div>
+            {photos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">{photos.map((p) => (
+                <a key={p.id} href={p.signedUrl || "#"} download target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-stone-200">
+                  {p.signedUrl ? <img src={p.signedUrl} alt={p.caption || "Class photo"} className="w-full h-20 object-cover" /> : <div className="w-full h-20 bg-stone-100" />}
+                </a>
+              ))}</div>
+            )}
+          </div>
+        )}
+
+        {/* Withdraw */}
+        {onWithdraw && enrollments.length > 0 && (
+          <div className="pt-1 flex flex-wrap gap-x-3 gap-y-1 justify-end">
+            {enrollments.map((e) => (
+              <button key={e.id} onClick={() => onWithdraw(e.id)} className="text-[11px] text-stone-400 hover:text-rose-600">Withdraw from {e.class?.name || "class"}</button>
             ))}
           </div>
-        </div>
+        )}
+      </div>
       )}
 
-      {/* Class photos & consent */}
-      {mosques.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><ImageIcon size={12} /> Class photos</p>
-          <div className="space-y-1.5 mb-2">{mosques.map((m) => {
-            const given = consentByMosque[m.id];
-            return (
-              <div key={m.id} className="flex items-center justify-between gap-3 text-xs bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-                <span className="text-stone-700 min-w-0 truncate"><ShieldCheck size={11} className={`inline mr-1 ${given ? "text-emerald-600" : "text-stone-300"}`} /> Photo consent · {m.name}</span>
-                <button onClick={() => toggleConsent(m.id)} disabled={consentBusy === m.id}
-                  className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full border ${given ? "bg-white border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700" : "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"}`}>
-                  {consentBusy === m.id ? "…" : given ? "Withdraw" : "Give consent"}
-                </button>
+      {/* Report modal */}
+      {openReport && (() => {
+        const parsed = parseReportComment(openReport.teacher_comment);
+        return (
+          <div className="fixed inset-0 z-40 bg-stone-900/40 flex items-center justify-center p-4" onClick={() => setOpenReport(null)}>
+            <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{openReport.term} report</h3>
+                <button onClick={() => setOpenReport(null)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
               </div>
-            );
-          })}</div>
-          {photos.length === 0 ? <p className="text-xs text-stone-400">No photos shared yet.</p> : (
-            <div className="grid grid-cols-3 gap-2">{photos.map((p) => (
-              <a key={p.id} href={p.signedUrl || "#"} download target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-stone-200 group relative">
-                {p.signedUrl ? <img src={p.signedUrl} alt={p.caption || "Class photo"} className="w-full h-20 object-cover" /> : <div className="w-full h-20 bg-stone-100" />}
-                <span className="absolute bottom-1 right-1 bg-white/90 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Download size={11} className="text-stone-600" /></span>
-              </a>
-            ))}</div>
-          )}
-          <p className="text-[10px] text-stone-400 mt-2">Consent is off by default. You can withdraw it at any time — new photos will exclude your child.</p>
-        </div>
-      )}
+              <p className="text-xs text-stone-500 mb-4">{student.name}{openReport.class?.name ? ` · ${openReport.class.name}` : ""}</p>
+              {REPORT_SECTIONS.some((s) => parsed.sections[s.key]?.rating) && (
+                <div className="space-y-2 mb-4">{REPORT_SECTIONS.map((s) => {
+                  const v = parsed.sections[s.key]; if (!v?.rating && !v?.comment) return null;
+                  return (
+                    <div key={s.key} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0"><p className="text-sm text-stone-800">{s.label}</p>{v.comment ? <p className="text-xs text-stone-500">{v.comment}</p> : null}</div>
+                      {v.rating && <span className={`shrink-0 text-[11px] px-2 py-0.5 rounded-full border ${ratingStyle(v.rating)}`}>{v.rating}</span>}
+                    </div>
+                  );
+                })}</div>
+              )}
+              {parsed.ai_summary && <div className="text-sm text-stone-800 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 whitespace-pre-line">{parsed.ai_summary}</div>}
+              {parsed.overall && <p className="text-sm text-stone-700 mb-3 whitespace-pre-line">{parsed.overall}</p>}
+              <button onClick={() => downloadReport({ report: openReport, studentName: student.name, className: openReport.class?.name, mosqueName: openReport.class?.mosque?.name })}
+                className="text-[12px] px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Download size={12} /> Download PDF</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
