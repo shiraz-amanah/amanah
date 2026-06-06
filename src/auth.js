@@ -841,6 +841,20 @@ export async function getMadrasaAttendance(classId, sessionDate) {
   if (error) { console.error('Error fetching attendance:', error); return [] }
   return data || []
 }
+// Class-wide attendance (all sessions, optional date range), with student name —
+// for Phase 3E reports. Owner reads via the 070 owner policy.
+export async function getClassAttendance(classId, { from, to } = {}) {
+  if (!classId) return []
+  let q = supabase.from('madrasa_attendance')
+    .select('*, student:students(id, name)')
+    .eq('class_id', classId)
+    .order('session_date', { ascending: true })
+  if (from) q = q.gte('session_date', from)
+  if (to) q = q.lte('session_date', to)
+  const { data, error } = await q
+  if (error) { console.error('Error fetching class attendance:', error); return [] }
+  return data || []
+}
 // Upsert a batch of attendance rows (one per student) for a session. Keyed by
 // (class_id, student_id, session_date) so re-marking updates in place. Stamps
 // marked_by. Admin OR class teacher may write (RLS 070).
@@ -863,6 +877,27 @@ export async function getHifzProgress(studentId, { classId } = {}) {
   if (classId) q = q.eq('class_id', classId)
   const { data, error } = await q
   if (error) { console.error('Error fetching hifz progress:', error); return [] }
+  return data || []
+}
+// Class-wide hifz log (all students), with student name — for Phase 3E reports.
+// Owner reads via the 071 owner policy.
+export async function getClassHifz(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase.from('madrasa_hifz_progress')
+    .select('*, student:students(id, name)')
+    .eq('class_id', classId)
+    .order('session_date', { ascending: false })
+  if (error) { console.error('Error fetching class hifz:', error); return [] }
+  return data || []
+}
+// One student's waitlist history (all statuses) — for the GDPR per-student export.
+export async function getStudentWaitlist(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase.from('madrasa_waitlist')
+    .select('*, class:madrasa_classes(name)')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: true })
+  if (error) { console.error('Error fetching student waitlist:', error); return [] }
   return data || []
 }
 export async function createHifzEntry(record) {
