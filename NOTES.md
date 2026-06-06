@@ -6416,6 +6416,60 @@ visible to the parent + emails them; the parent downloads a branded PDF.
 
 ---
 
+## Session AD — Madrasa Phase 2D: consent-gated photo sharing ✅ (6 June 2026)
+
+The GDPR-sensitive slice. Teacher/admin upload class photos to a PRIVATE bucket;
+only children whose parents have given consent are included; parents toggle
+consent per child per mosque (default off) and view a signed-URL gallery of
+photos their child appears in.
+
+### Shipped
+- **migrations 079 + 080** (`f442483`). 079 `madrasa_photo_consent` — per
+  (student, mosque), `consent_given` **default false**; parent manages own child
+  (stamped `consent_given_by=auth.uid()`), owner reads own-mosque, teacher reads
+  **mosque-scoped** via `madrasa_teacher_can_see_consent` (can't see a child's
+  consent for a different mosque the child also attends). 080 `madrasa_photos` —
+  `storage_path` + `visible_to uuid[]` + `flagged_for_review`; owner/teacher
+  manage, parent reads only photos their child is in (`madrasa_parent_owns_any`).
+  **Private bucket `mosque-madrasa-photos`** (`public=false`) created in-SQL;
+  signed-URL reads gated by storage RLS (`madrasa_can_manage_photo_path` /
+  `madrasa_parent_can_see_photo`). **Withdrawal trigger** flags past photos
+  (`flagged_for_review`), never deletes; future uploads omit the child.
+- **feature** (`429e0dd`). auth.js: consent get/set + photo upload (storage +
+  row, rolls back the object on insert failure) + signed-URL reads + delete; the
+  enrollment select now carries mosque id for the parent toggle. `MadrasaPhotos`
+  7th **Photos** sub-tab (consent badges, consented-only upload, gallery);
+  `MadrasaChildProgress` per-child per-mosque consent toggle + signed-URL gallery
+  + download.
+
+### Verified
+- **RLS smoke** `scripts/smoke-madrasa-2d-photos.mjs` — **13/13** on dev. Consent
+  default-off, parent-owned (cross-child write blocked), mosque-scoped teacher
+  read (sees S1 in their class, NOT S2 in an unteached class), `visible_to` photo
+  gating (consented parent sees, other parent 0), mosque spoof blocked, and the
+  **withdrawal trigger flags the past photo while it stays retained + visible**.
+- **Storage bytes (upload + signed-URL download) are NOT in the headless smoke** —
+  that's a manual `vercel dev`/browser check (a teacher uploads a real image, a
+  consented parent sees it, a non-consented one cannot). Pending.
+
+### Design decisions / gotchas
+- Consent is **mosque-wide per child** (not per-class) — matches the parent UI;
+  `class_id` is not on the consent row.
+- Private-bucket reads: each client mints its **own** signed URL via
+  `createSignedUrl`, RLS-gated — so even a guessed path is denied. No server
+  function needed (stays within the 11/12 Vercel cap).
+- Storage-path RLS compares ids as **text** and computes `storage.foldername` at
+  the outer level (the 053/064 `mosques.name`-shadow + uuid-cast gotchas).
+- Admin review surface for `flagged_for_review` photos is not built yet (the flag
+  exists; admin can query). Candidate follow-up.
+
+### Next (this brief's sequence)
+3A waiting list → 3B rewards → 3C certificates (jsPDF, no migration) → 3D AI
+assistant (fold into admin-brief; resolve the aggregates-vs-named-individual
+privacy boundary) → 3E reports/exports.
+
+---
+
 ## Madrasa Vision & Roadmap (planning session, captured 6 June 2026)
 
 The full strategic picture behind the madrasa module — why it exists, what makes
