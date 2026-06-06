@@ -12964,21 +12964,27 @@ const handleSignIn = (r) => {
   //   no scholar, application status='pending'           → scholarApplicationSubmitted
   //   no scholar, application status='rejected'          → scholarApplicationRejected
   //   no scholar, no application                         → scholarOnboarding (wizard)
-  const routeAuthedScholar = async (userId) => {
+  // opts.replace — when routing straight out of the auth screen
+  // (userAuth), replace the /auth history entry instead of pushing on
+  // top of it, so the browser back button from the dashboard returns to
+  // the page before sign-in, not the login form. Avatar-tap-while-authed
+  // call sites omit it (normal push from a public page is correct).
+  const routeAuthedScholar = async (userId, opts = {}) => {
+    const go = (v) => navigate(v, {}, {}, { replace: !!opts.replace });
     const scholar = await getScholarByUserId(userId);
     if (scholar) {
       setMyScholar(scholar);
       if (scholar.status === "pending_verification") {
-        navigate("scholarVerificationPending");
+        go("scholarVerificationPending");
       } else {
-        setView("scholarDashboard");
+        go("scholarDashboard");
       }
       return;
     }
     const application = await getMyScholarApplication();
     if (!application) {
       setMyScholarApplication(null);
-      navigate("scholarOnboarding");
+      go("scholarOnboarding");
       return;
     }
     setMyScholarApplication(application);
@@ -12986,13 +12992,13 @@ const handleSignIn = (r) => {
       // Trigger guarantees a scholars row exists when status='approved'.
       // If we got here without seeing it, RLS is hiding it. Route to
       // verification-pending — the truthful state regardless.
-      navigate("scholarVerificationPending");
+      go("scholarVerificationPending");
     } else if (application.status === "pending") {
-      navigate("scholarApplicationSubmitted");
+      go("scholarApplicationSubmitted");
     } else if (application.status === "rejected") {
-      navigate("scholarApplicationRejected");
+      go("scholarApplicationRejected");
     } else {
-      navigate("scholarOnboarding");
+      go("scholarOnboarding");
     }
   };
 
@@ -13012,22 +13018,23 @@ const handleSignIn = (r) => {
   //   no mosque, application status='pending'           → mosqueApplicationSubmitted
   //   no mosque, application status='rejected'          → mosqueApplicationRejected
   //   no mosque, no application                         → mosqueOnboarding (wizard)
-  const routeAuthedMosque = async (userId) => {
+  const routeAuthedMosque = async (userId, opts = {}) => {
+    const go = (v) => navigate(v, {}, {}, { replace: !!opts.replace });
     const mosque = await getMosqueByUserId(userId);
     if (mosque) {
       const shaped = transformMosque(mosque);
       setMyMosque(shaped);
       if (mosque.status === "pending_verification") {
-        navigate("mosqueVerificationPending");
+        go("mosqueVerificationPending");
       } else {
-        setView("mosqueDashboard");
+        go("mosqueDashboard");
       }
       return;
     }
     const application = await getMyMosqueApplication();
     if (!application) {
       setMyMosqueApplication(null);
-      navigate("mosqueOnboarding");
+      go("mosqueOnboarding");
       return;
     }
     setMyMosqueApplication(application);
@@ -13035,13 +13042,13 @@ const handleSignIn = (r) => {
       // Trigger guarantees a mosques row exists when status='approved'.
       // Defensive route to verification-pending if RLS is hiding it
       // for any reason.
-      navigate("mosqueVerificationPending");
+      go("mosqueVerificationPending");
     } else if (application.status === "pending") {
-      navigate("mosqueApplicationSubmitted");
+      go("mosqueApplicationSubmitted");
     } else if (application.status === "rejected") {
-      navigate("mosqueApplicationRejected");
+      go("mosqueApplicationRejected");
     } else {
-      navigate("mosqueOnboarding");
+      go("mosqueOnboarding");
     }
   };
 
@@ -13148,15 +13155,16 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     }
     if (returnView === "scholarPostAuth" && user) {
       // Scholar entry point — look up scholar link and route accordingly.
-      await routeAuthedScholar(user.id);
+      // replace:true drops the /auth entry so back doesn't return to login.
+      await routeAuthedScholar(user.id, { replace: true });
       return;
     }
     if (returnView === "mosquePostAuth" && user) {
       // Mosque entry point — 5-branch tree mirroring scholar.
-      await routeAuthedMosque(user.id);
+      await routeAuthedMosque(user.id, { replace: true });
       return;
     }
-    navigate(returnView);
+    navigate(returnView, {}, {}, { replace: true });
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} onForgotPassword={() => setView("forgotPassword")} />;
   if (view === "forgotPassword") return <ForgotPassword
     onBack={() => { setUserAuthMode("login"); setView("userAuth"); }}
