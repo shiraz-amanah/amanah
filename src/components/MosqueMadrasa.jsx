@@ -90,7 +90,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{rosterClass.name}</h2>
           <p className="text-sm text-stone-600">{SUBJECT_LABEL[rosterClass.subject]}{rosterClass.teacher?.name ? ` · ${rosterClass.teacher.name}` : ""} · {scheduleText(rosterClass.schedule)}</p>
         </div>
-        <MadrasaClassWorkspace classObj={rosterClass} />
+        <MadrasaClassWorkspace classObj={rosterClass} mosqueName={mosque?.name} />
       </div>
     );
   }

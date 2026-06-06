@@ -4,6 +4,7 @@ import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStuden
 import { surahName } from "../data/surahs";
 // jsPDF is heavy — lazy-load it on download so it stays out of the main bundle.
 const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
+const downloadCert = (args) => import("../lib/madrasaCertificate").then((m) => m.downloadCertificate(args));
 
 // Madrasa Phase 1e — read-only attendance + Hifz progress for a child, shown to
 // the parent on the family dashboard. Parent reads via the 070/071 RLS.
@@ -22,6 +23,7 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
   const [consentByMosque, setConsentByMosque] = useState({}); // mosque_id → bool
   const [consentBusy, setConsentBusy] = useState(null);
   const [busy, setBusy] = useState(null); // homework_id mid-toggle
+  const [certBusy, setCertBusy] = useState(null); // cert type mid-generate
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,6 +70,20 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
       setDoneIds((prev) => { const n = new Set(prev); isDone ? n.add(h.id) : n.delete(h.id); return n; });
     }
     setBusy(null);
+  };
+
+  // Parent generates a certificate on demand from the data already loaded here.
+  const makeCert = async (type) => {
+    if (certBusy) return;
+    setCertBusy(type);
+    try {
+      let data = {};
+      if (type === "attendance") data = { present: attendance.filter((r) => r.status === "present").length, total: attendance.length };
+      else if (type === "hifz") data = { surahNumber: hifz.length ? (Math.max(...hifz.map((e) => e.surah_number || 0)) || null) : null };
+      else if (type === "homework") data = { completed: homework.filter((h) => doneIds.has(h.id)).length, assigned: homework.length };
+      await downloadCert({ type, childName: student.name, mosqueName: mosques[0]?.name, data });
+    } catch (e) { console.error("certificate generate failed:", e); }
+    setCertBusy(null);
   };
 
   if (loading) return <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>;
@@ -173,6 +189,21 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
               </button>
             </li>
           ))}</ul>
+        </div>
+      )}
+
+      {/* Certificates (generated on demand from the data above) */}
+      {(attendance.length > 0 || hifz.length > 0 || homework.length > 0) && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><Award size={12} /> Certificates</p>
+          <div className="flex flex-wrap gap-2">
+            {[["attendance", "Attendance", attendance.length > 0], ["hifz", "Hifz", hifz.length > 0], ["homework", "Homework", homework.length > 0]].filter(([, , show]) => show).map(([t, label]) => (
+              <button key={t} onClick={() => makeCert(t)} disabled={certBusy === t}
+                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1 disabled:opacity-50">
+                {certBusy === t ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />} {label} certificate
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

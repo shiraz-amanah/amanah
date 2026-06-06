@@ -203,7 +203,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
                 <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{selectedClass.name}</h2>
                 <p className="text-sm text-stone-600 capitalize">{selectedClass.subject}{selectedClass.room ? ` · ${selectedClass.room}` : ""}</p>
               </div>
-              <MadrasaClassWorkspace classObj={selectedClass} onMessageParent={onMessageParent} />
+              <MadrasaClassWorkspace classObj={selectedClass} onMessageParent={onMessageParent} mosqueName={mosque?.name} />
             </div>
           ) : (
             <div>
