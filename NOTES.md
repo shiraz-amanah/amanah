@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (6 June 2026): **Madrasa Phase 3A (waiting list) shipped end-to-end** (Session AE). Pushed to `main` (`df558e2` migr 081 → `72af672` browse); migrations **081 + 082 applied to dev + prod**, both probed green; RLS/RPC smokes green (waitlist **14/14**, seat-counts **6/6**). The loop: parent joins a full class → admin "Offer next seat" → 48h `madrasa_waitlist_offer` email → parent Accept (enrols) / Decline / expire → next in line. **081** `madrasa_waitlist` — admin-reorderable `position` via a BEFORE INSERT trigger (parents can't queue-jump), partial-unique live row (re-join after a terminal row), `make_next_offer` (lazy 48h reap + capacity gate [active + outstanding offers] + service-role-only offer/email RPC) and `accept` (ownership + 48h freshness, creates/reactivates the enrolment) — both per the 076 revoke-from-anon+authenticated lesson. **082** `madrasa_class_active_counts()` — definer aggregate (counts only, no PII) so the public browse can detect "full" (RLS hides other families' enrolments); full = active + offered ≥ capacity. Offer trigger is **admin-initiated** (auto-on-withdrawal parked — looser auth). UI: admin/teacher **Waitlist** sub-tab, parent family-dashboard waitlist section, browse Enrol→Join-waitlist swap. **Standing constraints:** Vercel still **11/12 functions** — the offer email is a `send-transactional` intent (now **16**), no new `api/*.js`. **Detours (see Session AE):** opening "Phase 2 missing" call was a stale-read false alarm (reflog corrected it); the smoke caught two real RPC bugs pre-prod (OUT-param/column ambiguity; futile in-`accept` reap); a "create-or-replace succeeds but body unchanged" gremlin was **wrong-project targeting** (use a `to_regclass` fingerprint probe + DROP/CREATE); a stale esbuild binary needed `npm rebuild esbuild`. **Pending manual checks (non-blocking, browser/`vercel dev`):** one browser pass of the three 3A surfaces + a real offer-email send (`delivered@resend.dev`) — the headless smokes hit the RPC, not Resend. Carried-forward Phase 2 checks still open (2b/2C email, 2D storage bytes). **Next: Madrasa Phase 3 continues** — 3B rewards (next migration **083**) → 3C certificates (jsPDF, no migration) → 3D AI assistant (fold into `admin-brief.js`; **resolve the spec's aggregates-only vs named-individual-query privacy boundary first**) → 3E reports/exports. Stripe-dependent madrasa items (fees, Gift Aid, sibling discount, bursary) stay parked for a dedicated Stripe session. Pre-flight before 3B: next migration is **083**.
+> Last action (6 June 2026): **Madrasa Phase 3B (behaviour + rewards) shipped end-to-end** (Session AF). Pushed to `main` (`c92162e..ff07423`, 4 commits); migration **083 applied to dev + prod**, probed green; smoke **10/10**. Teacher/admin awards ⭐ star / 🏅 merit / 🏆 achievement (positive → emails parent) or logs ⚠️ warning / 📋 concern (private, never emailed); parent sees own-child rewards (positives celebratory + "N stars this term!", warning/concern softened to "Note from teacher"); stars leaderboard. **083** = `madrasa_rewards` (3 RLS policies, 077 shape: owner/admin manage, teacher via `madrasa_is_class_teacher`, parent read own-child all-types; **no anon policy → never public**) + `madrasa_reward_email_data` (service-role-only, **positive-types-only**, harvest-guarded per 076) + the **folded-in 3E** `madrasa_export_roster` (owner/admin-scoped definer, **authz inside the query**, parent contact from `profiles` + attendance totals). New intent `madrasa_reward_awarded` (now **17**; Vercel still 11/12, no new `api/*.js`). **Pre-flight findings carried into 3C–3E:** `students` has **`age` not `dob`**; `profiles` **has `phone`**; `MadrasaReports.jsx` is **taken** (the 2C per-class board) so the 3E exports page will be **`MadrasaReportsCenter.jsx`**; **papaparse not installed** → native CSV; `sendEmail` has **no attachment support** → 3C is **download-only** (cert email deferred); `admin-brief.js` uses fetch + `claude-sonnet-4-6` with `mode` routing → 3D folds in `mode:'madrasa_ops'`. **Pending manual checks (non-blocking):** reward-awarded email send (`delivered@resend.dev`) + a browser pass of the rewards surfaces; carried-forward 3A (offer email, 3 surfaces) and Phase 2 (2b/2C email, 2D storage) checks still open. **Next: Madrasa Phase 3 continues (no more migrations)** — 3C certificates (jsPDF lazy, A4 landscape, download-only) → 3D AI assistant (`madrasa_ops`; briefing aggregates-only, chat may name — RLS-scoped) → 3E reports/exports (uses 083's `madrasa_export_roster`; `MadrasaReportsCenter.jsx`). Stripe-dependent madrasa items stay parked. Pre-flight before 3C: **no migration** (083 was the last).
 
 ---
 
@@ -6555,6 +6555,71 @@ service_role-only, anon/authed grants on counts). Every `npm run build` clean.
 - **Next:** 3B rewards (migration **083**) → 3C certificates (jsPDF, no migration)
   → 3D AI assistant (fold into `admin-brief.js`; resolve aggregates-vs-named-
   individual privacy boundary first) → 3E reports/exports.
+
+---
+
+## Session AF — Madrasa Phase 3B: behaviour + rewards ✅ (6 June 2026)
+
+Teacher/admin awards stars/merits/achievements (positive → emails the parent) or
+logs warnings/concerns (private, never emailed). Parents see their own child's
+rewards; a stars leaderboard ranks the class. Migration 083 also folded in the
+Phase 3E export RPC (one apply-gate instead of two — see decision below).
+
+### Shipped (by commit)
+- **migration 083 + smoke** (`ff07423`). `madrasa_rewards` (class↔student,
+  mosque_id denormalized, type star/merit/achievement/warning/concern, note,
+  awarded_by). 3 RLS policies (077 shape): owner/admin manage (mosque_id forced to
+  class), teacher manage via `madrasa_is_class_teacher` (no new helper), parent
+  read own-child **all types**. **No anon policy → no reward is ever public.**
+  `madrasa_reward_email_data` — service-role-only, returns a payload **only for
+  positive types** (warning/concern → no row → never emailed), harvest-guarded
+  (076). Folds in `madrasa_export_roster` (Phase 3E) — owner/admin-scoped definer,
+  **authz inside the query**, resolves parent contact (`profiles.phone`/email) +
+  attendance totals. `scripts/smoke-madrasa-3b-rewards.mjs` **10/10**.
+- **3B-i data layer** (`b90baad`). auth.js awardReward / getClassRewards /
+  getStudentRewards / deleteReward / `isPositiveReward` / getExportRoster;
+  email.js `sendMadrasaRewardAwarded(rewardId)`.
+- **3B-ii email intent** (`95f0f2e`). `madrasa_reward_awarded` handler + route —
+  positive-only via the RPC, email pref respected, optional teacher note. No new
+  `api/*.js` (intents now **17**; Vercel still 11/12).
+- **3B-iii UI** (`7276d16`). `MadrasaRewards.jsx` + a **Rewards** sub-tab in
+  `MadrasaClassWorkspace` (quick-award per student, stars leaderboard top-5,
+  history with delete); `MadrasaChildProgress` parent rewards section (positives
+  celebratory + "N stars this term!", warning/concern → "Note from teacher").
+
+### Verified
+smoke 10/10 dev; 083 probed dev+prod (3 policies, both RPCs prosecdef=t, harvest
+guard: reward_email_data service_role-only, export_roster authed+service not anon);
+build clean. **UI build-verified only.** Reward-awarded **email send not in the
+smoke** (RPC, not Resend) — manual `delivered@resend.dev` pending.
+
+### Design decisions
+- **Rewards tab placed after Hifz** — the brief's "6th tab after Announcements"
+  was stale (8 tabs already existed); it's now the 9th tab. Tab bar is crowded —
+  noted for a future grouping pass.
+- **"This term" leaderboard = all rewards for the class** — a class is term-scoped
+  and rewards carry no separate term field.
+- **"Never public" is structural** — no anon/public SELECT policy on the table, so
+  no type is public; the positive/negative split is enforced only in the email RPC
+  (positive only) + leaderboard (positive only) + the parent UI label.
+- **Parent-own-child RLS via a direct `students` subquery** (the 077 precedent) —
+  one-directional, no recursion, so the 068/069 cyclic-re-entry lesson doesn't need
+  a helper here; the only definer helper reused is `madrasa_is_class_teacher`.
+- **3E export RPC folded into 083** — parent contact lives in `profiles`, which a
+  mosque owner can't read via RLS, so the export needs a definer RPC; shipping it
+  in 083 means one apply-gate instead of a separate 3E migration.
+
+### Pre-flight findings (carried into 3C–3E)
+- `students` has **`age`, not `dob`** (bulk export uses age); `profiles` **has
+  `phone`**. `MadrasaReports.jsx` is **taken** (2C board) → 3E exports page will be
+  **`MadrasaReportsCenter.jsx`**. **papaparse not installed** → native CSV.
+  `sendEmail` has **no attachment support** → 3C **download-only** (email deferred).
+  `admin-brief.js` = fetch + `claude-sonnet-4-6` + `mode` routing → 3D folds in
+  `mode:'madrasa_ops'` (briefing aggregates-only; chat may name, RLS-scoped).
+
+### Next
+3C certificates (no migration; jsPDF lazy, A4 landscape, download-only) → 3D AI
+assistant (`madrasa_ops`) → 3E reports/exports (uses `madrasa_export_roster`).
 
 ---
 
