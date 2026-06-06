@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (6 June 2026): **Madrasa Phase 3B (behaviour + rewards) shipped end-to-end** (Session AF). Pushed to `main` (`c92162e..ff07423`, 4 commits); migration **083 applied to dev + prod**, probed green; smoke **10/10**. Teacher/admin awards ⭐ star / 🏅 merit / 🏆 achievement (positive → emails parent) or logs ⚠️ warning / 📋 concern (private, never emailed); parent sees own-child rewards (positives celebratory + "N stars this term!", warning/concern softened to "Note from teacher"); stars leaderboard. **083** = `madrasa_rewards` (3 RLS policies, 077 shape: owner/admin manage, teacher via `madrasa_is_class_teacher`, parent read own-child all-types; **no anon policy → never public**) + `madrasa_reward_email_data` (service-role-only, **positive-types-only**, harvest-guarded per 076) + the **folded-in 3E** `madrasa_export_roster` (owner/admin-scoped definer, **authz inside the query**, parent contact from `profiles` + attendance totals). New intent `madrasa_reward_awarded` (now **17**; Vercel still 11/12, no new `api/*.js`). **Pre-flight findings carried into 3C–3E:** `students` has **`age` not `dob`**; `profiles` **has `phone`**; `MadrasaReports.jsx` is **taken** (the 2C per-class board) so the 3E exports page will be **`MadrasaReportsCenter.jsx`**; **papaparse not installed** → native CSV; `sendEmail` has **no attachment support** → 3C is **download-only** (cert email deferred); `admin-brief.js` uses fetch + `claude-sonnet-4-6` with `mode` routing → 3D folds in `mode:'madrasa_ops'`. **Pending manual checks (non-blocking):** reward-awarded email send (`delivered@resend.dev`) + a browser pass of the rewards surfaces; carried-forward 3A (offer email, 3 surfaces) and Phase 2 (2b/2C email, 2D storage) checks still open. **Next: Madrasa Phase 3 continues (no more migrations)** — 3C certificates (jsPDF lazy, A4 landscape, download-only) → 3D AI assistant (`madrasa_ops`; briefing aggregates-only, chat may name — RLS-scoped) → 3E reports/exports (uses 083's `madrasa_export_roster`; `MadrasaReportsCenter.jsx`). Stripe-dependent madrasa items stay parked. Pre-flight before 3C: **no migration** (083 was the last).
+> Last action (6 June 2026): **Madrasa Phase 3C (certificates) built** (Session AG) — 3B (rewards) shipped before it (Session AF). 3C: branded PDF certificates (attendance / Hifz / homework / custom), client-side jsPDF (`src/lib/madrasaCertificate.js`, lazy, A4 landscape), **download-only** (no email — `sendEmail` has no attachment support). Admin via a **Certificates** sub-tab (`MadrasaCertificates.jsx`, data from `buildReportSummary`); parent via a Certificates section in `MadrasaChildProgress` (from already-loaded data). `mosqueName` threaded through `MadrasaClassWorkspace` from both callers. **No migration, no headless smoke** (client-side PDF — browser-verify only). The class workspace is now **10 sub-tabs** (roster/attendance/hifz/rewards/announcements/homework/reports/photos/waitlist/certificates) — crowding flagged for a future grouping pass. **3B recap (Session AF, migration 083 live dev+prod, smoke 10/10):** `madrasa_rewards` (positive star/merit/achievement → parent email; private warning/concern; leaderboard) + `madrasa_reward_email_data` (service-role, positive-only, harvest-guarded) + folded-in 3E `madrasa_export_roster` (owner/admin definer, authz-in-query, parent contact + attendance). Intents now **17**; Vercel 11/12. **Pre-flight facts for 3D/3E:** `students.age` (no `dob`); `profiles.phone` exists; **`MadrasaReports.jsx` is taken** → 3E exports = **`MadrasaReportsCenter.jsx`**; **no papaparse** → native CSV; `admin-brief.js` = fetch + `claude-sonnet-4-6` + `mode` routing → 3D folds in `mode:'madrasa_ops'`. **Pending manual checks (non-blocking):** browser pass of 3C certs (each type) + 3B rewards surfaces + the reward-awarded email send (`delivered@resend.dev`); carried-forward 3A (offer email) + Phase 2 (2b/2C email, 2D storage). **Next (no more migrations):** 3D AI assistant (`madrasa_ops`; **briefing aggregates-only, chat may name** — RLS-scoped) → 3E reports/exports (uses `madrasa_export_roster`; `MadrasaReportsCenter.jsx`; native CSV + jsPDF). Stripe-dependent madrasa items stay parked. Whether 3C commits are pushed yet: **check `git log origin/main..HEAD`** (AF closure + 3C-i/ii + AG closure were pending push at handoff).
 
 ---
 
@@ -6620,6 +6620,49 @@ smoke** (RPC, not Resend) — manual `delivered@resend.dev` pending.
 ### Next
 3C certificates (no migration; jsPDF lazy, A4 landscape, download-only) → 3D AI
 assistant (`madrasa_ops`) → 3E reports/exports (uses `madrasa_export_roster`).
+
+---
+
+## Session AG — Madrasa Phase 3C: certificates ✅ (6 June 2026)
+
+Branded PDF certificates (attendance / Hifz / homework / custom), generated and
+downloaded client-side. No migration, no email (download-only per decision), no
+new Vercel function — pure jsPDF.
+
+### Shipped (by commit)
+- **3C-i generator** (`72ecafb`). `src/lib/madrasaCertificate.js` — jsPDF
+  (lazy-loaded), **A4 landscape**, Amanah emerald/gold double-border template,
+  centred child name, signature + date footer. Four types via `CERT_TYPES`;
+  `achievementText` composes the sentence (Hifz reuses `surahName`). Generated +
+  downloaded in-browser, **never stored**.
+- **3C-ii UI** (`43e1b34`). `MadrasaCertificates.jsx` + a **Certificates** sub-tab
+  in `MadrasaClassWorkspace` (per-student type select → Download; attendance/Hifz/
+  homework data via the existing `buildReportSummary` RPC, custom = free text).
+  `mosqueName` threaded through the workspace from both callers (`MosqueMadrasa`,
+  `MosqueStaffPortal`). Parent: a Certificates section in `MadrasaChildProgress`
+  generates on demand from the data already loaded there.
+
+### Verified
+Build clean (the lazy cert chunk compiles). **No headless smoke** — certificates
+are client-side jsPDF with no RLS/RPC surface; the brief's 3C checks (correct
+counts/surah in the PDF, custom text, client-only) are inherently a browser pass.
+**Pending manual check:** generate one of each type in the browser and eyeball the
+PDF (counts, surah name, custom text, branding).
+
+### Design decisions
+- **Certificates as a 10th sub-tab** — the brief offered "Reports sub-tab OR a per-
+  student button"; a dedicated tab is the most self-contained. Tab bar is now 10 —
+  a future grouping/overflow pass is warranted (flagged since 3B).
+- **No email / no attachment** — `sendEmail` has no attachment support; per the
+  3C decision, certificates are download-only and the `madrasa_certificate` intent
+  is deferred (revisit when/if `sendEmail` gains Resend attachments).
+- **Data via `buildReportSummary`** (admin) and the already-loaded parent data
+  (`MadrasaChildProgress`) — no new reads, no new RPC.
+
+### Next
+3D AI assistant (`mode:'madrasa_ops'` in admin-brief; briefing aggregates-only,
+chat may name — RLS-scoped) → 3E reports/exports (`madrasa_export_roster`,
+`MadrasaReportsCenter.jsx`).
 
 ---
 
