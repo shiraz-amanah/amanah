@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck } from "lucide-react";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos } from "../auth";
+import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award } from "lucide-react";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward } from "../auth";
 import { surahName } from "../data/surahs";
 // jsPDF is heavy — lazy-load it on download so it stays out of the main bundle.
 const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
@@ -17,6 +17,7 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
   const [homework, setHomework] = useState([]);
   const [doneIds, setDoneIds] = useState(new Set()); // homework_ids this child has done
   const [reports, setReports] = useState([]);
+  const [rewards, setRewards] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [consentByMosque, setConsentByMosque] = useState({}); // mosque_id → bool
   const [consentBusy, setConsentBusy] = useState(null);
@@ -27,14 +28,14 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
     let alive = true; setLoading(true);
     Promise.all([
       getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds),
-      getStudentCompletions(student.id), getStudentReports(student.id), getStudentPhotos(student.id),
+      getStudentCompletions(student.id), getStudentReports(student.id), getStudentPhotos(student.id), getStudentRewards(student.id),
       Promise.all(mosques.map((m) => getMyChildConsent(student.id, m.id).then((c) => [m.id, !!c?.consent_given]))),
     ])
-      .then(([a, h, hw, comps, reps, pics, consents]) => {
+      .then(([a, h, hw, comps, reps, pics, rw, consents]) => {
         if (!alive) return;
         setAttendance(a || []); setHifz(h || []); setHomework(hw || []);
         setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
-        setReports(reps || []); setPhotos(pics || []);
+        setReports(reps || []); setPhotos(pics || []); setRewards(rw || []);
         setConsentByMosque(Object.fromEntries(consents || []));
       })
       .catch((e) => console.error("child progress load failed:", e))
@@ -107,6 +108,30 @@ const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
         )}
       </div>
       </div>
+
+      {/* Rewards */}
+      {rewards.length > 0 && (() => {
+        const starCount = rewards.filter((r) => r.type === "star").length;
+        const RW_EMOJI = { star: "⭐", merit: "🏅", achievement: "🏆", warning: "📝", concern: "📝" };
+        const rwLabel = (t) => t === "star" ? "Star" : t === "merit" ? "Merit" : t === "achievement" ? "Achievement" : "Note from teacher";
+        return (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><Award size={12} /> Rewards</p>
+            {starCount > 0 && <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-2">MashAllah — {student.name} has earned {starCount} star{starCount === 1 ? "" : "s"} this term! ⭐</p>}
+            <ul className="space-y-1">{rewards.slice(0, 8).map((r) => (
+              <li key={r.id} className={`text-xs flex items-start gap-2 ${isPositiveReward(r.type) ? "" : "text-stone-600"}`}>
+                <span className="shrink-0">{RW_EMOJI[r.type]}</span>
+                <span className="min-w-0">
+                  <span className="font-medium text-stone-800">{rwLabel(r.type)}</span>
+                  {r.class?.name ? <span className="text-stone-400"> · {r.class.name}</span> : null}
+                  {r.note ? <span className="text-stone-500"> — {r.note}</span> : null}
+                  <span className="text-stone-400"> · {new Date(r.awarded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                </span>
+              </li>
+            ))}</ul>
+          </div>
+        );
+      })()}
 
       {/* Homework */}
       <div>
