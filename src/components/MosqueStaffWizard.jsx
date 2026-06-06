@@ -81,7 +81,7 @@ const FileField = ({ label, required, value, remoteMode, onSelect, onClear, erro
         )}
         {/* Always available — allows replacing an already-selected file. */}
         <label className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer border ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-dashed border-stone-300 text-stone-500 hover:border-emerald-500"}`}>
-          <Upload size={14} /> {value ? "Replace file" : "Upload"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
+          <Upload size={14} /> {value ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
           <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
         </label>
       </div>
@@ -310,7 +310,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <Field label="Expiry date" required><input type="date" className={inputCls + errCls("rtw_expiry_date", 2)} value={form.rtw_expiry_date} onChange={(e) => set("rtw_expiry_date", e.target.value)} /></Field>
             </div>
             <Field label="Checked by"><input className={inputCls} value={form.rtw_checked_by} onChange={(e) => set("rtw_checked_by", e.target.value)} /></Field>
-            <FileField label="Document upload" required={uploadReq("rtw")} value={form.rtw_file} remoteMode={remoteMode} onSelect={(f) => set("rtw_file", f)} onClear={() => set("rtw_file", null)} error={attempted && uploadReq("rtw") && !form.rtw_file} />
+            <FileField label="Attach document" required={uploadReq("rtw")} value={form.rtw_file} remoteMode={remoteMode} onSelect={(f) => set("rtw_file", f)} onClear={() => set("rtw_file", null)} error={attempted && uploadReq("rtw") && !form.rtw_file} />
           </>)}
         </>)}
 
@@ -344,7 +344,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <Field label="Expiry date"><input type="date" className={inputCls} value={form.dbs_expiry_date} onChange={(e) => set("dbs_expiry_date", e.target.value)} /></Field>
               <Field label="Checked by"><input className={inputCls} value={form.dbs_checked_by} onChange={(e) => set("dbs_checked_by", e.target.value)} /></Field>
             </div>
-            <FileField label="Certificate upload" required={uploadReq("dbs")} value={form.dbs_file} remoteMode={remoteMode} onSelect={(f) => set("dbs_file", f)} onClear={() => set("dbs_file", null)} error={attempted && uploadReq("dbs") && !form.dbs_file} />
+            <FileField label="Attach certificate" required={uploadReq("dbs")} value={form.dbs_file} remoteMode={remoteMode} onSelect={(f) => set("dbs_file", f)} onClear={() => set("dbs_file", null)} error={attempted && uploadReq("dbs") && !form.dbs_file} />
           </>)}
         </>)}
 

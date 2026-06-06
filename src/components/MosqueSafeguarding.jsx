@@ -69,7 +69,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
   const [pol, setPol] = useState({ type: POLICY_TYPES[0], review: "", file: null });
   const policyDocs = docs.filter((d) => d.category === "policy");
   const addPolicy = async () => {
-    if (!pol.file) { setError("Choose a policy file to upload."); return; }
+    if (!pol.file) { setError("Choose a policy file to attach."); return; }
     setBusy(true); setError(null);
     const up = await uploadMosqueHrDoc(pol.file, mosqueId, "policy/");
     if (up.error) { setError(up.error); setBusy(false); return; }
@@ -165,7 +165,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
               <div className="grid md:grid-cols-3 gap-3">
                 <Field label="Policy"><select className={inputCls} value={pol.type} onChange={(e) => setPol({ ...pol, type: e.target.value })}>{POLICY_TYPES.map((p) => <option key={p}>{p}</option>)}</select></Field>
                 <Field label="Review due"><input type="date" className={inputCls} value={pol.review} onChange={(e) => setPol({ ...pol, review: e.target.value })} /></Field>
-                <Field label="File"><label className="flex items-center gap-2 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer"><Upload size={14} /> {pol.file ? pol.file.name.slice(0, 18) : "Upload"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setPol({ ...pol, file: e.target.files?.[0] || null })} /></label></Field>
+                <Field label="File"><label className="flex items-center gap-2 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer"><Upload size={14} /> {pol.file ? pol.file.name.slice(0, 18) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setPol({ ...pol, file: e.target.files?.[0] || null })} /></label></Field>
               </div>
               <div className="flex justify-end"><button onClick={addPolicy} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add policy</button></div>
             </Card>
@@ -210,7 +210,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                 <Field label="Training type"><select className={inputCls} value={trForm.training_type} onChange={(e) => setTrForm({ ...trForm, training_type: e.target.value })}>{TRAINING_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
                 <Field label="Completion date"><input type="date" className={inputCls} value={trForm.completion_date} onChange={(e) => setTrForm({ ...trForm, completion_date: e.target.value })} /></Field>
                 <Field label="Renewal due"><input type="date" className={inputCls} value={trForm.renewal_due} onChange={(e) => setTrForm({ ...trForm, renewal_due: e.target.value })} /></Field>
-                <Field label="Certificate"><label className="flex items-center gap-2 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer"><Upload size={14} /> {trForm.file ? trForm.file.name.slice(0, 18) : "Upload"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setTrForm({ ...trForm, file: e.target.files?.[0] || null })} /></label></Field>
+                <Field label="Certificate"><label className="flex items-center gap-2 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer"><Upload size={14} /> {trForm.file ? trForm.file.name.slice(0, 18) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setTrForm({ ...trForm, file: e.target.files?.[0] || null })} /></label></Field>
               </div>
               <div className="flex justify-end"><button onClick={addTraining} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Log</button></div>
             </Card>

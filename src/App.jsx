@@ -2198,7 +2198,7 @@ const RegUploadRow = ({ label, sublabel, uploaded, onToggle }) => (
       <p className="text-sm font-medium text-stone-900">{label}</p>
       <p className="text-xs text-stone-500">{sublabel}</p>
     </div>
-    <span className="text-xs text-stone-500 flex-shrink-0">{uploaded ? "Uploaded ✓" : "Tap to upload"}</span>
+    <span className="text-xs text-stone-500 flex-shrink-0">{uploaded ? "Attached ✓" : "Tap to attach"}</span>
   </button>
 );
 

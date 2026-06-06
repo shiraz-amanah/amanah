@@ -92,7 +92,7 @@ const MosqueCompliance = ({ mosqueId }) => {
           <Field label="Label"><input className={inputCls} value={up.label} onChange={(e) => setUp({ ...up, label: e.target.value })} /></Field>
           {withProvider && <Field label="Provider"><input className={inputCls} value={up.provider} onChange={(e) => setUp({ ...up, provider: e.target.value })} /></Field>}
           <Field label="Expiry"><input type="date" className={inputCls} value={up.expiry} onChange={(e) => setUp({ ...up, expiry: e.target.value })} /></Field>
-          <Field label="File"><label className="flex items-center gap-1.5 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer"><Upload size={14} /> {up.file ? up.file.name.slice(0, 12) : "Upload"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setUp({ ...up, file: e.target.files?.[0] || null })} /></label></Field>
+          <Field label="File"><label className="flex items-center gap-1.5 text-sm text-stone-500 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer"><Upload size={14} /> {up.file ? up.file.name.slice(0, 12) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setUp({ ...up, file: e.target.files?.[0] || null })} /></label></Field>
         </div>
         <div className="flex justify-end"><button onClick={() => uploadFor(category)} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add document</button></div>
       </Card>

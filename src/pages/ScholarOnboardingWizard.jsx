@@ -159,7 +159,7 @@ const DocUploadField = ({ label, hint, fileName, uploading, error, onPick, onCle
           className="w-full flex items-center justify-center gap-2 border border-dashed border-stone-300 rounded-xl px-3 py-3 text-sm text-stone-600 hover:border-emerald-400 hover:text-emerald-800 disabled:opacity-60"
         >
           {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
-          {uploading ? "Uploading…" : "Upload PDF or image (max 10MB)"}
+          {uploading ? "Uploading…" : "Attach files (PDF or image, max 10MB)"}
         </button>
       )}
       <input ref={ref} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="hidden"
@@ -450,7 +450,7 @@ const Step1 = ({ form, set, toggleSubject, bioCount, onPhoto, photoUploading, ph
               <button type="button" onClick={() => photoRef.current?.click()} disabled={photoUploading}
                 className="inline-flex items-center gap-2 border border-stone-300 rounded-xl px-3 py-2 text-sm text-stone-700 hover:border-emerald-400 hover:text-emerald-800 disabled:opacity-60">
                 {photoUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                {photoUploading ? "Uploading…" : form.photoUrl ? "Replace photo" : "Upload photo"}
+                {photoUploading ? "Uploading…" : form.photoUrl ? "Replace photo" : "Attach photo"}
               </button>
               <p className="text-[11px] text-stone-400 mt-1">JPG, PNG or WebP · max 5MB</p>
             </div>
@@ -606,7 +606,7 @@ const Step4 = ({ form, set, handleDoc, uploads, uploadErrors, updateAddress, add
     <div className="grid sm:grid-cols-2 gap-3 mb-6">
       {[
         { v: "new", t: "I need a DBS check", d: "We'll arrange an Enhanced DBS check for you" },
-        { v: "existing", t: "I already have an Enhanced DBS", d: "Upload your existing certificate to verify" },
+        { v: "existing", t: "I already have an Enhanced DBS", d: "Attach your existing certificate to verify" },
       ].map((o) => {
         const on = form.dbsOption === o.v;
         return (
@@ -701,7 +701,7 @@ const Step4 = ({ form, set, handleDoc, uploads, uploadErrors, updateAddress, add
               className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
           </div>
         </div>
-        <DocUploadField label="Upload certificate" hint="(required)" fileName={form.existingDbsName} uploading={!!uploads.dbsCert} error={uploadErrors.dbsCert}
+        <DocUploadField label="Attach certificate" hint="(required)" fileName={form.existingDbsName} uploading={!!uploads.dbsCert} error={uploadErrors.dbsCert}
           onPick={(f) => handleDoc("dbsCert", "existingDbsUrl", "existingDbsName", f)} onClear={() => set({ existingDbsUrl: "", existingDbsName: "" })} />
         <label className="flex items-start gap-2.5 cursor-pointer">
           <input type="checkbox" checked={form.enhancedConfirmed} onChange={(e) => set({ enhancedConfirmed: e.target.checked })} className="accent-emerald-600 w-4 h-4 mt-0.5" />
