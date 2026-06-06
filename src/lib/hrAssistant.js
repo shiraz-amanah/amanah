@@ -1,5 +1,29 @@
 import { supabase } from "../supabaseClient";
 
+// Map the raw error codes the wrappers below return into a human-readable,
+// self-diagnosing message. The point is that a prod failure tells you WHY
+// (e.g. a missing server API key) instead of a generic "unavailable", so the
+// cause is visible in the UI without opening the network tab. Shared by the
+// HR + Madrasah assistant panels.
+export function assistantErrorMessage(code) {
+  switch (code) {
+    case "not_signed_in":      return "Sign in to use the assistant.";
+    case "missing_mosqueId":   return "No mosque is linked to this account.";
+    case "missing_classId":    return "No class selected.";
+    case "server_misconfigured": return "AI isn't configured on the server (missing API key). Check the Vercel environment variables.";
+    case "network_exception":  return "Couldn't reach the assistant — check your connection and try again.";
+    case "http_401":           return "Session expired (401). Please sign in again.";
+    case "http_403":           return "Access denied (403) — this account doesn't own this mosque.";
+    case "http_404":           return "Not found (404) — the mosque or class record is missing.";
+    case "http_429":           return "AI is rate-limited (429). Try again in a moment.";
+    case "http_500":           return "Server error (500) — the AI request failed. Check the Vercel function logs.";
+    default:
+      if (typeof code === "string" && code.startsWith("http_"))
+        return `Request failed (HTTP ${code.replace("http_", "")}).`;
+      return `Assistant error${code ? `: ${code}` : ""}.`;
+  }
+}
+
 // Mosque HR assistant — thin client wrapper. The Anthropic call is SERVER-SIDE
 // (folded into /api/admin-brief as mode:'mosque_hr' — the key never reaches the
 // browser). Sends only mosqueId + an optional question + the owner's JWT; the

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Send, ChevronDown, ChevronUp } from "lucide-react";
-import { askMosqueHr } from "../lib/hrAssistant";
+import { askMosqueHr, assistantErrorMessage } from "../lib/hrAssistant";
 
 // Collapsible AI HR assistant at the top of the HR tab (Session V chunk 4).
 // On open it auto-loads 3 proactive suggestions from the mosque's real staff
@@ -22,7 +22,7 @@ const MosqueHRAssistant = ({ mosqueId }) => {
     let alive = true;
     setSugLoading(true);
     askMosqueHr(mosqueId, "")
-      .then((r) => { if (alive) { if (r.ok) setSuggestions(r.answer); else setError(r.error === "not_signed_in" ? null : "Assistant unavailable right now."); } })
+      .then((r) => { if (alive) { if (r.ok) setSuggestions(r.answer); else setError(assistantErrorMessage(r.error)); } })
       .finally(() => alive && setSugLoading(false));
     return () => { alive = false; };
   }, [open, mosqueId, suggestions, sugLoading]);
@@ -33,7 +33,7 @@ const MosqueHRAssistant = ({ mosqueId }) => {
     setAsking(true); setError(null); setAnswer(null);
     const r = await askMosqueHr(mosqueId, question);
     setAsking(false);
-    if (!r.ok) { setError("Couldn't get an answer — try again."); return; }
+    if (!r.ok) { setError(assistantErrorMessage(r.error)); return; }
     setAnswer(r.answer);
   };
 

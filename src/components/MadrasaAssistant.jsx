@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Send, ChevronDown, ChevronUp } from "lucide-react";
-import { getMadrasaBriefing, askMadrasa } from "../lib/hrAssistant";
+import { getMadrasaBriefing, askMadrasa, assistantErrorMessage } from "../lib/hrAssistant";
 
 // Phase 3D — collapsible AI madrasa assistant at the top of the Madrasa tab.
 // On first open it loads proactive suggestions from the mosque's AGGREGATE class
@@ -21,7 +21,7 @@ const MadrasaAssistant = ({ mosqueId }) => {
     let alive = true;
     setSugLoading(true);
     getMadrasaBriefing(mosqueId)
-      .then((r) => { if (alive) { if (r.ok) setSuggestions(r.brief); else setError(r.error === "not_signed_in" ? null : "Assistant unavailable right now."); } })
+      .then((r) => { if (alive) { if (r.ok) setSuggestions(r.brief); else setError(assistantErrorMessage(r.error)); } })
       .finally(() => alive && setSugLoading(false));
     return () => { alive = false; };
   }, [open, mosqueId, suggestions, sugLoading]);
@@ -32,7 +32,7 @@ const MadrasaAssistant = ({ mosqueId }) => {
     setAsking(true); setError(null); setAnswer(null);
     const r = await askMadrasa(mosqueId, question);
     setAsking(false);
-    if (!r.ok) { setError("Couldn't get an answer — try again."); return; }
+    if (!r.ok) { setError(assistantErrorMessage(r.error)); return; }
     setAnswer(r.answer);
   };
 
