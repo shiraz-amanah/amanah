@@ -124,6 +124,15 @@ export function sendMadrasaReportPublished(reportId) {
   return postTransactional({ intent: 'madrasa_report_published', reportId });
 }
 
+// Madrasa Phase 3B — a positive reward (star/merit/achievement) was awarded.
+// Fired after awardReward succeeds for a positive type; the server resolves the
+// parent + emails them (warning/concern return no payload server-side, so this is
+// a no-op for those even if mis-called). Fire-and-forget.
+export function sendMadrasaRewardAwarded(rewardId) {
+  if (!rewardId) return Promise.resolve({ ok: false, error: 'missing_rewardId' });
+  return postTransactional({ intent: 'madrasa_reward_awarded', rewardId });
+}
+
 // Madrasa Phase 3A — offer the next waitlisted child a freed seat. Admin/teacher-
 // initiated ("Offer next seat"): the server reaps stale offers, makes the next
 // 48h offer for this class via madrasa_waitlist_make_next_offer, and emails the

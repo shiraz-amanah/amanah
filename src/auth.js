@@ -1155,6 +1155,64 @@ export async function deleteMadrasaPhoto(photo) {
   return { error }
 }
 
+// --- Madrasa behaviour + rewards (migration 083) ---
+const REWARD_POSITIVE = ['star', 'merit', 'achievement']
+export const isPositiveReward = (t) => REWARD_POSITIVE.includes(t)
+
+// Award a reward to a student (teacher/owner write RLS; mosque_id forced to match
+// the class). Positive types (star/merit/achievement) email the parent — the
+// caller fires sendMadrasaRewardAwarded after a successful insert.
+export async function awardReward({ classId, studentId, mosqueId, type, note }) {
+  if (!classId || !studentId || !mosqueId || !type) return { error: { message: 'classId, studentId, mosqueId and type required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_rewards')
+    .insert({ class_id: classId, student_id: studentId, mosque_id: mosqueId, type, note: note || null, awarded_by: user?.id || null })
+    .select('*, student:students(id, name)').single()
+  return { data, error }
+}
+
+// A class's reward history (teacher/owner), newest first, with student name.
+export async function getClassRewards(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_rewards')
+    .select('*, student:students(id, name)')
+    .eq('class_id', classId)
+    .order('awarded_at', { ascending: false })
+  if (error) { console.error('Error fetching class rewards:', error); return [] }
+  return data || []
+}
+
+// One child's rewards (parent view — RLS returns own children only), newest first.
+export async function getStudentRewards(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase
+    .from('madrasa_rewards')
+    .select('*, class:madrasa_classes(name, mosque:mosques(name))')
+    .eq('student_id', studentId)
+    .order('awarded_at', { ascending: false })
+  if (error) { console.error('Error fetching student rewards:', error); return [] }
+  return data || []
+}
+
+export async function deleteReward(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_rewards').delete().eq('id', id)
+  return { error }
+}
+
+// --- Madrasa exports (migration 083, used by Phase 3E) ---
+// Owner/admin-only roster with parent contact + attendance totals (definer RPC;
+// authz is inside the function — a non-owner gets 0 rows). Returns the raw rows;
+// callers shape into bulk CSV or a single-student GDPR export.
+export async function getExportRoster(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.rpc('madrasa_export_roster', { p_mosque: mosqueId })
+  if (error) { console.error('Error fetching export roster:', error); return [] }
+  return data || []
+}
+
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.
