@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (6 June 2026): **Madrasa Phase 3 COMPLETE — the whole Madrasa module (Phases 1–3) is shipped** (Sessions AE–AI). 3E reports/exports (Session AI) was the last slice: `MadrasaReportsCenter.jsx`, opened from a **Reports** button in the owner Madrasa tab — 8 reports (class register P/A/L/E pivot, term attendance summary, Hifz progress, homework completion, rewards summary, waiting list, **GDPR per-student** [full JSON + flat event-log CSV], **bulk student export** for Ofsted). Composes existing owner reads + 083's `madrasa_export_roster` (parent contact); native CSV (`src/lib/csv.js`, no papaparse) + lazy jsPDF table (`src/lib/madrasaReportPdf.js`); owner-only, GDPR/bulk additionally gated by the RPC's in-query authz; `students.age` (no `dob`). **Module summary:** Phase 1 (068–072) classes/enrolment/attendance/Hifz/teacher portal; Phase 2 (073–080) announcements/messaging/absence/homework/reports/photos; Phase 3 (081–083) 3A waiting list, 3B rewards, 3C certificates, 3D AI assistant, 3E reports. **Migrations 068–083 all live dev + prod.** Intents **17**; Vercel **11/12** (no new `api/*.js` the whole module — emails are send-transactional intents, AI is `admin-brief` `mode:'madrasa_ops'`); class workspace **10 sub-tabs**. Model `claude-sonnet-4-6`. **Outstanding (non-blocking) — never run headless, accumulated across the module:** browser + email-send checks for 3A offer email, 3B reward email (`delivered@resend.dev`), 3C certs, 3D assistant (briefing names nobody / chat answers), 3E reports, plus Phase 2 (2b/2C email, 2D storage bytes) — all need deployed `/api` + Resend/Anthropic + a browser. **Tech-debt flags:** 10-sub-tab crowding (grouping pass); `migrations/README.md` table stalled at 033 (backfill 034→083). **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session. **Next:** no madrasa phase queued — likely the manual verification pass, the Stripe session, or back to the pre-launch roadmap (Phase 1 blockers in the "Full product roadmap" section). Push state: **check `git log origin/main..HEAD`**.
+> Last action (6 June 2026): **Madrasa post-testing fixes shipped** (Session AJ) — on top of the complete module (Phases 1–3). Migration **084** (homework files: `files` jsonb on homework+completions, private bucket `madrasa-homework-uploads`, storage smoke 10/10) applied dev+prod. Fixes: **2** homework uploads (teacher resources + parent submissions), **3** reports overhaul (structured section ratings as JSON-in-text + AI summary via `admin-brief` `mode:'report_summary'` + CSV), **5** certificate redesign + "Send to parent" (`madrasa_certificate` intent, `sendEmail` now supports Resend attachments), **6** parent view overhaul (clean per-child cards, report modal, removed cert buttons/raw attendance log), **8** "Madrasa"→"Madrasah" display text. **Fix 1** (teacher isolation) + **Fix 7** (back nav) were **audited as already-correct, no code**. **Fix 4 (photo upload) STILL OPEN** — prod infra confirmed good (bucket+policies+helpers), so it's a client/runtime bug awaiting the browser network error. Intents now **18**; Vercel still **11/12**; class workspace 10 sub-tabs; model `claude-sonnet-4-6`. **Pending manual checks (browser/email):** Fix 4 photo error, cert send-to-parent email, report AI summary, redesigned cert PDF + new parent view on a phone, homework upload UX; plus carried-forward module email/storage checks. **Next: Fix 4 (on the error) → manual verification pass → Stripe session / pre-launch roadmap.** Earlier context (still true): **Madrasa Phase 3 COMPLETE — the whole Madrasa module (Phases 1–3) is shipped** (Sessions AE–AI). 3E reports/exports (Session AI) was the last slice: `MadrasaReportsCenter.jsx`, opened from a **Reports** button in the owner Madrasa tab — 8 reports (class register P/A/L/E pivot, term attendance summary, Hifz progress, homework completion, rewards summary, waiting list, **GDPR per-student** [full JSON + flat event-log CSV], **bulk student export** for Ofsted). Composes existing owner reads + 083's `madrasa_export_roster` (parent contact); native CSV (`src/lib/csv.js`, no papaparse) + lazy jsPDF table (`src/lib/madrasaReportPdf.js`); owner-only, GDPR/bulk additionally gated by the RPC's in-query authz; `students.age` (no `dob`). **Module summary:** Phase 1 (068–072) classes/enrolment/attendance/Hifz/teacher portal; Phase 2 (073–080) announcements/messaging/absence/homework/reports/photos; Phase 3 (081–083) 3A waiting list, 3B rewards, 3C certificates, 3D AI assistant, 3E reports. **Migrations 068–083 all live dev + prod.** Intents **17**; Vercel **11/12** (no new `api/*.js` the whole module — emails are send-transactional intents, AI is `admin-brief` `mode:'madrasa_ops'`); class workspace **10 sub-tabs**. Model `claude-sonnet-4-6`. **Outstanding (non-blocking) — never run headless, accumulated across the module:** browser + email-send checks for 3A offer email, 3B reward email (`delivered@resend.dev`), 3C certs, 3D assistant (briefing names nobody / chat answers), 3E reports, plus Phase 2 (2b/2C email, 2D storage bytes) — all need deployed `/api` + Resend/Anthropic + a browser. **Tech-debt flags:** 10-sub-tab crowding (grouping pass); `migrations/README.md` table stalled at 033 (backfill 034→083). **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session. **Next:** no madrasa phase queued — likely the manual verification pass, the Stripe session, or back to the pre-launch roadmap (Phase 1 blockers in the "Full product roadmap" section). Push state: **check `git log origin/main..HEAD`**.
 
 ---
 
@@ -6771,6 +6771,70 @@ owner-tab only; GDPR/bulk also gated by the RPC's in-query authz).
   housekeeping.
 - **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items
   (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session.
+
+---
+
+## Session AJ — Madrasa post-testing fixes ✅ (6 June 2026)
+
+Eight fixes from live testing. Pre-flight (per the brief) flagged two stale
+premises before any code. Migration **084** (homework files) applied dev+prod,
+storage smoke **10/10**. Five code commits; Fixes 1/4/7 needed no code (see below).
+
+### Pre-flight corrections (flagged before coding)
+- **Fix 1 — already correct.** `getMyTeacherClasses` filters by `teacher_staff_id`;
+  072 RLS scopes roster/student reads to the teacher's own classes. The "shows all
+  classes" sighting was the **public `MadrasaBrowse`** page (by design). No code.
+- **Fix 4 — prod infra green** (bucket + 4 storage policies + helpers present), so
+  the photo upload failure is a **client/runtime** issue. Awaiting the browser
+  network error to pin it; no code yet.
+- **Fix 3** — `teacher_comment` is `text` not `jsonb` → structured sections stored
+  as JSON-in-text (no migration). **Fix 5** — parent email resolved via
+  sbGet+getProfile (no new RPC); `sendEmail` extended for attachments.
+
+### Shipped (by commit)
+- **Fix 2 — homework file uploads** (`88d8d38`, migration **084**). files jsonb on
+  homework + completions; private bucket `madrasa-homework-uploads` (4 storage
+  policies + 3 definer path helpers); teacher resources under `_resource/`, parent
+  submissions under `<student_id>/`. Teacher composer "Attach files" + submissions
+  view; parent download + "Upload work". **Storage smoke 10/10** — first madrasa
+  storage bytes verified end-to-end.
+- **Fix 3 — reports overhaul** (`4aac196`). Structured sections (4 rated + overall)
+  stored as JSON in teacher_comment (`lib/madrasaReport.js`; legacy plain-text →
+  overall, no migration). AI summary via `admin-brief` `mode:'report_summary'`
+  (teacher/owner-authed) with Accept/Edit/Regenerate/Revert. CSV export. reportPdf
+  renders sections.
+- **Fix 5 — certificates** (`541de1e`). Redesigned PDF (geometric corners, diagonal
+  watermark, diamond divider, script name). `madrasa_certificate` intent + Resend
+  attachment support → "Send to parent" (client base64 → server authorizes +
+  attaches).
+- **Fix 6 — parent view overhaul** (`2560b8a`). `MadrasaParent` slimmed to a shell;
+  `MadrasaChildProgress` is now a clean per-child card (avatar + quick-stat pills,
+  active homework, report modal with rating badges + AI summary, Hifz progress bar,
+  rewards, photo consent, withdraw). Removed: parent cert buttons, raw attendance
+  log, red anxiety text.
+- **Fix 7 — back navigation: audited, already compliant.** `MadrasaBrowse` uses
+  `window.history.back()`; in-tab sub-views use in-component state (the app's
+  pattern). No code.
+- **Fix 8 — "Madrasa" → "Madrasah"** (`0358f08`). Display text only (tab labels,
+  headings, browse title, assistant card, AI prompts, email copy). Identifiers,
+  tables, buckets, `v:"madrasa"` values, and comments untouched.
+
+### Verified
+Storage smoke 10/10; 084 probed dev+prod; every `npm run build` clean; api files
+still **11/12** (intents now **18**: + `madrasa_certificate`; AI modes +
+`report_summary`). **NOT verified (browser/email — needs deployed `/api` +
+Resend/Anthropic):** Fix 4 photo upload (awaiting error), cert send-to-parent
+email, report AI summary, the redesigned cert PDF + parent view on a phone, and
+the homework upload UX. Carried-forward email/storage checks still open.
+
+### Outstanding
+- **Fix 4 photos** — still open; need the browser network error to diagnose the
+  client-side cause (infra is confirmed good).
+- Manual browser/email pass of Fixes 2/3/5/6 + the carried-forward module checks.
+
+### Next
+Fix 4 (on the error) → manual verification pass → Stripe session / pre-launch
+roadmap.
 
 ---
 
