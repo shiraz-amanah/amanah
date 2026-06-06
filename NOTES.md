@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (6 June 2026): **Madrasa Phase 3D (AI assistant) built** (Session AH) — 3B rewards (AF) + 3C certificates (AG) shipped before it. 3D: collapsible AI assistant on the Madrasa tab, folded into `admin-brief.js` as `mode:'madrasa_ops'` (owner-JWT; no new Vercel function — still **11 api files**). Briefing (no question) = proactive class suggestions from **aggregates only**; chat (question) answers over aggregates + a **named per-student array** — the briefing payload literally omits names (structural PII guard, not just a prompt rule). `buildMadrasaContext` rolls up per class: enrolment/waitlist/capacity %, attendance % (30d), hifz avg surah, homework %, top stars (named), 3+-consecutive-absence count. Client: `hrAssistant.js` `getMadrasaBriefing`/`askMadrasa`; `MadrasaAssistant.jsx` card in `MosqueMadrasa` (collapsed by default). Owner-only (panel lives on the owner Madrasa tab). **No migration, no headless smoke** (AI needs deployed `/api` + `ANTHROPIC_API_KEY` → `vercel dev`/browser check). Model `claude-sonnet-4-6`. **Recap:** 3B = migration **083** (live dev+prod, smoke 10/10): `madrasa_rewards` + positive-only `madrasa_reward_email_data` + folded-in 3E `madrasa_export_roster` (owner/admin definer, authz-in-query, parent contact + attendance). 3C = client-side jsPDF certs (A4 landscape, download-only). Intents **17**; class workspace now **10 sub-tabs** (crowding flagged). **Pre-flight facts for 3E:** `students.age` (no `dob`); `profiles.phone` exists; **`MadrasaReports.jsx` is taken** → use **`MadrasaReportsCenter.jsx`**; **no papaparse** → native CSV; jsPDF lazy; `madrasa_export_roster` is the GDPR/bulk source (admin-only). **Pending manual checks (non-blocking):** browser pass of 3D (briefing names nobody; chat answers), 3C certs, 3B rewards + reward email (`delivered@resend.dev`); carried-forward 3A offer email + Phase 2 (2b/2C email, 2D storage). **Next: 3E reports/exports (LAST phase, no migration)** — `MadrasaReportsCenter.jsx`: class register, attendance/Hifz/homework/rewards/waitlist summaries, GDPR per-student + bulk export; native CSV + jsPDF; GDPR/bulk admin-only. Then Madrasa Phase 3 is complete; Stripe-dependent madrasa items stay parked. Push state: **check `git log origin/main..HEAD`**.
+> Last action (6 June 2026): **Madrasa Phase 3 COMPLETE — the whole Madrasa module (Phases 1–3) is shipped** (Sessions AE–AI). 3E reports/exports (Session AI) was the last slice: `MadrasaReportsCenter.jsx`, opened from a **Reports** button in the owner Madrasa tab — 8 reports (class register P/A/L/E pivot, term attendance summary, Hifz progress, homework completion, rewards summary, waiting list, **GDPR per-student** [full JSON + flat event-log CSV], **bulk student export** for Ofsted). Composes existing owner reads + 083's `madrasa_export_roster` (parent contact); native CSV (`src/lib/csv.js`, no papaparse) + lazy jsPDF table (`src/lib/madrasaReportPdf.js`); owner-only, GDPR/bulk additionally gated by the RPC's in-query authz; `students.age` (no `dob`). **Module summary:** Phase 1 (068–072) classes/enrolment/attendance/Hifz/teacher portal; Phase 2 (073–080) announcements/messaging/absence/homework/reports/photos; Phase 3 (081–083) 3A waiting list, 3B rewards, 3C certificates, 3D AI assistant, 3E reports. **Migrations 068–083 all live dev + prod.** Intents **17**; Vercel **11/12** (no new `api/*.js` the whole module — emails are send-transactional intents, AI is `admin-brief` `mode:'madrasa_ops'`); class workspace **10 sub-tabs**. Model `claude-sonnet-4-6`. **Outstanding (non-blocking) — never run headless, accumulated across the module:** browser + email-send checks for 3A offer email, 3B reward email (`delivered@resend.dev`), 3C certs, 3D assistant (briefing names nobody / chat answers), 3E reports, plus Phase 2 (2b/2C email, 2D storage bytes) — all need deployed `/api` + Resend/Anthropic + a browser. **Tech-debt flags:** 10-sub-tab crowding (grouping pass); `migrations/README.md` table stalled at 033 (backfill 034→083). **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session. **Next:** no madrasa phase queued — likely the manual verification pass, the Stripe session, or back to the pre-launch roadmap (Phase 1 blockers in the "Full product roadmap" section). Push state: **check `git log origin/main..HEAD`**.
 
 ---
 
@@ -6712,6 +6712,65 @@ Pending. Model stays `claude-sonnet-4-6`.
 homework/rewards/waitlist summaries, GDPR per-student + bulk export via
 `madrasa_export_roster`); native CSV (no papaparse) + jsPDF (lazy). Admin-only for
 GDPR/bulk.
+
+---
+
+## Session AI — Madrasa Phase 3E: reports + exports ✅ (6 June 2026) — PHASE 3 COMPLETE
+
+A reports & exports centre for the mosque owner. No migration — composes existing
+owner reads + 083's `madrasa_export_roster`. **This completes Madrasa Phase 3
+(3A–3E) and the whole 3-phase Madrasa module (1–3).**
+
+### Shipped (by commit)
+- **3E-i utils + helpers** (`88f3f4e`). `src/lib/csv.js` (native RFC-4180 CSV +
+  `downloadCSV`/`downloadJSON`, no papaparse); `src/lib/madrasaReportPdf.js`
+  (generic branded A4-landscape table PDF, lazy jsPDF, header repeat + row
+  pagination); auth.js `getClassAttendance` (class-wide, optional date range),
+  `getClassHifz` (class-wide), `getStudentWaitlist` (GDPR) — owner-readable via
+  existing RLS.
+- **3E-ii reports centre** (`f2d8868`). `MadrasaReportsCenter.jsx`, opened from a
+  **Reports** button in the Madrasa tab header (owner only). 8 reports: class
+  register (P/A/L/E pivot, date-range), term attendance summary, Hifz progress,
+  homework completion, rewards summary, waiting list, **GDPR per-student export**
+  (full JSON + flat event-log CSV), **bulk student export** (Ofsted; name, age,
+  parent contact, class, attendance %). On-page preview (first 200 rows) + CSV/PDF
+  (+ JSON for GDPR).
+
+### Verified
+Build clean (lazy report-PDF chunk compiles). **No headless smoke** — the reports
+compose already-tested reads and the one RLS-bearing source (`madrasa_export_roster`)
+is covered by the 3B smoke 10/10. **Pending manual check:** generate each report in
+the browser, confirm counts/CSV headers/PDF, and that teachers can't reach it (it's
+owner-tab only; GDPR/bulk also gated by the RPC's in-query authz).
+
+### Design decisions
+- **`students.age`, not `dob`** — bulk export shows age (no schema change).
+- **GDPR CSV = flat event log** (category/date/detail) since the full export is
+  nested; the complete record is the **JSON** download. Per-class reports use
+  existing owner reads; only contact (GDPR/bulk) needs the definer RPC.
+- **Owner-only** — reports live on the owner Madrasa tab; teachers use the staff
+  portal. GDPR/bulk additionally gated by `madrasa_export_roster`'s authz.
+
+### Madrasa module status (1–3 complete)
+- **Phase 1** (068–072): classes, enrolment, attendance, Hifz, teacher portal.
+- **Phase 2** (073–080): announcements, messaging, absence, homework, reports,
+  consent-gated photos.
+- **Phase 3** (081–083): 3A waiting list, 3B rewards, 3C certificates, 3D AI
+  assistant, 3E reports/exports.
+- **Migrations 068–083 all live dev + prod.** Intents **17**; Vercel **11/12**;
+  class workspace **10 sub-tabs**.
+
+### Outstanding (non-blocking)
+- **Manual/browser + email-send checks** never run headless, accumulated across
+  the module: 3A offer email; 3B reward email + rewards surfaces; 3C certs (each
+  type); 3D assistant (briefing names nobody, chat answers); 3E reports; plus
+  Phase 2 (2b/2C email, 2D storage bytes). All need the deployed `/api` + Resend/
+  Anthropic + a browser.
+- **Tab crowding** — 10 madrasa sub-tabs; a grouping/overflow pass is warranted.
+- **`migrations/README.md`** table stalled at 033 — backfill 034→083 is separate
+  housekeeping.
+- **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items
+  (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session.
 
 ---
 
