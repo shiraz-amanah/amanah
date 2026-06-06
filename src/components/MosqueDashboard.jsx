@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Building2, Users, Calendar, HandCoins, MessageCircle,
   User, ShieldCheck, CheckCircle2, AlertCircle, LogOut,
@@ -74,31 +73,7 @@ const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
   </div>
 );
 
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox }) => {
-  const [tab, setTabRaw] = useState(() => {
-    try { return sessionStorage.getItem("mosqueDashboardTab") || "dashboard"; } catch { return "dashboard"; }
-  });
-  const [sub, setSubRaw] = useState(() => {
-    try { return sessionStorage.getItem("mosqueDashboardSub") || null; } catch { return null; }
-  });
-
-  // setTab(top[, sub]) — pass a sub to deep-link (dashboard tiles do this).
-  // Omit sub to default to the tab's first sub (or keep the current sub when
-  // re-selecting the same top tab).
-  const setTab = (newTab, newSub) => {
-    let nextSub = newSub;
-    if (nextSub === undefined) {
-      nextSub = newTab === tab ? sub : (SUBTABS[newTab]?.[0]?.[0] ?? null);
-    }
-    try {
-      sessionStorage.setItem("mosqueDashboardTab", newTab);
-      if (nextSub) sessionStorage.setItem("mosqueDashboardSub", nextSub);
-      else sessionStorage.removeItem("mosqueDashboardSub");
-    } catch {}
-    setTabRaw(newTab);
-    setSubRaw(nextSub ?? null);
-  };
-
+const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
   if (!mosque) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -118,6 +93,16 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
   const activeTab = ALL_VALUES.includes(tab) ? tab : "dashboard";
   const subList = SUBTABS[activeTab] || [];
   const activeSub = subList.some(([v]) => v === sub) ? sub : (subList[0]?.[0] ?? null);
+
+  // Tab + sub + selected staff are URL-backed (?tab=&sub=&staffId=), navigated
+  // with pushState so the browser Back button steps back through in-app views
+  // (e.g. a staff record → the Team list) instead of dropping to the homepage.
+  const setTab = (newTab, newSub) => {
+    const s = newSub !== undefined ? newSub : (newTab === activeTab ? activeSub : (SUBTABS[newTab]?.[0]?.[0] ?? ""));
+    if (newTab === activeTab && (s || "") === (activeSub || "") && !staffId) return; // no-op, avoid history spam
+    onNavigate?.(newTab, s || "", "");
+  };
+  const selectStaff = (id) => onNavigate?.("people", "team", id || "");
 
   const unread = (conversations || []).reduce((s, c) => s + (c.unread || 0), 0);
 
@@ -191,7 +176,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
         {/* ---- People ---- */}
         {activeTab === "people" && activeSub === "team" && (
-          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
+          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} />
         )}
         {activeTab === "people" && activeSub === "hr" && (
           <MosqueHR mosqueId={mosque.id} />

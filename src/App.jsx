@@ -13476,6 +13476,10 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     MessagesInbox={MessagesInbox}
     mosque={myMosque}
     authedUser={authedUser}
+    tab={routeQuery.tab || "dashboard"}
+    sub={routeQuery.sub || ""}
+    staffId={routeQuery.staffId || ""}
+    onNavigate={(t, s, sid) => navigate("mosqueDashboard", {}, { tab: t, sub: s || "", staffId: sid || "" }, {})}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     conversations={inboxData}

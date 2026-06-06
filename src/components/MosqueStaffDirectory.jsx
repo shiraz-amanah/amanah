@@ -61,9 +61,15 @@ const SECTIONS = [
   ["dbs", "DBS", ShieldCheck], ["rtw", "RTW", FileCheck], ["employment", "Employment", Briefcase],
 ];
 
-const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
+const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSelectStaff }) => {
   const [section, setSection] = useState("team");
-  const [selectedStaffId, setSelectedStaffId] = useState(null);
+  // Record selection is URL-backed when the parent passes onSelectStaff (so
+  // browser Back closes the record → Team list); falls back to local state
+  // for any standalone use.
+  const [internalSel, setInternalSel] = useState(null);
+  const selectedStaffId = onSelectStaff ? (staffId || null) : internalSel;
+  const selectStaff = onSelectStaff || setInternalSel;
+  const closeRecord = onSelectStaff ? () => window.history.back() : () => setInternalSel(null);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -227,9 +233,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
 
   const archive = async (s) => { const { error: e } = await updateMosqueStaff(s.id, { archived: true }); if (e) setError(e.message); else refresh(); };
   // From the single-person record: archive then return to the team list.
-  const archiveAndBack = async (s) => { await archive(s); setSelectedStaffId(null); };
-  // Open the record's inline edit form: close the record, ensure Team section.
-  const editFromRecord = (s) => { setSelectedStaffId(null); setSection("team"); openEdit(s); };
+  const archiveAndBack = async (s) => { await archive(s); closeRecord(); };
 
   const invite = async (s) => {
     // Friendly validation: a staff record with no email can't be invited.
@@ -271,7 +275,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
       ? { cls: "bg-amber-50 border-amber-200 text-amber-700", label: "Onboarding sent" }
       : { cls: "bg-stone-50 border-stone-200 text-stone-500", label: "Not invited" };
     return (
-      <button onClick={() => setSelectedStaffId(s.id)} className="w-full text-left flex items-center gap-3 bg-white border border-stone-200 hover:border-emerald-300 hover:shadow-sm transition-all rounded-xl p-3">
+      <button onClick={() => selectStaff(s.id)} className="w-full text-left flex items-center gap-3 bg-white border border-stone-200 hover:border-emerald-300 hover:shadow-sm transition-all rounded-xl p-3">
         <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
           {s.photo_url ? <img src={s.photo_url} alt="" className="w-full h-full object-cover" /> : initials(s.name)}
         </div>
@@ -292,7 +296,8 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
   const rv = (v) => (v === null || v === undefined || v === "" ? "—" : v);
 
   // Live object for the open record (re-renders after refresh() updates staff).
-  const selectedStaff = staff.find((s) => s.id === selectedStaffId) || null;
+  // Excludes archived so archiving from the record drops back to the list.
+  const selectedStaff = staff.find((s) => s.id === selectedStaffId && !s.archived) || null;
 
   return (
     <div className="space-y-4">
@@ -387,8 +392,8 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover }) => {
         <MosqueStaffRecord
           staff={selectedStaff}
           mosqueId={mosqueId}
-          onBack={() => setSelectedStaffId(null)}
-          onEdit={editFromRecord}
+          onBack={closeRecord}
+          onSaved={refresh}
           onReview={openReview}
           onAccess={openAccess}
           onReset={setResetStaff}
