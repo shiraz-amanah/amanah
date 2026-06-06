@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 import MadrasaAssistant from "./MadrasaAssistant";
+import MadrasaReportsCenter from "./MadrasaReportsCenter";
 
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
@@ -37,6 +38,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const [rosterClass, setRosterClass] = useState(null); // class object when viewing detail
+  const [showReports, setShowReports] = useState(false); // reports & exports view
 
   const reload = () => {
     setLoading(true);
@@ -96,6 +98,11 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
     );
   }
 
+  // ---- Reports & exports view (owner only — this whole tab is the owner's) ----
+  if (showReports) {
+    return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => setShowReports(false)} />;
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
@@ -103,7 +110,10 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasa</h2>
           <p className="text-sm text-stone-600">Your classes, teachers and rosters.</p>
         </div>
-        {!showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowReports(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Reports</button>
+          {!showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
+        </div>
       </div>
 
       <MadrasaAssistant mosqueId={mosqueId} />
