@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { getMosqueBriefing } from "../lib/hrAssistant";
 import { getMosqueStaff, getMosqueEvents, getMosqueTimesheets, getMosqueRota, getMosqueDocuments } from "../auth";
+import Markdown from "./Markdown";
 
 // Session W — admin Dashboard (default landing). AI morning briefing on top
 // (server-side mode:'mosque_ops'), quick stats, today's rota with gaps in red,
@@ -132,7 +133,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
         <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 mb-2"><Sparkles size={16} /> Daily briefing</div>
         {briefLoading ? <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Preparing your briefing…</div>
           : briefError ? <p className="text-sm text-stone-500">Your briefing is unavailable right now. The stats below are live.</p>
-          : <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-line">{brief}</p>}
+          : <Markdown text={brief} />}
       </div>
 
       {/* Quick stats */}

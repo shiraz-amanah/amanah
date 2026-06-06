@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { askMosqueHr, assistantErrorMessage } from "../lib/hrAssistant";
+import Markdown from "./Markdown";
 
 // Collapsible AI HR assistant at the top of the HR tab (Session V chunk 4).
 // On open it auto-loads 3 proactive suggestions from the mosque's real staff
@@ -16,16 +17,19 @@ const MosqueHRAssistant = ({ mosqueId }) => {
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load proactive suggestions once, when first opened.
+  // Auto-load the proactive briefing when the panel is open (and on mosque
+  // change). Deps are ONLY [open, mosqueId] — including suggestions/sugLoading
+  // here caused the effect to re-run on its own setSugLoading(true), whose
+  // cleanup set alive=false and swallowed the in-flight result → infinite spin.
   useEffect(() => {
-    if (!open || suggestions !== null || sugLoading) return;
+    if (!open) return;
     let alive = true;
-    setSugLoading(true);
+    setSugLoading(true); setError(null);
     askMosqueHr(mosqueId, "")
-      .then((r) => { if (alive) { if (r.ok) setSuggestions(r.answer); else setError(assistantErrorMessage(r.error)); } })
-      .finally(() => alive && setSugLoading(false));
+      .then((r) => { if (!alive) return; if (r.ok) setSuggestions(r.answer); else setError(assistantErrorMessage(r.error)); })
+      .finally(() => { if (alive) setSugLoading(false); });
     return () => { alive = false; };
-  }, [open, mosqueId, suggestions, sugLoading]);
+  }, [open, mosqueId]);
 
   const ask = async () => {
     const question = q.trim();
@@ -50,7 +54,7 @@ const MosqueHRAssistant = ({ mosqueId }) => {
           <div>
             <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium mb-1">Suggestions</p>
             {sugLoading ? <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Reviewing your staff…</div>
-              : suggestions ? <div className="text-sm text-stone-700 whitespace-pre-line leading-relaxed">{suggestions}</div>
+              : suggestions ? <Markdown text={suggestions} />
               : <p className="text-sm text-stone-400">No suggestions available.</p>}
           </div>
 
@@ -66,7 +70,7 @@ const MosqueHRAssistant = ({ mosqueId }) => {
             <button onClick={ask} disabled={asking || !q.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{asking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
           </div>
           {error && <p className="text-sm text-rose-700">{error}</p>}
-          {answer && <div className="text-sm text-stone-800 whitespace-pre-line leading-relaxed bg-white border border-stone-200 rounded-xl p-3">{answer}</div>}
+          {answer && <div className="bg-white border border-stone-200 rounded-xl p-3"><Markdown text={answer} /></div>}
         </div>
       )}
     </div>
