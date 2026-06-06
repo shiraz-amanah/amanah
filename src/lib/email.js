@@ -133,6 +133,14 @@ export function sendMadrasaRewardAwarded(rewardId) {
   return postTransactional({ intent: 'madrasa_reward_awarded', rewardId });
 }
 
+// Madrasa Fix 5 — email a client-generated certificate PDF to the parent. The
+// PDF is built in the browser and passed as base64; the server authorizes the
+// caller, verifies enrolment, resolves the parent + attaches it. Fire-and-forget.
+export function sendMadrasaCertificate({ studentId, classId, certTitle, fileName, base64 }) {
+  if (!studentId || !classId || !base64) return Promise.resolve({ ok: false, error: 'missing_args' });
+  return postTransactional({ intent: 'madrasa_certificate', studentId, classId, certTitle, fileName, base64 });
+}
+
 // Madrasa Phase 3A — offer the next waitlisted child a freed seat. Admin/teacher-
 // initiated ("Offer next seat"): the server reaps stale offers, makes the next
 // 48h offer for this class via madrasa_waitlist_make_next_offer, and emails the

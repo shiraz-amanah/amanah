@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Loader2, Award, Download, Users } from "lucide-react";
+import { Loader2, Award, Download, Users, Send } from "lucide-react";
 import { getMadrasaRoster, buildReportSummary } from "../auth";
+import { sendMadrasaCertificate } from "../lib/email";
 import { CERT_TYPES } from "../lib/madrasaCertificate";
 
-// jsPDF is heavy — lazy-load the generator on download so it stays out of the
-// main bundle (same pattern as the 2C report PDF).
-const generate = (args) => import("../lib/madrasaCertificate").then((m) => m.downloadCertificate(args));
+// jsPDF is heavy — lazy-load the generator on use so it stays out of the main
+// bundle (same pattern as the 2C report PDF).
+const certMod = () => import("../lib/madrasaCertificate");
 
 // Teacher/admin certificate generator for one class (Phase 3C). No new data —
 // attendance/Hifz/homework come from the existing buildReportSummary RPC; custom
@@ -17,6 +18,7 @@ const MadrasaCertificates = ({ classObj, mosqueName }) => {
   const [custom, setCustom] = useState({});  // studentId → custom text
   const [busy, setBusy] = useState(null);
   const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     setLoading(true); setErr("");
@@ -26,32 +28,46 @@ const MadrasaCertificates = ({ classObj, mosqueName }) => {
       .finally(() => setLoading(false));
   }, [classObj.id]);
 
-  const make = async (sid, name) => {
+  // Resolve the certificate args (type-specific data) for a student, or null + set error.
+  const resolveArgs = async (sid, name) => {
     const t = type[sid] || "attendance";
-    if (busy) return;
-    setBusy(sid); setErr("");
-    try {
-      let data = {};
-      if (t === "custom") {
-        if (!(custom[sid] || "").trim()) { setErr("Enter the achievement text for the custom certificate."); setBusy(null); return; }
-        data = { text: custom[sid].trim() };
-      } else {
-        const s = await buildReportSummary(classObj.id, sid);
-        if (!s) { setErr("Couldn't load this student's records."); setBusy(null); return; }
-        if (t === "attendance") {
-          const a = s.attendance || {};
-          const total = a.total ?? ((a.present || 0) + (a.absent || 0) + (a.late || 0) + (a.excused || 0));
-          data = { present: a.present || 0, total };
-        } else if (t === "hifz") {
-          data = { surahNumber: s.hifz?.last_surah || null };
-        } else if (t === "homework") {
-          data = { completed: s.homework?.completed || 0, assigned: s.homework?.assigned || 0 };
-        }
+    let data = {};
+    if (t === "custom") {
+      if (!(custom[sid] || "").trim()) { setErr("Enter the achievement text for the custom certificate."); return null; }
+      data = { text: custom[sid].trim() };
+    } else {
+      const s = await buildReportSummary(classObj.id, sid);
+      if (!s) { setErr("Couldn't load this student's records."); return null; }
+      if (t === "attendance") {
+        const a = s.attendance || {};
+        data = { present: a.present || 0, total: a.total ?? ((a.present || 0) + (a.absent || 0) + (a.late || 0) + (a.excused || 0)) };
+      } else if (t === "hifz") {
+        data = { surahNumber: s.hifz?.last_surah || null };
+      } else if (t === "homework") {
+        data = { completed: s.homework?.completed || 0, assigned: s.homework?.assigned || 0 };
       }
-      await generate({ type: t, childName: name, className: classObj.name, teacherName: classObj.teacher?.name || "", mosqueName, term: classObj.term, data });
-    } catch (e) {
-      console.error("certificate generate failed:", e); setErr("Couldn't generate the certificate.");
     }
+    return { type: t, childName: name, className: classObj.name, teacherName: classObj.teacher?.name || "", mosqueName, term: classObj.term, data };
+  };
+
+  const make = async (sid, name) => {
+    if (busy) return;
+    setBusy(sid); setErr(""); setMsg("");
+    try { const args = await resolveArgs(sid, name); if (args) (await certMod()).downloadCertificate(args); }
+    catch (e) { console.error("certificate generate failed:", e); setErr("Couldn't generate the certificate."); }
+    setBusy(null);
+  };
+
+  const sendToParent = async (sid, name) => {
+    if (busy) return;
+    setBusy(sid); setErr(""); setMsg("");
+    try {
+      const args = await resolveArgs(sid, name);
+      if (!args) { setBusy(null); return; }
+      const { fileName, base64, title } = (await certMod()).certificateBase64(args);
+      const res = await sendMadrasaCertificate({ studentId: sid, classId: classObj.id, certTitle: title, fileName, base64 });
+      setMsg(res?.ok ? (res.sent ? `Certificate sent to ${name}'s parent ✓` : "That parent has email turned off — share it another way.") : "Couldn't send the certificate.");
+    } catch (e) { console.error("certificate send failed:", e); setErr("Couldn't send the certificate."); }
     setBusy(null);
   };
 
@@ -66,6 +82,7 @@ const MadrasaCertificates = ({ classObj, mosqueName }) => {
     <div className="space-y-3">
       <p className="text-xs text-stone-500 flex items-center gap-1.5"><Award size={13} /> Generate a branded PDF certificate per student. Attendance, Hifz and homework pull from the class records; custom is your own text. Downloads to your device — nothing is stored.</p>
       {err && <p className="text-xs text-rose-600">{err}</p>}
+      {msg && <p className="text-xs text-emerald-700">{msg}</p>}
       <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{roster.map((e) => {
         const sid = e.student?.id || e.student_id;
         const name = e.student?.name || "Student";
@@ -80,8 +97,12 @@ const MadrasaCertificates = ({ classObj, mosqueName }) => {
                   {CERT_TYPES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
                 </select>
                 <button onClick={() => make(sid, name)} disabled={busy === sid}
-                  className="text-[12px] px-3 py-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-white font-medium inline-flex items-center gap-1.5 disabled:opacity-40">
+                  className="text-[12px] px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 font-medium inline-flex items-center gap-1.5 disabled:opacity-40">
                   {busy === sid ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download
+                </button>
+                <button onClick={() => sendToParent(sid, name)} disabled={busy === sid}
+                  className="text-[12px] px-3 py-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-white font-medium inline-flex items-center gap-1.5 disabled:opacity-40">
+                  {busy === sid ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Send to parent
                 </button>
               </div>
             </div>

@@ -455,11 +455,14 @@ async function isAdmin(env, userId) {
   return Array.isArray(profiles) && profiles[0]?.role === 'admin';
 }
 
-async function sendEmail(env, { to, subject, html }) {
+async function sendEmail(env, { to, subject, html, attachments }) {
+  const payload = { from: env.RESEND_FROM, to: [to], subject, html };
+  // Resend attachments: [{ filename, content: <base64 string> }] (Fix 5).
+  if (Array.isArray(attachments) && attachments.length) payload.attachments = attachments;
   const res = await fetch(RESEND_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.RESEND_API_KEY}` },
-    body: JSON.stringify({ from: env.RESEND_FROM, to: [to], subject, html }),
+    body: JSON.stringify(payload),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -1050,6 +1053,53 @@ ${noteLine}${ctaButton('View their rewards', env.PUBLIC_APP_URL)}${eSignoff}`;
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Madrasa Fix 5 — email a client-generated certificate PDF to the parent.
+// Authorizes the caller (manages the class), verifies the student is enrolled in
+// that class, resolves the parent, and sends with the PDF as a Resend attachment.
+async function handleMadrasaCertificate(env, caller, body) {
+  const { studentId, classId, certTitle, fileName, base64 } = body;
+  if (typeof base64 !== 'string' || base64.length < 100) return { status: 400, body: { ok: false, error: 'invalid_pdf' } };
+
+  // Authorize: caller owns the mosque, teaches the class, or is admin.
+  const crows = await sbGet(env, `madrasa_classes?id=eq.${classId}&select=mosque_id,teacher_staff_id,name`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  if (!cls) return { status: 404, body: { ok: false, error: 'class_not_found' } };
+  const mrows = await sbGet(env, `mosques?id=eq.${cls.mosque_id}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  const ownsMosque = mosque?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls.teacher_staff_id) {
+    const srows = await sbGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher && !(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+
+  // The student must actually be in this class.
+  const erows = await sbGet(env, `madrasa_enrollments?class_id=eq.${classId}&student_id=eq.${studentId}&select=id`);
+  if (!Array.isArray(erows) || !erows.length) return { status: 403, body: { ok: false, error: 'not_enrolled' } };
+
+  const strows = await sbGet(env, `students?id=eq.${studentId}&select=name,profile_id`);
+  const student = Array.isArray(strows) ? strows[0] : null;
+  if (!student?.profile_id) return { status: 404, body: { ok: false, error: 'no_parent' } };
+  const parent = await getProfile(env, student.profile_id);
+  if (!parent?.email) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  if (parent.notifications && parent.notifications.email === false) return { status: 200, body: { ok: true, sent: 0, skipped: 'opted_out' } };
+
+  const child = student.name || 'Your child';
+  const title = (certTitle || 'a certificate').toString().slice(0, 80);
+  const mosqueName = mosque?.name || 'the madrasah';
+  const inner = `${eGreeting(parent.name || 'there')}${eHeading('A certificate for ' + escapeHtml(child))}
+${ePara(`Assalamu alaikum, ${escapeHtml(child)} has been awarded <strong>${escapeHtml(title)}</strong> from ${escapeHtml(mosqueName)}. Please find the certificate attached.`)}
+${ePara('JazakAllah khair.')}${eSignoff}`;
+  const id = await sendEmail(env, {
+    to: parent.email,
+    subject: `${child} has received ${title} from ${mosqueName}`,
+    html: wrapEmail('A certificate for ' + child, inner),
+    attachments: [{ filename: (fileName || 'certificate.pdf').toString().slice(0, 120), content: base64 }],
+  });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1180,6 +1230,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_reward_awarded') {
       if (!isUuid(body.rewardId)) return res.status(400).json({ ok: false, error: 'invalid_rewardId' });
       const out = await handleMadrasaRewardAwarded(env, caller, body.rewardId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_certificate') {
+      if (!isUuid(body.studentId) || !isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_ids' });
+      const out = await handleMadrasaCertificate(env, caller, body);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
