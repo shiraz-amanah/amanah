@@ -1005,6 +1005,51 @@ ${ctaButton('Respond to the offer', env.PUBLIC_APP_URL)}${eSignoff}`;
   return { status: 200, body: { ok: true, sent: 1, offered: 1, ids: [id] } };
 }
 
+// Madrasa Phase 3B — a positive reward was awarded. Authorizes the caller
+// (manages the class), then the service-role RPC resolves the parent + returns a
+// payload ONLY for positive types (star/merit/achievement) — warning/concern
+// yield no row and are never emailed. Email pref respected.
+const REWARD_LABEL = { star: 'a star ⭐', merit: 'a merit 🏅', achievement: 'an achievement award 🏆' };
+async function handleMadrasaRewardAwarded(env, caller, rewardId) {
+  const rrows = await sbGet(env, `madrasa_rewards?id=eq.${rewardId}&select=class_id`);
+  const rew = Array.isArray(rrows) ? rrows[0] : null;
+  if (!rew) return { status: 404, body: { ok: false, error: 'reward_not_found' } };
+
+  // Authorize: caller owns the mosque, teaches the class, or is admin.
+  const crows = await sbGet(env, `madrasa_classes?id=eq.${rew.class_id}&select=mosque_id,teacher_staff_id`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  if (!cls) return { status: 404, body: { ok: false, error: 'class_not_found' } };
+  const mrows = await sbGet(env, `mosques?id=eq.${cls.mosque_id}&select=user_id`);
+  const ownsMosque = Array.isArray(mrows) && mrows[0]?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls.teacher_staff_id) {
+    const srows = await sbGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  // Positive-only payload (warning/concern → no row → never emailed).
+  const rows = await callRpc(env, 'madrasa_reward_email_data', { p_reward: rewardId });
+  const r = Array.isArray(rows) ? rows[0] : null;
+  if (!r) return { status: 200, body: { ok: true, sent: 0, skipped: 'not_positive' } };
+  if (!r.parent_email || r.parent_email_opt_in === false) {
+    return { status: 200, body: { ok: true, sent: 0, skipped: 'opted_out' } };
+  }
+
+  const child = r.student_name || 'Your child';
+  const label = REWARD_LABEL[r.type] || 'a reward';
+  const className = r.class_name || 'class';
+  const mosqueName = r.mosque_name || 'the madrasa';
+  const noteLine = r.note ? ePara(`Teacher's note: “${escapeHtml(r.note)}”`) : '';
+  const inner = `${eGreeting(r.parent_name || 'there')}${eHeading('MashAllah! 🌟')}
+${ePara(`${escapeHtml(child)} earned <strong>${escapeHtml(label)}</strong> in ${escapeHtml(className)} at ${escapeHtml(mosqueName)}.`)}
+${noteLine}${ctaButton('View their rewards', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to: r.parent_email, subject: `${child} earned ${label} — ${mosqueName}`, html: wrapEmail('MashAllah!', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1130,6 +1175,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_waitlist_offer') {
       if (!isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_classId' });
       const out = await handleMadrasaWaitlistOffer(env, caller, body.classId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_reward_awarded') {
+      if (!isUuid(body.rewardId)) return res.status(400).json({ ok: false, error: 'invalid_rewardId' });
+      const out = await handleMadrasaRewardAwarded(env, caller, body.rewardId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
