@@ -19,8 +19,13 @@ const STATUS_CLS = {
   declined: "bg-rose-50 border-rose-200 text-rose-700",
 };
 
-const MosqueRota = ({ mosqueId, mosque }) => {
-  const [sub, setSub] = useState("rota");
+const MosqueRota = ({ mosqueId, mosque, tabs }) => {
+  // `tabs` restricts which internal sub-tabs show (the new People IA splits
+  // Timesheets out into its own People sub-tab, so the Rotas sub-tab passes
+  // ["rota","finder"]). Defaults to all three for any legacy call site.
+  const allowed = tabs || ["rota", "timesheets", "finder"];
+  const visibleSubs = SUBS.filter(([v]) => allowed.includes(v));
+  const [sub, setSub] = useState(allowed[0]);
   const [coverScholar, setCoverScholar] = useState(null);
   const [requests, setRequests] = useState([]);
   const [reqLoading, setReqLoading] = useState(false);
@@ -60,11 +65,11 @@ const MosqueRota = ({ mosqueId, mosque }) => {
     <div>
       <div className="mb-6">
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Rota</h2>
-        <p className="text-sm text-stone-600">Weekly rota, timesheets and cover.</p>
+        <p className="text-sm text-stone-600">Weekly rota and cover.</p>
       </div>
 
-      <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
-        {SUBS.map(([v, l, Icon]) => (
+      <div className={`flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto ${visibleSubs.length <= 1 ? "hidden" : ""}`}>
+        {visibleSubs.map(([v, l, Icon]) => (
           <button key={v} onClick={() => setSub(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
         ))}
       </div>

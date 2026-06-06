@@ -1,8 +1,9 @@
 import { useState } from "react";
 import {
-  Building2, Users, Briefcase, Calendar, HandCoins, MessageCircle,
+  Building2, Users, Calendar, HandCoins, MessageCircle,
   User, ShieldCheck, CheckCircle2, AlertCircle, LogOut,
   LayoutDashboard, CalendarDays, ShieldAlert, ClipboardCheck, GraduationCap,
+  Clock, Banknote, Megaphone, FileText, UserCog,
 } from "lucide-react";
 import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
@@ -11,47 +12,94 @@ import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
 import MosqueMadrasa from "./MosqueMadrasa";
 import MosqueRota from "./MosqueRota";
+import MosqueTimesheets from "./MosqueTimesheets";
+import MosqueHR from "./MosqueHR";
 import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
+import MosqueDocuments from "./MosqueDocuments";
 
-// New mosque dashboard — replaces the legacy mock-driven version
-// in place per Q7. Tabs locked from Q5: Profile / Donations /
-// Messages / Account (no Bookings or Reviews — mosques don't have
-// either feature today).
+// Mosque dashboard shell. Session AK collapsed the old 10-tab bar into 5
+// top-level tabs (Dashboard / People / Mosque / Madrasah / Compliance), each
+// with its own sub-tab bar. Messages + Account moved to header icons so the
+// top bar stays at 5 with no overflow. The internal tab/sub state is URL-free
+// (sessionStorage-backed) — same pattern as before.
 //
-// This commit (K-6b commit 7) ships Profile / Donations / Account.
-// Messages tab added in commit 8.
-//
-// `mosque` prop: the user's claimed mosque object (raw DB shape
-// from getMosqueByUserId, transformed via transformMosque in the
-// router for camelCase aliases). Null when the route was hit via
-// the legacy LoginScreen path before commit 11 wires the new
-// router (graceful empty state).
-//
-// Legacy components the old dashboard called (MosqueImamDetail,
-// OrderCheck, JobsBoard, JobDetail, ApplyToJob, ApplicationSubmitted,
-// PostJob, IMAM_REGISTRY, INITIAL_CHECKS, MOCK_JOBS,
-// MOCK_MY_APPLICATIONS) become orphaned dead code — kept until
-// Phase 9 sweeps.
-//
-// Session W: extracted verbatim from App.jsx (App.jsx is closed for
-// new feature code). MessagesInbox still lives in App.jsx, so it is
-// passed in as a component prop to avoid a circular import.
+// `mosque`: the user's claimed mosque (raw DB shape from getMosqueByUserId,
+// transformed via transformMosque in the router). Null → graceful empty state.
+
+// Sub-tabs per top tab. Empty array = no sub-bar (Dashboard, Madrasah, and the
+// header-only Messages/Account). Madrasah keeps its own cohesive internal nav
+// inside MosqueMadrasa for now; a 6-sub-tab breakdown is a follow-up.
+const SUBTABS = {
+  dashboard: [],
+  people: [
+    ["team", "Team", Users],
+    ["hr", "HR", UserCog],
+    ["rotas", "Rotas", CalendarDays],
+    ["timesheets", "Timesheets", Clock],
+    ["payroll", "Payroll", Banknote],
+  ],
+  mosque: [
+    ["profile", "Profile", Building2],
+    ["events", "Events", Calendar],
+    ["announcements", "Announcements", Megaphone],
+    ["donations", "Donations", HandCoins],
+  ],
+  madrasah: [],
+  compliance: [
+    ["safeguarding", "Safeguarding", ShieldAlert],
+    ["compliance", "Compliance", ClipboardCheck],
+    ["documents", "Documents", FileText],
+  ],
+};
+
+const TOP_TABS = [
+  { v: "dashboard", l: "Dashboard", icon: LayoutDashboard },
+  { v: "people", l: "People", icon: Users },
+  { v: "mosque", l: "Mosque", icon: Building2 },
+  { v: "madrasah", l: "Madrasah", icon: GraduationCap },
+  { v: "compliance", l: "Compliance", icon: ShieldAlert },
+];
+const ALL_VALUES = [...TOP_TABS.map((t) => t.v), "messages", "account"];
+
+const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
+  <div>
+    <div className="mb-6">
+      <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{title}</h2>
+    </div>
+    <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+      <Icon className="mx-auto text-stone-300 mb-3" size={36} />
+      <p className="text-stone-600 text-sm max-w-md mx-auto">{blurb}</p>
+    </div>
+  </div>
+);
+
 const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox }) => {
   const [tab, setTabRaw] = useState(() => {
     try { return sessionStorage.getItem("mosqueDashboardTab") || "dashboard"; } catch { return "dashboard"; }
   });
-  const setTab = (newTab) => {
-    try { sessionStorage.setItem("mosqueDashboardTab", newTab); } catch {}
+  const [sub, setSubRaw] = useState(() => {
+    try { return sessionStorage.getItem("mosqueDashboardSub") || null; } catch { return null; }
+  });
+
+  // setTab(top[, sub]) — pass a sub to deep-link (dashboard tiles do this).
+  // Omit sub to default to the tab's first sub (or keep the current sub when
+  // re-selecting the same top tab).
+  const setTab = (newTab, newSub) => {
+    let nextSub = newSub;
+    if (nextSub === undefined) {
+      nextSub = newTab === tab ? sub : (SUBTABS[newTab]?.[0]?.[0] ?? null);
+    }
+    try {
+      sessionStorage.setItem("mosqueDashboardTab", newTab);
+      if (nextSub) sessionStorage.setItem("mosqueDashboardSub", nextSub);
+      else sessionStorage.removeItem("mosqueDashboardSub");
+    } catch {}
     setTabRaw(newTab);
+    setSubRaw(nextSub ?? null);
   };
-  // Session X — Dashboard hosts an Overview / Events sub-tab (Events tab merged in).
-  const [dashSub, setDashSub] = useState("overview");
 
   if (!mosque) {
-    // Reachable from the legacy LoginScreen path until commit 11
-    // wires routeAuthedMosque. Graceful empty state instead of a
-    // blank screen.
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
         <div className="max-w-lg w-full bg-white border border-stone-200 rounded-2xl p-8 text-center">
@@ -66,26 +114,12 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
     );
   }
 
-  // Session X — Staff + HR merged (HR sub-tabs live under Staff); Events folded
-  // into the Dashboard tab (Overview / Events sub-tab). 9 tabs.
-  const tabs = [
-    { v: "dashboard", l: "Dashboard", icon: LayoutDashboard },
-    { v: "profile", l: "Profile", icon: Building2 },
-    { v: "staff", l: "Staff", icon: Users },
-    { v: "rota", l: "Rota", icon: CalendarDays },
-    { v: "safeguarding", l: "Safeguarding", icon: ShieldAlert },
-    { v: "compliance", l: "Compliance", icon: ClipboardCheck },
-    { v: "madrasa", l: "Madrasah", icon: GraduationCap },
-    { v: "donations", l: "Donations", icon: HandCoins },
-    { v: "messages", l: "Messages", icon: MessageCircle },
-    { v: "account", l: "Account", icon: User },
-  ];
-  // A persisted tab that no longer exists (hr/events removed) → fall back.
-  const activeTab = tabs.some((t) => t.v === tab) ? tab : "dashboard";
+  // A persisted tab/sub that no longer exists (old hr/events/rota values) → fall back.
+  const activeTab = ALL_VALUES.includes(tab) ? tab : "dashboard";
+  const subList = SUBTABS[activeTab] || [];
+  const activeSub = subList.some(([v]) => v === sub) ? sub : (subList[0]?.[0] ?? null);
 
-  // Iqama keys for prayer-time render (matches MosqueDetail)
-  const iqamaKeys = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
-  const iqamaLabels = { fajr: "Fajr", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" };
+  const unread = (conversations || []).reduce((s, c) => s + (c.unread || 0), 0);
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -100,26 +134,31 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
               <p className="text-[11px] md:text-xs text-stone-500 truncate max-w-[40vw]">{mosque.name} · {mosque.city}</p>
             </div>
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {mosque.status === "active" ? (
-              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
                 <CheckCircle2 size={10} /> Live
               </span>
             ) : mosque.status === "pending_verification" ? (
-              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-medium uppercase tracking-wider">
                 <AlertCircle size={10} /> Pending verification
               </span>
             ) : null}
+            {/* Messages + Account live in the header so the tab bar stays at 5. */}
+            <button onClick={() => setTab("messages")} className={`relative p-2 rounded-lg ${activeTab === "messages" ? "text-emerald-800 bg-emerald-50" : "text-stone-600 hover:text-stone-900"}`} aria-label="Messages">
+              <MessageCircle size={17} />
+              {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-semibold flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
+            </button>
+            <button onClick={() => setTab("account")} className={`p-2 rounded-lg ${activeTab === "account" ? "text-emerald-800 bg-emerald-50" : "text-stone-600 hover:text-stone-900"}`} aria-label="Account">
+              <User size={17} />
+            </button>
             {onLogout && <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2" aria-label="Sign out"><LogOut size={15} /></button>}
           </div>
         </div>
 
-        {/* Tabs. Staff + Messages render inline within the dashboard
-            shell (same pattern as Account) so the mosque nav bar
-            persists across sub-pages. Conversation open still escapes
-            the shell via onConversation → conversationView route. */}
+        {/* Top tab bar — 5 tabs, no overflow. */}
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto">
-          {tabs.map(t => {
+          {TOP_TABS.map((t) => {
             const Icon = t.icon;
             const active = activeTab === t.v;
             return (
@@ -136,65 +175,74 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
       </header>
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-10">
-        {activeTab === "dashboard" && (
-          <div>
-            <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
-              {[["overview", "Overview", LayoutDashboard], ["events", "Events", Calendar]].map(([v, l, Icon]) => (
-                <button key={v} onClick={() => setDashSub(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${dashSub === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
-              ))}
-            </div>
-            {dashSub === "overview"
-              ? <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={setTab} />
-              : <MosqueEventsManager mosqueId={mosque.id} />}
+        {/* Sub-tab bar for tabs that have one. */}
+        {subList.length > 0 && (
+          <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
+            {subList.map(([v, l, Icon]) => (
+              <button key={v} onClick={() => setTab(activeTab, v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${activeSub === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+            ))}
           </div>
         )}
 
-        {activeTab === "profile" && (
+        {/* ---- Dashboard ---- */}
+        {activeTab === "dashboard" && (
+          <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} />
+        )}
+
+        {/* ---- People ---- */}
+        {activeTab === "people" && activeSub === "team" && (
+          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
+        )}
+        {activeTab === "people" && activeSub === "hr" && (
+          <MosqueHR mosqueId={mosque.id} />
+        )}
+        {activeTab === "people" && activeSub === "rotas" && (
+          <MosqueRota mosqueId={mosque.id} mosque={mosque} tabs={["rota", "finder"]} />
+        )}
+        {activeTab === "people" && activeSub === "timesheets" && (
+          <MosqueTimesheets mosqueId={mosque.id} mosqueName={mosque?.name} />
+        )}
+        {activeTab === "people" && activeSub === "payroll" && (
+          <Placeholder title="Payroll" icon={Banknote} blurb="Approve staff timesheets, then export the monthly payroll CSV. The export currently lives under the Timesheets sub-tab; a dedicated payroll run (clock-in/out totals + export) is being built here." />
+        )}
+
+        {/* ---- Mosque ---- */}
+        {activeTab === "mosque" && activeSub === "profile" && (
           <div className="space-y-8">
             <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
-            {/* Public "Our Team" visibility — a public-profile concern, so it
-                lives with the profile editor (the Staff tab is now the HR
-                team directory). Same mosque_staff rows, show_on_profile. */}
             <div>
               <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public team listing</h3>
               <MosqueStaffPublic mosqueId={mosque.id} />
             </div>
           </div>
         )}
-
-        {activeTab === "staff" && (
-          <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} />
+        {activeTab === "mosque" && activeSub === "events" && (
+          <MosqueEventsManager mosqueId={mosque.id} />
+        )}
+        {activeTab === "mosque" && activeSub === "announcements" && (
+          <Placeholder title="Announcements" icon={Megaphone} blurb="Post community announcements to your public mosque profile and to followers. This is part of an upcoming release." />
+        )}
+        {activeTab === "mosque" && activeSub === "donations" && (
+          <Placeholder title="Donations" blurb="Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here." />
         )}
 
-        {activeTab === "rota" && (
-          <MosqueRota mosqueId={mosque.id} mosque={mosque} />
-        )}
-
-        {activeTab === "safeguarding" && (
-          <MosqueSafeguarding mosqueId={mosque.id} />
-        )}
-
-        {activeTab === "compliance" && (
-          <MosqueCompliance mosqueId={mosque.id} />
-        )}
-
-        {activeTab === "madrasa" && (
+        {/* ---- Madrasah ---- */}
+        {activeTab === "madrasah" && (
           <MosqueMadrasa mosqueId={mosque.id} mosque={mosque} />
         )}
 
-        {activeTab === "donations" && (
-          <div>
-            <div className="mb-6">
-              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Donations</h2>
-              <p className="text-sm text-stone-600">Donations to your mosque will appear here once campaigns are enabled.</p>
-            </div>
-            <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
-              <HandCoins className="mx-auto text-stone-300 mb-3" size={36} />
-              <p className="text-stone-600 text-sm max-w-md mx-auto">Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here.</p>
-            </div>
-          </div>
+        {/* ---- Compliance ---- */}
+        {activeTab === "compliance" && activeSub === "safeguarding" && (
+          <MosqueSafeguarding mosqueId={mosque.id} />
+        )}
+        {activeTab === "compliance" && activeSub === "compliance" && (
+          <MosqueCompliance mosqueId={mosque.id} />
+        )}
+        {activeTab === "compliance" && activeSub === "documents" && (
+          <MosqueDocuments mosqueId={mosque.id} />
         )}
 
+        {/* ---- Header-only: Messages ---- */}
         {activeTab === "messages" && (
           <MessagesInbox
             embedded
@@ -202,10 +250,11 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             conversations={conversations || []}
             loading={conversationsLoading}
             onConversation={onConversation}
-            onBack={() => setTab("profile")}
+            onBack={() => setTab("dashboard")}
           />
         )}
 
+        {/* ---- Header-only: Account ---- */}
         {activeTab === "account" && (
           <div>
             <div className="mb-6">

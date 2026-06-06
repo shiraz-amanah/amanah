@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Sparkles, Loader2, Users, ShieldCheck, Calendar, MessageCircle, Clock,
   ClipboardCheck, AlertCircle, CalendarDays, FileText, Activity,
-  UserPlus, CalendarPlus, Search, Mail, Upload,
+  UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle,
 } from "lucide-react";
 import { getMosqueBriefing } from "../lib/hrAssistant";
 import { getMosqueStaff, getMosqueEvents, getMosqueTimesheets, getMosqueRota, getMosqueDocuments } from "../auth";
@@ -29,12 +29,17 @@ const expiryTone = (iso) => {
 };
 const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-amber-50 border-amber-200 text-amber-700", emerald: "bg-emerald-50 border-emerald-200 text-emerald-700", stone: "bg-stone-50 border-stone-200 text-stone-500" };
 
-const StatCard = ({ icon: Icon, label, value, tone = "stone" }) => (
-  <div className="bg-white border border-stone-200 rounded-2xl p-4">
-    <div className="flex items-center gap-1.5 text-stone-500 mb-1"><Icon size={14} /><span className="text-[11px] uppercase tracking-wider font-medium">{label}</span></div>
-    <p className={`text-2xl font-semibold ${tone === "rose" ? "text-rose-700" : tone === "amber" ? "text-amber-700" : "text-stone-900"}`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
-  </div>
-);
+// Clickable when onClick is provided (all dashboard tiles route somewhere).
+const StatCard = ({ icon: Icon, label, value, tone = "stone", onClick }) => {
+  const inner = (
+    <>
+      <div className="flex items-center gap-1.5 text-stone-500 mb-1"><Icon size={14} /><span className="text-[11px] uppercase tracking-wider font-medium">{label}</span></div>
+      <p className={`text-2xl font-semibold ${tone === "rose" ? "text-rose-700" : tone === "amber" ? "text-amber-700" : "text-stone-900"}`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
+    </>
+  );
+  if (!onClick) return <div className="bg-white border border-stone-200 rounded-2xl p-4">{inner}</div>;
+  return <button onClick={onClick} className="bg-white border border-stone-200 rounded-2xl p-4 text-left hover:border-emerald-300 hover:shadow-sm transition-all">{inner}</button>;
+};
 
 const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const [brief, setBrief] = useState(null);
@@ -108,11 +113,11 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   ].filter((a) => a.when).sort((a, b) => (a.when < b.when ? 1 : -1)).slice(0, 10);
 
   const QUICK = [
-    { icon: UserPlus, label: "Add staff", to: "staff" },
-    { icon: CalendarPlus, label: "Create event", to: "events" },
-    { icon: Search, label: "Find substitute", to: "rota" },
-    { icon: Mail, label: "Send rota", to: "rota" },
-    { icon: Upload, label: "Upload document", to: "compliance" },
+    { icon: UserPlus, label: "Add staff", to: ["people", "team"] },
+    { icon: CalendarPlus, label: "Create event", to: ["mosque", "events"] },
+    { icon: Search, label: "Find substitute", to: ["people", "rotas"] },
+    { icon: ListChecks, label: "Manage waiting list", to: ["madrasah"] },
+    { icon: AlertTriangle, label: "Log incident", to: ["compliance", "safeguarding"] },
   ];
 
   return (
@@ -132,18 +137,18 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <StatCard icon={Users} label="Total staff" value={loading ? "—" : totalStaff} />
-        <StatCard icon={ShieldCheck} label="DBS verified" value={loading ? "—" : `${dbsPct}%`} tone={dbsPct < 100 && totalStaff ? "amber" : "stone"} />
-        <StatCard icon={Calendar} label="Events this week" value={loading ? "—" : eventsThisWeek} />
-        <StatCard icon={MessageCircle} label="Unread messages" value={unread} />
-        <StatCard icon={Clock} label="Timesheets pending" value={loading ? "—" : tsPending} tone={tsPending ? "amber" : "stone"} />
-        <StatCard icon={ClipboardCheck} label="Docs expiring" value={loading ? "—" : expiringDocs.length} tone={expiringDocs.length ? "amber" : "stone"} />
+        <StatCard icon={Users} label="Total staff" value={loading ? "—" : totalStaff} onClick={() => onNavigate?.("people", "team")} />
+        <StatCard icon={ShieldCheck} label="DBS verified" value={loading ? "—" : `${dbsPct}%`} tone={dbsPct < 100 && totalStaff ? "amber" : "stone"} onClick={() => onNavigate?.("people", "hr")} />
+        <StatCard icon={Calendar} label="Events this week" value={loading ? "—" : eventsThisWeek} onClick={() => onNavigate?.("mosque", "events")} />
+        <StatCard icon={MessageCircle} label="Unread messages" value={unread} onClick={() => onNavigate?.("messages")} />
+        <StatCard icon={Clock} label="Timesheets pending" value={loading ? "—" : tsPending} tone={tsPending ? "amber" : "stone"} onClick={() => onNavigate?.("people", "timesheets")} />
+        <StatCard icon={ClipboardCheck} label="Docs expiring" value={loading ? "—" : expiringDocs.length} tone={expiringDocs.length ? "amber" : "stone"} onClick={() => onNavigate?.("compliance", "documents")} />
       </div>
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
         {QUICK.map((q) => { const Icon = q.icon; return (
-          <button key={q.label} onClick={() => onNavigate?.(q.to)} className="inline-flex items-center gap-1.5 text-sm text-stone-700 bg-white border border-stone-300 hover:border-stone-400 px-3 py-2 rounded-lg">
+          <button key={q.label} onClick={() => onNavigate?.(...q.to)} className="inline-flex items-center gap-1.5 text-sm text-stone-700 bg-white border border-stone-300 hover:border-stone-400 px-3 py-2 rounded-lg">
             <Icon size={14} /> {q.label}
           </button>
         ); })}
@@ -179,7 +184,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
                   <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${toneCls[tone]}`}>{d.expiry_date}</span>
                 </li>
               ); })}</ul>}
-          <button onClick={() => onNavigate?.("compliance")} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900">View all in Compliance →</button>
+          <button onClick={() => onNavigate?.("compliance", "documents")} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900">View all documents →</button>
         </div>
       </div>
 
@@ -192,7 +197,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
               <li key={i} className={`flex items-start gap-2 text-sm ${a.flag ? "text-amber-800" : "text-stone-700"}`}>
                 <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.flag ? "bg-amber-500" : "bg-stone-300"}`} />
                 {a.flag
-                  ? <button onClick={() => onNavigate?.("staff")} className="flex-1 text-left font-medium hover:underline">{a.text}</button>
+                  ? <button onClick={() => onNavigate?.("people", "team")} className="flex-1 text-left font-medium hover:underline">{a.text}</button>
                   : <span className="flex-1">{a.text}</span>}
                 <span className="text-xs text-stone-400 whitespace-nowrap">{(a.when || "").slice(0, 10)}</span>
               </li>
