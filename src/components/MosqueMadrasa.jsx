@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
+import MadrasaAssistant from "./MadrasaAssistant";
 
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
@@ -104,6 +105,8 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         </div>
         {!showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
       </div>
+
+      <MadrasaAssistant mosqueId={mosqueId} />
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
