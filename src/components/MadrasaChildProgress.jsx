@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download } from "lucide-react";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports } from "../auth";
+import { Loader2, CalendarCheck, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck } from "lucide-react";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos } from "../auth";
 import { surahName } from "../data/surahs";
 // jsPDF is heavy — lazy-load it on download so it stays out of the main bundle.
 const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
@@ -11,29 +11,48 @@ const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downlo
 const ATT_CLS = { present: "text-emerald-700", late: "text-amber-700", absent: "text-rose-700", excused: "text-stone-500" };
 const HIFZ_CLS = { memorized: "bg-emerald-50 border-emerald-200 text-emerald-700", revising: "bg-amber-50 border-amber-200 text-amber-700", in_progress: "bg-stone-50 border-stone-200 text-stone-500" };
 
-const MadrasaChildProgress = ({ student, classIds = [] }) => {
+const MadrasaChildProgress = ({ student, classIds = [], mosques = [] }) => {
   const [attendance, setAttendance] = useState([]);
   const [hifz, setHifz] = useState([]);
   const [homework, setHomework] = useState([]);
   const [doneIds, setDoneIds] = useState(new Set()); // homework_ids this child has done
   const [reports, setReports] = useState([]);
+  const [photos, setPhotos] = useState([]);
+  const [consentByMosque, setConsentByMosque] = useState({}); // mosque_id → bool
+  const [consentBusy, setConsentBusy] = useState(null);
   const [busy, setBusy] = useState(null); // homework_id mid-toggle
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true; setLoading(true);
-    Promise.all([getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds), getStudentCompletions(student.id), getStudentReports(student.id)])
-      .then(([a, h, hw, comps, reps]) => {
+    Promise.all([
+      getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds),
+      getStudentCompletions(student.id), getStudentReports(student.id), getStudentPhotos(student.id),
+      Promise.all(mosques.map((m) => getMyChildConsent(student.id, m.id).then((c) => [m.id, !!c?.consent_given]))),
+    ])
+      .then(([a, h, hw, comps, reps, pics, consents]) => {
         if (!alive) return;
         setAttendance(a || []); setHifz(h || []); setHomework(hw || []);
         setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
-        setReports(reps || []);
+        setReports(reps || []); setPhotos(pics || []);
+        setConsentByMosque(Object.fromEntries(consents || []));
       })
       .catch((e) => console.error("child progress load failed:", e))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id]);
+
+  const toggleConsent = async (mosqueId) => {
+    if (consentBusy) return;
+    setConsentBusy(mosqueId);
+    const next = !consentByMosque[mosqueId];
+    setConsentByMosque((p) => ({ ...p, [mosqueId]: next })); // optimistic
+    const { error } = await setPhotoConsent({ studentId: student.id, mosqueId, consentGiven: next });
+    if (error) setConsentByMosque((p) => ({ ...p, [mosqueId]: !next })); // rollback
+    else if (!next) getStudentPhotos(student.id).then(setPhotos); // withdrawal may flag; refresh
+    setConsentBusy(null);
+  };
 
   const toggleDone = async (h) => {
     if (busy) return;
@@ -129,6 +148,34 @@ const MadrasaChildProgress = ({ student, classIds = [] }) => {
               </button>
             </li>
           ))}</ul>
+        </div>
+      )}
+
+      {/* Class photos & consent */}
+      {mosques.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><ImageIcon size={12} /> Class photos</p>
+          <div className="space-y-1.5 mb-2">{mosques.map((m) => {
+            const given = consentByMosque[m.id];
+            return (
+              <div key={m.id} className="flex items-center justify-between gap-3 text-xs bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                <span className="text-stone-700 min-w-0 truncate"><ShieldCheck size={11} className={`inline mr-1 ${given ? "text-emerald-600" : "text-stone-300"}`} /> Photo consent · {m.name}</span>
+                <button onClick={() => toggleConsent(m.id)} disabled={consentBusy === m.id}
+                  className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full border ${given ? "bg-white border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700" : "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"}`}>
+                  {consentBusy === m.id ? "…" : given ? "Withdraw" : "Give consent"}
+                </button>
+              </div>
+            );
+          })}</div>
+          {photos.length === 0 ? <p className="text-xs text-stone-400">No photos shared yet.</p> : (
+            <div className="grid grid-cols-3 gap-2">{photos.map((p) => (
+              <a key={p.id} href={p.signedUrl || "#"} download target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-stone-200 group relative">
+                {p.signedUrl ? <img src={p.signedUrl} alt={p.caption || "Class photo"} className="w-full h-20 object-cover" /> : <div className="w-full h-20 bg-stone-100" />}
+                <span className="absolute bottom-1 right-1 bg-white/90 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Download size={11} className="text-stone-600" /></span>
+              </a>
+            ))}</div>
+          )}
+          <p className="text-[10px] text-stone-400 mt-2">Consent is off by default. You can withdraw it at any time — new photos will exclude your child.</p>
         </div>
       )}
     </div>

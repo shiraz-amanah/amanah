@@ -111,7 +111,7 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
                   <button onClick={() => setExpanded(expanded === child.id ? null : child.id)} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1">
                     {expanded === child.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Attendance &amp; Hifz
                   </button>
-                  {expanded === child.id && <MadrasaChildProgress student={child} classIds={enr.map((e) => e.class_id)} />}
+                  {expanded === child.id && <MadrasaChildProgress student={child} classIds={enr.map((e) => e.class_id)} mosques={Object.values(enr.reduce((acc, e) => { const m = e.class?.mosque; if (m?.id) acc[m.id] = { id: m.id, name: m.name }; return acc; }, {}))} />}
                 </div>
               );
             })}

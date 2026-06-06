@@ -706,7 +706,7 @@ export async function getActiveMadrasaClasses({ mosqueId, subject } = {}) {
 export async function getMyMadrasaEnrollments() {
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    .select('*, student:students(id, name), class:madrasa_classes(name, subject, schedule, mosque:mosques(name))')
+    .select('*, student:students(id, name), class:madrasa_classes(name, subject, schedule, mosque:mosques(id, name))')
     .order('enrolled_at', { ascending: true })
   if (error) { console.error('Error fetching my enrolments:', error); return [] }
   return data || []
@@ -983,6 +983,90 @@ export async function getStudentReports(studentId) {
     .order('created_at', { ascending: false })
   if (error) { console.error('Error fetching student reports:', error); return [] }
   return data || []
+}
+
+// --- Madrasa photos + consent (migrations 079/080) ---
+const MADRASA_PHOTO_BUCKET = 'mosque-madrasa-photos'
+
+// Teacher/owner — consent map for a mosque's students (RLS returns only the
+// students the caller may see). Returns { student_id: consent_given }.
+export async function getClassConsent(mosqueId) {
+  if (!mosqueId) return {}
+  const { data, error } = await supabase
+    .from('madrasa_photo_consent').select('student_id, consent_given').eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching consent:', error); return {} }
+  const map = {}
+  for (const r of (data || [])) map[r.student_id] = r.consent_given
+  return map
+}
+// Parent — one child's consent row for a mosque (or null).
+export async function getMyChildConsent(studentId, mosqueId) {
+  if (!studentId || !mosqueId) return null
+  const { data, error } = await supabase
+    .from('madrasa_photo_consent').select('*').eq('student_id', studentId).eq('mosque_id', mosqueId).maybeSingle()
+  if (error) { console.error('Error fetching child consent:', error); return null }
+  return data
+}
+// Parent — give/withdraw consent (upsert). Withdrawal flags past photos (080 trigger).
+export async function setPhotoConsent({ studentId, mosqueId, consentGiven }) {
+  if (!studentId || !mosqueId) return { error: { message: 'studentId and mosqueId required' } }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_photo_consent')
+    .upsert({
+      student_id: studentId, mosque_id: mosqueId, consent_given: !!consentGiven,
+      consent_date: consentGiven ? new Date().toISOString() : null, consent_given_by: user?.id || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'student_id,mosque_id' })
+    .select().single()
+  return { data, error }
+}
+// Teacher/owner — upload a class photo. visibleTo = consented student_ids (the
+// caller computes from the roster + consent map). Bytes → private bucket; on a
+// failed row insert the object is rolled back so we never orphan storage.
+export async function uploadClassPhoto({ classId, mosqueId, file, caption, sessionDate, visibleTo }) {
+  if (!classId || !mosqueId || !file) return { error: { message: 'classId, mosqueId and file required' } }
+  const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+  const path = `${mosqueId}/${classId}/${crypto.randomUUID()}.${ext}`
+  const { error: upErr } = await supabase.storage.from(MADRASA_PHOTO_BUCKET)
+    .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+  if (upErr) return { error: upErr }
+  const user = await getUser()
+  const { data, error } = await supabase
+    .from('madrasa_photos')
+    .insert({ class_id: classId, mosque_id: mosqueId, storage_path: path, caption: caption?.trim() || null, session_date: sessionDate || null, uploaded_by: user?.id || null, visible_to: visibleTo || [] })
+    .select().single()
+  if (error) { await supabase.storage.from(MADRASA_PHOTO_BUCKET).remove([path]); return { error } }
+  return { data }
+}
+async function withSignedUrls(rows) {
+  return Promise.all((rows || []).map(async (p) => {
+    const { data } = await supabase.storage.from(MADRASA_PHOTO_BUCKET).createSignedUrl(p.storage_path, 3600)
+    return { ...p, signedUrl: data?.signedUrl || null }
+  }))
+}
+// Teacher/owner — a class's photos (newest first) with 1-hour signed URLs.
+export async function getClassPhotos(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase
+    .from('madrasa_photos').select('*').eq('class_id', classId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching class photos:', error); return [] }
+  return withSignedUrls(data)
+}
+// Parent — photos a specific child appears in (RLS + visible_to containment).
+export async function getStudentPhotos(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase
+    .from('madrasa_photos').select('*, class:madrasa_classes(name, mosque:mosques(name))')
+    .contains('visible_to', [studentId]).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching student photos:', error); return [] }
+  return withSignedUrls(data)
+}
+export async function deleteMadrasaPhoto(photo) {
+  if (!photo?.id) return { error: { message: 'photo required' } }
+  if (photo.storage_path) await supabase.storage.from(MADRASA_PHOTO_BUCKET).remove([photo.storage_path])
+  const { error } = await supabase.from('madrasa_photos').delete().eq('id', photo.id)
+  return { error }
 }
 
 // --- Cover requests (migration 061) ---
