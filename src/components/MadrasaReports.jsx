@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, FileText, Trash2, Send, CheckCircle2, Sparkles, Download, Check, Pencil, RotateCcw, Undo2 } from "lucide-react";
 import { getMadrasaRoster, getClassReports, buildReportSummary, createReport, publishReport, deleteReport } from "../auth";
 import { sendMadrasaReportPublished } from "../lib/email";
-import { generateReportSummary } from "../lib/hrAssistant";
+import { generateReportSummary, assistantErrorMessage } from "../lib/hrAssistant";
 import { REPORT_SECTIONS, REPORT_RATINGS, serializeReportComment, parseReportComment, ratingStyle } from "../lib/madrasaReport";
 import { downloadCSV } from "../lib/csv";
 import { surahName } from "../data/surahs";
@@ -63,7 +63,7 @@ const MadrasaReports = ({ classObj }) => {
     setAiBusy(true); setError("");
     const r = await generateReportSummary({ classId: classObj.id, sections, overall, studentName: selectedName(), term });
     setAiBusy(false);
-    if (!r.ok) { setError("Couldn't generate a summary — try again."); return; }
+    if (!r.ok) { setError(assistantErrorMessage(r.error)); return; }
     setAiDraft(r.summary); setAiEditing(false);
   };
 
