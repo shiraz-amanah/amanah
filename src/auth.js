@@ -1397,6 +1397,53 @@ export async function setTimesheetStatus(id, status) {
   return { data, error }
 }
 
+// --- Clock-in/out time logs (migration 085) ---
+// One row per shift; worked_hours is a generated column (null until clocked
+// out). Each row embeds its staff name/role for display. RLS: admins full CRUD;
+// staff insert/edit own pending rows.
+const TIME_LOG_SELECT = '*, staff:mosque_staff(id, name, role)'
+export async function getMosqueTimeLogs(mosqueId, { from, to } = {}) {
+  if (!mosqueId) return []
+  let q = supabase.from('mosque_time_logs').select(TIME_LOG_SELECT)
+    .eq('mosque_id', mosqueId).order('clock_in', { ascending: false })
+  if (from) q = q.gte('clock_in', from)
+  if (to) q = q.lte('clock_in', to)
+  const { data, error } = await q
+  if (error) { console.error('Error fetching time logs:', error); return [] }
+  return data || []
+}
+export async function createTimeLog({ mosqueId, staffId, clockIn, clockOut, breakMinutes, note }) {
+  if (!mosqueId || !staffId || !clockIn) return { error: { message: 'mosqueId, staffId, clockIn required' } }
+  const user = await getUser()
+  const { data, error } = await supabase.from('mosque_time_logs')
+    .insert({ mosque_id: mosqueId, staff_id: staffId, clock_in: clockIn, clock_out: clockOut || null, break_minutes: breakMinutes || 0, note: note || null, created_by: user?.id || null })
+    .select(TIME_LOG_SELECT).single()
+  return { data, error }
+}
+export async function updateTimeLog(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase.from('mosque_time_logs')
+    .update(updates).eq('id', id).select(TIME_LOG_SELECT).single()
+  return { data, error }
+}
+export async function deleteTimeLog(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('mosque_time_logs').delete().eq('id', id)
+  return { error }
+}
+// Approval lifecycle: approved stamps approved_at + approved_by; rejected stamps
+// the actioner in approved_by (approved_at null); pending clears both.
+export async function setTimeLogStatus(id, status) {
+  if (!id || !status) return { error: { message: 'id + status required' } }
+  const patch = { status }
+  if (status === 'approved') { const u = await getUser(); patch.approved_at = new Date().toISOString(); patch.approved_by = u?.id || null }
+  else if (status === 'rejected') { const u = await getUser(); patch.approved_at = null; patch.approved_by = u?.id || null }
+  else { patch.approved_at = null; patch.approved_by = null }
+  const { data, error } = await supabase.from('mosque_time_logs')
+    .update(patch).eq('id', id).select(TIME_LOG_SELECT).single()
+  return { data, error }
+}
+
 // --- Substitute finder: active scholars only (never unverified) ---
 export async function searchSubstituteScholars({ keyword, city, dbsOnly } = {}) {
   let q = supabase

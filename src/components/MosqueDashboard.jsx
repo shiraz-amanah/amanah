@@ -12,6 +12,7 @@ import MosqueOverview from "./MosqueOverview";
 import MosqueMadrasa from "./MosqueMadrasa";
 import MosqueRota from "./MosqueRota";
 import MosqueTimesheets from "./MosqueTimesheets";
+import MosquePayroll from "./MosquePayroll";
 import MosqueHR from "./MosqueHR";
 import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
@@ -188,7 +189,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           <MosqueTimesheets mosqueId={mosque.id} mosqueName={mosque?.name} />
         )}
         {activeTab === "people" && activeSub === "payroll" && (
-          <Placeholder title="Payroll" icon={Banknote} blurb="Approve staff timesheets, then export the monthly payroll CSV. The export currently lives under the Timesheets sub-tab; a dedicated payroll run (clock-in/out totals + export) is being built here." />
+          <MosquePayroll mosqueId={mosque.id} mosqueName={mosque.name} />
         )}
 
         {/* ---- Mosque ---- */}

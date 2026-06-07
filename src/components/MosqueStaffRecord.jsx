@@ -5,7 +5,7 @@ import {
   ExternalLink, Mail, Phone, Check, X, AlertCircle,
 } from "lucide-react";
 import {
-  getMosqueStaffEmployment, getMosqueDocuments, getMosqueTimesheets, getMosqueRota,
+  getMosqueStaffEmployment, getMosqueDocuments, getMosqueTimeLogs, getMosqueRota,
   updateMosqueStaff, upsertMosqueStaffEmployment,
 } from "../auth";
 import { getSignedDocUrl } from "../lib/storage";
@@ -38,13 +38,11 @@ const DBS_BADGE = {
   not_checked: { cls: "bg-rose-50 border-rose-200 text-rose-700", label: "No DBS" },
   expired: { cls: "bg-rose-50 border-rose-200 text-rose-700", label: "DBS expired" },
 };
-const HDAYS = [["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"], ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"]];
-const weekTotal = (h) => HDAYS.reduce((t, [k]) => t + (Number(h?.[k]) || 0), 0);
 const RDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const RSLOTS = { fajr: "Fajr", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha", jumuah: "Jumu'ah", classes: "Classes" };
 const TS_STATUS = {
-  draft: "bg-stone-50 border-stone-200 text-stone-500",
-  submitted: "bg-amber-50 border-amber-200 text-amber-700",
+  open: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  pending: "bg-amber-50 border-amber-200 text-amber-700",
   approved: "bg-emerald-50 border-emerald-200 text-emerald-700",
   rejected: "bg-rose-50 border-rose-200 text-rose-700",
 };
@@ -113,7 +111,7 @@ const MosqueStaffRecord = ({ staff, mosqueId, onBack, onSaved, onReview, onAcces
     Promise.all([
       getMosqueStaffEmployment(staff.id),
       getMosqueDocuments(mosqueId),
-      getMosqueTimesheets(mosqueId),
+      getMosqueTimeLogs(mosqueId),
       getMosqueRota(mosqueId, mondayOf(todayStr())),
     ])
       .then(([e, d, t, r]) => {
@@ -353,16 +351,16 @@ const MosqueStaffRecord = ({ staff, mosqueId, onBack, onSaved, onReview, onAcces
           </Section>
 
           {/* ---- Timesheets (read-only) ---- */}
-          <Section title="Recent timesheets" icon={Clock}>
-            {timesheets.length === 0 ? <p className="text-sm text-stone-500">No timesheets logged yet.</p> : (
+          <Section title="Recent shifts" icon={Clock}>
+            {timesheets.length === 0 ? <p className="text-sm text-stone-500">No shifts logged yet.</p> : (
               <ul className="space-y-1.5 text-sm">
-                {timesheets.map((t) => (
+                {timesheets.map((t) => { const st = t.clock_out ? (t.status || "pending") : "open"; return (
                   <li key={t.id} className="flex items-center justify-between gap-2 border-b border-stone-100 py-1.5 last:border-0">
-                    <span className="text-stone-700">w/c {t.week_start}</span>
-                    <span className="text-stone-900 font-medium">{weekTotal(t.hours)} h</span>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${TS_STATUS[t.status] || TS_STATUS.draft}`}>{t.status || "draft"}</span>
+                    <span className="text-stone-700">{new Date(t.clock_in).toLocaleDateString("en-GB")}</span>
+                    <span className="text-stone-900 font-medium">{t.worked_hours != null ? `${t.worked_hours} h` : "—"}</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${TS_STATUS[st] || TS_STATUS.pending}`}>{st}</span>
                   </li>
-                ))}
+                ); })}
               </ul>
             )}
           </Section>

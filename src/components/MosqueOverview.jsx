@@ -5,7 +5,7 @@ import {
   UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle,
 } from "lucide-react";
 import { getMosqueBriefing } from "../lib/hrAssistant";
-import { getMosqueStaff, getMosqueEvents, getMosqueTimesheets, getMosqueRota, getMosqueDocuments } from "../auth";
+import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments } from "../auth";
 import Markdown from "./Markdown";
 
 // Session W — admin Dashboard (default landing). AI morning briefing on top
@@ -72,7 +72,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
     Promise.all([
       getMosqueStaff(mosque.id),
       getMosqueEvents(mosque.id),
-      getMosqueTimesheets(mosque.id),
+      getMosqueTimeLogs(mosque.id),
       getMosqueRota(mosque.id, mondayOf(new Date())),
       getMosqueDocuments(mosque.id),
     ])
@@ -95,7 +95,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const dbsPct = totalStaff ? Math.round((dbsVerified / totalStaff) * 100) : 0;
   const eventsThisWeek = events.filter((e) => isThisWeek(e.date)).length;
   const unread = (conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0);
-  const tsPending = timesheets.filter((t) => (t.status || "pending") !== "approved").length;
+  const tsPending = timesheets.filter((t) => t.clock_out && t.status === "pending").length;
   const expiringDocs = docs.filter((d) => d.expiry_date && d.expiry_date <= in30Str());
   const todaySlots = rotaSlots[todayKey()] || {};
 

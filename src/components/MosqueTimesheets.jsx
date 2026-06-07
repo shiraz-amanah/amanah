@@ -1,151 +1,210 @@
 import { useState, useEffect } from "react";
-import { Loader2, Check, X, AlertCircle, Download, Send, Pencil } from "lucide-react";
-import { getMosqueStaff, getMosqueTimesheets, upsertTimesheet, setTimesheetStatus } from "../auth";
+import { Loader2, Plus, Check, X, Trash2, Play, Square, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { getMosqueStaff, getMosqueTimeLogs, createTimeLog, updateTimeLog, deleteTimeLog, setTimeLogStatus } from "../auth";
 
-// HR → Timesheets (Session V chunk 2). Per-staff weekly hours, approval
-// lifecycle, monthly summary, and payroll CSV export. Payroll export is folded
-// in here (shares the timesheet state) rather than a separate component.
+// People → Timesheets. Clock-in/out shift logs with an admin approval lifecycle.
+// Admin can quick clock-in a staff member (open shift), clock them out, add a
+// completed shift manually, and approve/reject pending shifts. Approved shifts
+// feed the Payroll CSV export (MosquePayroll). worked_hours is computed by the
+// DB (generated column on mosque_time_logs).
 
-const HDAYS = [["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"], ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"]];
-const weekTotal = (h) => HDAYS.reduce((t, [k]) => t + (Number(h?.[k]) || 0), 0);
-const mondayOf = (iso) => { const x = new Date(iso + "T00:00:00"); const d = (x.getDay() + 6) % 7; x.setDate(x.getDate() - d); return x.toISOString().slice(0, 10); };
-const thisMonth = () => new Date().toISOString().slice(0, 7);
-const csvCell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-const STATUS = {
-  draft: "bg-stone-100 border-stone-200 text-stone-600",
-  submitted: "bg-amber-50 border-amber-200 text-amber-700",
-  approved: "bg-emerald-50 border-emerald-200 text-emerald-700",
-  rejected: "bg-rose-50 border-rose-200 text-rose-700",
-};
-const blankHours = { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" };
-const inputCls = "w-full px-2 py-1.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const nowIso = () => new Date().toISOString();
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—";
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "—";
+const todayInput = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+// Live elapsed hours for an open shift (display only; DB computes the real total on clock-out).
+const elapsed = (clockIn) => { const h = (Date.now() - new Date(clockIn).getTime()) / 3.6e6; return h > 0 ? `${h.toFixed(1)}h so far` : "just now"; };
 
-const MosqueTimesheets = ({ mosqueId, mosqueName }) => {
+const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const blankForm = { staffId: "", date: todayInput(), inTime: "09:00", outTime: "17:00", breakMin: "0", note: "" };
+
+const MosqueTimesheets = ({ mosqueId }) => {
   const [staff, setStaff] = useState([]);
-  const [sheets, setSheets] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [month, setMonth] = useState(thisMonth());
-  const [form, setForm] = useState({ staffId: "", week: mondayOf(new Date().toISOString().slice(0, 10)), hours: { ...blankHours }, notes: "" });
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [quickStaff, setQuickStaff] = useState("");
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState(blankForm);
+  const [addBusy, setAddBusy] = useState(false);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const refresh = () => getMosqueTimesheets(mosqueId).then(setSheets);
-  useEffect(() => {
-    let alive = true; setLoading(true);
-    Promise.all([getMosqueStaff(mosqueId), getMosqueTimesheets(mosqueId)])
-      .then(([st, ts]) => { if (alive) { setStaff(st.filter((s) => !s.archived)); setSheets(ts); } })
-      .catch((e) => alive && setError(e?.message || "Couldn't load timesheets."))
-      .finally(() => alive && setLoading(false));
-    return () => { alive = false; };
-  }, [mosqueId]);
+  const load = () => {
+    setLoading(true);
+    Promise.all([getMosqueStaff(mosqueId), getMosqueTimeLogs(mosqueId)])
+      .then(([s, l]) => { setStaff((s || []).filter((x) => !x.archived)); setLogs(l || []); })
+      .catch((e) => setError(e?.message || "Couldn't load timesheets."))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId]);
 
-  const nameOf = (id) => staff.find((s) => s.id === id)?.name || "(removed)";
-  const roleOf = (id) => staff.find((s) => s.id === id)?.role || "";
-  const monthSheets = sheets.filter((s) => (s.week_start || "").slice(0, 7) === month);
+  const reload = () => getMosqueTimeLogs(mosqueId).then((l) => setLogs(l || [])).catch(() => {});
 
-  const save = async () => {
-    setError(null);
+  const clockInNow = async () => {
+    if (!quickStaff) { setError("Pick a staff member to clock in."); return; }
+    setQuickBusy(true); setError(null);
+    const { error: e } = await createTimeLog({ mosqueId, staffId: quickStaff, clockIn: nowIso() });
+    setQuickBusy(false);
+    if (e) { setError(e.message || "Couldn't clock in."); return; }
+    setQuickStaff(""); reload();
+  };
+
+  const clockOutNow = async (log) => {
+    setBusyId(log.id); setError(null);
+    const { error: e } = await updateTimeLog(log.id, { clock_out: nowIso() });
+    setBusyId(null);
+    if (e) { setError(e.message || "Couldn't clock out."); return; }
+    reload();
+  };
+
+  const addManual = async () => {
     if (!form.staffId) { setError("Pick a staff member."); return; }
-    setBusy(true);
-    const hours = Object.fromEntries(HDAYS.map(([k]) => [k, Number(form.hours[k]) || 0]));
-    const { error: e } = await upsertTimesheet({ mosqueId, staffId: form.staffId, weekStart: mondayOf(form.week), hours, notes: form.notes });
-    setBusy(false);
-    if (e) { setError(e.message || "Couldn't save."); return; }
-    setForm((f) => ({ ...f, hours: { ...blankHours }, notes: "" }));
-    refresh();
+    if (!form.date || !form.inTime) { setError("Date and clock-in time are required."); return; }
+    const clockIn = new Date(`${form.date}T${form.inTime}`);
+    const clockOut = form.outTime ? new Date(`${form.date}T${form.outTime}`) : null;
+    if (clockOut && clockOut < clockIn) { setError("Clock-out can't be before clock-in."); return; }
+    setAddBusy(true); setError(null);
+    const { error: e } = await createTimeLog({
+      mosqueId, staffId: form.staffId, clockIn: clockIn.toISOString(),
+      clockOut: clockOut ? clockOut.toISOString() : null,
+      breakMinutes: Number(form.breakMin) || 0, note: form.note.trim() || null,
+    });
+    setAddBusy(false);
+    if (e) { setError(e.message || "Couldn't save the shift."); return; }
+    setForm(blankForm); setShowAdd(false); reload();
   };
-  const editSheet = (s) => setForm({ staffId: s.staff_id, week: s.week_start, hours: { ...blankHours, ...s.hours }, notes: s.notes || "" });
-  const setStatus = async (s, status) => { const { error: e } = await setTimesheetStatus(s.id, status); if (e) setError(e.message); else refresh(); };
 
-  // Monthly summary: total hours per staff for the selected month.
-  const summary = {};
-  monthSheets.forEach((s) => { summary[s.staff_id] = (summary[s.staff_id] || 0) + weekTotal(s.hours); });
-
-  const exportPayroll = () => {
-    const approved = monthSheets.filter((s) => s.status === "approved").sort((a, b) => (nameOf(a.staff_id) + a.week_start).localeCompare(nameOf(b.staff_id) + b.week_start));
-    const monthTotals = {};
-    approved.forEach((s) => { monthTotals[s.staff_id] = (monthTotals[s.staff_id] || 0) + weekTotal(s.hours); });
-    const header = ["Staff name", "Role", "Week", ...HDAYS.map(([, l]) => l), "Weekly total", "Monthly total", "Notes"];
-    const rows = approved.map((s) => [nameOf(s.staff_id), roleOf(s.staff_id), s.week_start, ...HDAYS.map(([k]) => Number(s.hours?.[k]) || 0), weekTotal(s.hours), monthTotals[s.staff_id], s.notes || ""]);
-    // Per-staff summary rows.
-    const seen = new Set();
-    const summ = approved.filter((s) => { if (seen.has(s.staff_id)) return false; seen.add(s.staff_id); return true; })
-      .map((s) => [nameOf(s.staff_id), roleOf(s.staff_id), "MONTH TOTAL", "", "", "", "", "", "", "", "", monthTotals[s.staff_id], ""]);
-    const lines = [header, ...rows, [], ...summ].map((r) => r.map(csvCell).join(","));
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const safe = (mosqueName || "mosque").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const a = document.createElement("a"); a.href = url; a.download = `amanah-payroll-${safe}-${month}.csv`; a.click();
-    URL.revokeObjectURL(url);
+  const act = async (log, status) => {
+    setBusyId(log.id); setError(null);
+    const { error: e } = await setTimeLogStatus(log.id, status);
+    setBusyId(null);
+    if (e) { setError(e.message || "Couldn't update status."); return; }
+    reload();
   };
+
+  const del = async (log) => {
+    setBusyId(log.id); setError(null);
+    const { error: e } = await deleteTimeLog(log.id);
+    setBusyId(null);
+    if (e) { setError(e.message || "Couldn't delete."); return; }
+    reload();
+  };
+
+  const open = logs.filter((l) => !l.clock_out);
+  const pending = logs.filter((l) => l.clock_out && l.status === "pending");
+  const decided = logs.filter((l) => l.clock_out && l.status !== "pending").slice(0, 20);
+
+  const Row = ({ log, children }) => (
+    <div className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3 text-sm">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-stone-900 truncate">{log.staff?.name || "Unknown"}</p>
+        <p className="text-xs text-stone-500 truncate">{fmtDate(log.clock_in)} · {fmtTime(log.clock_in)}{log.clock_out ? `–${fmtTime(log.clock_out)}` : ""}{log.break_minutes ? ` · ${log.break_minutes}m break` : ""}{log.note ? ` · ${log.note}` : ""}</p>
+      </div>
+      {children}
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold text-stone-900">Timesheets</h3>
-        <p className="text-sm text-stone-600">Log weekly hours, approve, and export payroll.</p>
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Timesheets</h2>
+          <p className="text-sm text-stone-600">Clock staff in and out, then approve shifts for payroll.</p>
+        </div>
+        <button onClick={() => { setShowAdd((v) => !v); setForm(blankForm); }} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add a shift</button>
       </div>
+
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
 
-      {/* Log hours form */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
-        <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Staff member</label>
-            <select className={inputCls} value={form.staffId} onChange={(e) => setForm((f) => ({ ...f, staffId: e.target.value }))}>
-              <option value="">Select…</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div><label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Week (any day → snaps to Monday)</label>
-            <input type="date" className={inputCls} value={form.week} onChange={(e) => setForm((f) => ({ ...f, week: e.target.value }))} />
-          </div>
+      {/* Quick clock-in */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 flex items-end gap-2 flex-wrap">
+        <div className="flex-1 min-w-[180px]">
+          <label className={labelCls}>Clock in a staff member</label>
+          <select value={quickStaff} onChange={(e) => setQuickStaff(e.target.value)} className={inputCls}>
+            <option value="">Select staff…</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.name}{s.role ? ` · ${s.role}` : ""}</option>)}
+          </select>
         </div>
-        <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
-          {HDAYS.map(([k, l]) => (
-            <div key={k}><label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">{l}</label>
-              <input type="number" min="0" step="0.25" className={inputCls + " font-mono"} value={form.hours[k]} onChange={(e) => setForm((f) => ({ ...f, hours: { ...f.hours, [k]: e.target.value } }))} /></div>
-          ))}
-        </div>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-sm text-stone-600">Weekly total: <strong className="text-stone-900">{weekTotal(Object.fromEntries(HDAYS.map(([k]) => [k, Number(form.hours[k]) || 0])))} h</strong></span>
-          <input className={inputCls + " flex-1 min-w-[160px]"} placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-          <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
-        </div>
+        <button onClick={clockInNow} disabled={quickBusy || !quickStaff} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{quickBusy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Clock in now</button>
       </div>
 
-      {/* Month picker + payroll export + monthly summary */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none" />
-        <button onClick={exportPayroll} disabled={monthSheets.filter((s) => s.status === "approved").length === 0} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 disabled:opacity-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export payroll (approved)</button>
-      </div>
-      {Object.keys(summary).length > 0 && (
-        <div className="flex flex-wrap gap-2 text-xs">
-          {Object.entries(summary).map(([sid, total]) => <span key={sid} className="px-2.5 py-1 rounded-lg bg-stone-50 border border-stone-200 text-stone-700">{nameOf(sid)}: <strong>{total} h</strong></span>)}
+      {/* Manual add form */}
+      {showAdd && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 space-y-3">
+          <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider">Add a completed shift</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div><label className={labelCls}>Staff</label><select className={inputCls} value={form.staffId} onChange={(e) => set("staffId", e.target.value)}><option value="">Select…</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+            <div><label className={labelCls}>Date</label><input type="date" className={inputCls} value={form.date} onChange={(e) => set("date", e.target.value)} /></div>
+            <div><label className={labelCls}>Clock in</label><input type="time" className={inputCls} value={form.inTime} onChange={(e) => set("inTime", e.target.value)} /></div>
+            <div><label className={labelCls}>Clock out</label><input type="time" className={inputCls} value={form.outTime} onChange={(e) => set("outTime", e.target.value)} /></div>
+            <div><label className={labelCls}>Break (minutes)</label><input type="number" min="0" className={inputCls} value={form.breakMin} onChange={(e) => set("breakMin", e.target.value)} /></div>
+            <div><label className={labelCls}>Note (optional)</label><input className={inputCls} value={form.note} onChange={(e) => set("note", e.target.value)} /></div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={addManual} disabled={addBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{addBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save shift</button>
+            <button onClick={() => setShowAdd(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
+          </div>
         </div>
       )}
 
-      {/* Timesheet list (selected month) */}
-      {loading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
-        : monthSheets.length === 0 ? <p className="text-sm text-stone-500 py-6 text-center">No timesheets for this month.</p>
-        : (
-          <div className="space-y-2">
-            {monthSheets.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3 text-sm">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-stone-900 truncate">{nameOf(s.staff_id)} <span className="text-stone-400 font-normal">· week of {s.week_start}</span></p>
-                  <p className="text-xs text-stone-500">{weekTotal(s.hours)} h{s.notes ? ` · ${s.notes}` : ""}</p>
-                </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${STATUS[s.status] || STATUS.draft}`}>{s.status}</span>
-                <button onClick={() => editSheet(s)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
-                {s.status === "draft" && <button onClick={() => setStatus(s, "submitted")} title="Submit" className="text-[11px] px-2 py-1 rounded-lg border border-stone-300 text-stone-700 hover:border-stone-400 inline-flex items-center gap-1"><Send size={11} /> Submit</button>}
-                {s.status === "submitted" && <>
-                  <button onClick={() => setStatus(s, "approved")} className="text-[11px] px-2 py-1 rounded-lg bg-emerald-900 text-white inline-flex items-center gap-1"><Check size={11} /> Approve</button>
-                  <button onClick={() => setStatus(s, "rejected")} className="text-[11px] px-2 py-1 rounded-lg border border-rose-300 text-rose-700 inline-flex items-center gap-1"><X size={11} /> Reject</button>
-                </>}
+      {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (
+        <>
+          {/* Open shifts */}
+          {open.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">On shift now</h3>
+              <div className="space-y-2">
+                {open.map((log) => (
+                  <Row key={log.id} log={log}>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 whitespace-nowrap">{elapsed(log.clock_in)}</span>
+                    <button onClick={() => clockOutNow(log)} disabled={busyId === log.id} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white inline-flex items-center gap-1.5">{busyId === log.id ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />} Clock out</button>
+                    <button onClick={() => del(log)} disabled={busyId === log.id} className="text-stone-400 hover:text-rose-600 p-1"><Trash2 size={14} /></button>
+                  </Row>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Pending approval */}
+          <div>
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Pending approval{pending.length ? ` (${pending.length})` : ""}</h3>
+            {pending.length === 0 ? <p className="text-sm text-stone-500">No shifts awaiting approval.</p> : (
+              <div className="space-y-2">
+                {pending.map((log) => (
+                  <Row key={log.id} log={log}>
+                    <span className="text-sm font-semibold text-stone-900 tabular-nums">{log.worked_hours ?? "—"}h</span>
+                    <button onClick={() => act(log, "approved")} disabled={busyId === log.id} title="Approve" className="text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1"><Check size={12} /> Approve</button>
+                    <button onClick={() => act(log, "rejected")} disabled={busyId === log.id} title="Reject" className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 inline-flex items-center gap-1"><X size={12} /> Reject</button>
+                    <button onClick={() => del(log)} disabled={busyId === log.id} className="text-stone-400 hover:text-rose-600 p-1"><Trash2 size={14} /></button>
+                  </Row>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Decided (recent) */}
+          {decided.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Recent decisions</h3>
+              <div className="space-y-2">
+                {decided.map((log) => (
+                  <Row key={log.id} log={log}>
+                    <span className="text-sm font-semibold text-stone-900 tabular-nums">{log.worked_hours ?? "—"}h</span>
+                    {log.status === "approved"
+                      ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 inline-flex items-center gap-1"><CheckCircle2 size={11} /> Approved</span>
+                      : <span className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-50 border-rose-200 text-rose-700 inline-flex items-center gap-1"><XCircle size={11} /> Rejected</span>}
+                    <button onClick={() => act(log, "pending")} disabled={busyId === log.id} className="text-[11px] px-2 py-1 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-50">Reopen</button>
+                    <button onClick={() => del(log)} disabled={busyId === log.id} className="text-stone-400 hover:text-rose-600 p-1"><Trash2 size={14} /></button>
+                  </Row>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
