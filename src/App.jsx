@@ -522,6 +522,9 @@ useEffect(() => {
         </div>
       </section>
 
+      {/* Upcoming events — between categories and mosques (Session AL) */}
+      <HomepageEvents onMosque={(m) => onMosqueDetail && onMosqueDetail(m)} onViewAll={() => onMosquesListing && onMosquesListing()} />
+
 {/* Mosques near you */}
 <section id="mosques-near-you" className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
   <div className="flex items-end justify-between mb-6 md:mb-8">
@@ -564,9 +567,6 @@ useEffect(() => {
     </div>
   )}
 </section>
-
-      {/* Upcoming events across active mosques (Session U Day 1) */}
-      <HomepageEvents onMosque={(m) => onMosqueDetail && onMosqueDetail(m)} />
 
       {/* Recent booking review prompt */}
       <section className="max-w-7xl mx-auto px-6">
