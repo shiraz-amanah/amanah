@@ -12,6 +12,7 @@ import {
 import { getSignedDocUrl } from "../lib/storage";
 import { sendContractInvite } from "../lib/email";
 import { buildContractTerms, downloadContractPdf, CONTRACT_TYPES as CONTRACT_DOC_TYPES, CONTRACT_TYPE_LABEL } from "../lib/contract";
+import ContractEditor from "./ContractEditor";
 
 // People → Team → single-person HR record. One scrollable page consolidating
 // everything about a staff member: personal details, employment, DBS, Right to
@@ -114,6 +115,7 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
   const [contracts, setContracts] = useState([]);
   const [showNewContract, setShowNewContract] = useState(false);
   const [newType, setNewType] = useState("full_time");
+  const [editorTerms, setEditorTerms] = useState(null); // editable template (item 5)
   const [issuing, setIssuing] = useState(false);
   const [contractMsg, setContractMsg] = useState(null);
   const contractsRef = useRef(null);
@@ -202,20 +204,26 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
 
   const reloadContracts = () => getContractsForStaff(staff.id).then((c) => setContracts(c || [])).catch(() => {});
 
-  // Issue: snapshot the contract from this record's data, create it as 'sent',
-  // and email the staff member the signing link. Requires an email on file.
-  const issueContract = async () => {
+  // Open the editable template (item 5): pre-fill from this record, let the admin
+  // edit fields/clauses, then issue. Requires an email on file (signing link).
+  const openContractEditor = () => {
     if (!staff.email) { setContractMsg("Add an email to this record (Edit details) first — the signing link is emailed to the staff member."); return; }
-    setIssuing(true); setContractMsg(null);
-    const terms = buildContractTerms({
+    setContractMsg(null);
+    setEditorTerms(buildContractTerms({
       type: newType, staffName: staff.name, role: staff.role, startDate: staff.start_date,
       hoursPerWeek: emp?.hours_per_week, salaryRate: emp?.salary_rate,
       mosqueName: mosque?.name, mosqueCity: mosque?.city,
-    });
+    }));
+  };
+
+  // Issue: snapshot the (edited) terms at this point, create as 'sent', and email
+  // the signing link. The terms passed in are the admin's edited version.
+  const issueContract = async (terms) => {
+    setIssuing(true); setContractMsg(null);
     const { data, error } = await createContract({ mosqueId, staffId: staff.id, contractType: newType, terms, status: "sent" });
     if (error || !data) { setIssuing(false); setContractMsg(error?.message || "Couldn't create the contract."); return; }
     const mail = await sendContractInvite(data.id);
-    setIssuing(false); setShowNewContract(false);
+    setIssuing(false); setEditorTerms(null); setShowNewContract(false);
     setContractMsg(mail.ok ? `Contract issued and emailed to ${staff.email} for signing.` : "Contract issued, but the email failed — use Resend.");
     reloadContracts();
   };
@@ -470,10 +478,11 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
                       {CONTRACT_DOC_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
                   </div>
-                  <button onClick={issueContract} disabled={issuing} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{issuing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Issue &amp; email</button>
+                  <button onClick={openContractEditor} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><PenLine size={14} /> Review &amp; edit</button>
                   <button onClick={() => setShowNewContract(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
                 </div>
               )}
+              {editorTerms && <ContractEditor initialTerms={editorTerms} issuing={issuing} onIssue={issueContract} onCancel={() => setEditorTerms(null)} />}
               {contracts.length === 0 ? <p className="text-sm text-stone-500">No contracts issued yet.</p> : (
                 <ul className="divide-y divide-stone-100">
                   {contracts.map((c) => (
