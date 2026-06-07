@@ -195,7 +195,7 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
   const open = async (d) => {
     if (!d.file_path) return;
     setOpening(d.id);
-    try { const url = await getSignedDocUrl(d.file_path); if (url) window.open(url, "_blank", "noopener,noreferrer"); }
+    try { const { url } = await getSignedDocUrl("mosque-hr-docs", d.file_path); if (url) window.open(url, "_blank", "noopener,noreferrer"); }
     catch (e) { console.error("open doc failed:", e); }
     finally { setOpening(null); }
   };
