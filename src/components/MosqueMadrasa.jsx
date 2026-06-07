@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, BarChart3,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
-import MadrasaAcrossClasses from "./MadrasaAcrossClasses";
+import MadrasaStudents from "./MadrasaStudents";
+import MadrasaAnalytics from "./MadrasaAnalytics";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
+
+const SECTIONS = [["classes", "Classes", GraduationCap], ["students", "Students", Users], ["analytics", "Analytics", BarChart3]];
 
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
@@ -40,6 +43,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
 
   const [detailClass, setDetailClass] = useState(null); // class shown in the full-page detail view
   const [showReports, setShowReports] = useState(false); // reports & exports view
+  const [section, setSection] = useState("classes");     // Classes | Students | Analytics
 
   const reload = () => {
     setLoading(true);
@@ -116,15 +120,25 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowReports(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Reports</button>
-          {!showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
+          {section === "classes" && !showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
         </div>
       </div>
 
       <MadrasaAssistant mosqueId={mosqueId} />
 
+      {/* Three sections only — Classes · Students · Analytics */}
+      <div className="flex gap-1 border-b border-stone-200 mt-6 mb-5 overflow-x-auto">
+        {SECTIONS.map(([v, l, Icon]) => (
+          <button key={v} onClick={() => setSection(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${section === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+        ))}
+      </div>
+
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
-      {showForm && (
+      {section === "students" && <MadrasaStudents mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />}
+      {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} />}
+
+      {section === "classes" && showForm && (
         <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3 mb-5">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider">{editingId ? "Edit class" : "New class"}</h3>
@@ -159,18 +173,14 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         </div>
       )}
 
-      {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+      {section === "classes" && (loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : classes.length === 0 && !showForm ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
             <GraduationCap className="mx-auto text-stone-300 mb-3" size={36} />
             <p className="text-stone-600 text-sm max-w-md mx-auto">No classes yet. Create your first class to start building your madrasah.</p>
           </div>
         ) : (
-          <>
-            {/* Cross-class dashboard tabs first, then the class list below. */}
-            <MadrasaAcrossClasses mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />
-
-            <div className="space-y-2 mt-8">
+            <div className="space-y-2">
               {classes.map((c) => (
                 <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
                   <button onClick={() => openClass(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
@@ -194,7 +204,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
                 </div>
               ))}
             </div>
-          </>
+          )
         )}
     </div>
   );

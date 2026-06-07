@@ -728,6 +728,26 @@ export async function getMosqueRecentReports(mosqueId, limit = 25) {
   if (error) { console.error('Error fetching mosque reports:', error); return [] }
   return data || []
 }
+// Lean mosque-wide attendance (all rows, minimal cols) — per-student rates in the
+// Students list + attendance trends in Analytics. Owner reads via the 070 policy.
+export async function getMosqueAttendanceAll(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_attendance').select('student_id, class_id, status, session_date')
+    .eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching mosque attendance (all):', error); return [] }
+  return data || []
+}
+// Lean mosque-wide Hifz (all rows, minimal cols) — last-entry-per-student in the
+// Students list + Hifz summary/top-performers in Analytics. Owner reads via 071.
+export async function getMosqueHifzAll(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_hifz_progress').select('student_id, surah_number, status, session_date')
+    .eq('mosque_id', mosqueId).order('session_date', { ascending: false })
+  if (error) { console.error('Error fetching mosque hifz (all):', error); return [] }
+  return data || []
+}
 
 // --- Madrasa parent browse + enrolment (migration 068/069) ---
 // Active classes across mosques (anon/auth can read active classes). Optional
