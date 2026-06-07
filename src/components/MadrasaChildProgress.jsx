@@ -100,6 +100,14 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
   const attTotal = attendance.length;
   const attPct = attTotal ? Math.round((attendance.filter((r) => r.status === "present").length / attTotal) * 100) : null;
   const topSurah = hifz.length ? Math.max(...hifz.map((e) => e.surah_number || 0)) : 0;
+  // Hifz hero (item 4): current position = most recent entry; memorised = distinct
+  // surahs with status 'memorized'; progressThisWeek drives an encouraging note.
+  const latestHifz = hifz[0] || null; // getHifzProgress returns session_date desc
+  const currentSurah = latestHifz?.surah_number || topSurah;
+  const memorizedCount = new Set(hifz.filter((e) => e.status === "memorized").map((e) => e.surah_number)).size;
+  const progressThisWeek = hifz.some((e) => e.session_date && new Date(e.session_date + "T00:00:00").getTime() >= Date.now() - 7 * 864e5);
+  const firstName = (student.name || "Your child").split(" ")[0];
+  const hifzAyah = latestHifz?.ayah_from ? ` · ayah ${latestHifz.ayah_from}${latestHifz.ayah_to && latestHifz.ayah_to !== latestHifz.ayah_from ? `–${latestHifz.ayah_to}` : ""}` : "";
   const starCount = rewards.filter((r) => r.type === "star").length;
   const pendingHw = homework.filter((h) => !doneIds.has(h.id));
   const doneHw = homework.filter((h) => doneIds.has(h.id));
@@ -135,6 +143,27 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
 
       {loading ? <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div> : (
       <div className="mt-4 space-y-4">
+        {/* Hifz — hero section (first, prominent) */}
+        {hifz.length > 0 ? (
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4">
+            <p className="text-[10px] uppercase tracking-wider text-emerald-800 font-semibold mb-1 flex items-center gap-1.5"><BookOpen size={12} /> Qur'an / Hifz progress</p>
+            <p className="text-base font-semibold text-stone-900">{surahName(currentSurah)}{hifzAyah}</p>
+            {latestHifz?.session_date && <p className="text-xs text-stone-600">last lesson {new Date(latestHifz.session_date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{latestHifz.quality ? ` · ${latestHifz.quality.replace("_", " ")}` : ""}</p>}
+            <div className="h-2 bg-white border border-emerald-100 rounded-full mt-2 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((memorizedCount / 114) * 100))}%` }} /></div>
+            <p className="text-[11px] text-stone-500 mt-1">{memorizedCount}/114 surahs memorised</p>
+            {progressThisWeek && <p className="text-xs text-emerald-800 mt-2">MashAllah — {firstName} made progress this week! 🌟</p>}
+            <button onClick={() => setShowLog((v) => !v)} className="mt-2 text-[11px] text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1">{showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />} View full log</button>
+            {showLog && <ul className="mt-1 space-y-0.5">{hifz.slice(0, 10).map((e) => (
+              <li key={e.id} className="text-xs text-stone-600">{surahName(e.surah_number)} <span className="text-stone-400">· {e.session_date}</span></li>
+            ))}</ul>}
+          </div>
+        ) : (
+          <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 text-center">
+            <BookOpen className="mx-auto text-emerald-300 mb-1" size={20} />
+            <p className="text-xs text-stone-500">Hifz progress will appear here once {firstName}'s teacher logs a lesson.</p>
+          </div>
+        )}
+
         {/* Homework */}
         {homework.length > 0 && (
           <div>
@@ -185,20 +214,6 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
                 <button onClick={() => setOpenReport(r)} className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700">View report</button>
               </li>
             ))}</ul>
-          </div>
-        )}
-
-        {/* Hifz */}
-        {hifz.length > 0 && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><BookOpen size={12} /> Hifz progress</p>
-            <p className="text-sm text-stone-800">Currently on <span className="font-medium">{surahName(topSurah)}</span></p>
-            <div className="h-1.5 bg-stone-100 rounded-full mt-1.5 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.round((topSurah / 114) * 100)}%` }} /></div>
-            <p className="text-[10px] text-stone-400 mt-1">Surah {topSurah} of 114</p>
-            <button onClick={() => setShowLog((v) => !v)} className="mt-1.5 text-[11px] text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1">{showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />} View full log</button>
-            {showLog && <ul className="mt-1 space-y-0.5">{hifz.slice(0, 10).map((e) => (
-              <li key={e.id} className="text-xs text-stone-600">{surahName(e.surah_number)} <span className="text-stone-400">· {e.session_date}</span></li>
-            ))}</ul>}
           </div>
         )}
 
