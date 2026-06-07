@@ -817,6 +817,45 @@ export async function adminEnrolStudent({ mosqueId, classId, name, dob, gender, 
   return { data }
 }
 
+// --- Madrasa live lessons (088, item 14) ---
+// Start a live session for a class (reusing one already running). The session
+// row is created under RLS (owner/teacher); the Daily room_url is filled by the
+// extended /api/create-daily-room. Then end it when the lesson finishes.
+export async function startMadrasaLiveLesson({ classId, mosqueId }) {
+  if (!classId || !mosqueId) return { error: { message: 'classId and mosqueId required' } }
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data: existing } = await supabase.from('madrasa_sessions')
+    .select('*').eq('class_id', classId).eq('status', 'live').order('started_at', { ascending: false }).limit(1).maybeSingle()
+  if (existing) return { data: existing }
+  const { data, error } = await supabase.from('madrasa_sessions')
+    .insert({ class_id: classId, mosque_id: mosqueId, status: 'live', started_by: user.id }).select().single()
+  return { data, error }
+}
+export async function endMadrasaLiveLesson(sessionId) {
+  if (!sessionId) return { error: { message: 'sessionId required' } }
+  const { data, error } = await supabase.from('madrasa_sessions')
+    .update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', sessionId).select().single()
+  return { data, error }
+}
+// The current live session for a class (or null). Readable by owner/teacher and
+// by parents of enrolled children (088 parent-read policy) → drives the parent
+// Join button.
+export async function getActiveMadrasaSession(classId) {
+  if (!classId) return null
+  const { data, error } = await supabase.from('madrasa_sessions')
+    .select('*').eq('class_id', classId).eq('status', 'live').order('started_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) { console.error('Error fetching active session:', error); return null }
+  return data || null
+}
+// Parent join → auto-mark their own child present+remote (harvest-guarded RPC).
+export async function joinMadrasaSession(sessionId, studentId) {
+  if (!sessionId || !studentId) return { error: { message: 'sessionId and studentId required' } }
+  const { error } = await supabase.rpc('madrasa_join_session', { p_session: sessionId, p_student: studentId })
+  if (error) console.error('Error joining session:', error)
+  return { error }
+}
+
 export async function withdrawEnrollment(id) {
   if (!id) return { error: { message: 'id required' } }
   const { data, error } = await supabase

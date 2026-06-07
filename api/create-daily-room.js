@@ -165,6 +165,99 @@ async function storeMeetingUrl(env, bookingId, url) {
   return null;
 }
 
+// --- Madrasah live lessons (Session AL, item 14) -------------------------
+// A class room: many participants, longer-lived, teaching tools on. The session
+// row is created client-side under RLS (owner/teacher); we only fill room_url.
+const MADRASA_ROOM_MAX = 50;
+const MADRASA_ROOM_HOURS = 3;
+
+async function getMadrasaSession(env, sessionId) {
+  const rows = await sbGet(
+    env,
+    `madrasa_sessions?id=eq.${sessionId}&select=id,class_id,mosque_id,room_url,status,class:madrasa_classes(teacher:mosque_staff(user_id)),mosque:mosques(user_id)`
+  );
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+// Caller must be the mosque owner or the class's assigned teacher.
+function callerCanManageSession(session, callerId) {
+  if (!session || !callerId) return false;
+  return session.mosque?.user_id === callerId || session.class?.teacher?.user_id === callerId;
+}
+
+async function createMadrasaRoom(env) {
+  const now = Math.floor(Date.now() / 1000);
+  const res = await fetch(DAILY_ROOMS_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.DAILY_API_KEY}` },
+    // Public room: no per-participant token needed (frictionless "tap to join").
+    // The room_url is itself RLS-gated — only the teacher/owner and parents of
+    // enrolled children can read it (088) — and the room auto-expires in 3h.
+    body: JSON.stringify({
+      privacy: 'public',
+      properties: {
+        nbf: now - 60,
+        exp: now + MADRASA_ROOM_HOURS * 3600,
+        max_participants: MADRASA_ROOM_MAX,
+        enable_chat: true,
+        enable_screenshare: true,
+        start_video_off: false,
+        start_audio_off: false,
+      },
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('[create-daily-room] madrasa daily_create_failed', res.status, json?.info || json?.error);
+    throw new Error('daily_create_failed');
+  }
+  return { url: json.url, roomName: json.name };
+}
+
+async function storeSessionRoomUrl(env, sessionId, url, roomName) {
+  const res = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/madrasa_sessions?id=eq.${sessionId}&room_url=is.null`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({ room_url: url, room_name: roomName }),
+    }
+  );
+  if (!res.ok) { console.error('[create-daily-room] session room_url update failed', res.status); return null; }
+  const rows = await res.json().catch(() => []);
+  if (Array.isArray(rows) && rows[0]) return rows[0].room_url;
+  return null;
+}
+
+async function handleMadrasaRoom(env, req, res, sessionId) {
+  const caller = await verifyCaller(env, req.headers.authorization);
+  if (!caller?.id) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+  const session = await getMadrasaSession(env, sessionId);
+  if (!session) return res.status(404).json({ ok: false, error: 'session_not_found' });
+  if (!callerCanManageSession(session, caller.id)) return res.status(403).json({ ok: false, error: 'forbidden' });
+  if (session.status !== 'live') return res.status(409).json({ ok: false, error: 'session_not_live' });
+
+  // Idempotent: a room already exists for this session.
+  if (session.room_url) {
+    return res.status(200).json({ ok: true, url: session.room_url, roomName: roomNameFromUrl(session.room_url), existing: true });
+  }
+
+  try {
+    const { url, roomName } = await createMadrasaRoom(env);
+    const stored = await storeSessionRoomUrl(env, sessionId, url, roomName);
+    const winningUrl = stored || url;
+    return res.status(200).json({ ok: true, url: winningUrl, roomName: stored && stored !== url ? roomNameFromUrl(winningUrl) : roomName });
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err?.message || 'create_failed' });
+  }
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -176,6 +269,15 @@ export default async function handler(req, res) {
   }
 
   const body = typeof req.body === 'object' && req.body ? req.body : {};
+
+  // Madrasah live-lesson branch (Session AL, item 14): the caller has already
+  // created a madrasa_sessions row (RLS owner/teacher); we authorise + fill its
+  // room_url. Separate authz + store from the booking path below.
+  if (body.madrasaSessionId !== undefined) {
+    if (!isUuid(body.madrasaSessionId)) return res.status(400).json({ ok: false, error: 'invalid_sessionId' });
+    return handleMadrasaRoom(env, req, res, body.madrasaSessionId);
+  }
+
   const bookingId = body.bookingId;
   if (!isUuid(bookingId)) {
     return res.status(400).json({ ok: false, error: 'invalid_bookingId' });

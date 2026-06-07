@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, Upload, X, MessageCircle, ChevronDown, ChevronUp, CalendarDays } from "lucide-react";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl } from "../auth";
+import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, Upload, X, MessageCircle, ChevronDown, ChevronUp, CalendarDays, Video, Radio } from "lucide-react";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession } from "../auth";
 import { surahName } from "../data/surahs";
 import { parseReportComment, REPORT_SECTIONS, ratingStyle } from "../lib/madrasaReport";
 const downloadReport = (args) => import("../lib/reportPdf").then((m) => m.downloadReportPdf(args));
@@ -33,6 +33,8 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
   const [openReport, setOpenReport] = useState(null); // report row in the modal
   const [showLog, setShowLog] = useState(false);      // hifz log expander
   const [showDone, setShowDone] = useState(false);    // completed homework expander
+  const [liveSession, setLiveSession] = useState(null); // active live lesson for a class
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -40,14 +42,16 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
       getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds),
       getStudentCompletions(student.id), getStudentReports(student.id), getStudentPhotos(student.id), getStudentRewards(student.id),
       Promise.all(mosques.map((m) => getMyChildConsent(student.id, m.id).then((c) => [m.id, !!c?.consent_given]))),
+      Promise.all(classIds.map((cid) => getActiveMadrasaSession(cid))).then((arr) => arr.find(Boolean) || null),
     ])
-      .then(([a, h, hw, comps, reps, pics, rw, consents]) => {
+      .then(([a, h, hw, comps, reps, pics, rw, consents, live]) => {
         if (!alive) return;
         setAttendance(a || []); setHifz(h || []); setHomework(hw || []);
         setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
         setSubFiles(Object.fromEntries((comps || []).map((c) => [c.homework_id, c.files || []])));
         setReports(reps || []); setPhotos(pics || []); setRewards(rw || []);
         setConsentByMosque(Object.fromEntries(consents || []));
+        setLiveSession(live);
       })
       .catch((e) => console.error("child progress load failed:", e))
       .finally(() => { if (alive) setLoading(false); });
@@ -67,6 +71,13 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
     setBusy(null);
   };
   const openFile = async (path) => { const url = await homeworkFileUrl(path); if (url) window.open(url, "_blank", "noopener"); };
+  const joinLive = async () => {
+    if (!liveSession || joining) return;
+    setJoining(true);
+    await joinMadrasaSession(liveSession.id, student.id); // best-effort: auto-mark present+remote
+    setJoining(false);
+    if (liveSession.room_url) window.open(liveSession.room_url, "_blank", "noopener,noreferrer");
+  };
   const uploadSubmission = async (h, file) => {
     if (!file || hwBusy) return;
     setHwBusy(h.id);
@@ -140,6 +151,14 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
         {topSurah > 0 && <span className={`${pill} bg-stone-100 text-stone-700`}>📖 {surahName(topSurah)}</span>}
         {starCount > 0 && <span className={`${pill} bg-amber-50 text-amber-700`}>⭐ {starCount} star{starCount === 1 ? "" : "s"}</span>}
       </div>
+
+      {/* Live lesson — Join (item 14) */}
+      {liveSession && liveSession.room_url && (
+        <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-emerald-900 inline-flex items-center gap-1.5"><Radio size={14} className="text-rose-600 animate-pulse" /> A live lesson is on now</span>
+          <button onClick={joinLive} disabled={joining} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{joining ? <Loader2 size={14} className="animate-spin" /> : <Video size={14} />} Join live lesson</button>
+        </div>
+      )}
 
       {loading ? <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div> : (
       <div className="mt-4 space-y-4">

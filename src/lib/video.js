@@ -48,6 +48,29 @@ export async function createDailyRoom(bookingId) {
   }
 }
 
+// Create (or reuse) the Daily room for a madrasah live lesson and store its URL
+// on the madrasa_sessions row. The session must already exist (created under RLS
+// by the teacher/owner); the server authorises the caller + fills room_url.
+// Returns { ok, url, roomName } or { ok: false, error }.
+export async function createMadrasaRoom(madrasaSessionId) {
+  if (!madrasaSessionId) return { ok: false, error: 'missing_sessionId' };
+  try {
+    const headers = await authHeader();
+    if (!headers) return { ok: false, error: 'not_signed_in' };
+    const res = await fetch('/api/create-daily-room', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ madrasaSessionId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.ok) return { ok: false, error: body?.error || `http_${res.status}` };
+    return body;
+  } catch (err) {
+    console.error('[video] createMadrasaRoom failed', err?.message);
+    return { ok: false, error: 'network_exception' };
+  }
+}
+
 // Fetch a per-participant meeting token for the booking's private Daily room.
 // Returns { ok, token } or { ok: false, error }.
 export async function getMeetingToken(bookingId) {

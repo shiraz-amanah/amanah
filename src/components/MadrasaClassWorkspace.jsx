@@ -18,6 +18,7 @@ import MadrasaWaitlist from "./MadrasaWaitlist";
 import MadrasaRewards from "./MadrasaRewards";
 import MadrasaCertificates from "./MadrasaCertificates";
 import BulkParentMessageModal from "./BulkParentMessageModal";
+import MadrasaLiveLesson from "./MadrasaLiveLesson";
 
 // Shared class workspace (admin Madrasah class detail + teacher "My Classes"
 // portal). Redesign (Session AL): NO tabs — every section is a scrollable block
@@ -256,14 +257,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <MadrasaReports classObj={classObj} />
       </Section>
 
-      {/* 7 — LIVE LESSON (Daily.co — wired in migration 088 / item 14) */}
+      {/* 7 — LIVE LESSON (Daily.co — item 14) */}
       <Section icon={Video} title="Live lesson" subtitle="Remote learning over video">
-        <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center">
-          <Video className="mx-auto text-stone-300 mb-2" size={28} />
-          <p className="text-sm text-stone-600 max-w-md mx-auto mb-3">Start a live video lesson for this class. Remote students get a Join button on their parent dashboard and are auto-marked present.</p>
-          <button disabled className="bg-stone-200 text-stone-400 cursor-not-allowed text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Start live lesson</button>
-          <p className="text-[11px] text-stone-400 mt-2">Activates with the next update.</p>
-        </div>
+        <MadrasaLiveLesson classObj={classObj} />
       </Section>
 
       {/* Additional records — kept but tucked away for 60-second clarity */}
