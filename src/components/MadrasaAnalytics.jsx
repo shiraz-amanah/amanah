@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2, TrendingUp, GraduationCap, BookOpen, Sparkles, Wallet, Star, AlertTriangle } from "lucide-react";
 import {
   getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll,
-  getHomeworkForClasses, getClassHomeworkCompletions,
+  getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll,
 } from "../auth";
+import { computeStarsAndRisk } from "../lib/madrasaScoring";
 
 // Madrasah → Analytics section (Session AL restructure). Admin-only overview:
 // attendance trends, Hifz summary + top performers, homework completion. The AI
@@ -29,13 +30,14 @@ const Metric = ({ value, label }) => (
   </div>
 );
 
-const MadrasaAnalytics = ({ mosqueId, classes = [] }) => {
+const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass }) => {
   const [loading, setLoading] = useState(true);
   const [enrollments, setEnrollments] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [hifz, setHifz] = useState([]);
   const [homework, setHomework] = useState([]);
   const [completions, setCompletions] = useState([]);
+  const [rewards, setRewards] = useState([]);
 
   const classIds = useMemo(() => (classes || []).map((c) => c.id), [classes]);
 
@@ -48,13 +50,19 @@ const MadrasaAnalytics = ({ mosqueId, classes = [] }) => {
       getMosqueHifzAll(mosqueId),
       getHomeworkForClasses(classIds),
       Promise.all((classIds || []).map((id) => getClassHomeworkCompletions(id))).then((arr) => arr.flat()),
-    ]).then(([e, a, h, hw, comp]) => {
+      getMosqueRewardsAll(mosqueId),
+    ]).then(([e, a, h, hw, comp, rew]) => {
       if (!alive) return;
-      setEnrollments(e || []); setAttendance(a || []); setHifz(h || []); setHomework(hw || []); setCompletions(comp || []);
+      setEnrollments(e || []); setAttendance(a || []); setHifz(h || []); setHomework(hw || []); setCompletions(comp || []); setRewards(rew || []);
     }).catch((err) => console.error("analytics load failed:", err))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [mosqueId, classIds]);
+
+  const { stars, atRisk } = useMemo(
+    () => computeStarsAndRisk({ enrollments, attendance, hifz, homework, completions, rewards }),
+    [enrollments, attendance, hifz, homework, completions, rewards]
+  );
 
   const nameById = useMemo(() => {
     const m = {};
@@ -156,20 +164,35 @@ const MadrasaAnalytics = ({ mosqueId, classes = [] }) => {
         </Card>
       </div>
 
-      {/* AI monthly summary (star / at-risk) — shell, wired to the assistant (item 6) */}
-      <Card icon={Sparkles} title="AI monthly summary" accent="text-emerald-700"
-        right={<span className="text-[11px] text-stone-400">via Madrasah assistant</span>}>
+      {/* Star students / at-risk — computed from records (item 6); the assistant narrates */}
+      <Card icon={Sparkles} title="This month — who to celebrate, who to support" accent="text-emerald-700"
+        right={<span className="text-[11px] text-stone-400">tap a name to open</span>}>
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="border border-emerald-100 bg-emerald-50/50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-emerald-900 inline-flex items-center gap-1.5 mb-1"><Star size={13} className="text-amber-500" /> Star students</p>
-            <p className="text-xs text-stone-600">Top performers by attendance, Hifz progress, homework and rewards — surfaced each month with a star badge on their student card.</p>
+            <p className="text-xs font-semibold text-emerald-900 inline-flex items-center gap-1.5 mb-2"><Star size={13} className="text-amber-500" /> Star students</p>
+            {stars.length === 0 ? <p className="text-xs text-stone-500">Not enough activity yet to rank.</p> : (
+              <ul className="space-y-1">{stars.map((s, i) => (
+                <li key={s.sid}>
+                  <button onClick={() => onOpenClass?.(s.classId)} className="w-full text-left text-sm text-stone-800 hover:text-emerald-800 inline-flex items-center gap-1.5"><Star size={12} className={i === 0 ? "text-amber-500" : "text-stone-300"} /> {s.name}</button>
+                </li>
+              ))}</ul>
+            )}
           </div>
           <div className="border border-amber-100 bg-amber-50/50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-amber-900 inline-flex items-center gap-1.5 mb-1"><AlertTriangle size={13} className="text-amber-600" /> Needs attention</p>
-            <p className="text-xs text-stone-600">Students with consecutive absences, stalled Hifz or low homework completion — flagged so you can step in early.</p>
+            <p className="text-xs font-semibold text-amber-900 inline-flex items-center gap-1.5 mb-2"><AlertTriangle size={13} className="text-amber-600" /> Needs attention</p>
+            {atRisk.length === 0 ? <p className="text-xs text-stone-500">No students currently flagged. 🌿</p> : (
+              <ul className="space-y-1.5">{atRisk.slice(0, 6).map((r) => (
+                <li key={r.sid}>
+                  <button onClick={() => onOpenClass?.(r.classId)} className="w-full text-left hover:opacity-80">
+                    <span className="text-sm text-stone-800 inline-flex items-center gap-1.5"><AlertTriangle size={11} className="text-amber-600" /> {r.name}</span>
+                    <span className="block text-[11px] text-stone-500 ml-4">{r.reasons.join(" · ")}</span>
+                  </button>
+                </li>
+              ))}</ul>
+            )}
           </div>
         </div>
-        <p className="text-[11px] text-stone-400 mt-2">Ask the Madrasah assistant at the top of this page for this month's named summary.</p>
+        <p className="text-[11px] text-stone-400 mt-2">Ask the Madrasah assistant above for a fuller named monthly summary.</p>
       </Card>
 
       {/* AI outstanding fees (item 7) — shell, ready for Stripe */}

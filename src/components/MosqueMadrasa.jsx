@@ -139,7 +139,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
       {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} onOpenClass={openClass} onAddStudent={() => setShowEnrol(true)} />}
-      {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} />}
+      {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />}
 
       {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
 

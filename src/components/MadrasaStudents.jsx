@@ -1,7 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap } from "lucide-react";
-import { getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll } from "../auth";
+import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap, Star, AlertTriangle } from "lucide-react";
+import {
+  getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll,
+  getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll,
+} from "../auth";
 import { surahName } from "../data/surahs";
+import { computeStarsAndRisk } from "../lib/madrasaScoring";
 
 // Madrasah → Students section (Session AL restructure). Every enrolled student
 // across all classes, searchable + filterable by class. Each row shows name,
@@ -16,20 +20,35 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
   const [enrollments, setEnrollments] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [hifz, setHifz] = useState([]);
+  const [homework, setHomework] = useState([]);
+  const [completions, setCompletions] = useState([]);
+  const [rewards, setRewards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [notice, setNotice] = useState(false);
 
+  const classIds = useMemo(() => (classes || []).map((c) => c.id), [classes]);
+
   useEffect(() => {
     if (!mosqueId) return;
     let alive = true; setLoading(true);
-    Promise.all([getMosqueEnrollments(mosqueId), getMosqueAttendanceAll(mosqueId), getMosqueHifzAll(mosqueId)])
-      .then(([e, a, h]) => { if (!alive) return; setEnrollments(e || []); setAttendance(a || []); setHifz(h || []); })
+    Promise.all([
+      getMosqueEnrollments(mosqueId), getMosqueAttendanceAll(mosqueId), getMosqueHifzAll(mosqueId),
+      getHomeworkForClasses(classIds),
+      Promise.all((classIds || []).map((id) => getClassHomeworkCompletions(id))).then((arr) => arr.flat()),
+      getMosqueRewardsAll(mosqueId),
+    ])
+      .then(([e, a, h, hw, comp, rew]) => { if (!alive) return; setEnrollments(e || []); setAttendance(a || []); setHifz(h || []); setHomework(hw || []); setCompletions(comp || []); setRewards(rew || []); })
       .catch((err) => console.error("students load failed:", err))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [mosqueId]);
+  }, [mosqueId, classIds]);
+
+  const { starSet, riskSet } = useMemo(
+    () => computeStarsAndRisk({ enrollments: enrollments || [], attendance, hifz, homework, completions, rewards }),
+    [enrollments, attendance, hifz, homework, completions, rewards]
+  );
 
   // Per-student attendance rate (present+late / total).
   const attByStudent = useMemo(() => {
@@ -106,7 +125,11 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
               <li key={e.id}>
                 <button onClick={() => onOpenClass?.(e.class?.id || e.class_id)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-stone-900 truncate">{st.name || "Student"}</p>
+                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-1.5">
+                      {st.name || "Student"}
+                      {starSet.has(sid) && <Star size={13} className="text-amber-500 shrink-0" title="Star student this month" />}
+                      {riskSet.has(sid) && <AlertTriangle size={13} className="text-amber-600 shrink-0" title="Needs attention" />}
+                    </p>
                     <p className="text-xs text-stone-500 truncate">{[st.age ? `age ${st.age}` : null, st.relation].filter(Boolean).join(" · ") || "—"}</p>
                   </div>
                   <div className="hidden sm:flex items-center gap-4 shrink-0 text-xs">

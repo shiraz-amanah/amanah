@@ -748,6 +748,16 @@ export async function getMosqueHifzAll(mosqueId) {
   if (error) { console.error('Error fetching mosque hifz (all):', error); return [] }
   return data || []
 }
+// Lean mosque-wide rewards (all rows, minimal cols) — star/at-risk scoring
+// (item 6). Owner reads via the 083 owner policy.
+export async function getMosqueRewardsAll(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_rewards').select('student_id, type')
+    .eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching mosque rewards (all):', error); return [] }
+  return data || []
+}
 
 // --- Madrasa parent browse + enrolment (migration 068/069) ---
 // Active classes across mosques (anon/auth can read active classes). Optional
