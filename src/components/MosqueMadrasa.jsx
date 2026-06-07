@@ -175,14 +175,20 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
                   <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
                 </div>
 
-                {/* Inline workspace — coexists with the list, no page change. */}
+                {/* Inline workspace — indented under its card (left connector)
+                    so it clearly belongs to this class, not the whole page. */}
                 {rosterClass?.id === c.id && (
-                  <div className="bg-white border border-emerald-200 rounded-2xl p-4 md:p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs uppercase tracking-wider text-stone-500 font-medium">Class workspace</p>
-                      <button onClick={() => setRosterClass(null)} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><X size={15} /> Close</button>
+                  <div className="ml-4 md:ml-6 pl-4 md:pl-5 border-l-2 border-emerald-200">
+                    <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
+                      <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.name}</h3>
+                          <p className="text-xs text-stone-500 truncate">{SUBJECT_LABEL[c.subject] || c.subject}{c.teacher?.name ? ` · ${c.teacher.name}` : ""}{c.room ? ` · ${c.room}` : ""}</p>
+                        </div>
+                        <button onClick={() => setRosterClass(null)} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1 shrink-0"><X size={15} /> Close</button>
+                      </div>
+                      <MadrasaClassWorkspace classObj={c} mosqueName={mosque?.name} />
                     </div>
-                    <MadrasaClassWorkspace classObj={c} mosqueName={mosque?.name} />
                   </div>
                 )}
               </div>
