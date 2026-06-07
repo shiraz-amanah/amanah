@@ -684,6 +684,55 @@ export async function getMadrasaEnrollmentCounts(mosqueId) {
   return counts
 }
 
+// --- Cross-class aggregates for the Madrasah dashboard (all classes) ---
+// All filtered by the denormalized mosque_id; the owner RLS policies allow the
+// mosque admin to read their own mosque's rows across every class.
+export async function getMosqueEnrollments(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_enrollments')
+    .select('*, student:students(id, name, age, relation, profile_id), class:madrasa_classes(id, name, subject)')
+    .eq('mosque_id', mosqueId).order('enrolled_at', { ascending: false })
+  if (error) { console.error('Error fetching mosque enrollments:', error); return [] }
+  return data || []
+}
+export async function getMosqueAttendanceForDate(mosqueId, date) {
+  if (!mosqueId || !date) return []
+  const { data, error } = await supabase
+    .from('madrasa_attendance')
+    .select('*, student:students(id, name), class:madrasa_classes(id, name)')
+    .eq('mosque_id', mosqueId).eq('session_date', date)
+  if (error) { console.error('Error fetching mosque attendance:', error); return [] }
+  return data || []
+}
+export async function getMosqueRecentHifz(mosqueId, limit = 25) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_hifz_progress')
+    .select('*, student:students(id, name), class:madrasa_classes(id, name)')
+    .eq('mosque_id', mosqueId).order('session_date', { ascending: false }).limit(limit)
+  if (error) { console.error('Error fetching mosque hifz:', error); return [] }
+  return data || []
+}
+export async function getMosqueRecentRewards(mosqueId, limit = 25) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_rewards')
+    .select('*, student:students(id, name), class:madrasa_classes(id, name)')
+    .eq('mosque_id', mosqueId).order('awarded_at', { ascending: false }).limit(limit)
+  if (error) { console.error('Error fetching mosque rewards:', error); return [] }
+  return data || []
+}
+export async function getMosqueRecentReports(mosqueId, limit = 25) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_reports')
+    .select('*, student:students(id, name), class:madrasa_classes(id, name)')
+    .eq('mosque_id', mosqueId).order('created_at', { ascending: false }).limit(limit)
+  if (error) { console.error('Error fetching mosque reports:', error); return [] }
+  return data || []
+}
+
 // --- Madrasa parent browse + enrolment (migration 068/069) ---
 // Active classes across mosques (anon/auth can read active classes). Optional
 // mosque/subject filters server-side; day filter is applied client-side on the

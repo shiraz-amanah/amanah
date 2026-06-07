@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, CalendarCheck, BookOpen,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
+import MadrasaAcrossClasses from "./MadrasaAcrossClasses";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
 
@@ -16,10 +17,6 @@ import MadrasaReportsCenter from "./MadrasaReportsCenter";
 const SUBJECTS = [["quran", "Qur'an"], ["hifz", "Hifz"], ["arabic", "Arabic"], ["islamic_studies", "Islamic Studies"], ["other", "Other"]];
 const SUBJECT_LABEL = Object.fromEntries(SUBJECTS);
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-// Primary Madrasah sub-nav — the class workspace's 4 tabs, lifted to page level
-// so they're always visible. Selecting a class applies the active tab to its
-// expanded workspace.
-const CLASS_TABS = [["students", "Students", Users], ["attendance", "Attendance", CalendarCheck], ["classwork", "Classwork", BookOpen], ["records", "Records", FileText]];
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
@@ -41,8 +38,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const [rosterClass, setRosterClass] = useState(null); // class object when viewing detail
-  const [classTab, setClassTab] = useState("students"); // persistent workspace sub-nav
+  const [detailClass, setDetailClass] = useState(null); // class shown in the full-page detail view
   const [showReports, setShowReports] = useState(false); // reports & exports view
 
   const reload = () => {
@@ -82,8 +78,9 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
     if (e) setError(e.message); else reload();
   };
 
-  // Toggle the inline workspace open/closed for a class (accordion under the card).
-  const openRoster = (c) => setRosterClass((prev) => (prev?.id === c.id ? null : c));
+  // Open a class's full-page detail view. Accepts a class object or an id
+  // (the cross-class dashboard passes ids).
+  const openClass = (idOrObj) => setDetailClass(typeof idOrObj === "string" ? (classes.find((c) => c.id === idOrObj) || null) : idOrObj);
 
   // Schedule row editor
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
@@ -93,6 +90,21 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   // ---- Reports & exports view (owner only — this whole tab is the owner's) ----
   if (showReports) {
     return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => setShowReports(false)} />;
+  }
+
+  // ---- Class detail (full page) — that class's own Students/Attendance/
+  // Classwork/Records via the workspace's own tab bar. ----
+  if (detailClass) {
+    return (
+      <div>
+        <button onClick={() => setDetailClass(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> All classes</button>
+        <div className="mb-5">
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{detailClass.name}</h2>
+          <p className="text-sm text-stone-600">{SUBJECT_LABEL[detailClass.subject] || detailClass.subject}{detailClass.teacher?.name ? ` · ${detailClass.teacher.name}` : ""}{detailClass.room ? ` · ${detailClass.room}` : ""}{detailClass.schedule ? ` · ${scheduleText(detailClass.schedule)}` : ""}</p>
+        </div>
+        <MadrasaClassWorkspace classObj={detailClass} mosqueName={mosque?.name} />
+      </div>
+    );
   }
 
   return (
@@ -111,20 +123,6 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
       <MadrasaAssistant mosqueId={mosqueId} />
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
-
-      {/* Primary Madrasah sub-nav — always visible. Selecting a class applies
-          the active tab to its expanded workspace. */}
-      <div className="flex gap-1 border-b border-stone-200 mb-4 overflow-x-auto">
-        {CLASS_TABS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => setClassTab(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${classTab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
-        ))}
-      </div>
-
-      {!rosterClass && classes.length > 0 && (
-        <div className="bg-stone-50 border border-dashed border-stone-300 rounded-2xl p-5 text-center mb-4">
-          <p className="text-sm text-stone-500">Select a class below to view its {(CLASS_TABS.find((t) => t[0] === classTab)?.[1] || "details").toLowerCase()}.</p>
-        </div>
-      )}
 
       {showForm && (
         <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3 mb-5">
@@ -168,13 +166,13 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
             <p className="text-stone-600 text-sm max-w-md mx-auto">No classes yet. Create your first class to start building your madrasah.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {classes.map((c) => (
-              <div key={c.id} className="space-y-2">
-                <div className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : rosterClass?.id === c.id ? "border-emerald-300 ring-1 ring-emerald-100" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
-                  {/* Whole card toggles the inline class workspace; edit/archive
-                      stay as separate sibling buttons (no nested buttons). */}
-                  <button onClick={() => openRoster(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+          <>
+            {/* Classes — click a card into its full detail page. */}
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Classes</h3>
+            <div className="space-y-2 mb-8">
+              {classes.map((c) => (
+                <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
+                  <button onClick={() => openClass(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}
@@ -188,31 +186,18 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
                       </p>
                     </div>
                     <span className="text-xs text-stone-600 inline-flex items-center gap-1 whitespace-nowrap"><Users size={12} /> {counts[c.id] || 0}{c.capacity ? `/${c.capacity}` : ""}</span>
-                    <ChevronRight size={16} className={`text-stone-300 shrink-0 transition-transform ${rosterClass?.id === c.id ? "rotate-90" : ""}`} />
+                    <ChevronRight size={16} className="text-stone-300 shrink-0" />
                   </button>
                   <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
                   <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
                 </div>
+              ))}
+            </div>
 
-                {/* Inline workspace — indented under its card (left connector)
-                    so it clearly belongs to this class, not the whole page. */}
-                {rosterClass?.id === c.id && (
-                  <div className="ml-4 md:ml-6 pl-4 md:pl-5 border-l-2 border-emerald-200">
-                    <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5">
-                      <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-100">
-                        <div className="min-w-0">
-                          <h3 className="text-lg font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.name}</h3>
-                          <p className="text-xs text-stone-500 truncate">{SUBJECT_LABEL[c.subject] || c.subject}{c.teacher?.name ? ` · ${c.teacher.name}` : ""}{c.room ? ` · ${c.room}` : ""}</p>
-                        </div>
-                        <button onClick={() => setRosterClass(null)} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1 shrink-0"><X size={15} /> Close</button>
-                      </div>
-                      <MadrasaClassWorkspace classObj={c} tab={classTab} mosqueName={mosque?.name} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+            {/* Across all classes — aggregate dashboard. */}
+            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Across all classes</h3>
+            <MadrasaAcrossClasses mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />
+          </>
         )}
     </div>
   );
