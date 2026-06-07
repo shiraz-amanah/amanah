@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2, Paperclip } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2, Paperclip, PenLine } from "lucide-react";
 import { MOSQUE_STAFF_ROLES } from "../data/mosqueTaxonomy";
 import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, submitStaffWizard, createContract } from "../auth";
 import { uploadMosqueHrDoc } from "../lib/storage";
 import { sendStaffWizardSubmitted, sendContractInvite } from "../lib/email";
 import { buildContractTerms, CONTRACT_TYPES as CONTRACT_DOC_TYPES } from "../lib/contract";
+import ContractEditor from "./ContractEditor";
 
 // Session W — 7-step staff onboarding wizard. Fill-now (admin) writes
 // mosque_staff + the owner-only mosque_staff_employment directly and uploads to
@@ -51,7 +52,7 @@ const blank = {
   student_loan: false, student_loan_plan: "", p46_statement: "",
   bank_account_name: "", bank_sort_code: "", bank_account_number: "",
   // Contract step (admin only): issue an employment contract for e-signing.
-  email: "", issue_contract: true, contract_doc_type: "full_time",
+  email: "", issue_contract: true, contract_doc_type: "full_time", contract_terms: null,
 };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
@@ -109,7 +110,17 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState(null);
+  const [showContractEditor, setShowContractEditor] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Build the contract terms snapshot from the current wizard fields (item 5).
+  // The Contract step lets the admin edit this; the edited copy is stored on
+  // form.contract_terms and used verbatim at submit.
+  const buildWizardTerms = () => buildContractTerms({
+    type: form.contract_doc_type, staffName: form.name.trim(), role: roleValue, startDate: form.start_date,
+    hoursPerWeek: form.hours_per_week === "" ? null : Number(form.hours_per_week),
+    salaryRate: form.salary_rate.trim(), mosqueName: mosque?.name, mosqueCity: mosque?.city,
+  });
 
   // Mode-aware step machine. Bank stays step 6; Contract is step 7 (admin only);
   // Review is the last step (8 admin / 7 remote).
@@ -274,11 +285,8 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
       // e-sign link. Non-fatal: a contract/email failure doesn't undo the hire.
       if (form.issue_contract && form.email.trim()) {
         try {
-          const terms = buildContractTerms({
-            type: form.contract_doc_type, staffName: form.name.trim(), role: roleValue, startDate: form.start_date,
-            hoursPerWeek: form.hours_per_week === "" ? null : Number(form.hours_per_week),
-            salaryRate: form.salary_rate.trim(), mosqueName: mosque?.name, mosqueCity: mosque?.city,
-          });
+          // Use the admin's edited template if they reviewed it, else build fresh.
+          const terms = form.contract_terms || buildWizardTerms();
           const { data: contract } = await createContract({ mosqueId, staffId: staff.id, contractType: form.contract_doc_type, terms, status: "sent" });
           if (contract) await sendContractInvite(contract.id);
         } catch (ce) { console.error("contract issue failed:", ce); }
@@ -450,16 +458,30 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           </Field>
           {form.issue_contract && (<>
             <Field label="Contract type">
-              <select className={inputCls} value={form.contract_doc_type} onChange={(e) => set("contract_doc_type", e.target.value)}>
+              {/* Changing type invalidates any edited template snapshot. */}
+              <select className={inputCls} value={form.contract_doc_type} onChange={(e) => setForm((f) => ({ ...f, contract_doc_type: e.target.value, contract_terms: null }))}>
                 {CONTRACT_DOC_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
             <Field label="Staff email" required>
               <input type="email" className={inputCls + (attempted && form.issue_contract && isEmpty(form.email) ? " border-rose-400 ring-1 ring-rose-200" : "")} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="them@example.com" />
             </Field>
-            <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">On confirm, the contract is created from these details and emailed to {form.email.trim() || "the staff member"} with a secure link to review and e-sign.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button type="button" onClick={() => setShowContractEditor(true)} className="text-sm font-medium border border-emerald-300 text-emerald-800 hover:bg-emerald-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><PenLine size={14} /> Review &amp; edit template</button>
+              {form.contract_terms && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Template edited</span>}
+            </div>
+            <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">On confirm, the contract is created from {form.contract_terms ? "your edited template" : "these details"} and emailed to {form.email.trim() || "the staff member"} with a secure link to review and e-sign.</p>
           </>)}
         </>)}
+
+        {showContractEditor && (
+          <ContractEditor
+            initialTerms={form.contract_terms || buildWizardTerms()}
+            issueLabel="Save template"
+            onIssue={(terms) => { set("contract_terms", terms); setShowContractEditor(false); }}
+            onCancel={() => setShowContractEditor(false)}
+          />
+        )}
 
         {step === reviewStep && (
           <div className="space-y-2 text-sm">

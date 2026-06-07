@@ -14,7 +14,7 @@ const Field = ({ label, children }) => (<div><label className={labelCls}>{label}
 
 const MadrasaClone = (o) => JSON.parse(JSON.stringify(o)); // simple deep copy of the terms snapshot
 
-const ContractEditor = ({ initialTerms, issuing, onIssue, onCancel }) => {
+const ContractEditor = ({ initialTerms, issuing, onIssue, onCancel, issueLabel = "Issue & email" }) => {
   const [terms, setTerms] = useState(() => {
     const t = MadrasaClone(initialTerms);
     t.clauses = Array.isArray(t.clauses) ? t.clauses : [];
@@ -75,7 +75,7 @@ const ContractEditor = ({ initialTerms, issuing, onIssue, onCancel }) => {
           <button onClick={() => downloadContractPdf(terms)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileDown size={14} /> Preview PDF</button>
           <div className="flex items-center gap-2">
             <button onClick={onCancel} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-            <button onClick={() => onIssue(terms)} disabled={issuing} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{issuing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Issue &amp; email</button>
+            <button onClick={() => onIssue(terms)} disabled={issuing} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{issuing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} {issueLabel}</button>
           </div>
         </div>
       </div>
