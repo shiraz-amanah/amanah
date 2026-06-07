@@ -51,8 +51,13 @@ const hifzSub = (h) => {
   return `${ayah}${d}`;
 };
 
-const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
-  const [tab, setTab] = useState("students");
+const MadrasaClassWorkspace = ({ classObj, tab, onMessageParent, mosqueName }) => {
+  // Dual-mode: CONTROLLED when a `tab` prop is passed (MosqueMadrasa drives it
+  // from the page-level sub-nav, so we hide our own tab bar); UNCONTROLLED
+  // otherwise (e.g. the teacher My-Classes portal), where we own the tab bar.
+  const controlled = tab !== undefined;
+  const [internalTab, setInternalTab] = useState("students");
+  const activeTab = controlled ? (tab || "students") : internalTab;
   const [classworkSub, setClassworkSub] = useState("homework");
   const [recordsSub, setRecordsSub] = useState("reports");
   const [panelStudent, setPanelStudent] = useState(null); // slide-in
@@ -63,7 +68,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let alive = true; setLoading(true); setTab("students"); setPanelStudent(null);
+    let alive = true; setLoading(true); setPanelStudent(null); setInternalTab("students");
     getMadrasaRoster(classObj.id)
       .then((r) => { if (alive) setRoster(r || []); })
       .catch((e) => console.error("roster load failed:", e))
@@ -124,15 +129,17 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <StatCard label="Subject" value={(classObj.subject || "—").replace(/_/g, " ")} />
       </div>
 
-      {/* 4 grouped tabs */}
-      <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
-        {TABS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => setTab(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
-        ))}
-      </div>
+      {/* Own tab bar only when uncontrolled (e.g. teacher portal). */}
+      {!controlled && (
+        <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
+          {TABS.map(([v, l, Icon]) => (
+            <button key={v} onClick={() => setInternalTab(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${activeTab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+          ))}
+        </div>
+      )}
 
       {/* Students — click a row → slide-in panel */}
-      {tab === "students" && (
+      {activeTab === "students" && (
         loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
           : roster.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
@@ -162,9 +169,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
           )
       )}
 
-      {tab === "attendance" && <MadrasaAttendance classObj={classObj} />}
+      {activeTab === "attendance" && <MadrasaAttendance classObj={classObj} />}
 
-      {tab === "classwork" && (
+      {activeTab === "classwork" && (
         <div>
           <div className="flex gap-1 mb-4">
             {CLASSWORK_SUBS.map(([v, l]) => (
@@ -177,7 +184,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         </div>
       )}
 
-      {tab === "records" && (
+      {activeTab === "records" && (
         <div>
           <div className="flex gap-1 mb-4 flex-wrap">
             {RECORDS_SUBS.map(([v, l]) => (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, CalendarCheck, BookOpen,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
@@ -16,6 +16,10 @@ import MadrasaReportsCenter from "./MadrasaReportsCenter";
 const SUBJECTS = [["quran", "Qur'an"], ["hifz", "Hifz"], ["arabic", "Arabic"], ["islamic_studies", "Islamic Studies"], ["other", "Other"]];
 const SUBJECT_LABEL = Object.fromEntries(SUBJECTS);
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+// Primary Madrasah sub-nav — the class workspace's 4 tabs, lifted to page level
+// so they're always visible. Selecting a class applies the active tab to its
+// expanded workspace.
+const CLASS_TABS = [["students", "Students", Users], ["attendance", "Attendance", CalendarCheck], ["classwork", "Classwork", BookOpen], ["records", "Records", FileText]];
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
@@ -38,6 +42,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const [rosterClass, setRosterClass] = useState(null); // class object when viewing detail
+  const [classTab, setClassTab] = useState("students"); // persistent workspace sub-nav
   const [showReports, setShowReports] = useState(false); // reports & exports view
 
   const reload = () => {
@@ -106,6 +111,20 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
       <MadrasaAssistant mosqueId={mosqueId} />
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
+
+      {/* Primary Madrasah sub-nav — always visible. Selecting a class applies
+          the active tab to its expanded workspace. */}
+      <div className="flex gap-1 border-b border-stone-200 mb-4 overflow-x-auto">
+        {CLASS_TABS.map(([v, l, Icon]) => (
+          <button key={v} onClick={() => setClassTab(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${classTab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+        ))}
+      </div>
+
+      {!rosterClass && classes.length > 0 && (
+        <div className="bg-stone-50 border border-dashed border-stone-300 rounded-2xl p-5 text-center mb-4">
+          <p className="text-sm text-stone-500">Select a class below to view its {(CLASS_TABS.find((t) => t[0] === classTab)?.[1] || "details").toLowerCase()}.</p>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3 mb-5">
@@ -187,7 +206,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
                         </div>
                         <button onClick={() => setRosterClass(null)} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1 shrink-0"><X size={15} /> Close</button>
                       </div>
-                      <MadrasaClassWorkspace classObj={c} mosqueName={mosque?.name} />
+                      <MadrasaClassWorkspace classObj={c} tab={classTab} mosqueName={mosque?.name} />
                     </div>
                   </div>
                 )}
