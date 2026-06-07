@@ -110,6 +110,12 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
   // derived stats
   const attTotal = attendance.length;
   const attPct = attTotal ? Math.round((attendance.filter((r) => r.status === "present").length / attTotal) * 100) : null;
+  // Recent-absence flag (item 11): most recent 'absent' within the last 14 days.
+  const recentAbsence = (() => {
+    const last = attendance.filter((a) => a.status === "absent" && a.session_date).sort((x, y) => (y.session_date || "").localeCompare(x.session_date || ""))[0];
+    if (!last) return null;
+    return (Date.now() - new Date(last.session_date + "T00:00:00").getTime()) / 864e5 <= 14 ? last.session_date : null;
+  })();
   const topSurah = hifz.length ? Math.max(...hifz.map((e) => e.surah_number || 0)) : 0;
   // Hifz hero (item 4): current position = most recent entry; memorised = distinct
   // surahs with status 'memorized'; progressThisWeek drives an encouraging note.
@@ -148,6 +154,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
       {/* Quick stats */}
       <div className="flex flex-wrap gap-2 mt-3">
         {attPct !== null && <span className={`${pill} bg-emerald-50 text-emerald-700`}>📅 {attPct}% attendance</span>}
+        {recentAbsence && <span className={`${pill} bg-rose-50 text-rose-700`}>⚠ Absent {new Date(recentAbsence + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>}
         {topSurah > 0 && <span className={`${pill} bg-stone-100 text-stone-700`}>📖 {surahName(topSurah)}</span>}
         {starCount > 0 && <span className={`${pill} bg-amber-50 text-amber-700`}>⭐ {starCount} star{starCount === 1 ? "" : "s"}</span>}
       </div>
