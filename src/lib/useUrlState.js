@@ -97,6 +97,8 @@ const ROUTES = [
   { view: 'staffWizard',                 path: '/staff/onboard/:token' },
   // Session AM — public contract e-sign landing.
   { view: 'contractSign',                path: '/contract/sign/:token' },
+  // Session AL — Path B madrasah enrolment accept (parent completes registration).
+  { view: 'madrasaEnrolAccept',          path: '/enrol/accept/:token' },
 ];
 
 const COMPILED = ROUTES.map(r => {

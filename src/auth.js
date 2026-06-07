@@ -817,6 +817,47 @@ export async function adminEnrolStudent({ mosqueId, classId, name, dob, gender, 
   return { data }
 }
 
+// --- Path B remote-invite enrolment (090) ---
+// Admin creates a token invite (owner RLS); parent completes it via the accept
+// page. Pair with sendMadrasaEnrollmentInvite(invite.id).
+export async function createEnrollmentInvite({ mosqueId, parentEmail, childName }) {
+  const user = await getUser()
+  if (!user) return { error: { message: 'Not signed in' } }
+  const { data, error } = await supabase.from('madrasa_enrollment_invites')
+    .insert({ mosque_id: mosqueId, parent_email: (parentEmail || '').trim().toLowerCase(), child_name: (childName || '').trim(), created_by: user.id })
+    .select().single()
+  return { data, error }
+}
+// Owner reads their mosque's invites (+ the completed student's name) — drives
+// the "Pending registration" / "Ready to assign" list in the Students section.
+export async function getEnrollmentInvites(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.from('madrasa_enrollment_invites')
+    .select('*, student:students(id, name)')
+    .eq('mosque_id', mosqueId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching enrollment invites:', error); return [] }
+  return data || []
+}
+export async function cancelEnrollmentInvite(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_enrollment_invites').update({ status: 'cancelled' }).eq('id', id)
+  return { error }
+}
+// Parent accept page: resolve the invite (anon-safe), then complete it.
+export async function validateEnrollmentInvite(token) {
+  if (!token) return { error: { message: 'token required' } }
+  const { data, error } = await supabase.rpc('validate_enrollment_invite', { p_token: token })
+  if (error) { console.error('Error validating invite:', error); return { error } }
+  return { data } // { child_name, mosque_name, status } | null
+}
+export async function submitEnrollmentInvite({ token, name, dob, gender, relation }) {
+  const { data, error } = await supabase.rpc('submit_enrollment_invite', {
+    p_token: token, p_name: name, p_dob: dob || null, p_gender: gender || null, p_relation: relation || null,
+  })
+  if (error) { console.error('Error submitting invite:', error); return { error } }
+  return { data } // { student_id, mosque_id }
+}
+
 // --- Madrasa live lessons (088, item 14) ---
 // Start a live session for a class (reusing one already running). The session
 // row is created under RLS (owner/teacher); the Daily room_url is filled by the

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap, Star, AlertTriangle, MessageCircle } from "lucide-react";
 import BulkParentMessageModal from "./BulkParentMessageModal";
+import MadrasaPendingInvites from "./MadrasaPendingInvites";
 import {
   getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll,
   getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll,
@@ -29,8 +30,10 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
   const [classFilter, setClassFilter] = useState("");
   const [notice, setNotice] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   const classIds = useMemo(() => (classes || []).map((c) => c.id), [classes]);
+  const enrolledStudentIds = useMemo(() => new Set((enrollments || []).filter((e) => e.status === "active").map((e) => e.student?.id || e.student_id)), [enrollments]);
 
   useEffect(() => {
     if (!mosqueId) return;
@@ -45,7 +48,7 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
       .catch((err) => console.error("students load failed:", err))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [mosqueId, classIds]);
+  }, [mosqueId, classIds, refresh]);
 
   const { starSet, riskSet } = useMemo(
     () => computeStarsAndRisk({ enrollments: enrollments || [], attendance, hifz, homework, completions, rewards }),
@@ -104,6 +107,8 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
           The student enrolment wizard arrives in the next update. For now, parents enrol their children from their own Amanah dashboard.
         </div>
       )}
+
+      <MadrasaPendingInvites mosqueId={mosqueId} classes={classes} enrolledStudentIds={enrolledStudentIds} onChanged={() => setRefresh((r) => r + 1)} />
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-[180px]">

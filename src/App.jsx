@@ -46,6 +46,7 @@ import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
+import MadrasaEnrolAccept from "./pages/MadrasaEnrolAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 
 // Avatar — renders an uploaded photo when one is present, else an initials +
@@ -13553,6 +13554,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
+  if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => window.history.back()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };

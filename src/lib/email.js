@@ -159,6 +159,14 @@ export function sendMadrasaParentWelcome(studentId) {
   return postTransactional({ intent: 'madrasa_parent_welcome', studentId });
 }
 
+// Session AL — Path B enrolment: email the parent a link to complete their
+// child's registration themselves. Server resolves the recipient + token from
+// the invite id (owner-gated). Fire-and-forget after createEnrollmentInvite.
+export function sendMadrasaEnrollmentInvite(inviteId) {
+  if (!inviteId) return Promise.resolve({ ok: false, error: 'missing_inviteId' });
+  return postTransactional({ intent: 'madrasa_enrollment_invite', inviteId });
+}
+
 // Session AM — email a staff member the link to review + e-sign their contract.
 // Owner-authed: the server resolves the staff email + signing token from the
 // contract id and sends the personal link. Fire-and-forget.

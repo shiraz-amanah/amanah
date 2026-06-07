@@ -796,6 +796,26 @@ ${ePara('<span style="font-size:13px;color:#9ca3af;">If you weren\'t expecting t
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Path B enrolment (090): email a parent the link to complete their child's
+// registration themselves. Owner-gated; recipient is the invite's parent_email.
+async function handleMadrasaEnrollmentInvite(env, caller, inviteId) {
+  const rows = await sbGet(env, `madrasa_enrollment_invites?id=eq.${inviteId}&select=token,parent_email,child_name,status,mosque:mosques(name,user_id)`);
+  const inv = Array.isArray(rows) ? rows[0] : null;
+  if (!inv) return { status: 404, body: { ok: false, error: 'invite_not_found' } };
+  const ownerOk = inv.mosque?.user_id === caller.id || (await isAdmin(env, caller.id));
+  if (!ownerOk) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const to = inv.parent_email;
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+
+  const link = `${env.PUBLIC_APP_URL}/enrol/accept/${inv.token}`;
+  const inner = `${eGreeting('there')}${eHeading(`Register ${escapeHtml(inv.child_name)}`)}
+${ePara(`<strong>${escapeHtml(inv.mosque?.name || 'A mosque')}</strong> has invited you to enrol <strong>${escapeHtml(inv.child_name)}</strong> in their madrasah. Complete a few details and you'll be able to follow their attendance, Qur’an &amp; Hifz progress, homework and reports.`)}
+${ctaButton('Complete registration', link)}
+${ePara('<span style="font-size:13px;color:#9ca3af;">If you weren\'t expecting this, you can safely ignore this email.</span>')}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: `Register ${inv.child_name} — Amanah`, html: wrapEmail("Complete your child's registration", inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -1304,6 +1324,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_parent_welcome') {
       if (!isUuid(body.studentId)) return res.status(400).json({ ok: false, error: 'invalid_studentId' });
       const out = await handleMadrasaParentWelcome(env, caller, body.studentId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_enrollment_invite') {
+      if (!isUuid(body.inviteId)) return res.status(400).json({ ok: false, error: 'invalid_inviteId' });
+      const out = await handleMadrasaEnrollmentInvite(env, caller, body.inviteId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
