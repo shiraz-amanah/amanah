@@ -167,9 +167,10 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
           </div>
         ) : (
           <>
-            {/* Classes — click a card into its full detail page. */}
-            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Classes</h3>
-            <div className="space-y-2 mb-8">
+            {/* Cross-class dashboard tabs first, then the class list below. */}
+            <MadrasaAcrossClasses mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />
+
+            <div className="space-y-2 mt-8">
               {classes.map((c) => (
                 <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
                   <button onClick={() => openClass(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
@@ -193,10 +194,6 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
                 </div>
               ))}
             </div>
-
-            {/* Across all classes — aggregate dashboard. */}
-            <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">Across all classes</h3>
-            <MadrasaAcrossClasses mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />
           </>
         )}
     </div>
