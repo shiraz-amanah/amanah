@@ -11,7 +11,7 @@ Paste this as your first message:
 > 2. Read the latest transcript in /mnt/transcripts/
 > 3. Confirm you're caught up
 >
-> Last action (7 June 2026): **Madrasah complete restructure + remote learning shipped** (Session AL — full closure block below). Bugs (AI report error surfacing, Qur'an casing, getScholars logs, tab-nav via redesign) + items 1/3/4 (three-section IA · no-tabs class workspace · Hifz hero everywhere) + 6/7 (star/at-risk badges · fees shell) + 9 (document bank, fixes a real getSignedDocUrl bug) + 10 (bulk parent messaging) all **applied & build-clean**. **TWO MIGRATIONS PENDING YOUR DEV APPLY → PROBE → SMOKE → PROD:** **089** (Path-A in-house enrolment: students dob/gender/pending_parent_email, admin-enrol RPC, signup-claim trigger) and **088** (live lessons: attendance.remote, madrasa_sessions, join RPC + a defensive re-check probe for the 9 existing teacher policies). The dependent code (enrolment wizard, Daily.co live lessons) is committed but inert until these land. Vercel still **11/12** (create-daily-room.js extended, not added; one new send-transactional intent). **Remaining items:** 2 Path B (remote invite), 5 (editable contracts), minor item-11 polish. _Previous (7 June 2026, Session AK):_ **Mosque dashboard overhaul + Madrasah MIS redesign shipped** (Session AK). Migrations **085–087** applied dev+prod (clock-in/out timesheets, employment contracts + e-sign, notifications feed); Vercel still **11/12** (new `contract_invite` intent). **ACTION NEEDED FROM YOU:** verify `ANTHROPIC_API_KEY` (+ `SUPABASE_SERVICE_ROLE_KEY`) exist on the Vercel **Production** environment — the AI HR/Madrasah assistants are wired correctly but their answers depend on it (the UI now surfaces the exact cause if missing). _Previous (6 June 2026, Session AJ):_ **Madrasa post-testing fixes shipped** — on top of the complete module (Phases 1–3). Migration **084** (homework files: `files` jsonb on homework+completions, private bucket `madrasa-homework-uploads`, storage smoke 10/10) applied dev+prod. Fixes: **2** homework uploads (teacher resources + parent submissions), **3** reports overhaul (structured section ratings as JSON-in-text + AI summary via `admin-brief` `mode:'report_summary'` + CSV), **5** certificate redesign + "Send to parent" (`madrasa_certificate` intent, `sendEmail` now supports Resend attachments), **6** parent view overhaul (clean per-child cards, report modal, removed cert buttons/raw attendance log), **8** "Madrasa"→"Madrasah" display text. **Fix 1** (teacher isolation) + **Fix 7** (back nav) were **audited as already-correct, no code**. **Fix 4 (photo upload) STILL OPEN** — prod infra confirmed good (bucket+policies+helpers), so it's a client/runtime bug awaiting the browser network error. Intents now **18**; Vercel still **11/12**; class workspace 10 sub-tabs; model `claude-sonnet-4-6`. **Pending manual checks (browser/email):** Fix 4 photo error, cert send-to-parent email, report AI summary, redesigned cert PDF + new parent view on a phone, homework upload UX; plus carried-forward module email/storage checks. **Next: Fix 4 (on the error) → manual verification pass → Stripe session / pre-launch roadmap.** Earlier context (still true): **Madrasa Phase 3 COMPLETE — the whole Madrasa module (Phases 1–3) is shipped** (Sessions AE–AI). 3E reports/exports (Session AI) was the last slice: `MadrasaReportsCenter.jsx`, opened from a **Reports** button in the owner Madrasa tab — 8 reports (class register P/A/L/E pivot, term attendance summary, Hifz progress, homework completion, rewards summary, waiting list, **GDPR per-student** [full JSON + flat event-log CSV], **bulk student export** for Ofsted). Composes existing owner reads + 083's `madrasa_export_roster` (parent contact); native CSV (`src/lib/csv.js`, no papaparse) + lazy jsPDF table (`src/lib/madrasaReportPdf.js`); owner-only, GDPR/bulk additionally gated by the RPC's in-query authz; `students.age` (no `dob`). **Module summary:** Phase 1 (068–072) classes/enrolment/attendance/Hifz/teacher portal; Phase 2 (073–080) announcements/messaging/absence/homework/reports/photos; Phase 3 (081–083) 3A waiting list, 3B rewards, 3C certificates, 3D AI assistant, 3E reports. **Migrations 068–083 all live dev + prod.** Intents **17**; Vercel **11/12** (no new `api/*.js` the whole module — emails are send-transactional intents, AI is `admin-brief` `mode:'madrasa_ops'`); class workspace **10 sub-tabs**. Model `claude-sonnet-4-6`. **Outstanding (non-blocking) — never run headless, accumulated across the module:** browser + email-send checks for 3A offer email, 3B reward email (`delivered@resend.dev`), 3C certs, 3D assistant (briefing names nobody / chat answers), 3E reports, plus Phase 2 (2b/2C email, 2D storage bytes) — all need deployed `/api` + Resend/Anthropic + a browser. **Tech-debt flags:** 10-sub-tab crowding (grouping pass); `migrations/README.md` table stalled at 033 (backfill 034→083). **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session. **Next:** no madrasa phase queued — likely the manual verification pass, the Stripe session, or back to the pre-launch roadmap (Phase 1 blockers in the "Full product roadmap" section). Push state: **check `git log origin/main..HEAD`**.
+> Last action (7 June 2026): **Madrasah complete restructure + remote learning shipped** (Session AL — full closure block below). Bugs (AI report error surfacing, Qur'an casing, getScholars logs, tab-nav via redesign) + items 1/3/4 (three-section IA · no-tabs class workspace · Hifz hero everywhere) + 6/7 (star/at-risk badges · fees shell) + 9 (document bank, fixes a real getSignedDocUrl bug) + 10 (bulk parent messaging) all **applied & build-clean**. **ALL THREE MIGRATIONS — 088 (live lessons), 089 (Path-A enrolment), 090 (Path-B invite) — CONFIRMED GREEN ON PROD.** Full module is live: enrolment wizard (both paths), Daily.co live lessons, editable contracts, recent-absence flag. Vercel still **11/12** (create-daily-room.js extended, not added; two new send-transactional intents). **Madrasah brief fully delivered** (items 1–14 + bugs). Vercel deploys main; main pushed. _Previous (7 June 2026, Session AK):_ **Mosque dashboard overhaul + Madrasah MIS redesign shipped** (Session AK). Migrations **085–087** applied dev+prod (clock-in/out timesheets, employment contracts + e-sign, notifications feed); Vercel still **11/12** (new `contract_invite` intent). **ACTION NEEDED FROM YOU:** verify `ANTHROPIC_API_KEY` (+ `SUPABASE_SERVICE_ROLE_KEY`) exist on the Vercel **Production** environment — the AI HR/Madrasah assistants are wired correctly but their answers depend on it (the UI now surfaces the exact cause if missing). _Previous (6 June 2026, Session AJ):_ **Madrasa post-testing fixes shipped** — on top of the complete module (Phases 1–3). Migration **084** (homework files: `files` jsonb on homework+completions, private bucket `madrasa-homework-uploads`, storage smoke 10/10) applied dev+prod. Fixes: **2** homework uploads (teacher resources + parent submissions), **3** reports overhaul (structured section ratings as JSON-in-text + AI summary via `admin-brief` `mode:'report_summary'` + CSV), **5** certificate redesign + "Send to parent" (`madrasa_certificate` intent, `sendEmail` now supports Resend attachments), **6** parent view overhaul (clean per-child cards, report modal, removed cert buttons/raw attendance log), **8** "Madrasa"→"Madrasah" display text. **Fix 1** (teacher isolation) + **Fix 7** (back nav) were **audited as already-correct, no code**. **Fix 4 (photo upload) STILL OPEN** — prod infra confirmed good (bucket+policies+helpers), so it's a client/runtime bug awaiting the browser network error. Intents now **18**; Vercel still **11/12**; class workspace 10 sub-tabs; model `claude-sonnet-4-6`. **Pending manual checks (browser/email):** Fix 4 photo error, cert send-to-parent email, report AI summary, redesigned cert PDF + new parent view on a phone, homework upload UX; plus carried-forward module email/storage checks. **Next: Fix 4 (on the error) → manual verification pass → Stripe session / pre-launch roadmap.** Earlier context (still true): **Madrasa Phase 3 COMPLETE — the whole Madrasa module (Phases 1–3) is shipped** (Sessions AE–AI). 3E reports/exports (Session AI) was the last slice: `MadrasaReportsCenter.jsx`, opened from a **Reports** button in the owner Madrasa tab — 8 reports (class register P/A/L/E pivot, term attendance summary, Hifz progress, homework completion, rewards summary, waiting list, **GDPR per-student** [full JSON + flat event-log CSV], **bulk student export** for Ofsted). Composes existing owner reads + 083's `madrasa_export_roster` (parent contact); native CSV (`src/lib/csv.js`, no papaparse) + lazy jsPDF table (`src/lib/madrasaReportPdf.js`); owner-only, GDPR/bulk additionally gated by the RPC's in-query authz; `students.age` (no `dob`). **Module summary:** Phase 1 (068–072) classes/enrolment/attendance/Hifz/teacher portal; Phase 2 (073–080) announcements/messaging/absence/homework/reports/photos; Phase 3 (081–083) 3A waiting list, 3B rewards, 3C certificates, 3D AI assistant, 3E reports. **Migrations 068–083 all live dev + prod.** Intents **17**; Vercel **11/12** (no new `api/*.js` the whole module — emails are send-transactional intents, AI is `admin-brief` `mode:'madrasa_ops'`); class workspace **10 sub-tabs**. Model `claude-sonnet-4-6`. **Outstanding (non-blocking) — never run headless, accumulated across the module:** browser + email-send checks for 3A offer email, 3B reward email (`delivered@resend.dev`), 3C certs, 3D assistant (briefing names nobody / chat answers), 3E reports, plus Phase 2 (2b/2C email, 2D storage bytes) — all need deployed `/api` + Resend/Anthropic + a browser. **Tech-debt flags:** 10-sub-tab crowding (grouping pass); `migrations/README.md` table stalled at 033 (backfill 034→083). **Parked:** auto-offer-on-withdrawal (3A); Stripe-dependent madrasa items (fees, sibling discount, bursary, Gift Aid) for a dedicated Stripe session. **Next:** no madrasa phase queued — likely the manual verification pass, the Stripe session, or back to the pre-launch roadmap (Phase 1 blockers in the "Full product roadmap" section). Push state: **check `git log origin/main..HEAD`**.
 
 ---
 
@@ -6976,11 +6976,12 @@ prod, payroll CSV contents.
 
 Large session: bug round, a three-section Madrasah IA, no-tabs class workspace,
 Hifz-as-hero everywhere, AI star/at-risk + fees shells, a central document bank,
-bulk parent messaging, a Path-A enrolment wizard, and Daily.co live lessons.
-**12 commits, every `npm run build` clean.** Headless verification = build +
-Vite per-module transform (no browser driver / dev creds available); the
-authenticated UI was not click-tested. **Two migrations (088, 089) are written
-but NOT applied — dev-first apply + probe + smoke pending (see below).**
+bulk parent messaging, a two-path enrolment wizard, Daily.co live lessons, and
+editable contract templates. **~16 commits, every `npm run build` clean.**
+Headless verification = build + Vite per-module transform (no browser driver /
+dev creds available); the authenticated UI was not click-tested. **Migrations
+088/089/090 all applied + probed GREEN ON PROD by the owner — the whole module
+is live. The Madrasah brief (items 1–14 + bugs) is fully delivered.**
 
 ### Bugs fixed
 - **#8 AI report Accept/Edit/Regenerate/Revert "broken on prod".** Traced the
@@ -7034,8 +7035,21 @@ but NOT applied — dev-first apply + probe + smoke pending (see below).**
   `getMyTeacherClasses` shows only assigned classes; the "My Classes" tab is
   hidden for staff with none (deliberate — no empty tab for caretakers). No code.
 
-### Items shipped (code committed, BLOCKED on a pending migration)
-- **2 Path A (in-house enrolment) — needs migration 089.** Admin adds a child on a
+### Items shipped (needed a migration — all three now GREEN ON PROD)
+- **2 Path B (remote invite) — migration 090.** Admin enters parent email +
+  child name → `createEnrollmentInvite` (owner-RLS) + `madrasa_enrollment_invite`
+  intent → parent opens `/enrol/accept/:token` (`MadrasaEnrolAccept`),
+  `validate_enrollment_invite` (anon) → `submit_enrollment_invite` (authed,
+  creates the student under their own profile). `MadrasaEnrolWizard` gained a
+  path chooser; `MadrasaPendingInvites` shows "awaiting parent" + "ready to
+  assign" above the Students list. 090 probe green on prod (10 cols / 1 policy /
+  both RPCs secdef / anon validate=t, anon submit=f, auth submit=t).
+- **5 editable contracts.** `ContractEditor` modal — pick type → Review & edit
+  (every field + clause editable) → Preview PDF → Issue; terms snapshot now taken
+  at **Issue**, capturing edits. No migration.
+- **11 parent card** — recent-absence flag (most recent absence within 14d) added
+  alongside the Hifz hero + Join button shipped earlier.
+- **2 Path A (in-house enrolment) — migration 089.** Admin adds a child on a
   parent's behalf + enrols, then the parent is emailed a sign-in link.
   `MadrasaEnrolWizard` (2-step) + `adminEnrolStudent` RPC wrapper +
   `madrasa_parent_welcome` send-transactional intent. **089** adds students
@@ -7054,25 +7068,19 @@ but NOT applied — dev-first apply + probe + smoke pending (see below).**
   (owner/teacher manage, parent-read via `madrasa_parent_in_class` definer), and
   the harvest-guarded `madrasa_join_session` RPC.
 
-### ⏳ PENDING — apply BOTH migrations dev-first (you, via the SQL editor)
-Order doesn't matter between them. For each: paste into **amanah-dev** → run the
-**probe block at the bottom of the file** → smoke test → apply to **prod**.
-- **089_madrasa_admin_enrol.sql** — probe expects dob/gender/pending_parent_email
-  present, `profile_id` nullable, claim trigger 1 row, both RPCs `prosecdef=t`,
-  anon execute=f, **`profiles.email` exists** (RPC depends on it).
-- **088_madrasa_live_lessons.sql** — probe A: `remote` col, `madrasa_sessions`
-  (8 cols / 3 policies), both fns `prosecdef=t`, anon execute on join=f. probe B
-  (**defensive re-check**): the 9 teacher policies across enrollments/students/
-  attendance/hifz/homework/completions/reports/rewards/announcements — if any are
-  missing on dev, STOP (teacher isolation not actually enforced there).
-Smoke: 089 → Students → Add student → child appears + (email needs deployed /api).
-088 → class → Start live lesson (needs `DAILY_API_KEY`) → parent dashboard shows
-Join → join → attendance row with `remote=true`.
+### ✅ Migrations — 088 / 089 / 090 all applied + probed GREEN ON PROD
+All three confirmed by the owner. Remaining prod dependencies for full function:
+`ANTHROPIC_API_KEY` (AI report/assistant/star-narration), `DAILY_API_KEY` (live
+lessons), `RESEND` (the parent-welcome + enrolment-invite emails). The 088
+defensive re-check confirmed the 9 teacher policies are present.
 
 ### New files
 Components: `MadrasaStudents`, `MadrasaAnalytics`, `MadrasaEnrolWizard`,
-`BulkParentMessageModal`, `MadrasaLiveLesson`. Lib: `madrasaScoring`,
-`madrasaFees`. Migrations: `088_madrasa_live_lessons`, `089_madrasa_admin_enrol`.
+`BulkParentMessageModal`, `MadrasaLiveLesson`, `MadrasaPendingInvites`,
+`ContractEditor`. Page: `MadrasaEnrolAccept`. Lib: `madrasaScoring`,
+`madrasaFees`. Migrations: `088_madrasa_live_lessons`, `089_madrasa_admin_enrol`,
+`090_madrasa_enrollment_invites`. Email intents: `madrasa_parent_welcome`,
+`madrasa_enrollment_invite`. Route: `/enrol/accept/:token`.
 Data layer additions in `auth.js`: `getMosqueAttendanceAll`, `getMosqueHifzAll`,
 `getMosqueRewardsAll`, `adminEnrolStudent`, `sendBulkParentMessage`,
 `startMadrasaLiveLesson`/`endMadrasaLiveLesson`/`getActiveMadrasaSession`/
@@ -7080,15 +7088,15 @@ Data layer additions in `auth.js`: `getMosqueAttendanceAll`, `getMosqueHifzAll`,
 `createMadrasaRoom`.
 
 ### Not done / parked
-- **Item 2 Path B** (remote invite: token email + parent accept page + pending
-  registration status) — needs its own migration slice.
-- **Item 5** (inline-editable contract templates before Issue).
-- **Item 11** minor polish (last-absence-if-recent flag) — most of the card was
-  already rich; Hifz hero + Join added this session.
+- **Wizard contract step** still uses the auto-snapshot (the editable template
+  landed on the HR record, the primary issue surface) — wire `ContractEditor`
+  into `MosqueStaffWizard`'s Contract step if wanted.
 - **Verified vs NOT:** all builds clean + every changed module transforms via the
-  dev server. NOT browser-verified (no driver/creds): the authenticated Madrasah
-  admin + parent UIs, the AI generate round-trip (needs the Vercel key), and the
-  full live-lesson + enrolment flows (need 088/089 on dev + Daily/Resend).
+  dev server; all three migrations probed green on prod by the owner. NOT
+  browser-click-verified from here (no driver/creds): the authenticated Madrasah
+  admin + parent UIs and the AI generate round-trip (needs the Vercel key). The
+  full live-lesson, enrolment (both paths), bulk-message and contract flows are
+  wired end-to-end but want an eyes-on pass on a deployed prod build.
 
 ---
 
