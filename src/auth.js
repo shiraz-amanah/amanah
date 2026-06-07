@@ -1431,7 +1431,7 @@ export async function getCoverRequestsForMosque(mosqueId) {
 export async function getMosqueDocuments(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase
-    .from('mosque_documents').select('*').eq('mosque_id', mosqueId)
+    .from('mosque_documents').select('*, staff:mosque_staff(id, name)').eq('mosque_id', mosqueId)
     .order('expiry_date', { ascending: true, nullsFirst: false })
   if (error) { console.error('Error fetching mosque documents:', error); return [] }
   return data || []
