@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ShieldCheck, MapPin, Heart, Clock, Globe, Phone, HandCoins, Calendar, Pin, CheckCircle2, X, GraduationCap } from "lucide-react";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS, MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
-import { getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam } from "../auth";
+import { getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam, getMosqueScholars } from "../auth";
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
 // Works for logged-out visitors — all reads are anon-safe (RLS public-read on
@@ -27,17 +27,20 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
   const [events, setEvents] = useState([]);
   const [anns, setAnns] = useState([]);
   const [team, setTeam] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
     const id = mosque?.id;
     if (!id) return;
     let alive = true;
-    Promise.all([getMosqueUpcomingEvents(id, 5), getMosqueAnnouncements(id), getMosqueTeam(id)])
-      .then(([e, a, t]) => { if (alive) { setEvents(e); setAnns(a); setTeam(t); } })
+    Promise.all([getMosqueUpcomingEvents(id, 5), getMosqueAnnouncements(id), getMosqueTeam(id), getMosqueScholars(id)])
+      .then(([e, a, t, sc]) => { if (alive) { setEvents(e); setAnns(a); setTeam(t); setTeachers(sc || []); } })
       .catch((err) => console.error("MosqueProfile load failed:", err));
     return () => { alive = false; };
   }, [mosque?.id]);
+
+  const scholarInitials = (s) => (s?.avatar_initials || (s?.name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("")).toUpperCase();
 
   if (!mosque) {
     return (
@@ -151,6 +154,26 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
                 <span key={f} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-700 rounded-lg">
                   <CheckCircle2 size={13} className="text-emerald-600" /> {MOSQUE_FACILITIES.find((x) => x.v === f)?.l || f}
                 </span>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Our Teachers (platform scholars linked to this mosque). Clicking a
+            card opens the scholar's full Amanah profile. */}
+        {teachers.length > 0 && (
+          <Section title="Our teachers">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {teachers.map((s) => (
+                <button key={s.id} onClick={() => onScholar?.(s)} className="text-left flex items-center gap-3 bg-stone-50 border border-stone-200 hover:border-emerald-300 hover:shadow-sm transition-all rounded-xl p-3">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
+                    {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover" /> : scholarInitials(s)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-1.5"><GraduationCap size={13} className="text-emerald-700 shrink-0" /> {s.name}</p>
+                    <p className="text-xs text-stone-500 truncate">{[s.title, s.city].filter(Boolean).join(" · ") || "Verified scholar"}</p>
+                  </div>
+                </button>
               ))}
             </div>
           </Section>

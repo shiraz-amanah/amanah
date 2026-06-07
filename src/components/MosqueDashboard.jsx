@@ -17,6 +17,7 @@ import MosqueHR from "./MosqueHR";
 import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
 import MosqueDocuments from "./MosqueDocuments";
+import MosqueScholarLinks from "./MosqueScholarLinks";
 
 // Mosque dashboard shell. Session AK collapsed the old 10-tab bar into 5
 // top-level tabs (Dashboard / People / Mosque / Madrasah / Compliance), each
@@ -199,6 +200,10 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <div>
               <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public team listing</h3>
               <MosqueStaffPublic mosqueId={mosque.id} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Our teachers</h3>
+              <MosqueScholarLinks mosqueId={mosque.id} />
             </div>
           </div>
         )}
