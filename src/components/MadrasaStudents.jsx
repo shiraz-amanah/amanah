@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap, Star, AlertTriangle } from "lucide-react";
+import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap, Star, AlertTriangle, MessageCircle } from "lucide-react";
+import BulkParentMessageModal from "./BulkParentMessageModal";
 import {
   getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll,
   getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll,
@@ -27,6 +28,7 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
   const [q, setQ] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [notice, setNotice] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   const classIds = useMemo(() => (classes || []).map((c) => c.id), [classes]);
 
@@ -70,6 +72,8 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
     return m;
   }, [hifz]);
 
+  const allParentIds = useMemo(() => (enrollments || []).filter((e) => e.status === "active").map((e) => e.student?.profile_id).filter(Boolean), [enrollments]);
+
   const rows = useMemo(() => {
     const active = (enrollments || []).filter((e) => e.status === "active");
     const term = q.trim().toLowerCase();
@@ -87,8 +91,13 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
           <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Students</h3>
           <p className="text-sm text-stone-600">Every enrolled child across your classes.</p>
         </div>
-        <button onClick={() => (onAddStudent ? onAddStudent() : setNotice(true))} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowBulk(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+          <button onClick={() => (onAddStudent ? onAddStudent() : setNotice(true))} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
+        </div>
       </div>
+
+      {showBulk && <BulkParentMessageModal recipients={allParentIds} audienceLabel="all parents across your classes" onClose={() => setShowBulk(false)} />}
 
       {notice && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm rounded-xl px-4 py-3 mb-4">

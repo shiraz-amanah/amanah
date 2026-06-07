@@ -17,6 +17,7 @@ import MadrasaPhotos from "./MadrasaPhotos";
 import MadrasaWaitlist from "./MadrasaWaitlist";
 import MadrasaRewards from "./MadrasaRewards";
 import MadrasaCertificates from "./MadrasaCertificates";
+import BulkParentMessageModal from "./BulkParentMessageModal";
 
 // Shared class workspace (admin Madrasah class detail + teacher "My Classes"
 // portal). Redesign (Session AL): NO tabs — every section is a scrollable block
@@ -69,6 +70,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [loading, setLoading] = useState(true);
   const [hifzLoading, setHifzLoading] = useState(true);
   const [showMore, setShowMore] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   // Per-student slide-in panel
   const [panelStudent, setPanelStudent] = useState(null);
@@ -134,6 +136,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
 
   const activeRoster = roster.filter((e) => e.status === "active");
   const withdrawn = roster.length - activeRoster.length;
+  const parentIds = activeRoster.map((e) => e.student?.profile_id).filter(Boolean);
 
   // Per-student Hifz summary for the hero section (no N+1 — derived from getClassHifz).
   const hifzByStudent = useMemo(() => {
@@ -160,6 +163,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         {withdrawn > 0 && <StatCard label="Withdrawn" value={withdrawn} />}
         <StatCard label="Subject" value={(classObj.subject || "—").replace(/_/g, " ")} />
       </div>
+
+      {/* Bulk parent messaging (item 10) — teacher context (parent threads) */}
+      {onMessageParent && (
+        <div className="-mt-6 flex justify-end">
+          <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+        </div>
+      )}
 
       {/* 1 — TODAY'S REGISTER (most-used, first) */}
       <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
@@ -271,6 +281,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
           </div>
         )}
       </div>
+
+      {showBulk && <BulkParentMessageModal recipients={parentIds} audienceLabel={`all parents in ${classObj.name || "this class"}`} onClose={() => setShowBulk(false)} />}
 
       {/* Per-student slide-in panel — Hifz first (item 4) */}
       {panelStudent && (

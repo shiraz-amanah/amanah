@@ -2200,6 +2200,25 @@ export async function openThreadWithParent(parentUserId) {
   if (!parentUserId) return { error: { message: 'parentUserId required' } }
   return getOrCreateDirectConversation(parentUserId, 'teacher', 'parent')
 }
+// Bulk parent messaging (item 10): send the same message into each parent's
+// direct thread, reusing the 1:1 messaging infra. Dedups parent ids and skips
+// blanks (e.g. pending Path-A parents with no account yet). Returns { sent,
+// failed, skipped } — best-effort, never throws.
+export async function sendBulkParentMessage(parentUserIds = [], body) {
+  const text = (body || '').trim()
+  if (!text) return { sent: 0, failed: 0, skipped: 0, error: { message: 'Message is empty.' } }
+  const ids = Array.from(new Set((parentUserIds || []).filter(Boolean)))
+  const skipped = (parentUserIds || []).length - ids.length
+  let sent = 0, failed = 0
+  const results = await Promise.allSettled(ids.map(async (uid) => {
+    const { data: convoId, error } = await openThreadWithParent(uid)
+    if (error || !convoId) throw error || new Error('no_conversation')
+    const { error: sErr } = await sendMessage(convoId, text)
+    if (sErr) throw sErr
+  }))
+  for (const r of results) { if (r.status === 'fulfilled') sent += 1; else failed += 1 }
+  return { sent, failed, skipped }
+}
 export async function openThreadWithTeacher(classId) {
   if (!classId) return { error: { message: 'classId required' } }
   const { data: teacherUserId, error } = await supabase.rpc('madrasa_class_teacher_user', { p_class: classId })
