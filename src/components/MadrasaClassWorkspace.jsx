@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
-import { Loader2, Users, X, MessageCircle, BookOpen, CalendarCheck, FileText, ChevronRight } from "lucide-react";
-import { getMadrasaRoster } from "../auth";
+import { Loader2, Users, X, MessageCircle, BookOpen, CalendarCheck, FileText, ChevronRight, Star } from "lucide-react";
+import {
+  getMadrasaRoster, getStudentAttendance, getHifzProgress, getHomeworkForClasses,
+  getStudentCompletions, getStudentRewards, getStudentReports,
+} from "../auth";
+import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaHifz from "./MadrasaHifz";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -33,6 +37,19 @@ const StatCard = ({ label, value }) => (
     <p className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
   </div>
 );
+const PanelStat = ({ label, value, sub }) => (
+  <div className="bg-white border border-stone-200 rounded-xl p-3">
+    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{label}</p>
+    <p className="text-sm font-semibold text-stone-900 truncate">{value}</p>
+    {sub && <p className="text-[11px] text-stone-400 mt-0.5 truncate">{sub}</p>}
+  </div>
+);
+const hifzSub = (h) => {
+  if (!h) return "No entries yet";
+  const ayah = h.ayah_from ? `ayah ${h.ayah_from}${h.ayah_to ? `–${h.ayah_to}` : ""} · ` : "";
+  const d = h.session_date ? new Date(h.session_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+  return `${ayah}${d}`;
+};
 
 const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [tab, setTab] = useState("students");
@@ -40,6 +57,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [recordsSub, setRecordsSub] = useState("reports");
   const [panelStudent, setPanelStudent] = useState(null); // slide-in
   const [panelShown, setPanelShown] = useState(false);     // drives the slide animation
+  const [panelStats, setPanelStats] = useState(null);
+  const [panelStatsLoading, setPanelStatsLoading] = useState(false);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,6 +78,38 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     return () => cancelAnimationFrame(id);
   }, [panelStudent]);
   const closePanel = () => { setPanelShown(false); setTimeout(() => setPanelStudent(null), 200); };
+
+  // Load the clicked student's stats for the panel header.
+  useEffect(() => {
+    if (!panelStudent?.id) return;
+    let alive = true; setPanelStatsLoading(true); setPanelStats(null);
+    Promise.all([
+      getStudentAttendance(panelStudent.id),
+      getHifzProgress(panelStudent.id, { classId: classObj.id }),
+      getHomeworkForClasses([classObj.id]),
+      getStudentCompletions(panelStudent.id),
+      getStudentRewards(panelStudent.id),
+      getStudentReports(panelStudent.id),
+    ]).then(([att, hifz, hw, comp, rew, rep]) => {
+      if (!alive) return;
+      const total = att.length;
+      const present = att.filter((a) => a.status === "present" || a.status === "late").length;
+      const completedIds = new Set((comp || []).map((c) => c.homework_id));
+      const positive = (rew || []).filter((r) => ["star", "merit", "achievement"].includes(r.type)).length;
+      const latestRep = (rep || []).find((r) => r.published_at) || (rep || [])[0] || null;
+      setPanelStats({
+        attRate: total ? Math.round((present / total) * 100) : null,
+        attTotal: total,
+        lastHifz: (hifz || [])[0] || null,
+        pending: (hw || []).filter((h) => !completedIds.has(h.id)).length,
+        hwTotal: (hw || []).length,
+        rewards: positive,
+        report: latestRep ? `${latestRep.term || "Report"} · ${latestRep.published_at ? "published" : "draft"}` : null,
+      });
+    }).catch((e) => console.error("panel stats load failed:", e))
+      .finally(() => { if (alive) setPanelStatsLoading(false); });
+    return () => { alive = false; };
+  }, [panelStudent, classObj.id]);
 
   const activeRoster = roster.filter((e) => e.status === "active");
   const withdrawn = roster.length - activeRoster.length;
@@ -153,6 +204,24 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
               <button onClick={closePanel} className="text-stone-400 hover:text-stone-700 p-1"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4">
+              {/* Quick stats */}
+              {panelStatsLoading ? (
+                <div className="flex justify-center py-4 text-stone-400"><Loader2 size={16} className="animate-spin" /></div>
+              ) : panelStats && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <PanelStat label="Attendance" value={panelStats.attRate != null ? `${panelStats.attRate}%` : "—"} sub={panelStats.attTotal ? `${panelStats.attTotal} sessions` : "No sessions yet"} />
+                    <PanelStat label="Pending homework" value={panelStats.pending} sub={`of ${panelStats.hwTotal} set`} />
+                    <PanelStat label="Last Hifz lesson" value={panelStats.lastHifz ? surahName(panelStats.lastHifz.surah_number) : "—"} sub={hifzSub(panelStats.lastHifz)} />
+                    <PanelStat label="Rewards" value={panelStats.rewards} sub="stars & merits" />
+                  </div>
+                  <div className="bg-white border border-stone-200 rounded-xl p-3 flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase tracking-wider text-stone-500 font-medium">Latest report</span>
+                    <span className="text-sm text-stone-900">{panelStats.report || "None yet"}</span>
+                  </div>
+                </>
+              )}
+
               {onMessageParent && panelStudent.profile_id && (
                 <button onClick={() => onMessageParent({ parentUserId: panelStudent.profile_id, childName: panelStudent.name })} className="text-sm border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message parent</button>
               )}

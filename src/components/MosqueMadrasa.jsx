@@ -77,26 +77,13 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
     if (e) setError(e.message); else reload();
   };
 
-  const openRoster = (c) => setRosterClass(c); // the workspace loads its own roster
+  // Toggle the inline workspace open/closed for a class (accordion under the card).
+  const openRoster = (c) => setRosterClass((prev) => (prev?.id === c.id ? null : c));
 
   // Schedule row editor
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
   const setSlot = (i, k, v) => set("schedule", form.schedule.map((s, idx) => idx === i ? { ...s, [k]: v } : s));
   const rmSlot = (i) => set("schedule", form.schedule.filter((_, idx) => idx !== i));
-
-  // ---- Roster view ----
-  if (rosterClass) {
-    return (
-      <div>
-        <button onClick={() => setRosterClass(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> Back to classes</button>
-        <div className="mb-4">
-          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{rosterClass.name}</h2>
-          <p className="text-sm text-stone-600">{SUBJECT_LABEL[rosterClass.subject]}{rosterClass.teacher?.name ? ` · ${rosterClass.teacher.name}` : ""} · {scheduleText(rosterClass.schedule)}</p>
-        </div>
-        <MadrasaClassWorkspace classObj={rosterClass} mosqueName={mosque?.name} />
-      </div>
-    );
-  }
 
   // ---- Reports & exports view (owner only — this whole tab is the owner's) ----
   if (showReports) {
@@ -164,26 +151,40 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         ) : (
           <div className="space-y-2">
             {classes.map((c) => (
-              <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
-                {/* Whole card opens the class workspace; edit/archive stay as
-                    separate sibling buttons (no nested buttons). */}
-                <button onClick={() => openRoster(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span>
-                      {c.status === "archived" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">Archived</span>}
-                    </p>
-                    <p className="text-xs text-stone-500 truncate flex items-center gap-2 mt-0.5">
-                      {c.teacher?.name && <span>{c.teacher.name}</span>}
-                      <span className="inline-flex items-center gap-1"><Clock size={11} /> {scheduleText(c.schedule)}</span>
-                      {c.room && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {c.room}</span>}
-                    </p>
+              <div key={c.id} className="space-y-2">
+                <div className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : rosterClass?.id === c.id ? "border-emerald-300 ring-1 ring-emerald-100" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
+                  {/* Whole card toggles the inline class workspace; edit/archive
+                      stay as separate sibling buttons (no nested buttons). */}
+                  <button onClick={() => openRoster(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span>
+                        {c.status === "archived" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">Archived</span>}
+                      </p>
+                      <p className="text-xs text-stone-500 truncate flex items-center gap-2 mt-0.5">
+                        {c.teacher?.name && <span>{c.teacher.name}</span>}
+                        <span className="inline-flex items-center gap-1"><Clock size={11} /> {scheduleText(c.schedule)}</span>
+                        {c.room && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {c.room}</span>}
+                      </p>
+                    </div>
+                    <span className="text-xs text-stone-600 inline-flex items-center gap-1 whitespace-nowrap"><Users size={12} /> {counts[c.id] || 0}{c.capacity ? `/${c.capacity}` : ""}</span>
+                    <ChevronRight size={16} className={`text-stone-300 shrink-0 transition-transform ${rosterClass?.id === c.id ? "rotate-90" : ""}`} />
+                  </button>
+                  <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+                  <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
+                </div>
+
+                {/* Inline workspace — coexists with the list, no page change. */}
+                {rosterClass?.id === c.id && (
+                  <div className="bg-white border border-emerald-200 rounded-2xl p-4 md:p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xs uppercase tracking-wider text-stone-500 font-medium">Class workspace</p>
+                      <button onClick={() => setRosterClass(null)} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><X size={15} /> Close</button>
+                    </div>
+                    <MadrasaClassWorkspace classObj={c} mosqueName={mosque?.name} />
                   </div>
-                  <span className="text-xs text-stone-600 inline-flex items-center gap-1 whitespace-nowrap"><Users size={12} /> {counts[c.id] || 0}{c.capacity ? `/${c.capacity}` : ""}</span>
-                </button>
-                <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
-                <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
+                )}
               </div>
             ))}
           </div>
