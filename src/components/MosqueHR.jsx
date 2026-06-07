@@ -1,20 +1,81 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, ShieldCheck, FileCheck, Briefcase, Check, Upload, FileText,
-  AlertCircle, ChevronRight, Lock,
+  AlertCircle, ChevronRight, Lock, FileSignature,
 } from "lucide-react";
 import {
   getMosqueStaff, getMosqueStaffEmployment, upsertMosqueStaffEmployment,
-  updateMosqueStaff, getMosqueDocuments, createMosqueDocument,
+  updateMosqueStaff, getMosqueDocuments, createMosqueDocument, getContractsForMosque,
 } from "../auth";
 import { uploadMosqueHrDoc, getSignedDocUrl } from "../lib/storage";
+import { CONTRACT_TYPE_LABEL } from "../lib/contract";
+
+// Shared sessionStorage signal: clicking "View" on a contract opens that staff
+// member's HR record and scrolls to their Contracts section (read + cleared by
+// MosqueStaffRecord).
+export const FOCUS_CONTRACT_KEY = "amanah:focusContractStaff";
+
+const C_STATUS = {
+  draft: "bg-stone-50 border-stone-200 text-stone-500",
+  sent: "bg-amber-50 border-amber-200 text-amber-700",
+  signed: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  declined: "bg-rose-50 border-rose-200 text-rose-700",
+  void: "bg-stone-50 border-stone-200 text-stone-400",
+};
+
+// Platform-wide contracts overview (all staff, one view). View → opens the
+// staff member's HR record scrolled to their contract.
+const ContractsOverview = ({ mosqueId, onViewStaff }) => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let alive = true; setLoading(true);
+    getContractsForMosque(mosqueId).then((d) => { if (alive) setRows(d || []); }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [mosqueId]);
+  const view = (c) => { try { sessionStorage.setItem(FOCUS_CONTRACT_KEY, c.staff_id); } catch {} onViewStaff?.(c.staff_id); };
+
+  if (loading) return <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>;
+  if (rows.length === 0) return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+      <FileSignature className="mx-auto text-stone-300 mb-3" size={36} />
+      <p className="text-stone-600 text-sm max-w-md mx-auto">No contracts issued yet. Issue one from a staff member's record under People → Team.</p>
+    </div>
+  );
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-stone-50 text-left">
+          <tr>
+            <th className="px-4 py-2.5 font-semibold text-stone-700">Staff</th>
+            <th className="px-4 py-2.5 font-semibold text-stone-700">Type</th>
+            <th className="px-4 py-2.5 font-semibold text-stone-700">Status</th>
+            <th className="px-4 py-2.5 font-semibold text-stone-700">Issued</th>
+            <th className="px-4 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((c) => (
+            <tr key={c.id} className="border-t border-stone-100">
+              <td className="px-4 py-2.5 text-stone-900 font-medium">{c.staff?.name || "—"}</td>
+              <td className="px-4 py-2.5 text-stone-600">{CONTRACT_TYPE_LABEL[c.contract_type] || c.contract_type}</td>
+              <td className="px-4 py-2.5"><span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${C_STATUS[c.status] || C_STATUS.draft}`}>{c.status}</span></td>
+              <td className="px-4 py-2.5 text-stone-500">{(c.sent_at || c.created_at || "").slice(0, 10) || "—"}</td>
+              <td className="px-4 py-2.5 text-right">{c.staff_id && <button onClick={() => view(c)} className="text-xs font-semibold text-emerald-800 hover:text-emerald-900">View</button>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 // Session W — HR tab. Sub-tabs DBS / RTW / Employment Records, per staff
 // member. Reads mosque_staff (lightweight DBS status) + the OWNER-ONLY
 // mosque_staff_employment (detail incl. bank). Document files go to the
 // private mosque-hr-docs bucket and are tracked in mosque_documents.
 
-const SUBS = [["dbs", "DBS", ShieldCheck], ["rtw", "Right to Work", FileCheck], ["employment", "Employment Records", Briefcase]];
+const SUBS = [["dbs", "DBS", ShieldCheck], ["rtw", "Right to Work", FileCheck], ["employment", "Employment Records", Briefcase], ["contracts", "Contracts", FileSignature]];
 const DBS_CHECK_TYPES = [["basic", "Basic"], ["standard", "Standard"], ["enhanced", "Enhanced"], ["enhanced_barred", "Enhanced + barred list"]];
 const WORKFORCE_TYPES = [["child", "Child"], ["adult", "Adult"], ["other", "Other"]];
 const RTW_CHECK_TYPES = [["manual", "Manual document check"], ["share_code", "Online share code"], ["online", "Online (IDVT)"]];
@@ -32,7 +93,7 @@ const cleanLabel = (l) => (l || "").replace(/[—-]\s*(null|undefined)\s*$/i, "�
 // `embeddedSub` — when MosqueHR is hosted inside the merged Staff tab, the
 // parent owns the sub-tab bar, so we render only that sub and hide our own
 // header + bar.
-const MosqueHR = ({ mosqueId, mosque, embeddedSub }) => {
+const MosqueHR = ({ mosqueId, mosque, embeddedSub, onViewStaff }) => {
   const [subState, setSub] = useState("dbs");
   const sub = embeddedSub || subState;
   const [staff, setStaff] = useState([]);
@@ -155,7 +216,9 @@ const MosqueHR = ({ mosqueId, mosque, embeddedSub }) => {
         </div>
       </>)}
 
-      {loadingStaff ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+      {sub === "contracts" ? (
+        <ContractsOverview mosqueId={mosqueId} onViewStaff={onViewStaff} />
+      ) : loadingStaff ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : staff.length === 0 ? <p className="text-sm text-stone-500 py-6 text-center">No staff yet. Add your team under the Staff tab.</p>
         : (
         <div className="grid md:grid-cols-[200px_1fr] gap-5">

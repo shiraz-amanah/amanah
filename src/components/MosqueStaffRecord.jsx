@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Loader2, ChevronLeft, ShieldCheck, FileCheck, Briefcase, User, FileText,
   CalendarDays, Clock, Pencil, Archive, UserPlus, Eye, SlidersHorizontal, Key,
@@ -116,6 +116,7 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
   const [newType, setNewType] = useState("full_time");
   const [issuing, setIssuing] = useState(false);
   const [contractMsg, setContractMsg] = useState(null);
+  const contractsRef = useRef(null);
 
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState(() => seedForm(staff, {}));
@@ -145,6 +146,18 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [staff?.id, mosqueId]);
+
+  // When opened from the HR Contracts overview ("View"), scroll to the
+  // Contracts section once loaded. Key matches MosqueHR's FOCUS_CONTRACT_KEY.
+  useEffect(() => {
+    if (loading) return;
+    let flag = null;
+    try { flag = sessionStorage.getItem("amanah:focusContractStaff"); } catch {}
+    if (flag && flag === staff.id && contractsRef.current) {
+      contractsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      try { sessionStorage.removeItem("amanah:focusContractStaff"); } catch {}
+    }
+  }, [loading, staff.id]);
 
   const startEdit = () => { setF(seedForm(staff, emp || {})); setErr(null); setEditing(true); };
   const cancelEdit = () => { setEditing(false); setErr(null); };
@@ -442,7 +455,7 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
           </div>
 
           {/* ---- Contracts ---- */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-2" ref={contractsRef}>
             <Section title="Contracts" icon={PenLine}>
               {contractMsg && <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">{contractMsg}</p>}
               <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">

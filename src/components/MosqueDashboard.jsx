@@ -188,7 +188,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} />
         )}
         {activeTab === "people" && activeSub === "hr" && (
-          <MosqueHR mosqueId={mosque.id} />
+          <MosqueHR mosqueId={mosque.id} onViewStaff={selectStaff} />
         )}
         {activeTab === "people" && activeSub === "rotas" && (
           <MosqueRota mosqueId={mosque.id} mosque={mosque} tabs={["rota", "finder"]} />
