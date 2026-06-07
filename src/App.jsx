@@ -41,6 +41,7 @@ import MosqueDashboard from "./components/MosqueDashboard";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
 import ContractSign from "./pages/ContractSign";
+import NotificationBell from "./components/NotificationBell";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
@@ -7884,6 +7885,7 @@ setBookings(transformed);
             </div>
           </button>
           <div className="flex items-center gap-2">
+            <NotificationBell userId={profile?.id} onNavigate={(n) => setTab(n.type === "message" ? "messages" : "madrasa")} />
             <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700", avatarUrl: user.avatarUrl, name: user.name }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
@@ -9196,6 +9198,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             </div>
           </button>
           <div className="flex items-center gap-2">
+            <NotificationBell userId={authedUser?.id} onNavigate={(n) => { if (n.type === "message") onOpenMessages?.(); else if (n.type === "cover_request") setTab("cover"); else setTab("bookings"); }} />
             <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient, avatar_url: scholar?.avatar_url, name: scholar?.name }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>

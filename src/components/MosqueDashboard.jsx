@@ -18,6 +18,7 @@ import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
 import MosqueDocuments from "./MosqueDocuments";
 import MosqueScholarLinks from "./MosqueScholarLinks";
+import NotificationBell from "./NotificationBell";
 
 // Mosque dashboard shell. Session AK collapsed the old 10-tab bar into 5
 // top-level tabs (Dashboard / People / Mosque / Madrasah / Compliance), each
@@ -131,7 +132,13 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
                 <AlertCircle size={10} /> Pending verification
               </span>
             ) : null}
-            {/* Messages + Account live in the header so the tab bar stays at 5. */}
+            {/* Notifications + Messages + Account live in the header so the tab bar stays at 5. */}
+            <NotificationBell userId={authedUser?.id} onNavigate={(n) => {
+              if (n.type === "message") setTab("messages");
+              else if (n.type === "cover_request") setTab("people", "rotas");
+              else if (["homework", "report", "attendance", "reward"].includes(n.type)) setTab("madrasah");
+              else setTab("dashboard");
+            }} />
             <button onClick={() => setTab("messages")} className={`relative p-2 rounded-lg ${activeTab === "messages" ? "text-emerald-800 bg-emerald-50" : "text-stone-600 hover:text-stone-900"}`} aria-label="Messages">
               <MessageCircle size={17} />
               {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-semibold flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}

@@ -1510,6 +1510,38 @@ export async function declineContract(token, reason) {
   return data || { ok: false, error: 'no_response' }
 }
 
+// --- Notifications feed (migration 087) ---
+// Per-user feed powering the header bell. Rows are RLS-scoped to the recipient;
+// only the recipient can read / mark-read / dismiss their own.
+export async function getNotifications(limit = 30) {
+  const { data, error } = await supabase.from('notifications').select('*')
+    .order('created_at', { ascending: false }).limit(limit)
+  if (error) { console.error('Error fetching notifications:', error); return [] }
+  return data || []
+}
+export async function markNotificationRead(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)
+  return { error }
+}
+export async function markAllNotificationsRead() {
+  const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)
+  return { error }
+}
+export async function deleteNotification(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('notifications').delete().eq('id', id)
+  return { error }
+}
+// Live new-notification stream for the bell (postgres_changes INSERT, own rows).
+export function subscribeToNotifications(userId, onInsert) {
+  if (!userId) return null
+  return supabase.channel(`notifications:${userId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+      (payload) => onInsert?.(payload.new))
+    .subscribe()
+}
+
 // --- Substitute finder: active scholars only (never unverified) ---
 export async function searchSubstituteScholars({ keyword, city, dbsOnly } = {}) {
   let q = supabase
