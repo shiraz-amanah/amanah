@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   ChevronLeft, ChevronRight, Loader2, Check, X, Plus, Trash2,
   Upload, FileText, Image as ImageIcon, GraduationCap, Star,
-  ShieldCheck, CreditCard,
+  ShieldCheck, CreditCard, Paperclip,
 } from "lucide-react";
 import { CATEGORIES } from "../data/categories";
 import { fmt } from "../lib/format";
@@ -156,9 +156,9 @@ const DocUploadField = ({ label, hint, fileName, uploading, error, onPick, onCle
           type="button"
           onClick={() => ref.current?.click()}
           disabled={uploading}
-          className="w-full flex items-center justify-center gap-2 border border-dashed border-stone-300 rounded-xl px-3 py-3 text-sm text-stone-600 hover:border-emerald-400 hover:text-emerald-800 disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-2 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 rounded-xl px-3 py-3 text-sm font-semibold text-emerald-800 disabled:opacity-60 transition-colors"
         >
-          {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+          {uploading ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
           {uploading ? "Uploading…" : "Attach files (PDF or image, max 10MB)"}
         </button>
       )}
@@ -448,8 +448,8 @@ const Step1 = ({ form, set, toggleSubject, bioCount, onPhoto, photoUploading, ph
               : <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center text-stone-300"><ImageIcon size={22} /></div>}
             <div>
               <button type="button" onClick={() => photoRef.current?.click()} disabled={photoUploading}
-                className="inline-flex items-center gap-2 border border-stone-300 rounded-xl px-3 py-2 text-sm text-stone-700 hover:border-emerald-400 hover:text-emerald-800 disabled:opacity-60">
-                {photoUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                className="inline-flex items-center gap-2 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 rounded-xl px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60 transition-colors">
+                {photoUploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
                 {photoUploading ? "Uploading…" : form.photoUrl ? "Replace photo" : "Attach photo"}
               </button>
               <p className="text-[11px] text-stone-400 mt-1">JPG, PNG or WebP · max 5MB</p>

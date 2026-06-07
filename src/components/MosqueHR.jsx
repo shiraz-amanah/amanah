@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, ShieldCheck, FileCheck, Briefcase, Check, Upload, FileText,
-  AlertCircle, ChevronRight, Lock, FileSignature,
+  AlertCircle, ChevronRight, Lock, FileSignature, Paperclip,
 } from "lucide-react";
 import {
   getMosqueStaff, getMosqueStaffEmployment, upsertMosqueStaffEmployment,
@@ -318,8 +318,8 @@ const MosqueHR = ({ mosqueId, mosque, embeddedSub, onViewStaff }) => {
                   ) : (
                     <p className="text-sm text-stone-400 mb-2">{sub === "dbs" ? "No certificate uploaded yet" : "No document uploaded yet"}</p>
                   )}
-                  <label className="inline-flex items-center gap-2 text-sm text-stone-600 border border-dashed border-stone-300 hover:border-emerald-500 rounded-lg px-3 py-2 cursor-pointer">
-                    {uploadBusy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Attach {sub === "dbs" ? "certificate" : "document"}
+                  <label className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-2 cursor-pointer transition-colors">
+                    {uploadBusy ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />} Attach {sub === "dbs" ? "certificate" : "document"}
                     <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploadBusy} onChange={(e) => uploadDoc(e.target.files?.[0])} />
                   </label>
                 </div>

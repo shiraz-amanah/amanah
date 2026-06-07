@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2, Paperclip } from "lucide-react";
 import { MOSQUE_STAFF_ROLES } from "../data/mosqueTaxonomy";
 import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, submitStaffWizard, createContract } from "../auth";
 import { uploadMosqueHrDoc } from "../lib/storage";
@@ -87,8 +87,8 @@ const FileField = ({ label, required, value, remoteMode, onSelect, onClear, erro
           </div>
         )}
         {/* Always available — allows replacing an already-selected file. */}
-        <label className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 cursor-pointer border ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-dashed border-stone-300 text-stone-500 hover:border-emerald-500"}`}>
-          <Upload size={14} /> {value ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
+        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>
+          <Paperclip size={14} /> {value ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
           <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
         </label>
       </div>

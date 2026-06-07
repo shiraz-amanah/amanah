@@ -83,7 +83,7 @@ const MadrasaHomework = ({ classObj }) => {
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
                 className="text-sm px-2 py-1.5 border border-stone-200 rounded-lg focus:outline-none focus:border-emerald-600" />
             </label>
-            <label className="text-xs font-medium text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1">
+            <label className="text-xs font-semibold text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1.5">
               <Paperclip size={13} /> Attach files
               <input type="file" multiple className="hidden" onChange={(e) => { setAttach((a) => [...a, ...Array.from(e.target.files || [])]); e.target.value = ""; }} />
             </label>

@@ -157,8 +157,8 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
                           <button onClick={() => removeSubmission(h, f)} className="text-stone-400 hover:text-rose-600"><X size={10} /></button>
                         </span>
                       ))}
-                      <label className="text-[11px] text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1">
-                        {hwBusy === h.id ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />} Upload work
+                      <label className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-900 cursor-pointer inline-flex items-center gap-1">
+                        {hwBusy === h.id ? <Loader2 size={10} className="animate-spin" /> : <Paperclip size={10} />} Attach work
                         <input type="file" className="hidden" disabled={hwBusy === h.id} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadSubmission(h, f); }} />
                       </label>
                     </span>
