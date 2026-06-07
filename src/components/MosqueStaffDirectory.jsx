@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, ShieldCheck, Upload, UserPlus, Download, Users, History, CalendarDays, Search, Clock, Mail, Eye, Lock, Key, SlidersHorizontal, FileCheck, Briefcase, ChevronRight } from "lucide-react";
-import MosqueHR from "./MosqueHR";
 import { sendDbsReminderEmail } from "../lib/email";
 import MosqueBulkImport from "./MosqueBulkImport";
 import MosqueHRAssistant from "./MosqueHRAssistant";
@@ -47,22 +46,14 @@ const DBS_BADGE = {
 };
 const initials = (n) => (n || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const blank = { name: "", role: "Imam", roleOther: "", email: "", phone: "", staff_type: "permanent", start_date: "", end_date: "", cover_reason: "Holiday cover", dbs_status: "not_checked", dbs_certificate: "", dbs_issue_date: "", dbs_expiry_date: "", photo_url: "", linked_scholar_id: null };
-const csvCell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 
-// Session W — rota / timesheets / find-substitute moved to the dedicated Rota
-// tab. The directory now keeps just the team directory + history log.
-// Session X — Staff + HR merged into one tab. Team/History are the directory's
-// own sections; DBS/RTW/Employment embed MosqueHR (its own bar hidden).
-const SECTIONS = [
-  ["team", "Team", Users], ["history", "History", History],
-  ["dbs", "DBS", ShieldCheck], ["rtw", "RTW", FileCheck], ["employment", "Employment", Briefcase],
-];
-
+// Session AK — the legacy Team / History / DBS / RTW / Employment sub-tabs were
+// removed: opening a staff member shows the single-page HR record (which holds
+// DBS / RTW / employment and edits them in place). This view is just the team
+// directory.
 const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSelectStaff }) => {
-  const [section, setSection] = useState("team");
   // Record selection is URL-backed when the parent passes onSelectStaff (so
   // browser Back closes the record → Team list); falls back to local state
   // for any standalone use.
@@ -161,7 +152,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSel
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(null);
-  const [histRole, setHistRole] = useState("all");
   const [showImport, setShowImport] = useState(false);
   const [dbsReminderBusy, setDbsReminderBusy] = useState(false);
   const [dbsReminderMsg, setDbsReminderMsg] = useState(null);
@@ -184,8 +174,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSel
   const active = staff.filter((s) => !s.archived);
   const permanent = active.filter((s) => s.staff_type !== "temporary");
   const currentTemp = active.filter((s) => s.staff_type === "temporary" && (!s.end_date || s.end_date >= todayStr()));
-  const history = staff.filter((s) => s.staff_type === "temporary" && s.end_date && s.end_date < todayStr());
-  const histFiltered = histRole === "all" ? history : history.filter((s) => s.role === histRole);
   // DBS counts across all active staff (perm + current temp) for the summary +
   // the red attention banner.
   const dbsCount = active.reduce((a, s) => { const d = effectiveDbs(s); a[d] = (a[d] || 0) + 1; return a; }, {});
@@ -250,15 +238,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSel
   };
 
   // Substitute finder → create a temporary record linked to the scholar.
-
-  const exportCsv = () => {
-    const header = ["Name", "Role", "Cover reason", "From", "To"];
-    const lines = [header.join(",")].concat(histFiltered.map((r) => [r.name, r.role, r.cover_reason || "", r.start_date || "", r.end_date || ""].map(csvCell).join(",")));
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "mosque-cover-history.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
 
   // Clicking a row opens that person's single-page HR record (all sections +
   // actions). The list itself stays a clean directory: avatar, name, role, an
@@ -405,21 +384,12 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSel
       <>
       <MosqueHRAssistant mosqueId={mosqueId} />
 
-      {/* Segmented control */}
-      <div className="flex gap-1 border-b border-stone-200 overflow-x-auto">
-        {SECTIONS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => setSection(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${section === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
-        ))}
-      </div>
-
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
 
-      {/* Session W: the static DBS attention banner + aggregate count pills were
-          removed here. DBS/RTW intelligence now lives in the AI assistant and
-          the Dashboard. Per-staff DBS badges remain on each card below. */}
-
-      {section === "team" && (
-        <>
+      {/* The single-page HR record (open a staff member) replaces the old
+          Team / History / DBS / RTW / Employment sub-tabs — this view is now
+          just the team directory. */}
+      <>
           {showForm && (
             <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3">
               <div className="flex items-center justify-between">
@@ -536,33 +506,6 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSel
             </div>
           )}
         </>
-      )}
-
-      {section === "history" && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <select value={histRole} onChange={(e) => setHistRole(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none">
-              <option value="all">All roles</option>
-              {[...new Set(history.map((s) => s.role))].map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-            <button onClick={exportCsv} disabled={histFiltered.length === 0} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 disabled:opacity-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export CSV</button>
-          </div>
-          {histFiltered.length === 0 ? <p className="text-sm text-stone-500 py-6 text-center">No past cover records.</p> : (
-            <div className="space-y-2">
-              {histFiltered.map((s) => (
-                <div key={s.id} className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3 text-sm">
-                  <div className="flex-1 min-w-0"><p className="font-medium text-stone-900 truncate">{s.name}</p><p className="text-xs text-stone-500">{s.role}{s.cover_reason ? ` · ${s.cover_reason}` : ""}</p></div>
-                  <span className="text-xs text-stone-500">{s.start_date || "?"} → {s.end_date}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {(section === "dbs" || section === "rtw" || section === "employment") && (
-        <MosqueHR embeddedSub={section} mosqueId={mosqueId} mosque={mosque} />
-      )}
       </>
       )}
     </div>
