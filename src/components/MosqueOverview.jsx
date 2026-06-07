@@ -34,7 +34,7 @@ const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-a
 const StatCard = ({ icon: Icon, label, value, tone = "stone", onClick }) => {
   const inner = (
     <>
-      <div className="flex items-center gap-1.5 text-stone-500 mb-1"><Icon size={14} /><span className="text-[11px] uppercase tracking-wider font-medium">{label}</span></div>
+      <div className="flex items-center gap-1.5 text-stone-500 mb-1"><Icon size={14} /><span className="text-[11px] uppercase tracking-wider font-semibold">{label}</span></div>
       <p className={`text-2xl font-semibold ${tone === "rose" ? "text-rose-700" : tone === "amber" ? "text-amber-700" : "text-stone-900"}`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
     </>
   );

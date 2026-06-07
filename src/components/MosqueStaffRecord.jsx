@@ -64,7 +64,7 @@ const Rows = ({ rows }) => (
   <div className="space-y-1 text-sm">
     {rows.map(([k, v]) => (
       <div key={k} className="flex items-start justify-between gap-3 border-b border-stone-100 py-1.5 last:border-0">
-        <span className="text-[11px] uppercase tracking-wider text-stone-500 font-medium shrink-0">{k}</span>
+        <span className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold shrink-0">{k}</span>
         <span className="text-stone-900 text-right break-words">{v}</span>
       </div>
     ))}
@@ -73,7 +73,7 @@ const Rows = ({ rows }) => (
 // Editable field (label + control) used when the record is in edit mode.
 const EditField = ({ label, children }) => (
   <div className="py-1.5 border-b border-stone-100 last:border-0">
-    <label className="text-[11px] uppercase tracking-wider text-stone-500 font-medium block mb-1">{label}</label>
+    <label className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold block mb-1">{label}</label>
     {children}
   </div>
 );
@@ -465,7 +465,7 @@ const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview,
               {showNewContract && (
                 <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-3 flex items-end gap-2 flex-wrap">
                   <div>
-                    <label className="text-[11px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Contract type</label>
+                    <label className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold block mb-1">Contract type</label>
                     <select value={newType} onChange={(e) => setNewType(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm bg-white">
                       {CONTRACT_DOC_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>

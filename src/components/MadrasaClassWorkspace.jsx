@@ -33,13 +33,13 @@ const RECORDS_SUBS = [["reports", "Reports"], ["rewards", "Rewards"], ["certific
 
 const StatCard = ({ label, value }) => (
   <div className="bg-white border border-stone-200 rounded-xl px-4 py-3">
-    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{label}</p>
+    <p className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-0.5">{label}</p>
     <p className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
   </div>
 );
 const PanelStat = ({ label, value, sub }) => (
   <div className="bg-white border border-stone-200 rounded-xl p-3">
-    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{label}</p>
+    <p className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-0.5">{label}</p>
     <p className="text-sm font-semibold text-stone-900 truncate">{value}</p>
     {sub && <p className="text-[11px] text-stone-400 mt-0.5 truncate">{sub}</p>}
   </div>
