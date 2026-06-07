@@ -794,6 +794,19 @@ export async function enrolChild({ classId, studentId, mosqueId }) {
   return { data, error }
 }
 
+// Path A enrolment (089): admin creates a child for a parent + enrols in one go.
+// SECURITY DEFINER RPC (owner-gated inside). Returns { student_id, parent_exists,
+// parent_email } on success. Pair with sendMadrasaParentWelcome(student_id).
+export async function adminEnrolStudent({ mosqueId, classId, name, dob, gender, relation, parentEmail, parentName }) {
+  const { data, error } = await supabase.rpc('madrasa_admin_enrol_student', {
+    p_mosque: mosqueId, p_class: classId || null, p_name: name,
+    p_dob: dob || null, p_gender: gender || null, p_relation: relation || null,
+    p_parent_email: parentEmail || null, p_parent_name: parentName || null,
+  })
+  if (error) { console.error('Error enrolling student:', error); return { error } }
+  return { data }
+}
+
 export async function withdrawEnrollment(id) {
   if (!id) return { error: { message: 'id required' } }
   const { data, error } = await supabase

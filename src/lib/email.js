@@ -151,6 +151,14 @@ export function sendMadrasaWaitlistOffer(classId) {
   return postTransactional({ intent: 'madrasa_waitlist_offer', classId });
 }
 
+// Session AL — Path A enrolment: a mosque admin enrolled a child on a parent's
+// behalf. The server resolves the recipient (linked account or pending email)
+// and sends a sign-in / create-account link. Fire-and-forget after the enrol RPC.
+export function sendMadrasaParentWelcome(studentId) {
+  if (!studentId) return Promise.resolve({ ok: false, error: 'missing_studentId' });
+  return postTransactional({ intent: 'madrasa_parent_welcome', studentId });
+}
+
 // Session AM — email a staff member the link to review + e-sign their contract.
 // Owner-authed: the server resolves the staff email + signing token from the
 // contract id and sends the personal link. Fire-and-forget.

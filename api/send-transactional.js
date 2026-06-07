@@ -759,6 +759,43 @@ ${ePara('<span style="font-size:13px;color:#9ca3af;">This link is personal to yo
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Path A enrolment (089): a mosque admin enrolled a child on a parent's behalf.
+// Email the parent a sign-in link. Recipient is the linked profile's email, or
+// the pending_parent_email held on the student when they have no account yet.
+async function handleMadrasaParentWelcome(env, caller, studentId) {
+  const sRows = await sbGet(env, `students?id=eq.${studentId}&select=name,profile_id,pending_parent_email`);
+  const st = Array.isArray(sRows) ? sRows[0] : null;
+  if (!st) return { status: 404, body: { ok: false, error: 'student_not_found' } };
+
+  // Context + owner check via the student's active enrolment.
+  const eRows = await sbGet(env, `madrasa_enrollments?student_id=eq.${studentId}&status=eq.active&select=class:madrasa_classes(name),mosque:mosques(name,user_id)&limit=1`);
+  const enr = Array.isArray(eRows) ? eRows[0] : null;
+  const ownerOk = enr?.mosque?.user_id === caller.id || (await isAdmin(env, caller.id));
+  if (!ownerOk) return { status: 403, body: { ok: false, error: 'forbidden' } };
+
+  // Recipient: linked account email, else the pending email.
+  let to = st.pending_parent_email || null;
+  if (!to && st.profile_id) {
+    const p = await getProfile(env, st.profile_id);
+    to = p?.email || null;
+  }
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+
+  const hasAccount = !st.pending_parent_email && !!st.profile_id;
+  const mosqueName = enr?.mosque?.name || 'Your mosque';
+  const className = enr?.class?.name;
+  const link = env.PUBLIC_APP_URL;
+  const inner = `${eGreeting('there')}${eHeading(`${escapeHtml(st.name)} has been enrolled`)}
+${ePara(`<strong>${escapeHtml(mosqueName)}</strong> has enrolled <strong>${escapeHtml(st.name)}</strong>${className ? ` in <strong>${escapeHtml(className)}</strong>` : ''} on Amanah.`)}
+${ePara(hasAccount
+    ? 'Sign in to follow their attendance, Qur’an &amp; Hifz progress, homework and reports.'
+    : 'Create your Amanah account with <strong>this email address</strong> to follow their attendance, Qur’an &amp; Hifz progress, homework and reports.')}
+${ctaButton(hasAccount ? 'Sign in to Amanah' : 'Create your account', link)}
+${ePara('<span style="font-size:13px;color:#9ca3af;">If you weren\'t expecting this, you can safely ignore this email.</span>')}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: `${st.name} has been enrolled — Amanah`, html: wrapEmail('Welcome to Amanah', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -1262,6 +1299,11 @@ export default async function handler(req, res) {
     if (body.intent === 'contract_invite') {
       if (!isUuid(body.contractId)) return res.status(400).json({ ok: false, error: 'invalid_contractId' });
       const out = await handleContractInvite(env, caller, body.contractId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_parent_welcome') {
+      if (!isUuid(body.studentId)) return res.status(400).json({ ok: false, error: 'invalid_studentId' });
+      const out = await handleMadrasaParentWelcome(env, caller, body.studentId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

@@ -7,6 +7,7 @@ import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEn
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 import MadrasaStudents from "./MadrasaStudents";
 import MadrasaAnalytics from "./MadrasaAnalytics";
+import MadrasaEnrolWizard from "./MadrasaEnrolWizard";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
 
@@ -44,6 +45,8 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const [detailClass, setDetailClass] = useState(null); // class shown in the full-page detail view
   const [showReports, setShowReports] = useState(false); // reports & exports view
   const [section, setSection] = useState("classes");     // Classes | Students | Analytics
+  const [showEnrol, setShowEnrol] = useState(false);     // Path A add-student wizard
+  const [studentsKey, setStudentsKey] = useState(0);     // bump to refresh the Students list after enrol
 
   const reload = () => {
     setLoading(true);
@@ -135,8 +138,10 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
-      {section === "students" && <MadrasaStudents mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />}
+      {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} onOpenClass={openClass} onAddStudent={() => setShowEnrol(true)} />}
       {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} />}
+
+      {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
 
       {section === "classes" && showForm && (
         <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3 mb-5">
