@@ -95,6 +95,8 @@ const ROUTES = [
   { view: 'staffAccept',                 path: '/staff/accept/:token' },
   // Session W — remote staff onboarding wizard landing.
   { view: 'staffWizard',                 path: '/staff/onboard/:token' },
+  // Session AM — public contract e-sign landing.
+  { view: 'contractSign',                path: '/contract/sign/:token' },
 ];
 
 const COMPILED = ROUTES.map(r => {

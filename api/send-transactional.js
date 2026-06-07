@@ -737,6 +737,28 @@ ${ctaButton('Update your application', env.PUBLIC_APP_URL)}${eSignoff}`;
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Session AM — email a staff member the link to review + e-sign their contract.
+// Owner-authed: resolves the staff email + signing token from the contract id.
+const CONTRACT_TYPE_LABEL = { full_time: 'Full-time', part_time: 'Part-time', sessional: 'Sessional', volunteer: 'Volunteer' };
+async function handleContractInvite(env, caller, contractId) {
+  const rows = await sbGet(env, `mosque_contracts?id=eq.${contractId}&select=token,contract_type,status,mosque_id,staff:mosque_staff(name,email),mosque:mosques(name,user_id)`);
+  const c = Array.isArray(rows) ? rows[0] : null;
+  if (!c) return { status: 404, body: { ok: false, error: 'contract_not_found' } };
+  const ownerOk = c.mosque?.user_id === caller.id || (await isAdmin(env, caller.id));
+  if (!ownerOk) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const to = c.staff?.email;
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+
+  const typeLabel = (CONTRACT_TYPE_LABEL[c.contract_type] || 'Employment').toLowerCase();
+  const link = `${env.PUBLIC_APP_URL}/contract/sign/${c.token}`;
+  const inner = `${eGreeting(firstName(c.staff?.name))}${eHeading('Your employment contract')}
+${ePara(`<strong>${escapeHtml(c.mosque?.name || 'Your mosque')}</strong> has prepared your ${escapeHtml(typeLabel)} contract. Please review it and add your signature — it only takes a moment.`)}
+${ctaButton('Review & sign your contract', link)}
+${ePara('<span style="font-size:13px;color:#9ca3af;">This link is personal to you. If you weren\'t expecting this, you can safely ignore this email.</span>')}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: `Your employment contract — ${c.mosque?.name || 'Amanah'}`, html: wrapEmail('Your employment contract', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -1235,6 +1257,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_certificate') {
       if (!isUuid(body.studentId) || !isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_ids' });
       const out = await handleMadrasaCertificate(env, caller, body);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'contract_invite') {
+      if (!isUuid(body.contractId)) return res.status(400).json({ ok: false, error: 'invalid_contractId' });
+      const out = await handleContractInvite(env, caller, body.contractId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

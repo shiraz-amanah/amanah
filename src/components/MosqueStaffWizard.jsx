@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { MOSQUE_STAFF_ROLES } from "../data/mosqueTaxonomy";
-import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, submitStaffWizard } from "../auth";
+import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, submitStaffWizard, createContract } from "../auth";
 import { uploadMosqueHrDoc } from "../lib/storage";
-import { sendStaffWizardSubmitted } from "../lib/email";
+import { sendStaffWizardSubmitted, sendContractInvite } from "../lib/email";
+import { buildContractTerms, CONTRACT_TYPES as CONTRACT_DOC_TYPES } from "../lib/contract";
 
 // Session W — 7-step staff onboarding wizard. Fill-now (admin) writes
 // mosque_staff + the owner-only mosque_staff_employment directly and uploads to
@@ -20,7 +21,11 @@ const RTW_DOC_TYPES = ["British/Irish Passport", "EU Settlement Scheme", "BRP", 
 const P46_STATEMENTS = [["A", "A — first job since 6 April"], ["B", "B — only job now, had others"], ["C", "C — another job or pension"]];
 const SL_PLANS = [["1", "Plan 1"], ["2", "Plan 2"], ["4", "Plan 4"]];
 
-const STEPS = ["Personal", "Right to Work", "DBS", "Employment", "Tax / P46", "Bank", "Review"];
+// Step list is mode-aware: the Contract step (issue + e-sign) only appears in
+// admin fill-now mode, since issuing a contract is owner-only. Remote staff
+// onboarding keeps the original 7 steps.
+const STEPS_ADMIN = ["Personal", "Right to Work", "DBS", "Employment", "Tax / P46", "Bank", "Contract", "Review"];
+const STEPS_REMOTE = ["Personal", "Right to Work", "DBS", "Employment", "Tax / P46", "Bank", "Review"];
 
 // Fields that block Confirm (moderate set). RTW/DBS skipped when marked
 // "not required". Bank / NI / address intentionally optional.
@@ -45,6 +50,8 @@ const blank = {
   role: "Imam", roleOther: "", contract_type: "permanent", start_date: "", hours_per_week: "", salary_rate: "",
   student_loan: false, student_loan_plan: "", p46_statement: "",
   bank_account_name: "", bank_sort_code: "", bank_account_number: "",
+  // Contract step (admin only): issue an employment contract for e-signing.
+  email: "", issue_contract: true, contract_doc_type: "full_time",
 };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
@@ -97,12 +104,19 @@ const NotRequiredToggle = ({ checked, onChange }) => (
 );
 
 const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = false, token = null, prefillName = "", staffEmail = "" }) => {
-  const [step, setStep] = useState(1); // 1..7
+  const [step, setStep] = useState(1);
   const [form, setForm] = useState(() => ({ ...blank, name: prefillName || "" }));
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Mode-aware step machine. Bank stays step 6; Contract is step 7 (admin only);
+  // Review is the last step (8 admin / 7 remote).
+  const STEPS = remoteMode ? STEPS_REMOTE : STEPS_ADMIN;
+  const TOTAL = STEPS.length;
+  const reviewStep = TOTAL;
+  const contractStep = remoteMode ? 0 : 7;
 
   const roleValue = form.role === "Other" ? (form.roleOther.trim() || "Other") : form.role;
 
@@ -128,7 +142,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
     const issues = stepIssues(step);
     if (issues.length) { setAttempted(true); setError(`Please complete: ${issues.join(", ")}.`); return; }
     setError(null);
-    setStep((s) => Math.min(7, s + 1)); // strictly the next step in sequence
+    setStep((s) => Math.min(TOTAL, s + 1)); // strictly the next step in sequence
   };
   // Back never validates and never resets data (single form state); functional
   // update so it always lands on the immediately previous step.
@@ -173,6 +187,13 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
       setStep(bad);
       return;
     }
+    // Contract step (admin only): a staff email is required to email the e-sign link.
+    if (!remoteMode && form.issue_contract && isEmpty(form.email)) {
+      setAttempted(true);
+      setError("Add a staff email to issue the contract, or set 'Issue an employment contract?' to No.");
+      setStep(contractStep);
+      return;
+    }
     setSaving(true); setError(null);
 
     // Remote (token) path — write via the SECURITY DEFINER RPC. No uploads.
@@ -211,6 +232,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
         name: form.name.trim(),
         role: roleValue,
         phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
         staff_type: "permanent",
         start_date: form.start_date || null,
         dbs_status: dbsStatus(),
@@ -247,6 +269,20 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
       // 4. Track uploaded docs in the unified store (expiry dashboard).
       if (dbsPath) await createMosqueDocument({ mosqueId, category: "dbs", label: `DBS certificate — ${form.name.trim()}`, expiry_date: dbsExpiry() || null, file_path: dbsPath, staff_id: staff.id });
       if (rtwPath) await createMosqueDocument({ mosqueId, category: "rtw", label: `Right to Work — ${form.name.trim()}`, expiry_date: form.rtw_expiry_date || null, file_path: rtwPath, staff_id: staff.id });
+
+      // 5. Optional employment contract → issue (status 'sent') + email the
+      // e-sign link. Non-fatal: a contract/email failure doesn't undo the hire.
+      if (form.issue_contract && form.email.trim()) {
+        try {
+          const terms = buildContractTerms({
+            type: form.contract_doc_type, staffName: form.name.trim(), role: roleValue, startDate: form.start_date,
+            hoursPerWeek: form.hours_per_week === "" ? null : Number(form.hours_per_week),
+            salaryRate: form.salary_rate.trim(), mosqueName: mosque?.name, mosqueCity: mosque?.city,
+          });
+          const { data: contract } = await createContract({ mosqueId, staffId: staff.id, contractType: form.contract_doc_type, terms, status: "sent" });
+          if (contract) await sendContractInvite(contract.id);
+        } catch (ce) { console.error("contract issue failed:", ce); }
+      }
 
       setSaving(false);
       onDone?.();
@@ -404,7 +440,28 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           </div>
         </>)}
 
-        {step === 7 && (
+        {step === contractStep && (<>
+          <Field label="Issue an employment contract?">
+            <div className="flex gap-2">
+              {[["true", "Yes"], ["false", "No"]].map(([v, l]) => (
+                <button key={v} onClick={() => set("issue_contract", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.issue_contract) === v ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
+              ))}
+            </div>
+          </Field>
+          {form.issue_contract && (<>
+            <Field label="Contract type">
+              <select className={inputCls} value={form.contract_doc_type} onChange={(e) => set("contract_doc_type", e.target.value)}>
+                {CONTRACT_DOC_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
+            <Field label="Staff email" required>
+              <input type="email" className={inputCls + (attempted && form.issue_contract && isEmpty(form.email) ? " border-rose-400 ring-1 ring-rose-200" : "")} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="them@example.com" />
+            </Field>
+            <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">On confirm, the contract is created from these details and emailed to {form.email.trim() || "the staff member"} with a secure link to review and e-sign.</p>
+          </>)}
+        </>)}
+
+        {step === reviewStep && (
           <div className="space-y-2 text-sm">
             <p className="text-stone-600 mb-2">Review the details, then confirm to {remoteMode ? "submit your onboarding" : "create this staff member"}.</p>
             {[
@@ -417,6 +474,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               ...(remoteMode ? [] : [["Salary/rate", form.salary_rate || "—"]]),
               ["Bank set", form.bank_account_number ? "Yes" : "No"],
               ...(remoteMode ? [] : [["Documents", [form.dbs_file && "DBS", form.rtw_file && "RTW"].filter(Boolean).join(", ") || "none"]]),
+              ...(remoteMode ? [] : [["Contract", form.issue_contract ? `${CONTRACT_DOC_TYPES.find(([v]) => v === form.contract_doc_type)?.[1] || form.contract_doc_type}${form.email ? ` → ${form.email}` : ""}` : "Not issued"]]),
             ].map(([k, v]) => (
               <div key={k} className="flex items-center justify-between border-b border-stone-100 py-1.5">
                 <span className="text-[11px] uppercase tracking-wider text-stone-500 font-medium">{k}</span>
@@ -431,7 +489,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
         <button onClick={step === 1 ? onCancel : back} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5">
           <ChevronLeft size={15} /> {step === 1 ? "Cancel" : "Back"}
         </button>
-        {step < 7 ? (
+        {step < TOTAL ? (
           <button onClick={next} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
             Next <ChevronRight size={15} />
           </button>

@@ -1444,6 +1444,72 @@ export async function setTimeLogStatus(id, status) {
   return { data, error }
 }
 
+// --- Employment contracts + lightweight e-sign (migration 086) ---
+const CONTRACT_SELECT = '*, staff:mosque_staff(id, name, email, role)'
+export async function getContractsForMosque(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.from('mosque_contracts').select(CONTRACT_SELECT)
+    .eq('mosque_id', mosqueId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching contracts:', error); return [] }
+  return data || []
+}
+export async function getContractsForStaff(staffId) {
+  if (!staffId) return []
+  const { data, error } = await supabase.from('mosque_contracts').select(CONTRACT_SELECT)
+    .eq('staff_id', staffId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching staff contracts:', error); return [] }
+  return data || []
+}
+// Create a contract. status='sent' issues it immediately (stamps sent_at + a
+// token expiry); omit to leave it as a draft.
+export async function createContract({ mosqueId, staffId, contractType, terms, status, expiresInDays = 30 }) {
+  if (!mosqueId || !staffId || !contractType) return { error: { message: 'mosqueId, staffId, contractType required' } }
+  const user = await getUser()
+  const row = { mosque_id: mosqueId, staff_id: staffId, contract_type: contractType, terms: terms || {}, created_by: user?.id || null }
+  if (status === 'sent') {
+    row.status = 'sent'
+    row.sent_at = new Date().toISOString()
+    row.token_expires_at = new Date(Date.now() + expiresInDays * 864e5).toISOString()
+  }
+  const { data, error } = await supabase.from('mosque_contracts').insert(row).select(CONTRACT_SELECT).single()
+  return { data, error }
+}
+export async function updateContract(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase.from('mosque_contracts').update(updates).eq('id', id).select(CONTRACT_SELECT).single()
+  return { data, error }
+}
+// Issue a draft contract: mark it sent with a fresh expiry.
+export async function sendContract(id, { expiresInDays = 30 } = {}) {
+  return updateContract(id, { status: 'sent', sent_at: new Date().toISOString(), token_expires_at: new Date(Date.now() + expiresInDays * 864e5).toISOString() })
+}
+export async function voidContract(id) { return updateContract(id, { status: 'void' }) }
+export async function deleteContract(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('mosque_contracts').delete().eq('id', id)
+  return { error }
+}
+// Public signing page (token-authorised SECURITY DEFINER RPCs from 086).
+export async function getContractForSigning(token) {
+  if (!token) return { found: false }
+  const { data, error } = await supabase.rpc('get_contract_for_signing', { p_token: token })
+  if (error) { console.error('get_contract_for_signing failed:', error); return { found: false, error } }
+  const row = Array.isArray(data) ? data[0] : data
+  return row || { found: false }
+}
+export async function signContract(token, signedName, userAgent) {
+  if (!token || !signedName) return { ok: false, error: 'missing_args' }
+  const { data, error } = await supabase.rpc('sign_contract', { p_token: token, p_signed_name: signedName, p_user_agent: userAgent || null })
+  if (error) { console.error('sign_contract failed:', error); return { ok: false, error: error.message } }
+  return data || { ok: false, error: 'no_response' }
+}
+export async function declineContract(token, reason) {
+  if (!token) return { ok: false, error: 'missing_token' }
+  const { data, error } = await supabase.rpc('decline_contract', { p_token: token, p_reason: reason || null })
+  if (error) { console.error('decline_contract failed:', error); return { ok: false, error: error.message } }
+  return data || { ok: false, error: 'no_response' }
+}
+
 // --- Substitute finder: active scholars only (never unverified) ---
 export async function searchSubstituteScholars({ keyword, city, dbsOnly } = {}) {
   let q = supabase

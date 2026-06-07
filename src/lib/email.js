@@ -151,6 +151,14 @@ export function sendMadrasaWaitlistOffer(classId) {
   return postTransactional({ intent: 'madrasa_waitlist_offer', classId });
 }
 
+// Session AM — email a staff member the link to review + e-sign their contract.
+// Owner-authed: the server resolves the staff email + signing token from the
+// contract id and sends the personal link. Fire-and-forget.
+export function sendContractInvite(contractId) {
+  if (!contractId) return Promise.resolve({ ok: false, error: 'missing_contractId' });
+  return postTransactional({ intent: 'contract_invite', contractId });
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. The staffer is unauthenticated (no session), so this posts
 // WITHOUT a token; the server constrains the send to a real, just-completed

@@ -2,13 +2,16 @@ import { useState, useEffect } from "react";
 import {
   Loader2, ChevronLeft, ShieldCheck, FileCheck, Briefcase, User, FileText,
   CalendarDays, Clock, Pencil, Archive, UserPlus, Eye, SlidersHorizontal, Key,
-  ExternalLink, Mail, Phone, Check, X, AlertCircle,
+  ExternalLink, Mail, Phone, Check, X, AlertCircle, PenLine, Send, Download, Plus,
 } from "lucide-react";
 import {
   getMosqueStaffEmployment, getMosqueDocuments, getMosqueTimeLogs, getMosqueRota,
   updateMosqueStaff, upsertMosqueStaffEmployment,
+  getContractsForStaff, createContract, voidContract,
 } from "../auth";
 import { getSignedDocUrl } from "../lib/storage";
+import { sendContractInvite } from "../lib/email";
+import { buildContractTerms, downloadContractPdf, CONTRACT_TYPES as CONTRACT_DOC_TYPES, CONTRACT_TYPE_LABEL } from "../lib/contract";
 
 // People → Team → single-person HR record. One scrollable page consolidating
 // everything about a staff member: personal details, employment, DBS, Right to
@@ -91,13 +94,28 @@ const seedForm = (staff, e) => ({
   dbs_certificate_number: e.dbs_certificate_number || "", dbs_ucheck_reference: e.dbs_ucheck_reference || "",
 });
 
-const MosqueStaffRecord = ({ staff, mosqueId, onBack, onSaved, onReview, onAccess, onReset, onInvite, onArchive, inviteBusy }) => {
+const CONTRACT_STATUS = {
+  draft: "bg-stone-50 border-stone-200 text-stone-500",
+  sent: "bg-amber-50 border-amber-200 text-amber-700",
+  signed: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  declined: "bg-rose-50 border-rose-200 text-rose-700",
+  void: "bg-stone-50 border-stone-200 text-stone-400",
+};
+
+const MosqueStaffRecord = ({ staff, mosque, mosqueId, onBack, onSaved, onReview, onAccess, onReset, onInvite, onArchive, inviteBusy }) => {
   const [emp, setEmp] = useState(null);
   const [docs, setDocs] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [rota, setRota] = useState({});
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState(null);
+
+  // Contracts
+  const [contracts, setContracts] = useState([]);
+  const [showNewContract, setShowNewContract] = useState(false);
+  const [newType, setNewType] = useState("full_time");
+  const [issuing, setIssuing] = useState(false);
+  const [contractMsg, setContractMsg] = useState(null);
 
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState(() => seedForm(staff, {}));
@@ -113,13 +131,15 @@ const MosqueStaffRecord = ({ staff, mosqueId, onBack, onSaved, onReview, onAcces
       getMosqueDocuments(mosqueId),
       getMosqueTimeLogs(mosqueId),
       getMosqueRota(mosqueId, mondayOf(todayStr())),
+      getContractsForStaff(staff.id),
     ])
-      .then(([e, d, t, r]) => {
+      .then(([e, d, t, r, c]) => {
         if (!alive) return;
         setEmp(e || {});
         setDocs((d || []).filter((x) => x.staff_id === staff.id));
         setTimesheets((t || []).filter((x) => x.staff_id === staff.id).slice(0, 6));
         setRota(r?.slots || {});
+        setContracts(c || []);
       })
       .catch((er) => console.error("staff record load failed:", er))
       .finally(() => { if (alive) setLoading(false); });
@@ -165,6 +185,38 @@ const MosqueStaffRecord = ({ staff, mosqueId, onBack, onSaved, onReview, onAcces
     try { const url = await getSignedDocUrl(d.file_path); if (url) window.open(url, "_blank", "noopener,noreferrer"); }
     catch (e) { console.error("open doc failed:", e); }
     finally { setOpening(null); }
+  };
+
+  const reloadContracts = () => getContractsForStaff(staff.id).then((c) => setContracts(c || [])).catch(() => {});
+
+  // Issue: snapshot the contract from this record's data, create it as 'sent',
+  // and email the staff member the signing link. Requires an email on file.
+  const issueContract = async () => {
+    if (!staff.email) { setContractMsg("Add an email to this record (Edit details) first — the signing link is emailed to the staff member."); return; }
+    setIssuing(true); setContractMsg(null);
+    const terms = buildContractTerms({
+      type: newType, staffName: staff.name, role: staff.role, startDate: staff.start_date,
+      hoursPerWeek: emp?.hours_per_week, salaryRate: emp?.salary_rate,
+      mosqueName: mosque?.name, mosqueCity: mosque?.city,
+    });
+    const { data, error } = await createContract({ mosqueId, staffId: staff.id, contractType: newType, terms, status: "sent" });
+    if (error || !data) { setIssuing(false); setContractMsg(error?.message || "Couldn't create the contract."); return; }
+    const mail = await sendContractInvite(data.id);
+    setIssuing(false); setShowNewContract(false);
+    setContractMsg(mail.ok ? `Contract issued and emailed to ${staff.email} for signing.` : "Contract issued, but the email failed — use Resend.");
+    reloadContracts();
+  };
+
+  const resendContract = async (c) => {
+    setContractMsg(null);
+    const mail = await sendContractInvite(c.id);
+    setContractMsg(mail.ok ? `Signing link re-sent to ${staff.email}.` : "Couldn't resend the email.");
+  };
+
+  const voidOne = async (c) => {
+    const { error } = await voidContract(c.id);
+    if (error) { setContractMsg("Couldn't void the contract."); return; }
+    reloadContracts();
   };
 
   const d = effectiveDbs(staff); const badge = DBS_BADGE[d] || DBS_BADGE.not_checked;
@@ -382,6 +434,46 @@ const MosqueStaffRecord = ({ staff, mosqueId, onBack, onSaved, onReview, onAcces
                           {opening === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />} View
                         </button>
                       )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          </div>
+
+          {/* ---- Contracts ---- */}
+          <div className="md:col-span-2">
+            <Section title="Contracts" icon={PenLine}>
+              {contractMsg && <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">{contractMsg}</p>}
+              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <p className="text-xs text-stone-500">Issue an employment contract — the staff member reviews and e-signs it online.</p>
+                {!showNewContract && <button onClick={() => { setShowNewContract(true); setContractMsg(null); }} className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1.5"><Plus size={12} /> New contract</button>}
+              </div>
+              {showNewContract && (
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 mb-3 flex items-end gap-2 flex-wrap">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Contract type</label>
+                    <select value={newType} onChange={(e) => setNewType(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm bg-white">
+                      {CONTRACT_DOC_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={issueContract} disabled={issuing} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{issuing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Issue &amp; email</button>
+                  <button onClick={() => setShowNewContract(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
+                </div>
+              )}
+              {contracts.length === 0 ? <p className="text-sm text-stone-500">No contracts issued yet.</p> : (
+                <ul className="divide-y divide-stone-100">
+                  {contracts.map((c) => (
+                    <li key={c.id} className="py-2 flex items-center gap-3 text-sm">
+                      <PenLine size={15} className="text-stone-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-stone-800 truncate">{CONTRACT_TYPE_LABEL[c.contract_type] || c.contract_type} contract</p>
+                        <p className="text-xs text-stone-500">{c.status === "signed" && c.signed_at ? `Signed by ${c.signed_name || "—"} on ${new Date(c.signed_at).toLocaleDateString("en-GB")}` : `Issued ${(c.created_at || "").slice(0, 10)}`}</p>
+                      </div>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize ${CONTRACT_STATUS[c.status] || CONTRACT_STATUS.draft}`}>{c.status}</span>
+                      <button onClick={() => downloadContractPdf(c.terms, c.status === "signed" ? { signedName: c.signed_name, signedAt: c.signed_at } : {})} className="text-[11px] px-2 py-1 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Download size={11} /> PDF</button>
+                      {c.status === "sent" && <button onClick={() => resendContract(c)} className="text-[11px] px-2 py-1 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-50 inline-flex items-center gap-1"><Send size={11} /> Resend</button>}
+                      {c.status !== "signed" && c.status !== "void" && <button onClick={() => voidOne(c)} title="Void" className="text-stone-400 hover:text-rose-600 p-1"><X size={14} /></button>}
                     </li>
                   ))}
                 </ul>

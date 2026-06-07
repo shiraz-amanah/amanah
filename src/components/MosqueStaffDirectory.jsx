@@ -370,6 +370,7 @@ const MosqueStaffDirectory = ({ mosqueId, mosque, onRequestCover, staffId, onSel
       {selectedStaff ? (
         <MosqueStaffRecord
           staff={selectedStaff}
+          mosque={mosque}
           mosqueId={mosqueId}
           onBack={closeRecord}
           onSaved={refresh}

@@ -40,6 +40,7 @@ import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
+import ContractSign from "./pages/ContractSign";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
@@ -13548,6 +13549,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   />;
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
+  if (view === "contractSign") return <ContractSign token={routeParams.token} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => window.history.back()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };
