@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import {
   Sparkles, Loader2, Users, ShieldCheck, Calendar, MessageCircle, Clock,
   ClipboardCheck, AlertCircle, CalendarDays, FileText, Activity,
-  UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle,
+  UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle, ChevronRight,
 } from "lucide-react";
 import { getMosqueBriefing } from "../lib/hrAssistant";
 import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments } from "../auth";
+import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import Markdown from "./Markdown";
+
+const eventTypeLabel = (v) => MOSQUE_EVENT_TYPES.find((t) => t.v === v)?.l || v;
+const fmtEventDate = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); } catch { return d; } };
 
 // Session W — admin Dashboard (default landing). AI morning briefing on top
 // (server-side mode:'mosque_ops'), quick stats, today's rota with gaps in red,
@@ -94,6 +98,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const dbsVerified = staff.filter((s) => s.dbs_status === "verified").length;
   const dbsPct = totalStaff ? Math.round((dbsVerified / totalStaff) * 100) : 0;
   const eventsThisWeek = events.filter((e) => isThisWeek(e.date)).length;
+  const upcomingEvents = events.filter((e) => e.date >= todayStr()).slice(0, 6); // getMosqueEvents is date-asc
   const unread = (conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0);
   const tsPending = timesheets.filter((t) => t.clock_out && t.status === "pending").length;
   const expiringDocs = docs.filter((d) => d.expiry_date && d.expiry_date <= in30Str());
@@ -187,6 +192,36 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
               ); })}</ul>}
           <button onClick={() => onNavigate?.("compliance", "documents")} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900">View all documents →</button>
         </div>
+      </div>
+
+      {/* Upcoming events — reuses the homepage event-card style */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><Calendar size={15} /> Upcoming events</h3>
+          <button onClick={() => onNavigate?.("mosque", "events")} className="text-xs font-medium text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-0.5">Manage events <ChevronRight size={12} /></button>
+        </div>
+        {loading ? <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>
+          : upcomingEvents.length === 0 ? (
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center">
+              <Calendar className="mx-auto text-stone-300 mb-2" size={26} />
+              <p className="text-sm text-stone-500">No upcoming events. <button onClick={() => onNavigate?.("mosque", "events")} className="text-emerald-800 hover:underline font-medium">Create one →</button></p>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {upcomingEvents.map((e) => (
+                <button key={e.id} onClick={() => onNavigate?.("mosque", "events")} className="text-left bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-300 hover:shadow-sm transition-all">
+                  {e.image_url && <img src={e.image_url} alt="" className="w-full h-24 object-cover" />}
+                  <div className="p-4">
+                    <p className="text-sm font-semibold text-stone-900 mb-1 line-clamp-2">{e.title}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-stone-500 inline-flex items-center gap-1"><Calendar size={11} className="text-emerald-700" /> {fmtEventDate(e.date)}{e.time ? ` · ${e.time}` : ""}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{eventTypeLabel(e.type)}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
       </div>
 
       {/* Recent activity */}
