@@ -292,7 +292,7 @@ const ScholarProfileEditor = ({ scholar, onScholarUpdate }) => {
                 value={title}
                 maxLength={TITLE_MAX}
                 onChange={(e) => { setTitle(e.target.value); dirty(); }}
-                placeholder="Qualified Quran Teacher | Bradford"
+                placeholder="Qualified Qur'an Teacher | Bradford"
                 className={inputCls}
               />
               <p className="text-xs text-stone-400 mt-1 text-right">{title.length}/{TITLE_MAX}</p>

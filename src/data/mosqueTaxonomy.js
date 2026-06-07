@@ -12,7 +12,7 @@ export const MOSQUE_SERVICES = [
   { v: "eid_prayers", l: "Eid prayers" },
   { v: "janazah", l: "Janazah service" },
   { v: "marriage", l: "Nikah / marriage" },
-  { v: "classes_for_kids", l: "Quran / Islamic classes for kids" },
+  { v: "classes_for_kids", l: "Qur'an / Islamic classes for kids" },
   { v: "classes_for_adults", l: "Adult learning circles" },
   { v: "reverts_support", l: "New Muslim support" },
   { v: "food_bank", l: "Food bank / community meals" },
@@ -37,7 +37,7 @@ export const PRAYER_LABELS = {
 // Staff roles (mosque_staff.role is free text — these are the dropdown presets;
 // "Other" lets an admin type a custom role). Session U Day 2.
 export const MOSQUE_STAFF_ROLES = [
-  "Imam", "Assistant Imam", "Quran Teacher", "Arabic Teacher",
+  "Imam", "Assistant Imam", "Qur'an Teacher", "Arabic Teacher",
   "Admin", "Caretaker", "Youth Worker",
 ];
 

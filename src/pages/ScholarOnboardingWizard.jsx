@@ -462,7 +462,7 @@ const Step1 = ({ form, set, toggleSubject, bioCount, onPhoto, photoUploading, ph
 
         <div>
           <FieldLabel hint="(max 80 chars)">Headline</FieldLabel>
-          <input value={form.title} maxLength={80} onChange={(e) => set({ title: e.target.value })} placeholder="e.g. Qualified Quran Teacher | Bradford"
+          <input value={form.title} maxLength={80} onChange={(e) => set({ title: e.target.value })} placeholder="e.g. Qualified Qur'an Teacher | Bradford"
             className="w-full border border-stone-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500" />
           <p className="text-[11px] text-stone-400 mt-1 text-right">{form.title.length}/80</p>
         </div>

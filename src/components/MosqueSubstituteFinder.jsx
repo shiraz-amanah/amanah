@@ -36,7 +36,7 @@ const MosqueSubstituteFinder = ({ mosque, onRequestCover, onAddToTemp }) => {
         <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Role / keyword</label>
-            <input value={keyword} onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && run()} placeholder="e.g. Imam, Quran teacher" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+            <input value={keyword} onChange={(e) => setKeyword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && run()} placeholder="e.g. Imam, Qur'an teacher" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">City</label>
