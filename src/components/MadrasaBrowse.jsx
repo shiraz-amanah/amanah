@@ -27,9 +27,10 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
   const [filters, setFilters] = useState({ mosqueId: "", subject: "", day: "" });
   const [toast, setToast] = useState(null);
 
-  // Enrol / waitlist modal
+  // Enrol / waitlist wizard modal (step 1: child · step 2: confirm)
   const [enrolClass, setEnrolClass] = useState(null);
   const [enrolMode, setEnrolMode] = useState("enrol"); // enrol | waitlist
+  const [step, setStep] = useState(1);
   const [studentId, setStudentId] = useState("");
   const [addingChild, setAddingChild] = useState(false);
   const [childForm, setChildForm] = useState({ name: "", age: "", relation: "" });
@@ -57,8 +58,19 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
 
   const openEnrol = (c, mode = "enrol") => {
     if (!authedUser) { onSignIn?.("user"); return; }
-    setEnrolClass(c); setEnrolMode(mode); setStudentId(students[0]?.id || ""); setAddingChild(students.length === 0); setChildForm({ name: "", age: "", relation: "" }); setError(null);
+    setEnrolClass(c); setEnrolMode(mode); setStep(1); setStudentId(students[0]?.id || ""); setAddingChild(students.length === 0); setChildForm({ name: "", age: "", relation: "" }); setError(null);
   };
+
+  // Step 1 → 2: validate the child selection before showing the review step.
+  const goToConfirm = () => {
+    setError(null);
+    if (addingChild) { if (!childForm.name.trim()) { setError("Enter the child's name."); return; } }
+    else if (!studentId) { setError("Select a child."); return; }
+    setStep(2);
+  };
+  const childLabel = addingChild
+    ? (childForm.name.trim() || "New child") + (childForm.age ? ` (${childForm.age})` : "")
+    : (() => { const s = students.find((x) => x.id === studentId); return s ? `${s.name}${s.age ? ` (${s.age})` : ""}` : "—"; })();
 
   const confirmEnrol = async () => {
     setBusy(true); setError(null);
@@ -79,7 +91,8 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
     setEnrolClass(null);
     setToast(waitlistMode
       ? `Added to the waiting list for ${name}. We'll email you if a place opens up.`
-      : `Enrolled in ${name}. You'll see it under your child on your dashboard.`);
+      : `Enrolled in ${name}. Homework, reports and attendance for your child will now appear on your dashboard.`);
+    setStep(1);
     loadCounts();
   };
 
@@ -141,37 +154,56 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
         <div className="fixed inset-0 z-40 bg-stone-900/40 flex items-center justify-center p-4" onClick={() => !busy && setEnrolClass(null)}>
           <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{enrolMode === "waitlist" ? `Join waiting list — ${enrolClass.name}` : `Enrol in ${enrolClass.name}`}</h3>
+              <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{enrolMode === "waitlist" ? "Join waiting list" : "Enrol now"}</h3>
               <button onClick={() => setEnrolClass(null)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
             </div>
-            <p className="text-sm text-stone-600 mb-4">{SUBJECT_LABEL[enrolClass.subject]} · {enrolClass.mosque?.name} · {scheduleText(enrolClass.schedule)}</p>
-            {enrolMode === "waitlist" && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">This class is full. Your child joins the waiting list — we'll email you if a place opens up, and you'll have 48 hours to accept it.</p>}
+            <p className="text-sm text-stone-600">{enrolClass.name} · {SUBJECT_LABEL[enrolClass.subject]}</p>
+            <p className="text-[11px] uppercase tracking-wider text-stone-400 font-medium mb-4 mt-0.5">Step {step} of 2 — {step === 1 ? "choose child" : "review & confirm"}</p>
 
-            {!addingChild ? (
-              <div className="space-y-3">
-                <div><label className={labelCls}>Which child?</label>
-                  <select className={inputCls} value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-                    {students.map((s) => <option key={s.id} value={s.id}>{s.name}{s.age ? ` (${s.age})` : ""}</option>)}
-                  </select>
+            {step === 1 ? (
+              !addingChild ? (
+                <div className="space-y-3">
+                  <div><label className={labelCls}>Which child?</label>
+                    <select className={inputCls} value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+                      {students.map((s) => <option key={s.id} value={s.id}>{s.name}{s.age ? ` (${s.age})` : ""}</option>)}
+                    </select>
+                  </div>
+                  <button onClick={() => { setAddingChild(true); setError(null); }} className="text-xs font-medium text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1"><Plus size={12} /> Add a child</button>
                 </div>
-                <button onClick={() => setAddingChild(true)} className="text-xs font-medium text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1"><Plus size={12} /> Add a child</button>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-stone-500">Add your child's profile to enrol them.</p>
+                  <div className="grid grid-cols-[1fr_80px] gap-2">
+                    <div><label className={labelCls}>Name</label><input className={inputCls} value={childForm.name} onChange={(e) => setChildForm((f) => ({ ...f, name: e.target.value }))} /></div>
+                    <div><label className={labelCls}>Age</label><input type="number" min="0" className={inputCls} value={childForm.age} onChange={(e) => setChildForm((f) => ({ ...f, age: e.target.value }))} /></div>
+                  </div>
+                  <div><label className={labelCls}>Relation</label><input className={inputCls} value={childForm.relation} onChange={(e) => setChildForm((f) => ({ ...f, relation: e.target.value }))} placeholder="Son / Daughter" /></div>
+                  {students.length > 0 && <button onClick={() => { setAddingChild(false); setError(null); }} className="text-xs font-medium text-stone-500 hover:text-stone-800">← Choose an existing child</button>}
+                </div>
+              )
             ) : (
               <div className="space-y-3">
-                <p className="text-xs text-stone-500">Add your child to enrol them.</p>
-                <div className="grid grid-cols-[1fr_80px] gap-2">
-                  <div><label className={labelCls}>Name</label><input className={inputCls} value={childForm.name} onChange={(e) => setChildForm((f) => ({ ...f, name: e.target.value }))} /></div>
-                  <div><label className={labelCls}>Age</label><input type="number" min="0" className={inputCls} value={childForm.age} onChange={(e) => setChildForm((f) => ({ ...f, age: e.target.value }))} /></div>
+                {enrolMode === "waitlist" && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">This class is full. Your child joins the waiting list — we'll email you if a place opens up, and you'll have 48 hours to accept it.</p>}
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 text-sm space-y-1.5">
+                  {[["Child", childLabel], ["Class", enrolClass.name], ["Subject", SUBJECT_LABEL[enrolClass.subject] || enrolClass.subject], ["Mosque", `${enrolClass.mosque?.name || "—"}${enrolClass.mosque?.city ? `, ${enrolClass.mosque.city}` : ""}`], ["Schedule", scheduleText(enrolClass.schedule)], ...(enrolClass.teacher?.name ? [["Teacher", enrolClass.teacher.name]] : [])].map(([k, v]) => (
+                    <div key={k} className="flex items-start justify-between gap-3 border-b border-stone-100 last:border-0 pb-1.5 last:pb-0">
+                      <span className="text-[11px] uppercase tracking-wider text-stone-500 font-medium shrink-0">{k}</span>
+                      <span className="text-stone-900 text-right">{v}</span>
+                    </div>
+                  ))}
                 </div>
-                <div><label className={labelCls}>Relation</label><input className={inputCls} value={childForm.relation} onChange={(e) => setChildForm((f) => ({ ...f, relation: e.target.value }))} placeholder="Son / Daughter" /></div>
-                {students.length > 0 && <button onClick={() => setAddingChild(false)} className="text-xs font-medium text-stone-500 hover:text-stone-800">← Choose an existing child</button>}
+                <p className="text-xs text-stone-500">Once enrolled, your child's homework, reports and attendance appear automatically on your dashboard.</p>
               </div>
             )}
 
             {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mt-3"><AlertCircle size={14} /> {error}</p>}
-            <div className="flex items-center justify-end gap-2 mt-5">
-              <button onClick={() => setEnrolClass(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-              <button onClick={confirmEnrol} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {enrolMode === "waitlist" ? "Join waiting list" : "Confirm enrolment"}</button>
+            <div className="flex items-center justify-between gap-2 mt-5">
+              <button onClick={() => (step === 1 ? setEnrolClass(null) : setStep(1))} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">{step === 1 ? "Cancel" : "← Back"}</button>
+              {step === 1 ? (
+                <button onClick={goToConfirm} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Next</button>
+              ) : (
+                <button onClick={confirmEnrol} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {enrolMode === "waitlist" ? "Join waiting list" : "Confirm enrolment"}</button>
+              )}
             </div>
           </div>
         </div>
