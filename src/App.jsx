@@ -23,6 +23,8 @@ import MosqueProfileEditor from "./components/MosqueProfileEditor";
 import MosqueStaffPublic from "./components/MosqueStaffPublic";
 import MosqueEventsManager from "./components/MosqueEventsManager";
 import MosqueProfile from "./pages/MosqueProfile";
+import AdminClaims from "./components/AdminClaims";
+import MosqueClaimAccept from "./components/MosqueClaimAccept";
 import HomepageEvents from "./components/HomepageEvents";
 import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
@@ -9736,6 +9738,7 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
   const items = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
     { id: "mosques", label: "Mosque applications", icon: Building2, count: null, urgent: false },
+    { id: "claims", label: "Mosque claims", icon: ShieldCheck, count: null, urgent: false },
     { id: "scholarApplications", label: "Scholar applications", icon: GraduationCap, count: null, urgent: false },
     { id: "campaigns", label: "Campaign queue", icon: HandCoins, count: counts.campaigns, urgent: counts.campaigns > 0 },
     { id: "flags", label: "Flags & reports", icon: Flag, count: counts.flags, urgent: counts.flags > 0, highlight: true },
@@ -12313,6 +12316,7 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
   const sectionTitle = {
     overview: "Overview",
     mosques: "Mosque applications",
+    claims: "Mosque claims",
     scholarApplications: "Scholar applications",
     campaigns: "Campaign queue",
     flags: "Flags & reports",
@@ -12364,6 +12368,7 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
         {section === "mosques" && <AdminMosqueApplications />}
+        {section === "claims" && <AdminClaims />}
         {section === "scholarApplications" && (
           <AdminScholarApplications
             onOpenDBSOrder={(orderId) => { setDbsDetailOrderId(orderId); setSection("dbs"); }}
@@ -13572,6 +13577,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
   if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
+  if (view === "mosqueClaimAccept") return <MosqueClaimAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => goBack()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };

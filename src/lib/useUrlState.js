@@ -99,6 +99,8 @@ const ROUTES = [
   { view: 'contractSign',                path: '/contract/sign/:token' },
   // Session AL — Path B madrasah enrolment accept (parent completes registration).
   { view: 'madrasaEnrolAccept',          path: '/enrol/accept/:token' },
+  // Session AP — approved mosque-claim accept landing.
+  { view: 'mosqueClaimAccept',           path: '/mosque/claim/accept/:token' },
 ];
 
 const COMPILED = ROUTES.map(r => {
