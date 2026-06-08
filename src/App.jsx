@@ -12307,13 +12307,15 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
       getReviewsForModeration("pending"),
       getAllDBSOrders(),
     ]).then(([flags, sch, mosq, claims, reviews, dbs]) => {
+      // getAllDBSOrders returns { data, error }; the others return arrays.
+      const arr = (v) => (Array.isArray(v) ? v : Array.isArray(v?.data) ? v.data : []);
       setPendingCounts({
-        flags: flags.length,
-        scholarApplications: sch.length,
-        mosques: mosq.length,
-        claims: claims.length,
-        reviews: reviews.length,
-        dbs: (dbs || []).filter((o) => o.stage !== "completed" && o.stage !== "cancelled").length,
+        flags: arr(flags).length,
+        scholarApplications: arr(sch).length,
+        mosques: arr(mosq).length,
+        claims: arr(claims).length,
+        reviews: arr(reviews).length,
+        dbs: arr(dbs).filter((o) => o.stage !== "completed" && o.stage !== "cancelled").length,
       });
     }).catch((err) => console.error("Failed to load admin counts:", err));
   }, []);
