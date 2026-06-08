@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Loader2, Check, AlertCircle, Save, Upload, Plus, X } from "lucide-react";
-import { MOSQUE_SERVICES, MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS } from "../data/mosqueTaxonomy";
+import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "../data/mosqueTaxonomy";
 import { updateMosqueProfile } from "../auth";
 import { uploadMosqueLogo, uploadMosquePhoto, removeMosquePhoto } from "../lib/storage";
+import MosquePrayerEditor from "./MosquePrayerEditor";
+import MosqueRamadanEditor from "./MosqueRamadanEditor";
 
 const MAX_PHOTOS = 10;
 
@@ -80,9 +82,6 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
     email: mosque?.email || "",
     website_url: mosque?.website_url || "",
     donation_url: mosque?.donation_url || "",
-    jumuah_time: mosque?.jumuah_time || "",
-    jumuah_language: mosque?.jumuah_language || "",
-    prayer_times: { ...(mosque?.prayer_times || {}) },
     services: Array.isArray(mosque?.services) ? [...mosque.services] : [],
     facilities: Array.isArray(mosque?.facilities) ? [...mosque.facilities] : [],
     logo_url: mosque?.logo_url || "",
@@ -96,7 +95,6 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
   const [media, setMedia] = useState({ logo: false, photo: false, err: null });
 
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setSaved(false); };
-  const setPrayer = (k, v) => { setForm((f) => ({ ...f, prayer_times: { ...f.prayer_times, [k]: v } })); setSaved(false); };
 
   // Persist a media-only patch right after upload so logos/photos aren't lost if
   // the owner forgets to hit Save. onSaved keeps App's myMosque in sync.
@@ -142,10 +140,6 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
       setError("Website and donation links must start with http:// or https://"); return;
     }
     setSaving(true);
-    // Drop empty prayer-time keys so we store a clean jsonb object.
-    const prayer = Object.fromEntries(
-      Object.entries(form.prayer_times).filter(([, v]) => v && String(v).trim())
-    );
     const patch = {
       name: form.name.trim(),
       description: form.description.trim() || null,
@@ -156,9 +150,6 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
       email: form.email.trim() || null,
       website_url: form.website_url.trim() || null,
       donation_url: form.donation_url.trim() || null,
-      jumuah_time: form.jumuah_time.trim() || null,
-      jumuah_language: form.jumuah_language.trim() || null,
-      prayer_times: prayer,
       services: form.services,
       facilities: form.facilities,
       logo_url: form.logo_url || null,
@@ -249,19 +240,11 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
         </div>
       </div>
 
-      {/* Prayer times */}
-      <div className={cardCls}>
-        <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Iqama times</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {PRAYER_KEYS.map((k) => (
-            <div key={k}><label className={labelCls}>{PRAYER_LABELS[k]}</label><input className={inputCls + " font-mono"} placeholder="05:30" value={form.prayer_times[k] || ""} onChange={(e) => setPrayer(k, e.target.value)} /></div>
-          ))}
-        </div>
-        <div className="grid md:grid-cols-2 gap-3 mt-3 pt-3 border-t border-stone-100">
-          <div><label className={labelCls}>Jumu'ah time</label><input className={inputCls + " font-mono"} placeholder="13:30" value={form.jumuah_time} onChange={(e) => set("jumuah_time", e.target.value)} /></div>
-          <div><label className={labelCls}>Khutbah language</label><input className={inputCls} placeholder="English / Arabic…" value={form.jumuah_language} onChange={(e) => set("jumuah_language", e.target.value)} /></div>
-        </div>
-      </div>
+      {/* Prayer & Jumu'ah times — self-saving sub-editor */}
+      <MosquePrayerEditor mosque={mosque} onSaved={onSaved} />
+
+      {/* Ramadan 30-day calendar — self-saving sub-editor */}
+      <MosqueRamadanEditor mosque={mosque} onSaved={onSaved} />
 
       {/* Services */}
       <div className={cardCls}>
