@@ -7007,6 +7007,62 @@ dropping it needs a migration and isn't required; left as a flagged no-op.
 
 ---
 
+## Session AS — Admin notification bell + sidebar pending badges + scholar Cover tab ✅ (8 June 2026)
+
+Three fixes. **Migration 095 GREEN on dev + prod** (5 triggers, 6 functions all
+`prosecdef=t`). 2 commits, build clean. Vercel **11/12**, next migration **096**.
+
+### Item 3 — scholar dashboard Cover tab vanishing (`e63f597`)
+Clicking **Messages** swapped the tab bar and dropped the **Cover** tab. Root
+cause: **two tab bars**. ScholarDashboard renders its own 8-tab bar, but the
+shared **`DashboardTabBar`** chrome (used on the Messages / Conversation views)
+was built with only 7 scholar tabs — Cover was never in it. Fix: added
+`{ v: "cover", l: "Cover", i: CalendarDays }` (plus Availability/Reviews already
+present) to the shared chrome's scholar tab list, so all 8 tabs render
+consistently on every scholar view. `handleScholarTabClick` already routed
+`cover` correctly — the tab definition was the only gap.
+
+### Item 2 — sidebar pending badges on every queue, red, "live" (`e63f597`)
+Previously only Flags + Campaigns showed badges (and non-flag badges were amber).
+Replaced the flags-only `openFlagsCount` state with a single `pendingCounts`
+object loaded by one `loadCounts` callback (`Promise.all` over `getAllFlags`,
+`getAllScholarApplications`, `getAllMosqueApplications`, `getMosqueClaims`,
+`getReviewsForModeration`, `getAllDBSOrders`). Re-fetched on every `section`
+change → a badge drops the instant you clear an item and navigate ("feels live"
+without 6 subscriptions; true multi-admin realtime would need them). DBS count
+filters out `completed`/`cancelled` stages. **All pending badges now render
+rose-600 (red)**, matching the brief; the urgent flag drives the colour.
+
+### Item 1 — admin notification bell (`0c532e0`, needs **migration 095**)
+The 087 `notifications` table already powers the bell for every other role, but
+its `type` CHECK excluded admin types **and** nothing ever created admin rows —
+the bell would always be empty for admins. **Migration 095** fixes both:
+- Widens `notifications_type_check` to add `scholar_application`,
+  `mosque_application`, `mosque_claim`, `flag`, `dbs_order`.
+- `notify_admins(type,title,body,data)` — **SECURITY DEFINER** fan-out inserting
+  one notification per `profiles.role='admin'` (definer needed: the actor is a
+  scholar/anon who can't write rows for the admin).
+- **5 AFTER INSERT triggers** on `scholar_applications`, `mosque_applications`,
+  `mosque_claims`, `flags`, `dbs_orders`.
+
+UI: mounted `<NotificationBell>` in the AdminPanel **mobile top bar** (replacing
+the dead spacer) **and** a new **desktop header row** (top-right, `hidden md:flex`).
+`handleNotifNavigate` deep-links each type → its review section
+(scholar_application→scholarApplications, mosque_application→mosques,
+mosque_claim→claims, flag→flags, dbs_order→dbs, else overview). `NotificationBell`
+gained icons/tones for the 5 admin types (GraduationCap, Building2, ShieldCheck,
+Flag, FileCheck).
+
+### Verified vs NOT verified
+**Verified:** build clean (×2); 095 probed green on dev + prod (5 triggers,
+6 `notify_admin*`/`notify_admins` functions all `prosecdef=t`). **NOT verified
+(needs a browser on prod):** bell end-to-end — submit a scholar application /
+mosque claim and confirm the admin bell badges + the dropdown row appears and
+deep-links. Item 2 "live" badge drop is re-fetch-on-navigate, not a subscription
+(badges won't update while you sit on one section watching another's count change).
+
+---
+
 ## Session AQ — Academic calendar + Timetable (two quick wins) ✅ (10 June 2026)
 
 Two high-value, low-risk Madrasah features. **Migration 094 GREEN on dev + prod**
