@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, X, MessageCircle, ChevronDown, ChevronUp, Video, Radio, Star, CheckCircle2, AlertCircle, GraduationCap } from "lucide-react";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession } from "../auth";
+import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, X, MessageCircle, ChevronDown, ChevronUp, Video, Radio, Star, CheckCircle2, AlertCircle, GraduationCap, Pencil } from "lucide-react";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession, updateStudent } from "../auth";
+import { useHistoryBackGuard } from "../lib/useHistoryBackGuard";
 import { surahName, surahNameAr } from "../data/surahs";
 import MadrasaReportView from "./MadrasaReportView";
 
@@ -38,7 +39,16 @@ const StatTile = ({ icon: Icon, tone, label, value }) => (
   </div>
 );
 
-const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onWithdraw }) => {
+const ageFromDob = (dob) => {
+  if (!dob) return null;
+  const d = new Date(dob); if (isNaN(d.getTime())) return null;
+  const t = new Date(); let a = t.getFullYear() - d.getFullYear();
+  const m = t.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+  return a >= 0 && a < 130 ? a : null;
+};
+
+const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onWithdraw, onStudentUpdate }) => {
   const classIds = enrollments.map((e) => e.class_id);
   const mosques = Object.values(enrollments.reduce((acc, e) => { const m = e.class?.mosque; if (m?.id) acc[m.id] = { id: m.id, name: m.name }; return acc; }, {}));
 
@@ -60,6 +70,31 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
   const [showDone, setShowDone] = useState(false);    // completed homework expander
   const [liveSession, setLiveSession] = useState(null); // active live lesson for a class
   const [joining, setJoining] = useState(false);
+  // Inline profile editing (parent edits their own child's details → students table)
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", dob: "", gender: "", relation: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const openEdit = () => {
+    setEditForm({ name: student.name || "", dob: student.dob || "", gender: student.gender || "", relation: student.relation || "" });
+    setEditError(""); setEditing(true);
+  };
+  const saveEdit = async () => {
+    const name = editForm.name.trim();
+    if (!name) { setEditError("A name is required."); return; }
+    setSavingEdit(true); setEditError("");
+    const updates = {
+      name, relation: editForm.relation.trim() || null,
+      gender: editForm.gender || null, dob: editForm.dob || null,
+      age: editForm.dob ? ageFromDob(editForm.dob) : student.age ?? null,
+    };
+    const { data, error } = await updateStudent(student.id, updates);
+    setSavingEdit(false);
+    if (error) { setEditError(error.message || "Couldn't save changes."); return; }
+    onStudentUpdate?.(data || { ...student, ...updates });
+    setEditing(false);
+  };
 
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -179,11 +214,49 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
             {attPct !== null && <span className={`${pill} bg-emerald-50 text-emerald-700 font-medium`}>{attPct}% attendance</span>}
             {starCount > 0 && <span className={`${pill} bg-amber-50 text-amber-700 font-medium`}><Star size={11} className="fill-amber-400 text-amber-400" /> {starCount}</span>}
           </div>
-          {onMessageTeacher && primary && (
-            <button onClick={() => onMessageTeacher({ classId: primary.class_id, className: primary.class?.name })} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><MessageCircle size={11} /> Message teacher</button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {!editing && <button onClick={openEdit} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Pencil size={11} /> Edit</button>}
+            {onMessageTeacher && primary && (
+              <button onClick={() => onMessageTeacher({ classId: primary.class_id, className: primary.class?.name })} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><MessageCircle size={11} /> Message teacher</button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Inline profile editor — parent edits their child's details (students table) */}
+      {editing && (
+        <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Edit child details</p>
+            <button onClick={() => setEditing(false)} className="text-stone-400 hover:text-stone-700"><X size={15} /></button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Full name</label>
+              <input autoFocus value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} placeholder="Child's full name" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Date of birth</label>
+              <input type="date" max={new Date().toISOString().slice(0, 10)} value={editForm.dob} onChange={(e) => setEditForm((f) => ({ ...f, dob: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Gender</label>
+              <select value={editForm.gender} onChange={(e) => setEditForm((f) => ({ ...f, gender: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+                <option value="">—</option><option value="male">Male</option><option value="female">Female</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Relationship to you</label>
+              <input value={editForm.relation} onChange={(e) => setEditForm((f) => ({ ...f, relation: e.target.value }))} placeholder="e.g. son, daughter" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+            </div>
+          </div>
+          {editError && <p className="text-xs text-rose-700 flex items-center gap-1.5"><AlertCircle size={13} /> {editError}</p>}
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setEditing(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
+            <button onClick={saveEdit} disabled={savingEdit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
+          </div>
+        </div>
+      )}
 
       {/* Live lesson — Join (item 14) */}
       {liveSession && liveSession.room_url && (

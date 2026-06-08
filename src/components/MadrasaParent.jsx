@@ -36,6 +36,8 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
     const { error } = await withdrawEnrollment(id);
     if (!error) setEnrollments((es) => es.map((e) => (e.id === id ? { ...e, status: "withdrawn" } : e)));
   };
+  // Parent edited a child's details inline (MadrasaChildProgress → students table).
+  const updateChild = (updated) => setStudents((ss) => ss.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)));
   const accept = async (id) => {
     setActing(id); setWlMsg("");
     const { error } = await acceptWaitlistOffer(id);
@@ -118,7 +120,7 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
         ) : (
           <div className="space-y-4">
             {enrolledChildren.map((child) => (
-              <MadrasaChildProgress key={child.id} student={child} enrollments={activeByStudent[child.id] || []} onMessageTeacher={onMessageTeacher} onWithdraw={withdraw} />
+              <MadrasaChildProgress key={child.id} student={child} enrollments={activeByStudent[child.id] || []} onMessageTeacher={onMessageTeacher} onWithdraw={withdraw} onStudentUpdate={updateChild} />
             ))}
           </div>
         )}
