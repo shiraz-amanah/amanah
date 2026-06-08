@@ -127,14 +127,18 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         </div>
       </div>
 
-      <MadrasaAssistant mosqueId={mosqueId} />
-
-      {/* Three sections only — Classes · Students · Analytics */}
-      <div className="flex gap-1 border-b border-stone-200 mt-6 mb-5 overflow-x-auto">
+      {/* Three sections only — Classes · Students · Analytics. These are the
+          page's primary navigation, so they sit directly under the title and
+          above the assistant (Session AM: the assistant used to push them down,
+          which made tab clicks feel like they "didn't land"). */}
+      <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
         {SECTIONS.map(([v, l, Icon]) => (
           <button key={v} onClick={() => setSection(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${section === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
         ))}
       </div>
+
+      <MadrasaAssistant mosqueId={mosqueId} />
+      <div className="mb-5" />
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
