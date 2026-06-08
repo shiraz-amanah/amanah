@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, BarChart3,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, BarChart3, CalendarClock,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
@@ -11,6 +11,7 @@ import MadrasaEnrolWizard from "./MadrasaEnrolWizard";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
 import MadrasaStudentProfile from "./MadrasaStudentProfile";
+import MadrasaTimetable from "./MadrasaTimetable";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
 
 const SECTIONS = [["classes", "Classes", GraduationCap], ["students", "Students", Users], ["analytics", "Analytics", BarChart3]];
@@ -31,7 +32,7 @@ const Field = ({ label, children }) => (<div><label className={labelCls}>{label}
 const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "" };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
-const MosqueMadrasa = ({ mosqueId, mosque }) => {
+const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
   const [classes, setClasses] = useState([]);
   const [counts, setCounts] = useState({});
   const [staff, setStaff] = useState([]);
@@ -47,6 +48,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const [detailClass, setDetailClass] = useState(null); // class shown in the full-page detail view
   const [showReports, setShowReports] = useState(false); // reports & exports view
   const [section, setSection] = useState("classes");     // Classes | Students | Analytics
+  const [classView, setClassView] = useState("list");    // Classes tab: list | timetable
   const [showEnrol, setShowEnrol] = useState(false);     // Path A add-student wizard
   const [studentsKey, setStudentsKey] = useState(0);     // bump to refresh the Students list after enrol
   const [profileCtx, setProfileCtx] = useState(null);    // { enrollment, classObj } — full student profile (Layer 3)
@@ -152,6 +154,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowReports(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Reports</button>
+          {section === "classes" && classes.length > 0 && <button onClick={() => setClassView((v) => (v === "list" ? "timetable" : "list"))} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><CalendarClock size={14} /> {classView === "list" ? "Timetable view" : "List view"}</button>}
           {section === "classes" && !showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
         </div>
       </div>
@@ -172,7 +175,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
       {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} mosqueName={mosque?.name} onOpenStudent={openStudent} onAddStudent={() => setShowEnrol(true)} />}
-      {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />}
+      {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />}
 
       {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
 
@@ -211,7 +214,11 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
         </div>
       )}
 
-      {section === "classes" && (loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+      {section === "classes" && classView === "timetable" && classes.length > 0 && (
+        <MadrasaTimetable classes={classes.filter((c) => c.status !== "archived")} />
+      )}
+
+      {section === "classes" && classView === "list" && (loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : classes.length === 0 && !showForm ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
             <GraduationCap className="mx-auto text-stone-300 mb-3" size={36} />

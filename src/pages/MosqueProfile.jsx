@@ -5,6 +5,9 @@ import { getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam, getMosq
 import MosquePrayerTimes from "../components/MosquePrayerTimes";
 import MosqueDonateModal from "../components/MosqueDonateModal";
 import MosqueClaimModal from "../components/MosqueClaimModal";
+import { CAL_TYPE } from "../data/academicCalendar";
+
+const calFmt = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return d; } };
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
 // Works for logged-out visitors — all reads are anon-safe (RLS public-read on
@@ -106,6 +109,31 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
 
         {/* Prayer times — the first thing a visitor sees */}
         <MosquePrayerTimes mosque={mosque} />
+
+        {/* Madrasah academic calendar — upcoming term & holiday dates */}
+        {(() => {
+          const today = new Date().toISOString().slice(0, 10);
+          const cal = (Array.isArray(mosque.academic_calendar) ? mosque.academic_calendar : [])
+            .filter((e) => e.type !== "report_deadline" && (e.end_date || e.start_date) >= today)
+            .sort((a, b) => a.start_date.localeCompare(b.start_date));
+          if (cal.length === 0) return null;
+          return (
+            <Section title="Madrasah — term & holiday dates">
+              <ul className="divide-y divide-stone-100">
+                {cal.map((e, i) => {
+                  const t = CAL_TYPE[e.type] || CAL_TYPE.term;
+                  const single = !e.end_date || e.end_date === e.start_date;
+                  return (
+                    <li key={i} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="text-sm text-stone-800 inline-flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-sm ${t.dot}`} /> {e.name}</span>
+                      <span className="text-xs text-stone-500 text-right">{calFmt(e.start_date)}{single ? "" : ` → ${calFmt(e.end_date)}`}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Section>
+          );
+        })()}
 
         {/* About */}
         {(mosque.description || mosque.bio) && (

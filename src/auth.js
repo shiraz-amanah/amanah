@@ -284,6 +284,8 @@ const MOSQUE_EDITABLE_COLUMNS = [
   'jumuah_language', 'donation_url', 'website_url', 'logo_url', 'photo_url', 'photos',
   // 093 — prayer-times metadata + Ramadan
   'jummuah_info', 'ramadan_times', 'ramadan_calendar', 'ramadan_year', 'ramadan_active', 'prayer_times_updated_at',
+  // 094 — Madrasah academic calendar
+  'academic_calendar',
 ]
 export async function updateMosqueProfile(mosqueId, updates) {
   if (!mosqueId) return { error: { message: 'mosqueId required' } }

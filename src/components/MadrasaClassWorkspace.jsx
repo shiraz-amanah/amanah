@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
-  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal,
+  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal, CalendarClock,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
+import MadrasaTimetable from "./MadrasaTimetable";
 import { getMadrasaRoster, getClassHifz } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
@@ -38,6 +39,7 @@ const TABS = [
   ["hifz", "Hifz", GraduationCap],
   ["homework", "Homework", BookOpen],
   ["reports", "Reports", FileText],
+  ["timetable", "Timetable", CalendarClock],
   ["more", "More", MoreHorizontal],
 ];
 
@@ -237,6 +239,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       {tab === "reports" && (
         <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
           <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
+        </Section>
+      )}
+
+      {/* TIMETABLE — this class's weekly sessions */}
+      {tab === "timetable" && (
+        <Section icon={CalendarClock} title="Timetable" subtitle="This class's weekly sessions">
+          <MadrasaTimetable classes={[classObj]} />
         </Section>
       )}
 

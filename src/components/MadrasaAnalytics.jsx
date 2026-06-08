@@ -5,6 +5,7 @@ import {
   getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll,
 } from "../auth";
 import { computeStarsAndRisk } from "../lib/madrasaScoring";
+import MadrasaAcademicCalendar from "./MadrasaAcademicCalendar";
 
 // Madrasah → Analytics section (Session AL restructure). Admin-only overview:
 // attendance trends, Hifz summary + top performers, homework completion. The AI
@@ -30,7 +31,7 @@ const Metric = ({ value, label }) => (
   </div>
 );
 
-const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass }) => {
+const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass, mosque, onMosqueUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [enrollments, setEnrollments] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -110,6 +111,8 @@ const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass }) => {
 
   return (
     <div className="space-y-5">
+      {mosque && <MadrasaAcademicCalendar mosque={mosque} onSaved={onMosqueUpdate} />}
+
       <div>
         <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Analytics</h3>
         <p className="text-sm text-stone-600">Attendance, Hifz and homework across your madrasah.</p>

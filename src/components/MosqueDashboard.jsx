@@ -226,7 +226,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
 
         {/* ---- Madrasah ---- */}
         {activeTab === "madrasah" && (
-          <MosqueMadrasa mosqueId={mosque.id} mosque={mosque} />
+          <MosqueMadrasa mosqueId={mosque.id} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />
         )}
 
         {/* ---- Compliance ---- */}
