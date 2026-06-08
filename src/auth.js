@@ -128,11 +128,12 @@ export async function updateStudent(id, updates) {
 
 // Mosque admin edits an enrolled student's details (091 SECURITY DEFINER RPC —
 // students are parent-owned, so the admin can't UPDATE the row directly).
-export async function adminUpdateStudent({ studentId, mosqueId, name, dob, gender, relation }) {
+export async function adminUpdateStudent({ studentId, mosqueId, name, dob, gender, relation, emergencyName, emergencyPhone }) {
   if (!studentId || !mosqueId) return { error: { message: 'studentId and mosqueId required' } }
   const { data, error } = await supabase.rpc('madrasa_admin_update_student', {
     p_student: studentId, p_mosque: mosqueId, p_name: name,
     p_dob: dob || null, p_gender: gender || null, p_relation: relation || null,
+    p_emergency_name: emergencyName || null, p_emergency_phone: emergencyPhone || null,
   })
   if (error) { console.error('Error updating student (admin):', error); return { error } }
   return { data }
@@ -675,8 +676,8 @@ export async function getMadrasaRoster(classId) {
   const { data, error } = await supabase
     .from('madrasa_enrollments')
     // profile_id (the parent's user id) powers the teacher's "Message" button (2a-ii);
-    // dob/gender/pending_parent_email power the student profile page (Layer 3).
-    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email)')
+    // dob/gender/pending_parent_email/emergency_* power the student profile page (Layer 3).
+    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email, emergency_contact_name, emergency_contact_phone)')
     .eq('class_id', classId)
     .order('enrolled_at', { ascending: true })
   if (error) { console.error('Error fetching roster:', error); return [] }
@@ -700,7 +701,7 @@ export async function getMosqueEnrollments(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    .select('*, student:students(id, name, age, dob, gender, relation, profile_id), class:madrasa_classes(id, name, subject)')
+    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email, emergency_contact_name, emergency_contact_phone), class:madrasa_classes(id, name, subject)')
     .eq('mosque_id', mosqueId).order('enrolled_at', { ascending: false })
   if (error) { console.error('Error fetching mosque enrollments:', error); return [] }
   return data || []

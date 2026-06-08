@@ -78,7 +78,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
   const [rewards, setRewards] = useState([]);
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", dob: "", gender: "", relation: "" });
+  const [form, setForm] = useState({ name: "", dob: "", gender: "", relation: "", emergencyName: "", emergencyPhone: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [actMsg, setActMsg] = useState("");
   const [actErr, setActErr] = useState("");
@@ -168,15 +168,15 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
   }, [attendance, hifz, rewards, reports, subAt, homework]);
 
   // ---- actions ----
-  const openEdit = () => { setForm({ name: student.name || "", dob: student.dob || "", gender: student.gender || "", relation: student.relation || "" }); setActErr(""); setEditing(true); setMenuOpen(false); };
+  const openEdit = () => { setForm({ name: student.name || "", dob: student.dob || "", gender: student.gender || "", relation: student.relation || "", emergencyName: student.emergency_contact_name || "", emergencyPhone: student.emergency_contact_phone || "" }); setActErr(""); setEditing(true); setMenuOpen(false); };
   const saveEdit = async () => {
     const name = form.name.trim();
     if (!name) { setActErr("A name is required."); return; }
     setSavingEdit(true); setActErr("");
-    const { data, error } = await adminUpdateStudent({ studentId: sid, mosqueId, name, dob: form.dob || null, gender: form.gender || null, relation: form.relation || null });
+    const { data, error } = await adminUpdateStudent({ studentId: sid, mosqueId, name, dob: form.dob || null, gender: form.gender || null, relation: form.relation || null, emergencyName: form.emergencyName || null, emergencyPhone: form.emergencyPhone || null });
     setSavingEdit(false);
     if (error) { setActErr(error.message || "Couldn't save changes."); return; }
-    setStudent((s) => ({ ...s, ...(data || { name, dob: form.dob || null, gender: form.gender || null, relation: form.relation || null }) }));
+    setStudent((s) => ({ ...s, ...(data || { name, dob: form.dob || null, gender: form.gender || null, relation: form.relation || null, emergency_contact_name: form.emergencyName || null, emergency_contact_phone: form.emergencyPhone || null }) }));
     setEditing(false); setActMsg("Student details updated."); onChanged?.();
   };
   const resetLogin = async () => {
@@ -275,6 +275,8 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
             <div><label className={labelCls}>Date of birth</label><input type="date" max={new Date().toISOString().slice(0, 10)} className={inputCls} value={form.dob || ""} onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))} /></div>
             <div><label className={labelCls}>Gender</label><select className={inputCls} value={form.gender || ""} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}><option value="">—</option><option value="male">Male</option><option value="female">Female</option></select></div>
             <div className="sm:col-span-2"><label className={labelCls}>Relationship to parent</label><input className={inputCls} value={form.relation || ""} onChange={(e) => setForm((f) => ({ ...f, relation: e.target.value }))} placeholder="e.g. son, daughter" /></div>
+            <div><label className={labelCls}>Emergency contact name</label><input className={inputCls} value={form.emergencyName || ""} onChange={(e) => setForm((f) => ({ ...f, emergencyName: e.target.value }))} placeholder="e.g. Aunt Khadijah" /></div>
+            <div><label className={labelCls}>Emergency contact phone</label><input className={inputCls} value={form.emergencyPhone || ""} onChange={(e) => setForm((f) => ({ ...f, emergencyPhone: e.target.value }))} placeholder="e.g. 07700 900123" /></div>
           </div>
           {actErr && <p className="text-xs text-rose-700 flex items-center gap-1.5"><AlertCircle size={13} /> {actErr}</p>}
           <div className="flex justify-end gap-2">
@@ -303,9 +305,8 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
                 <Detail label="Age" value={student.age != null ? `${student.age}` : null} />
                 <Detail label="Gender" value={student.gender} />
                 <Detail label="Relation" value={student.relation} />
-                <Detail label="Emergency contact" value={null} />
+                <Detail label="Emergency contact" value={[student.emergency_contact_name, student.emergency_contact_phone].filter(Boolean).join(" · ") || null} />
               </div>
-              <p className="text-[11px] text-stone-400 mt-3">Emergency contact isn't recorded for madrasah students yet.</p>
             </div>
             <div className="bg-white border border-stone-200 rounded-2xl p-5">
               <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-3">Parent / guardian</p>
