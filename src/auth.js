@@ -3958,3 +3958,33 @@ export async function setDBSOrderNotes(orderId, notes) {
   }
   return { data: shapeDBSOrder(data) }
 }
+
+// ====================================================================
+// Global search (096 / api/search.js). Role scope is enforced in the DB
+// (search_global is SECURITY DEFINER, reads auth.uid()); we forward the
+// session's access_token so it resolves server-side, plus a `role` HINT
+// that only gates the optional semantic enrichment (public scholar/mosque
+// data) — never a security boundary. Returns a flat, ranked result array:
+//   [{ type, id, title, subtitle, mosqueId, semantic }]
+// Degrades to [] on no-session / short query / any API failure, so the
+// palette just shows "no results" rather than throwing.
+export async function searchGlobal(query, roleHint = null) {
+  const q = (query || '').trim()
+  if (q.length < 2) return []
+  const { data: { session } } = await supabase.auth.getSession()
+  const accessToken = session?.access_token
+  if (!accessToken) return []
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q, access_token: accessToken, role: roleHint || null }),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return data?.ok && Array.isArray(data.results) ? data.results : []
+  } catch (err) {
+    console.warn('[searchGlobal] failed:', err?.message)
+    return []
+  }
+}
