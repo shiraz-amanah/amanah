@@ -96,6 +96,15 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
     setEditing(false);
   };
 
+  // Back-button audit (parent dashboard): the report modal and the Hifz log are
+  // local-state sub-views with no URL route, so the browser Back button used to
+  // skip past them straight out of the dashboard (→ homepage/login). Guard them
+  // into history so the first Back closes the open sub-view and returns the
+  // parent to the child card. In-app closes call history.back() so both Back
+  // paths behave identically. (A message thread is already a real route —
+  // conversationView — so browser Back returns to the card on its own.)
+  useHistoryBackGuard(!!openReport || showLog, () => { setOpenReport(null); setShowLog(false); });
+
   useEffect(() => {
     let alive = true; setLoading(true);
     Promise.all([
@@ -283,7 +292,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
                 <div className="flex items-center justify-between mt-1.5 text-[11px] text-emerald-100/80"><span>{memorizedCount}/114 surahs memorised</span><span>{hifzPct}%</span></div>
               </div>
               <p className="text-sm font-medium text-white/95 mt-3.5">{progressThisWeek ? `✨ MashAllah — ${firstName} made progress this week!` : `May Allah bless ${firstName}'s journey 🤲`}</p>
-              <button onClick={() => setShowLog((v) => !v)} className="mt-3 text-[11px] text-emerald-100/90 hover:text-white inline-flex items-center gap-1">{showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {showLog ? "Hide log" : "View full log"}</button>
+              <button onClick={() => (showLog ? window.history.back() : setShowLog(true))} className="mt-3 text-[11px] text-emerald-100/90 hover:text-white inline-flex items-center gap-1">{showLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {showLog ? "Hide log" : "View full log"}</button>
               {showLog && <ul className="mt-2 space-y-1 bg-emerald-950/25 rounded-lg p-3">{hifz.slice(0, 10).map((e) => (
                 <li key={e.id} className="text-xs text-emerald-50/90 flex items-center justify-between gap-2"><span>{surahName(e.surah_number)}</span><span className="text-emerald-100/60">{e.session_date}</span></li>
               ))}</ul>}
@@ -427,7 +436,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
           studentName={student.name}
           className={openReport.class?.name}
           mosqueName={openReport.class?.mosque?.name}
-          onClose={() => setOpenReport(null)}
+          onClose={() => window.history.back()}
         />
       )}
     </div>
