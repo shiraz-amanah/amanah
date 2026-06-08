@@ -126,6 +126,18 @@ export async function updateStudent(id, updates) {
   return { data, error }
 }
 
+// Mosque admin edits an enrolled student's details (091 SECURITY DEFINER RPC —
+// students are parent-owned, so the admin can't UPDATE the row directly).
+export async function adminUpdateStudent({ studentId, mosqueId, name, dob, gender, relation }) {
+  if (!studentId || !mosqueId) return { error: { message: 'studentId and mosqueId required' } }
+  const { data, error } = await supabase.rpc('madrasa_admin_update_student', {
+    p_student: studentId, p_mosque: mosqueId, p_name: name,
+    p_dob: dob || null, p_gender: gender || null, p_relation: relation || null,
+  })
+  if (error) { console.error('Error updating student (admin):', error); return { error } }
+  return { data }
+}
+
 export async function deleteStudent(id) {
   const { error } = await supabase.from('students').delete().eq('id', id)
   return { error }
@@ -687,7 +699,7 @@ export async function getMosqueEnrollments(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    .select('*, student:students(id, name, age, relation, profile_id), class:madrasa_classes(id, name, subject)')
+    .select('*, student:students(id, name, age, dob, gender, relation, profile_id), class:madrasa_classes(id, name, subject)')
     .eq('mosque_id', mosqueId).order('enrolled_at', { ascending: false })
   if (error) { console.error('Error fetching mosque enrollments:', error); return [] }
   return data || []

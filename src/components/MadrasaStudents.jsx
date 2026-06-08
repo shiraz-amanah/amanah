@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Search, UserPlus, Users, GraduationCap, Star, AlertTriangle, MessageCircle, FileSpreadsheet, X, CalendarCheck, BookOpen, ClipboardList, Clock, ChevronRight } from "lucide-react";
+import { Loader2, Search, UserPlus, Users, GraduationCap, Star, AlertTriangle, MessageCircle, FileSpreadsheet, X, CalendarCheck, BookOpen, ClipboardList, Clock, ChevronRight, Pencil, Check, AlertCircle } from "lucide-react";
 import BulkParentMessageModal from "./BulkParentMessageModal";
 import MadrasaImportStudents from "./MadrasaImportStudents";
 import MadrasaPendingInvites from "./MadrasaPendingInvites";
 import {
   getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll,
-  getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll,
+  getHomeworkForClasses, getClassHomeworkCompletions, getMosqueRewardsAll, adminUpdateStudent,
 } from "../auth";
 import { surahName } from "../data/surahs";
 import { computeStarsAndRisk } from "../lib/madrasaScoring";
+import { useOverlay, overlayBack } from "../lib/useOverlay";
 
 // Madrasah → Students directory (Session AM redesign). A premium student
 // directory: one rich card per child (deduped across classes) with avatar,
@@ -50,6 +51,10 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
   const [refresh, setRefresh] = useState(0);
   const [panelSid, setPanelSid] = useState(null);   // selected student → slide-in
   const [panelShown, setPanelShown] = useState(false);
+  const [editing, setEditing] = useState(false);    // admin editing the panel student
+  const [editForm, setEditForm] = useState({ name: "", dob: "", gender: "", relation: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
 
   const classIds = useMemo(() => (classes || []).map((c) => c.id), [classes]);
   const enrolledStudentIds = useMemo(() => new Set((enrollments || []).filter((e) => e.status === "active").map((e) => e.student?.id || e.student_id)), [enrollments]);
@@ -151,14 +156,33 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
   }, [studentRows, q, classFilter]);
 
   // Slide-in panel open/close (animate in on the next frame).
-  const openPanel = (sid) => { setPanelSid(sid); requestAnimationFrame(() => setPanelShown(true)); };
-  const closePanel = () => { setPanelShown(false); setTimeout(() => setPanelSid(null), 200); };
+  const openPanel = (sid) => { setEditing(false); setEditError(""); setPanelSid(sid); requestAnimationFrame(() => setPanelShown(true)); };
+  const closePanel = () => { setPanelShown(false); setEditing(false); setTimeout(() => setPanelSid(null), 200); };
+
+  const startEdit = (st) => {
+    setEditForm({ name: st.name || "", dob: st.dob || "", gender: st.gender || "", relation: st.relation || "" });
+    setEditError(""); setEditing(true);
+  };
+  const saveEdit = async (sid) => {
+    const name = editForm.name.trim();
+    if (!name) { setEditError("A name is required."); return; }
+    setSavingEdit(true); setEditError("");
+    const { data, error } = await adminUpdateStudent({ studentId: sid, mosqueId, name, dob: editForm.dob || null, gender: editForm.gender || null, relation: editForm.relation || null });
+    setSavingEdit(false);
+    if (error) { setEditError(error.message || "Couldn't save changes."); return; }
+    // Patch the enrollment rows in place so the panel + card update immediately.
+    const patch = data || { name, dob: editForm.dob || null, gender: editForm.gender || null, relation: editForm.relation || null };
+    setEnrollments((prev) => (prev || []).map((e) => ((e.student?.id || e.student_id) === sid ? { ...e, student: { ...e.student, ...patch } } : e)));
+    setEditing(false);
+  };
   useEffect(() => {
     if (!panelSid) return;
-    const onKey = (e) => { if (e.key === "Escape") closePanel(); };
+    const onKey = (e) => { if (e.key === "Escape") overlayBack(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [panelSid]);
+  // Back closes the student panel before leaving the Students directory.
+  useOverlay(!!panelSid, closePanel);
 
   const panel = panelSid ? studentRows.find((s) => s.sid === panelSid) : null;
 
@@ -280,7 +304,7 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
         const stars = starByStudent[panel.sid] || 0;
         return (
           <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
-            <div className={`absolute inset-0 bg-stone-900/40 transition-opacity duration-200 ${panelShown ? "opacity-100" : "opacity-0"}`} onClick={closePanel} />
+            <div className={`absolute inset-0 bg-stone-900/40 transition-opacity duration-200 ${panelShown ? "opacity-100" : "opacity-0"}`} onClick={() => overlayBack()} />
             <aside className={`relative bg-stone-50 w-full max-w-md h-full overflow-y-auto shadow-xl transform transition-transform duration-200 ${panelShown ? "translate-x-0" : "translate-x-full"}`}>
               <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-4 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0">
@@ -293,10 +317,45 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
                     <p className="text-xs text-stone-500">{[st.age ? `Age ${st.age}` : null, st.gender, st.relation].filter(Boolean).join(" · ") || "—"}</p>
                   </div>
                 </div>
-                <button onClick={closePanel} className="text-stone-400 hover:text-stone-700 p-1 shrink-0"><X size={18} /></button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {!editing && <button onClick={() => startEdit(st)} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Pencil size={11} /> Edit</button>}
+                  <button onClick={() => overlayBack()} className="text-stone-400 hover:text-stone-700 p-1"><X size={18} /></button>
+                </div>
               </div>
 
               <div className="p-5 space-y-4">
+                {/* Inline admin editor — name / DOB / gender / relation (091 RPC) */}
+                {editing && (
+                  <div className="bg-white border border-emerald-200 ring-1 ring-emerald-100 rounded-xl p-4 space-y-3">
+                    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Edit student details</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Full name</label>
+                        <input autoFocus value={editForm.name} onChange={(ev) => setEditForm((f) => ({ ...f, name: ev.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Date of birth</label>
+                        <input type="date" max={new Date().toISOString().slice(0, 10)} value={editForm.dob || ""} onChange={(ev) => setEditForm((f) => ({ ...f, dob: ev.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Gender</label>
+                        <select value={editForm.gender || ""} onChange={(ev) => setEditForm((f) => ({ ...f, gender: ev.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+                          <option value="">—</option><option value="male">Male</option><option value="female">Female</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Relationship to parent</label>
+                        <input value={editForm.relation || ""} onChange={(ev) => setEditForm((f) => ({ ...f, relation: ev.target.value }))} placeholder="e.g. son, daughter" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      </div>
+                    </div>
+                    {editError && <p className="text-xs text-rose-700 flex items-center gap-1.5"><AlertCircle size={13} /> {editError}</p>}
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setEditing(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
+                      <button onClick={() => saveEdit(panel.sid)} disabled={savingEdit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Classes */}
                 <div className="flex flex-wrap gap-1.5">
                   {panel.classNames.length ? panel.classNames.map((c) => <span key={c} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{c}</span>) : <span className="text-xs text-stone-400">No classes</span>}
