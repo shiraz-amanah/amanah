@@ -7575,9 +7575,10 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 
 // ==================== USER DASHBOARD ====================
   const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate }) => {
-  // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
-  // replace:true so tab clicks don't pollute browser history. setTab kept
-  // as a local alias for the internal references.
+  // tab is URL-backed (?tab=X in /dashboard). onTabChange PUSHES a history entry
+  // per tab switch (Session AN) so the parent's browser Back steps back through
+  // tabs / sub-views in reverse order instead of jumping to the homepage. setTab
+  // kept as a local alias for the internal references.
   const setTab = onTabChange;
   const [editingProfile, setEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", city: "", phone: "" });
@@ -13276,7 +13277,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
     conversationsLoading={conversationsLoading && !!authedProfile}
     onConversation={(c) => { setSelectedConversation(c); setRole("user"); navigate("conversationView", { id: c.id }); }}
     tab={routeQuery.tab || "bookings"}
-    onTabChange={(t) => navigate("userDashboard", {}, { tab: t }, { replace: true })}
+    onTabChange={(t) => navigate("userDashboard", {}, { tab: t }, {})}
     onNotificationNavigate={(t) => navigate("userDashboard", {}, { tab: t }, {})}
     savedScholarIds={savedScholarIds}
     savedCampaignIds={savedCampaignIds}
