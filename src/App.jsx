@@ -44,6 +44,7 @@ import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
 import ContractSign from "./pages/ContractSign";
 import NotificationBell from "./components/NotificationBell";
+import GlobalSearch, { GlobalSearchTrigger } from "./components/GlobalSearch";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
@@ -12277,7 +12278,7 @@ const AdminAllUsers = ({ authedProfile }) => {
 };
 
 // ===== Admin panel shell =====
-const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionChange }) => {
+const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionChange, navigate }) => {
   const displayName = authedProfile?.name || authedProfile?.email || "Admin";
   // section is URL-backed (?section=X in /admin). onSectionChange navigates
   // with replace:true so sidebar clicks don't pollute browser history.
@@ -12356,6 +12357,15 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
   };
   const handleNotifNavigate = (n) => setSection(NOTIF_SECTION[n.type] || "overview");
 
+  // Global search result → destination. Scholars/mosques open their public
+  // detail (slug hydrated by api/search.js); students/staff/parents land on
+  // All users, the admin management surface for people.
+  const handleSearchSelect = (r) => {
+    if (r.type === "scholar" && r.slug) navigate?.("scholarDetail", { slug: r.slug });
+    else if (r.type === "mosque" && r.slug) navigate?.("mosqueDetail", { slug: r.slug });
+    else setSection("users");
+  };
+
   return (
     <div className="min-h-screen bg-stone-50">
       <AdminSidebar
@@ -12382,12 +12392,19 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
           <div className="w-7 h-7 rounded-lg bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={14} /></div>
           <div className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{sectionTitle}</div>
         </div>
-        <NotificationBell userId={authedProfile?.id} onNavigate={handleNotifNavigate} />
+        <div className="flex items-center gap-1">
+          <GlobalSearchTrigger compact />
+          <NotificationBell userId={authedProfile?.id} onNavigate={handleNotifNavigate} />
+        </div>
       </div>
 
+      {/* One palette instance for the whole panel; triggers (above + below) open it via event. */}
+      <GlobalSearch roleHint="admin" onSelect={handleSearchSelect} />
+
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
-        {/* Desktop header — notification bell, top right */}
-        <div className="hidden md:flex items-center justify-end mb-6">
+        {/* Desktop header — search + notification bell, top right */}
+        <div className="hidden md:flex items-center justify-end gap-3 mb-6">
+          <GlobalSearchTrigger />
           <NotificationBell userId={authedProfile?.id} onNavigate={handleNotifNavigate} />
         </div>
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
@@ -13522,6 +13539,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
     }}
     section={routeQuery.section || "overview"}
     onSectionChange={(s) => navigate("adminPanel", {}, { section: s }, { replace: true })}
+    navigate={navigate}
   />;
   if (view === "mosqueDashboard") return <MosqueDashboard
     MessagesInbox={MessagesInbox}

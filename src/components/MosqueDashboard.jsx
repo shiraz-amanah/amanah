@@ -19,6 +19,7 @@ import MosqueCompliance from "./MosqueCompliance";
 import MosqueDocuments from "./MosqueDocuments";
 import MosqueScholarLinks from "./MosqueScholarLinks";
 import NotificationBell from "./NotificationBell";
+import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 
 // Mosque dashboard shell. Session AK collapsed the old 10-tab bar into 5
 // top-level tabs (Dashboard / People / Mosque / Madrasah / Compliance), each
@@ -107,6 +108,14 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
   };
   const selectStaff = (id) => onNavigate?.("people", "team", id || "");
 
+  // Global search result → destination within this mosque's dashboard. Staff
+  // deep-link to their record (people · team · staffId); students and classes
+  // land on the Madrasah surface where they're managed.
+  const handleSearchSelect = (r) => {
+    if (r.type === "staff") selectStaff(r.id);
+    else onNavigate?.("madrasah", "", "");
+  };
+
   const unread = (conversations || []).reduce((s, c) => s + (c.unread || 0), 0);
 
   return (
@@ -132,7 +141,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
                 <AlertCircle size={10} /> Pending verification
               </span>
             ) : null}
-            {/* Notifications + Messages + Account live in the header so the tab bar stays at 5. */}
+            {/* Search + Notifications + Messages + Account live in the header so the tab bar stays at 5. */}
+            <GlobalSearch roleHint="mosque" onSelect={handleSearchSelect} />
+            <GlobalSearchTrigger compact />
             <NotificationBell userId={authedUser?.id} onNavigate={(n) => {
               if (n.type === "message") setTab("messages");
               else if (n.type === "cover_request") setTab("people", "rotas");

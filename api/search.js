@@ -92,6 +92,32 @@ function joinDot(...parts) {
   return s || null;
 }
 
+// Scholar/mosque results carry an id but the public detail routes are slug-based
+// (/scholar/:slug, /mosque/:slug), so batch-fetch the slugs and attach them.
+// One GET per type, only when such results exist (admin only). Best-effort:
+// a result without a slug just isn't deep-linkable, the card still shows.
+async function attachSlugs(results, ctx) {
+  for (const type of ['scholar', 'mosque']) {
+    const table = type === 'scholar' ? 'scholars' : 'mosques';
+    const ids = [...new Set(results.filter((r) => r.type === type && !r.slug).map((r) => r.id))];
+    if (!ids.length) continue;
+    try {
+      const r = await fetch(
+        `${ctx.url}/rest/v1/${table}?id=in.(${ids.join(',')})&select=id,slug`,
+        { headers: { apikey: ctx.anonKey, Authorization: `Bearer ${ctx.userToken}` } },
+      );
+      if (!r.ok) continue;
+      const rows = await r.json();
+      const bySlug = new Map((Array.isArray(rows) ? rows : []).map((x) => [String(x.id), x.slug]));
+      for (const res of results) {
+        if (res.type === type && bySlug.has(res.id)) res.slug = bySlug.get(res.id);
+      }
+    } catch (err) {
+      console.warn(`[search] slug hydrate (${type}) failed:`, err?.message);
+    }
+  }
+}
+
 // Best-effort semantic enrichment for the admin scholar/mosque tiers. Returns
 // extra result rows (already excluding ids present in the keyword set). Never
 // throws — logs and returns [] on any failure.
@@ -202,6 +228,9 @@ export default async function handler(req, res) {
     const extra = await semanticEnrich(q, results, ctx, process.env);
     results.push(...extra);
   }
+
+  // Deep-link slugs for scholar/mosque results (keyword + semantic).
+  await attachSlugs(results, ctx);
 
   return res.status(200).json({ ok: true, results });
 }
