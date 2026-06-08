@@ -926,6 +926,14 @@ export async function setEnrollmentStatus(id, status) {
   return { data, error }
 }
 
+// Owner removes a student from a class entirely (deletes the enrolment row;
+// 068 owner-manage RLS). Used by the student profile "Remove from class" action.
+export async function removeEnrollment(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('madrasa_enrollments').delete().eq('id', id)
+  return { error }
+}
+
 // --- Madrasa waiting list (migration 081) ---
 // Join a child to a class waitlist. The partial-unique index allows only one LIVE
 // (waiting/offered) row per (class, student) — a 23505 means they're already on
@@ -1250,7 +1258,7 @@ export async function getHomeworkForClasses(classIds) {
 export async function getStudentCompletions(studentId) {
   if (!studentId) return []
   const { data, error } = await supabase
-    .from('madrasa_homework_completions').select('homework_id, files').eq('student_id', studentId)
+    .from('madrasa_homework_completions').select('homework_id, files, completed_at').eq('student_id', studentId)
   if (error) { console.error('Error fetching student completions:', error); return [] }
   return data || []
 }

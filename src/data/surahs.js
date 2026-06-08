@@ -55,3 +55,21 @@ export const SURAHS_AR = [
   "المسد", "الإخلاص", "الفلق", "الناس",
 ];
 export const surahNameAr = (n) => SURAHS_AR[(n || 0) - 1] || "";
+
+// The surah at which each of the 30 juz begins (juz i starts in JUZ_START_SURAH[i-1]).
+// Used to estimate the juz of a memorisation position. Exact for the common
+// short-surah juz (e.g. juz 30 = surahs 78–114); approximate for long surahs
+// that span multiple juz (the juz where that surah *begins*).
+const JUZ_START_SURAH = [1, 2, 2, 3, 4, 4, 5, 6, 7, 8, 9, 11, 12, 15, 17, 18, 21, 23, 25, 27, 29, 33, 36, 39, 41, 46, 51, 58, 67, 78];
+// Juz that contains the start of surah n (1–30). For surahs where several juz
+// begin (e.g. Al-Baqarah), returns the first such juz so it reads as "where the
+// student currently is" rather than where the surah ends.
+export const juzOfSurah = (n) => {
+  if (!n || n < 1) return null;
+  let juz = 1;
+  for (let i = 0; i < 30; i++) { if (JUZ_START_SURAH[i] <= n) juz = i + 1; else break; }
+  // Step back over juz that merely start *inside* this surah, so we report the
+  // juz the surah opens in.
+  while (juz > 1 && JUZ_START_SURAH[juz - 1] === n && JUZ_START_SURAH[juz - 2] === n) juz--;
+  return juz;
+};
