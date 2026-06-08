@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, MapPin, Heart, Clock, Globe, Phone, HandCoins, Calendar, Pin, CheckCircle2, X, GraduationCap } from "lucide-react";
+import { ShieldCheck, MapPin, Heart, Clock, Globe, Phone, HandCoins, Calendar, Pin, CheckCircle2, X, GraduationCap, BadgeCheck } from "lucide-react";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES, PRAYER_KEYS, PRAYER_LABELS, MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import { getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam, getMosqueScholars } from "../auth";
+import MosquePrayerTimes from "../components/MosquePrayerTimes";
+import MosqueDonateModal from "../components/MosqueDonateModal";
+import MosqueClaimModal from "../components/MosqueClaimModal";
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
 // Works for logged-out visitors — all reads are anon-safe (RLS public-read on
@@ -29,6 +32,8 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
   const [team, setTeam] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [lightbox, setLightbox] = useState(null);
+  const [showDonate, setShowDonate] = useState(false);
+  const [showClaim, setShowClaim] = useState(false);
 
   useEffect(() => {
     const id = mosque?.id;
@@ -50,8 +55,6 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
     );
   }
 
-  const prayer = mosque.prayer_times || mosque.iqamaTimes || {};
-  const hasPrayer = PRAYER_KEYS.some((k) => prayer[k]);
   const facilities = Array.isArray(mosque.facilities) ? mosque.facilities : [];
   const services = Array.isArray(mosque.services) ? mosque.services : [];
   const photos = Array.isArray(mosque.photos) ? mosque.photos : [];
@@ -93,6 +96,17 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
       </div>
 
       <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8 space-y-5">
+        {/* Donate + claim CTAs */}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setShowDonate(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-xl inline-flex items-center gap-2 shadow-sm"><HandCoins size={16} /> Donate to this mosque</button>
+          {!mosque.user_id && (
+            <button onClick={() => setShowClaim(true)} className="border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-sm font-medium px-5 py-2.5 rounded-xl inline-flex items-center gap-2"><BadgeCheck size={16} /> Is this your mosque? Claim this listing</button>
+          )}
+        </div>
+
+        {/* Prayer times — the first thing a visitor sees */}
+        <MosquePrayerTimes mosque={mosque} />
+
         {/* About */}
         {(mosque.description || mosque.bio) && (
           <Section title="About"><p className="text-sm text-stone-700 leading-relaxed whitespace-pre-line">{mosque.description || mosque.bio}</p></Section>
@@ -111,27 +125,6 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
           </Section>
         )}
 
-        {/* Prayer times */}
-        {(hasPrayer || mosque.jumuah_time) && (
-          <Section title="Prayer times">
-            {hasPrayer && (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {PRAYER_KEYS.map((k) => (
-                  <div key={k}>
-                    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">{PRAYER_LABELS[k]}</p>
-                    <p className="text-sm text-emerald-700 font-mono font-medium">{prayer[k] || "—"}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            {mosque.jumuah_time && (
-              <div className="mt-3 pt-3 border-t border-stone-100 flex items-center gap-2 text-sm">
-                <Clock size={14} className="text-emerald-700" />
-                <span className="text-stone-700">Jumu'ah <span className="font-mono text-emerald-700 font-medium">{mosque.jumuah_time}</span>{mosque.jumuah_language ? ` · ${mosque.jumuah_language}` : ""}</span>
-              </div>
-            )}
-          </Section>
-        )}
 
         {/* Services */}
         {services.length > 0 && (
@@ -251,6 +244,9 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
           </div>
         </Section>
       </main>
+
+      {showDonate && <MosqueDonateModal mosque={mosque} onClose={() => setShowDonate(false)} />}
+      {showClaim && <MosqueClaimModal mosque={mosque} onClose={() => setShowClaim(false)} />}
 
       {/* Lightbox */}
       {lightbox && (
