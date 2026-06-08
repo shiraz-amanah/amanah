@@ -7165,11 +7165,53 @@ students/staff/classes only; confirm NO scholars/mosques/parents leak).
 - Admin student/staff/parent results all land on **All users** — there's no
   per-entity admin detail surface; the palette's value is the fuzzy-find, the
   landing is the nearest management surface.
-- Semantic tier only fires for an admin whose keyword search already returned
-  some scholar/mosque rows-worth of signal; a pure-semantic admin query with
-  zero keyword hits won't trigger it (acceptable — semantic is a *fallback*).
+- Semantic tier is a **true fallback** — see the AU follow-up below for the
+  exact trigger (it was retuned after the first smoke test).
 - Mobile admin: ⌘K doesn't exist on touch, but the compact search icon in the
   mobile top bar dispatches the same open event.
+
+### AU follow-up — two smoke-test bugs fixed ✅ (8 June 2026)
+
+Both found on first prod smoke, both **confirmed green on prod**. Migration
+**097** + one code commit (`bf830fb`). Build clean. Vercel still 12/12.
+
+**Bug 2 — directory-only staff dropped (`097_search_staff_directory_fix.sql`).**
+The 096 staff subqueries INNER JOIN `mosque_staff → profiles` and filtered
+`p.name`. Since migration 054 a staff record can be **directory-only** (no app
+account): `profile_id` NULL, display name on `mosque_staff.name`. The inner join
+silently dropped every such record. 097 re-creates `search_global` with **LEFT
+JOIN profiles + `coalesce(p.name, ms.name)`** for filter/title/rank in both the
+admin and mosque-owner staff blocks, and excludes archived staff. (Single
+`create or replace function`; `prosecdef=t` re-probed green dev+prod.) Answer to
+the recurring question: **yes, `mosque_staff` has its own `name` column** (054,
+which also made `profile_id` nullable).
+
+**Bug 1 — exact keyword hit buried, looked like "not rendering" (`bf830fb`).**
+Admin search for a student ("Adam") showed scholars/mosques but not the student.
+The student WAS in the `/api/search` response (`semantic:false`) and the render
+code was correct (all five types in `GROUP_ORDER`/`TYPE_META`, no count guard) —
+it was being **pushed below the fold**. Root cause in `api/search.js`: semantic
+enrichment fired per-type whenever keyword scholar/mosque hits were thin (`< 3`),
+appending up to **12 fuzzy scholar/mosque rows** that group *above* students and
+drowned the lone real hit. Fixes:
+- **Semantic is now a true fallback** — fires only when the keyword tier returned
+  **nothing at all** (`results.length === 0`). If keyword found anything, trust
+  it. (This supersedes the old per-type `< 3` trigger.)
+- **`GROUP_CAP = 6`** per group in `GlobalSearch.jsx`, with a "+N more — keep
+  typing to refine" hint, so no single type can bury another.
+- **Latent arrow-key bug fixed:** Enter selected `results[active]` (RPC order),
+  not the highlighted row (grouped order). Navigation now walks a display-ordered
+  `flatItems` list, so highlight + Enter always agree.
+
+**Parked follow-up — pending invites aren't searchable.** `getMosqueStaff` reads
+`mosque_staff` only; the People → Team UI also renders **pending invites** from
+`mosque_staff_invites` (`invitee_name`, no `mosque_staff`/`profiles` row yet) via
+a separate path. `search_global` doesn't touch that table, so a pre-signup
+invitee (e.g. Haji Ali on prod) is unfindable in search until they're a real
+staff row. Deliberately **not** fixed here — the 097 LEFT JOIN is correct for
+real directory rows; covering invitees is a small, separate add (union
+`mosque_staff_invites.invitee_name`, mosque-scoped, status `pending`) if/when
+wanted.
 
 ---
 
