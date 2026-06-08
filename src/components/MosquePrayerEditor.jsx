@@ -16,6 +16,19 @@ const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const blankRamadan = () => Object.fromEntries(PRAYERS.map((p) => [p.k, { adhan: "", iqamah: "" }]));
 const blankSession = () => ({ time: "", location: "", language: "", notes: "" });
 
+// Module-level so it keeps a stable component identity across the parent's
+// re-renders — defining it inside MosquePrayerEditor remounted the inputs on
+// every keystroke (focus loss). Native type="time" picker on desktop + mobile.
+const TimePair = ({ value, onAdhan, onIqamah, labelAr, labelEn }) => (
+  <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
+    <p className="text-sm font-medium text-stone-800">{labelEn} <span className="text-stone-400" dir="rtl" lang="ar" style={{ fontFamily: "'Amiri', serif" }}>{labelAr}</span></p>
+    <div className="grid grid-cols-2 gap-2 mt-2">
+      <div><label className={labelCls}>Adhan</label><input type="time" className={inputCls} value={value.adhan} onChange={(e) => onAdhan(e.target.value)} /></div>
+      <div><label className={labelCls}>Iqamah</label><input type="time" className={inputCls} value={value.iqamah} onChange={(e) => onIqamah(e.target.value)} /></div>
+    </div>
+  </div>
+);
+
 const MosquePrayerEditor = ({ mosque, onSaved }) => {
   const [pt, setPt] = useState(() => normalizePrayerTimes(mosque?.prayer_times));
   const [info, setInfo] = useState(() => {
@@ -58,16 +71,6 @@ const MosquePrayerEditor = ({ mosque, onSaved }) => {
     setSaved(true); onSaved?.(data);
   };
 
-  const TimePair = ({ value, onAdhan, onIqamah, labelAr, labelEn }) => (
-    <div className="bg-stone-50 border border-stone-200 rounded-xl p-3">
-      <p className="text-sm font-medium text-stone-800">{labelEn} <span className="text-stone-400" dir="rtl" lang="ar" style={{ fontFamily: "'Amiri', serif" }}>{labelAr}</span></p>
-      <div className="grid grid-cols-2 gap-2 mt-2">
-        <div><label className={labelCls}>Adhan</label><input className={inputCls + " font-mono"} placeholder="05:30" value={value.adhan} onChange={(e) => onAdhan(e.target.value)} /></div>
-        <div><label className={labelCls}>Iqamah</label><input className={inputCls + " font-mono"} placeholder="05:45" value={value.iqamah} onChange={(e) => onIqamah(e.target.value)} /></div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -90,9 +93,9 @@ const MosquePrayerEditor = ({ mosque, onSaved }) => {
           <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-3 sm:col-span-2 lg:col-span-1">
             <p className="text-sm font-medium text-stone-800">Jumu'ah <span className="text-stone-400" dir="rtl" lang="ar" style={{ fontFamily: "'Amiri', serif" }}>{JUMUAH_AR}</span></p>
             <div className="grid grid-cols-3 gap-2 mt-2">
-              <div><label className={labelCls}>1st khutbah</label><input className={inputCls + " font-mono"} placeholder="13:15" value={pt.jumuah.khutbah1} onChange={(e) => setJumuah("khutbah1", e.target.value)} /></div>
-              <div><label className={labelCls}>2nd khutbah</label><input className={inputCls + " font-mono"} placeholder="—" value={pt.jumuah.khutbah2} onChange={(e) => setJumuah("khutbah2", e.target.value)} /></div>
-              <div><label className={labelCls}>Iqamah</label><input className={inputCls + " font-mono"} placeholder="13:30" value={pt.jumuah.iqamah} onChange={(e) => setJumuah("iqamah", e.target.value)} /></div>
+              <div><label className={labelCls}>1st khutbah</label><input type="time" className={inputCls} value={pt.jumuah.khutbah1} onChange={(e) => setJumuah("khutbah1", e.target.value)} /></div>
+              <div><label className={labelCls}>2nd khutbah</label><input type="time" className={inputCls} value={pt.jumuah.khutbah2} onChange={(e) => setJumuah("khutbah2", e.target.value)} /></div>
+              <div><label className={labelCls}>Iqamah</label><input type="time" className={inputCls} value={pt.jumuah.iqamah} onChange={(e) => setJumuah("iqamah", e.target.value)} /></div>
             </div>
           </div>
         </div>
@@ -113,7 +116,7 @@ const MosquePrayerEditor = ({ mosque, onSaved }) => {
             <div key={i} className="border border-stone-200 rounded-xl p-3">
               <div className="flex items-center justify-between mb-2"><span className="text-[11px] font-medium text-stone-500">Session {i + 1}</span>{info.sessions.length > 1 && <button onClick={() => rmSession(i)} className="text-stone-400 hover:text-rose-600"><X size={14} /></button>}</div>
               <div className="grid sm:grid-cols-2 gap-2">
-                <div><label className={labelCls}>Time</label><input className={inputCls + " font-mono"} placeholder="13:30" value={s.time} onChange={(e) => setSession(i, "time", e.target.value)} /></div>
+                <div><label className={labelCls}>Time</label><input type="time" className={inputCls} value={s.time} onChange={(e) => setSession(i, "time", e.target.value)} /></div>
                 <div><label className={labelCls}>Location / hall</label><input className={inputCls} placeholder="Main hall" value={s.location} onChange={(e) => setSession(i, "location", e.target.value)} /></div>
                 <div><label className={labelCls}>Khutbah language</label><select className={inputCls} value={s.language} onChange={(e) => setSession(i, "language", e.target.value)}><option value="">—</option>{KHUTBAH_LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}</select></div>
                 <div><label className={labelCls}>Notes</label><input className={inputCls} placeholder="e.g. sisters welcome" value={s.notes} onChange={(e) => setSession(i, "notes", e.target.value)} /></div>

@@ -141,9 +141,9 @@ const MosqueRamadanEditor = ({ mosque, onSaved }) => {
                     <tr key={i} className="border-t border-stone-100">
                       <td className="px-2 py-1.5 text-stone-600 whitespace-nowrap">{r.date}</td>
                       <td className="px-2 py-1.5 text-stone-400">{r.day || dayName(r.date)}</td>
-                      <td className="px-1 py-1"><input className="w-20 px-2 py-1 rounded border border-stone-200 font-mono text-xs" value={r.sehri_end || ""} onChange={(e) => setRow(i, "sehri_end", e.target.value)} /></td>
-                      <td className="px-1 py-1"><input className="w-20 px-2 py-1 rounded border border-stone-200 font-mono text-xs" value={r.iftar || ""} onChange={(e) => setRow(i, "iftar", e.target.value)} /></td>
-                      <td className="px-1 py-1"><input className="w-20 px-2 py-1 rounded border border-stone-200 font-mono text-xs" value={r.tarawih_start || ""} onChange={(e) => setRow(i, "tarawih_start", e.target.value)} /></td>
+                      <td className="px-1 py-1"><input type="time" className="w-28 px-2 py-1 rounded border border-stone-200 text-xs" value={r.sehri_end || ""} onChange={(e) => setRow(i, "sehri_end", e.target.value)} /></td>
+                      <td className="px-1 py-1"><input type="time" className="w-28 px-2 py-1 rounded border border-stone-200 text-xs" value={r.iftar || ""} onChange={(e) => setRow(i, "iftar", e.target.value)} /></td>
+                      <td className="px-1 py-1"><input type="time" className="w-28 px-2 py-1 rounded border border-stone-200 text-xs" value={r.tarawih_start || ""} onChange={(e) => setRow(i, "tarawih_start", e.target.value)} /></td>
                     </tr>
                   ))}
                 </tbody>
