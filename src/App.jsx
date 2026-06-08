@@ -7574,7 +7574,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange navigates with
   // replace:true so tab clicks don't pollute browser history. setTab kept
   // as a local alias for the internal references.
@@ -7891,7 +7891,7 @@ setBookings(transformed);
             </div>
           </button>
           <div className="flex items-center gap-2">
-            <NotificationBell userId={profile?.id} onNavigate={(n) => setTab(n.type === "message" ? "messages" : "madrasa")} />
+            <NotificationBell userId={profile?.id} onNavigate={(n) => (onNotificationNavigate || setTab)(n.type === "message" ? "messages" : "madrasa")} />
             <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700", avatarUrl: user.avatarUrl, name: user.name }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
@@ -9048,7 +9048,7 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
 // Real-data scholar dashboard. Activated when an auth user has a
 // scholars row pointing at them (myScholar). Read-only this session
 // except for meeting_url editing on bookings.
-const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessages, onScholarUpdate, tab = "bookings", onTabChange }) => {
+const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessages, onScholarUpdate, tab = "bookings", onTabChange, onNotificationNavigate }) => {
   // tab is URL-backed (?tab=X in /scholar-dashboard). onTabChange navigates
   // with replace:true so each tab click doesn't pollute browser history.
   // setTab kept as a local alias to avoid renaming 7 internal references.
@@ -9204,7 +9204,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             </div>
           </button>
           <div className="flex items-center gap-2">
-            <NotificationBell userId={authedUser?.id} onNavigate={(n) => { if (n.type === "message") onOpenMessages?.(); else if (n.type === "cover_request") setTab("cover"); else setTab("bookings"); }} />
+            <NotificationBell userId={authedUser?.id} onNavigate={(n) => { if (n.type === "message") onOpenMessages?.(); else if (n.type === "cover_request") (onNotificationNavigate || setTab)("cover"); else (onNotificationNavigate || setTab)("bookings"); }} />
             <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient, avatar_url: scholar?.avatar_url, name: scholar?.name }} size="sm" />
             <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
@@ -13144,6 +13144,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onScholarUpdate={(updated) => setMyScholar(updated)}
     tab={routeQuery.tab || "bookings"}
     onTabChange={(t) => navigate("scholarDashboard", {}, { tab: t }, { replace: true })}
+    onNotificationNavigate={(t) => navigate("scholarDashboard", {}, { tab: t }, {})}
   />;
   if (view === "mosqueOnboarding") return <MosqueOnboardingWizard
     authedUser={authedUser}
@@ -13276,6 +13277,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onConversation={(c) => { setSelectedConversation(c); setRole("user"); navigate("conversationView", { id: c.id }); }}
     tab={routeQuery.tab || "bookings"}
     onTabChange={(t) => navigate("userDashboard", {}, { tab: t }, { replace: true })}
+    onNotificationNavigate={(t) => navigate("userDashboard", {}, { tab: t }, {})}
     savedScholarIds={savedScholarIds}
     savedCampaignIds={savedCampaignIds}
     savedScholars={savedScholars}

@@ -10,6 +10,7 @@ import MadrasaAnalytics from "./MadrasaAnalytics";
 import MadrasaEnrolWizard from "./MadrasaEnrolWizard";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
+import { useHistoryBackGuard } from "../lib/useHistoryBackGuard";
 
 const SECTIONS = [["classes", "Classes", GraduationCap], ["students", "Students", Users], ["analytics", "Analytics", BarChart3]];
 
@@ -47,6 +48,12 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const [section, setSection] = useState("classes");     // Classes | Students | Analytics
   const [showEnrol, setShowEnrol] = useState(false);     // Path A add-student wizard
   const [studentsKey, setStudentsKey] = useState(0);     // bump to refresh the Students list after enrol
+
+  // Class detail + reports are local-state sub-views, not URL routes. Guard them
+  // into browser history so the Back button returns to the Classes list instead
+  // of leaving the dashboard (Session AM item 6). In-app backs call
+  // window.history.back() so both Back paths behave identically.
+  useHistoryBackGuard(!!detailClass || showReports, () => { setDetailClass(null); setShowReports(false); });
 
   const reload = () => {
     setLoading(true);
@@ -96,7 +103,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
 
   // ---- Reports & exports view (owner only — this whole tab is the owner's) ----
   if (showReports) {
-    return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => setShowReports(false)} />;
+    return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => window.history.back()} />;
   }
 
   // ---- Class detail (full page) — that class's own Students/Attendance/
@@ -104,7 +111,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   if (detailClass) {
     return (
       <div>
-        <button onClick={() => setDetailClass(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> All classes</button>
+        <button onClick={() => window.history.back()} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> All classes</button>
         <div className="mb-5">
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{detailClass.name}</h2>
           <p className="text-sm text-stone-600">{SUBJECT_LABEL[detailClass.subject] || detailClass.subject}{detailClass.teacher?.name ? ` · ${detailClass.teacher.name}` : ""}{detailClass.room ? ` · ${detailClass.room}` : ""}{detailClass.schedule ? ` · ${scheduleText(detailClass.schedule)}` : ""}</p>
