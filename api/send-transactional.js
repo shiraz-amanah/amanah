@@ -762,6 +762,47 @@ ${ePara('<span style="font-size:13px;color:#9ca3af;">This link is personal to yo
 // Path A enrolment (089): a mosque admin enrolled a child on a parent's behalf.
 // Email the parent a sign-in link. Recipient is the linked profile's email, or
 // the pending_parent_email held on the student when they have no account yet.
+const CLAIM_ADMIN_EMAIL = 'shiraz@savecobradford.co.uk';
+
+// Anon-safe: a mosque claim was submitted. Emails the claimant a confirmation
+// and alerts the platform admin. Recipients come only from the claim row.
+async function handleMosqueClaimReceived(env, claimId) {
+  const rows = await sbGet(env, `mosque_claims?id=eq.${claimId}&select=claimant_name,claimant_role,claimant_email,claimant_phone,verification_note,mosque:mosques(name,city)`);
+  const c = Array.isArray(rows) ? rows[0] : null;
+  if (!c) return { status: 404, body: { ok: false, error: 'claim_not_found' } };
+  const mosqueName = c.mosque?.name || 'a mosque';
+
+  const inner1 = `${eGreeting(c.claimant_name || 'there')}${eHeading('Your claim has been received')}
+${ePara(`Thank you — we've received your request to claim <strong>${escapeHtml(mosqueName)}</strong> on Amanah.`)}
+${ePara('Our team will review it and email you. Once approved, you\'ll receive a link to set up your mosque admin account.')}${eSignoff}`;
+  const id1 = await sendEmail(env, { to: c.claimant_email, subject: `Claim received — ${mosqueName} · Amanah`, html: wrapEmail('Claim received', inner1) });
+
+  const inner2 = `${eHeading('New mosque claim to review')}
+${ePara(`<strong>${escapeHtml(mosqueName)}</strong>${c.mosque?.city ? `, ${escapeHtml(c.mosque.city)}` : ''}`)}
+${ePara(`Claimant: <strong>${escapeHtml(c.claimant_name || '')}</strong>${c.claimant_role ? ` (${escapeHtml(c.claimant_role)})` : ''}<br>Email: ${escapeHtml(c.claimant_email)}<br>Phone: ${escapeHtml(c.claimant_phone || '—')}`)}
+${c.verification_note ? ePara(`Note: ${escapeHtml(c.verification_note)}`) : ''}${ctaButton('Review in the admin panel', `${env.PUBLIC_APP_URL}/admin`)}${eSignoff}`;
+  let id2 = null;
+  try { id2 = await sendEmail(env, { to: CLAIM_ADMIN_EMAIL, subject: `New claim: ${mosqueName} — Amanah`, html: wrapEmail('New mosque claim', inner2) }); } catch (e) { /* admin alert best-effort */ }
+
+  return { status: 200, body: { ok: true, sent: id2 ? 2 : 1, ids: [id1, id2].filter(Boolean) } };
+}
+
+// Admin only: a claim was approved. Emails the claimant the token accept link.
+async function handleMosqueClaimApproved(env, caller, claimId) {
+  if (!(await isAdmin(env, caller.id))) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const rows = await sbGet(env, `mosque_claims?id=eq.${claimId}&select=claimant_name,claimant_email,claim_token,mosque:mosques(name)`);
+  const c = Array.isArray(rows) ? rows[0] : null;
+  if (!c) return { status: 404, body: { ok: false, error: 'claim_not_found' } };
+  const mosqueName = c.mosque?.name || 'your mosque';
+  const link = `${env.PUBLIC_APP_URL}/mosque/claim/accept/${c.claim_token}`;
+  const inner = `${eGreeting(c.claimant_name || 'there')}${eHeading('Your claim has been approved')}
+${ePara(`Your request to manage <strong>${escapeHtml(mosqueName)}</strong> on Amanah has been approved.`)}
+${ePara('Sign in (or create your account) with <strong>this email address</strong>, then open the link below to finish setting up your mosque admin account.')}
+${ctaButton('Set up your mosque account', link)}${eSignoff}`;
+  const id = await sendEmail(env, { to: c.claimant_email, subject: `Approved — manage ${mosqueName} on Amanah`, html: wrapEmail('Claim approved', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 async function handleMadrasaParentWelcome(env, caller, studentId) {
   const sRows = await sbGet(env, `students?id=eq.${studentId}&select=name,profile_id,pending_parent_email`);
   const st = Array.isArray(sRows) ? sRows[0] : null;
@@ -1231,9 +1272,24 @@ export default async function handler(req, res) {
       return res.status(out.status).json(out.body);
     }
 
+    // Unauthenticated intent — a mosque claim is submitted by an anonymous
+    // visitor. Recipients are constrained server-side to the claim's own
+    // claimant + the platform admin, so no caller is needed.
+    if (body.intent === 'mosque_claim_received') {
+      if (!isUuid(body.claimId)) return res.status(400).json({ ok: false, error: 'invalid_claimId' });
+      const out = await handleMosqueClaimReceived(env, body.claimId);
+      return res.status(out.status).json(out.body);
+    }
+
     // The client-initiated intents require a verified caller.
     const caller = await verifyCaller(env, req.headers.authorization);
     if (!caller?.id) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+    if (body.intent === 'mosque_claim_approved') {
+      if (!isUuid(body.claimId)) return res.status(400).json({ ok: false, error: 'invalid_claimId' });
+      const out = await handleMosqueClaimApproved(env, caller, body.claimId);
+      return res.status(out.status).json(out.body);
+    }
 
     if (body.intent === 'booking_confirmed') {
       if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });

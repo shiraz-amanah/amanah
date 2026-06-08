@@ -85,6 +85,34 @@ export function sendMosqueApplicationSubmittedEmail(applicationId) {
   return postTransactional({ intent: 'mosque_application_submitted', applicationId });
 }
 
+// --- Mosque claims (093) ---------------------------------------------------
+// Claim received: fired by the (possibly anonymous) claimant right after the
+// submit RPC. The `mosque_claim_received` intent is anon-safe (validated server
+// side by the claim row), so this POSTs WITHOUT a Bearer token. The server emails
+// the claimant a confirmation and alerts the platform admin.
+export async function sendMosqueClaimReceived(claimId) {
+  if (!claimId) return { ok: false, error: 'missing_claimId' };
+  try {
+    const res = await fetch('/api/send-transactional', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intent: 'mosque_claim_received', claimId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok && body?.ok ? body : { ok: false, error: body?.error || `http_${res.status}` };
+  } catch (err) {
+    console.error('[email] mosque_claim_received failed', err?.message);
+    return { ok: false, error: 'network_exception' };
+  }
+}
+
+// Claim approved: fired by the platform admin (authed). The server builds the
+// accept link from the claim token and emails it to the claimant.
+export function sendMosqueClaimApproved(claimId) {
+  if (!claimId) return Promise.resolve({ ok: false, error: 'missing_claimId' });
+  return postTransactional({ intent: 'mosque_claim_approved', claimId });
+}
+
 export function sendMosqueApplicationApprovedEmail(applicationId) {
   if (!applicationId) return Promise.resolve({ ok: false, error: 'missing_applicationId' });
   return postTransactional({ intent: 'mosque_application_approved', applicationId });

@@ -282,6 +282,8 @@ const MOSQUE_EDITABLE_COLUMNS = [
   'name', 'description', 'bio', 'address', 'city', 'postcode', 'phone', 'email',
   'capacity', 'services', 'facilities', 'prayer_times', 'jumuah_time',
   'jumuah_language', 'donation_url', 'website_url', 'logo_url', 'photo_url', 'photos',
+  // 093 — prayer-times metadata + Ramadan
+  'jummuah_info', 'ramadan_times', 'ramadan_calendar', 'ramadan_year', 'ramadan_active', 'prayer_times_updated_at',
 ]
 export async function updateMosqueProfile(mosqueId, updates) {
   if (!mosqueId) return { error: { message: 'mosqueId required' } }
@@ -294,6 +296,44 @@ export async function updateMosqueProfile(mosqueId, updates) {
   const { data, error } = await supabase
     .from('mosques').update(patch).eq('id', mosqueId).select().single()
   if (error) console.error('Error updating mosque profile:', error)
+  return { data, error }
+}
+
+// ==================== Mosque claims (093) ====================
+
+// Anon-safe: submit a claim on an unclaimed mosque (harvest-guarded definer RPC).
+// Returns { claimId } on success; pair with sendMosqueClaimReceived(claimId).
+export async function submitMosqueClaim({ mosqueId, name, role, email, phone, note }) {
+  const { data, error } = await supabase.rpc('submit_mosque_claim', {
+    p_mosque_id: mosqueId, p_name: name, p_role: role || null,
+    p_email: email, p_phone: phone || null, p_note: note || null,
+  })
+  if (error) { console.error('Error submitting mosque claim:', error); return { error } }
+  return { claimId: data }
+}
+
+// Platform admin: list claims (newest first), optionally filtered by status.
+export async function getMosqueClaims(status) {
+  let q = supabase.from('mosque_claims')
+    .select('*, mosque:mosques(id, name, city, slug)')
+    .order('created_at', { ascending: false })
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q
+  if (error) { console.error('Error fetching mosque claims:', error); return [] }
+  return data || []
+}
+
+// Platform admin: approve/reject a claim. On 'approved', fire sendMosqueClaimApproved.
+export async function updateMosqueClaimStatus(claimId, status) {
+  const { data, error } = await supabase.rpc('update_mosque_claim_status', { p_claim_id: claimId, p_status: status })
+  if (error) console.error('Error updating mosque claim status:', error)
+  return { data, error }
+}
+
+// Authenticated claimant (email-matched): bind their account to the mosque.
+export async function acceptMosqueClaim(token) {
+  const { data, error } = await supabase.rpc('accept_mosque_claim', { p_token: token })
+  if (error) console.error('Error accepting mosque claim:', error)
   return { data, error }
 }
 
