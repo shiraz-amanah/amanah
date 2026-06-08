@@ -6981,10 +6981,14 @@ Qur'an progress map** as the Islamic-native centrepiece. **No new migration**
 ### Migration assessment (flagged, no SQL written)
 - **Parent phone EXISTS** (`profiles.phone`, via the 083 export RPC). **Parent
   name/email** too. No migration for parent contact.
-- **Emergency contact does NOT exist** for students/parents (only `mosque_staff`
-  has it). **FLAGGED, not built:** adding it would be a small `092` — two
-  nullable cols on `students` + extend the 091 RPC + the Edit form. Shown as
-  "Not recorded" until the owner approves. _Awaiting decision._
+- **Emergency contact did NOT exist** for students/parents (only `mosque_staff`
+  had it). **Migration `092` now written + wired (approved by owner):** two
+  nullable cols (`emergency_contact_name`/`_phone`) on `students`; the 091 RPC
+  **replaced** with an 8-arg signature (new params default null, old 6-arg
+  dropped to avoid PostgREST overload ambiguity) that writes them; Edit form +
+  Overview display + roster selects updated. **Pending apply dev→prod**, then the
+  whole batch pushes together (code references the new columns, so held until
+  092 is green).
 
 ### Item 1 — overview card → full profile (bug: "Open tajweed")
 The overview Students card opened a slide-in panel whose CTA showed the class
