@@ -10,6 +10,7 @@ import MadrasaAnalytics from "./MadrasaAnalytics";
 import MadrasaEnrolWizard from "./MadrasaEnrolWizard";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
+import MadrasaStudentProfile from "./MadrasaStudentProfile";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
 
 const SECTIONS = [["classes", "Classes", GraduationCap], ["students", "Students", Users], ["analytics", "Analytics", BarChart3]];
@@ -48,13 +49,19 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const [section, setSection] = useState("classes");     // Classes | Students | Analytics
   const [showEnrol, setShowEnrol] = useState(false);     // Path A add-student wizard
   const [studentsKey, setStudentsKey] = useState(0);     // bump to refresh the Students list after enrol
+  const [profileCtx, setProfileCtx] = useState(null);    // { enrollment, classObj } — full student profile (Layer 3)
 
-  // Class detail + reports centre are local-state sub-views, not URL routes.
-  // Registering each as an overlay makes Back return to the Classes list instead
-  // of leaving the dashboard. In-app backs call overlayBack() so both Back paths
-  // behave identically.
+  // Class detail + reports centre + student profile are local-state sub-views,
+  // not URL routes. Registering each as an overlay makes Back return to the
+  // previous view instead of leaving the dashboard. In-app backs call
+  // overlayBack() so both Back paths behave identically.
   useOverlay(!!detailClass, () => setDetailClass(null));
   useOverlay(showReports, () => setShowReports(false));
+  useOverlay(!!profileCtx, () => setProfileCtx(null));
+
+  // Open the full student profile from the overview Students tab. classObj is the
+  // student's enrolment class (resolved by MadrasaStudents from its classes list).
+  const openStudent = (enrollment, classObj) => setProfileCtx({ enrollment, classObj });
 
   const reload = () => {
     setLoading(true);
@@ -101,6 +108,20 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
   const setSlot = (i, k, v) => set("schedule", form.schedule.map((s, idx) => idx === i ? { ...s, [k]: v } : s));
   const rmSlot = (i) => set("schedule", form.schedule.filter((_, idx) => idx !== i));
+
+  // ---- Full student profile (Layer 3) — from the overview Students tab ----
+  if (profileCtx) {
+    return (
+      <MadrasaStudentProfile
+        enrollment={profileCtx.enrollment}
+        classObj={profileCtx.classObj}
+        mosqueId={mosqueId}
+        mosqueName={mosque?.name}
+        onBack={() => overlayBack()}
+        onChanged={() => { setStudentsKey((k) => k + 1); reload(); }}
+      />
+    );
+  }
 
   // ---- Reports & exports view (owner only — this whole tab is the owner's) ----
   if (showReports) {
@@ -150,7 +171,7 @@ const MosqueMadrasa = ({ mosqueId, mosque }) => {
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
-      {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} onOpenClass={openClass} onAddStudent={() => setShowEnrol(true)} />}
+      {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} mosqueName={mosque?.name} onOpenStudent={openStudent} onAddStudent={() => setShowEnrol(true)} />}
       {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} />}
 
       {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
