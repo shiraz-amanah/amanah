@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, BarChart3, CalendarClock,
+  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, BarChart3, CalendarClock, List,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
@@ -154,7 +154,6 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowReports(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Reports</button>
-          {section === "classes" && classes.length > 0 && <button onClick={() => setClassView((v) => (v === "list" ? "timetable" : "list"))} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><CalendarClock size={14} /> {classView === "list" ? "Timetable view" : "List view"}</button>}
           {section === "classes" && !showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
         </div>
       </div>
@@ -210,6 +209,16 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowForm(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
             <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {editingId ? "Save" : "Create class"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* List / Timetable view switcher — sits directly above the class content */}
+      {section === "classes" && !showForm && classes.length > 0 && (
+        <div className="flex justify-end mb-3">
+          <div className="inline-flex bg-stone-100 rounded-lg p-0.5">
+            <button onClick={() => setClassView("list")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "list" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><List size={13} /> List</button>
+            <button onClick={() => setClassView("timetable")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "timetable" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><CalendarClock size={13} /> Timetable</button>
           </div>
         </div>
       )}
