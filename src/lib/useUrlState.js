@@ -152,6 +152,15 @@ export function useUrlState() {
     parseUrl(window.location.pathname, window.location.search)
   );
 
+  // Stamp the current (initial / refreshed / deep-linked) entry with a depth
+  // index so goBack() can tell whether there is in-app history to return to
+  // versus a cold/deep-link entry where Back would leave the site.
+  useEffect(() => {
+    if (window.history.state?.idx == null) {
+      window.history.replaceState({ ...(window.history.state || {}), idx: 0 }, '');
+    }
+  }, []);
+
   useEffect(() => {
     const onPop = () => {
       setState(parseUrl(window.location.pathname, window.location.search));
@@ -162,10 +171,27 @@ export function useUrlState() {
 
   const navigate = useCallback((view, params = {}, query = {}, opts = {}) => {
     const url = buildUrl(view, params, query);
+    const curIdx = window.history.state?.idx ?? 0;
+    const idx = opts.replace ? curIdx : curIdx + 1;
     const method = opts.replace ? 'replaceState' : 'pushState';
-    window.history[method]({ view, params, query }, '', url);
+    window.history[method]({ view, params, query, idx }, '', url);
     setState({ view, params, query });
   }, []);
 
-  return { ...state, navigate };
+  // The single back primitive for every view-level back button. Returns to the
+  // actual previous view when in-app history exists (so Back is always correct,
+  // regardless of how the user got here); only on a cold/deep-link entry does it
+  // fall back to a sensible parent view so Back never dead-ends off-site.
+  const goBack = useCallback((fallbackView = 'publicHome', fallbackQuery = {}) => {
+    const curIdx = window.history.state?.idx ?? 0;
+    if (curIdx > 0) {
+      window.history.back();
+    } else {
+      const url = buildUrl(fallbackView, {}, fallbackQuery);
+      window.history.replaceState({ view: fallbackView, params: {}, query: fallbackQuery, idx: 0 }, '', url);
+      setState({ view: fallbackView, params: {}, query: fallbackQuery });
+    }
+  }, []);
+
+  return { ...state, navigate, goBack };
 }
