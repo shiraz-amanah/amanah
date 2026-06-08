@@ -283,8 +283,8 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
             <HifzWatermark id={`zellij-${student.id}`} />
             <div className="relative">
               <p className="text-[10px] uppercase tracking-[0.15em] text-emerald-100/80 font-semibold inline-flex items-center gap-1.5"><BookOpen size={12} /> Qur'an &amp; Hifz</p>
-              {surahNameAr(currentSurah) && <p dir="rtl" lang="ar" className="text-3xl md:text-4xl leading-tight mt-1.5" style={{ fontFamily: "'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', 'Times New Roman', serif" }}>{surahNameAr(currentSurah)}</p>}
-              <p className="text-xl md:text-2xl font-semibold mt-0.5 leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{surahName(currentSurah)}</p>
+              {currentSurah >= 1 && <p dir="rtl" lang="ar" className="text-4xl md:text-5xl leading-snug mt-1.5 text-white" style={{ fontFamily: "'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', 'Times New Roman', serif", fontWeight: 700 }}>{surahNameAr(currentSurah)}</p>}
+              <p className="text-lg md:text-xl font-semibold mt-1 leading-tight text-emerald-50/95" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{surahName(currentSurah)}</p>
               {positionText && <p className="text-sm text-emerald-50/90 mt-0.5">{positionText}</p>}
               {(lastLessonLabel || hifzGrade) && <p className="text-xs text-emerald-100/70 mt-1">{lastLessonLabel ? `Last lesson ${lastLessonLabel}` : ""}{lastLessonLabel && hifzGrade ? " · " : ""}{hifzGrade || ""}</p>}
               <div className="mt-3.5">
