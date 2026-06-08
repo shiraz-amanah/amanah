@@ -6972,6 +6972,66 @@ prod, payroll CSV contents.
 
 ---
 
+## Session AO — Student profile complete redesign (best-in-class) + scoped messaging ✅ (9 June 2026)
+
+The student profile rebuilt to beat ClassDojo/Arbor/Sims, with the **114-cell
+Qur'an progress map** as the Islamic-native centrepiece. **No new migration**
+(assessed first). 3 commits, every `npm run build` clean. Vercel **11/12**.
+
+### Migration assessment (flagged, no SQL written)
+- **Parent phone EXISTS** (`profiles.phone`, via the 083 export RPC). **Parent
+  name/email** too. No migration for parent contact.
+- **Emergency contact does NOT exist** for students/parents (only `mosque_staff`
+  has it). **FLAGGED, not built:** adding it would be a small `092` — two
+  nullable cols on `students` + extend the 091 RPC + the Edit form. Shown as
+  "Not recorded" until the owner approves. _Awaiting decision._
+
+### Item 1 — overview card → full profile (bug: "Open tajweed")
+The overview Students card opened a slide-in panel whose CTA showed the class
+name and navigated to the class. Removed the panel; the card now opens the full
+`MadrasaStudentProfile` page, **hoisted to `MosqueMadrasa`** as an overlay so
+Back returns to the overview Students tab. `MadrasaStudents` resolves the
+student's primary-enrolment class for profile context.
+
+### Item 2 — scoped parent messaging (was: flat recipient list, no scoping)
+`BulkParentMessageModal` rebuilt with a **rich mode** (`mosqueId`): class
+checklist (+ All), live recipient count, **Preview recipients** (parent names via
+083 export), title + body, Send — messaging only the selected classes' parents
+through the existing `sendBulkParentMessage`. Legacy `recipients` mode kept for
+the teacher class workspace + a new 1:1 "Message parent" on the profile.
+
+### Items 3/5 — full profile + Qur'an map
+Header always visible (avatar · name · class pill · status · Back · **3-dot menu**
+= Edit / Reset parent login / Activate / Deactivate / Remove from class — new
+`removeEnrollment`). Tabs **Overview · Attendance · Hifz · Homework · Reports ·
+Rewards** (Hifz only when the student has entries or is in a Qur'an/Hifz class).
+- **Overview:** 2-col — student + parent detail cards (Message parent, Send login
+  link) | 2×2 stat tiles (colour-coded attendance, Hifz x/114, homework %, stars)
+  + latest-report card + recent-activity feed (last 5 across all categories).
+- **Attendance:** colour-coded rate + P/L/A/E breakdown + history + Export CSV.
+- **Hifz:** the **114-cell map** (emerald memorised / amber in-progress / grey
+  not-started, hover = surah + status, geometric gradient border) + summary
+  (memorised, %, **current Juz** via new `juzOfSurah` in `data/surahs.js`,
+  estimated completion at pace) + full `MadrasaHifz` log.
+- **Homework:** completion rate + submitted/pending/overdue + files + Export CSV
+  (`getStudentCompletions` now selects `completed_at`).
+- **Reports:** `MadrasaReports` scoped to the student. **Rewards:** timeline +
+  Add reward + per-student certificate generator.
+
+### Item 4 — back button
+Uses the existing overlay/`goBack` manager (no separate solution): overview →
+overview Students; class detail → class Students.
+
+### Caveats (honest)
+Certificates are generated client-side, **never stored** → the profile's
+Certificates is a *generator*, not a stored history. Attendance "teacher who
+marked" omitted (only a `marked_by` uuid is available, no name join). Current-Juz
+is exact for short-surah juz (e.g. juz 30) and approximate for long surahs that
+span juz. **NOT browser-verified** (no driver/creds) — the profile tabs, the
+Qur'an map, scoped messaging send, and the 3-dot actions want an eyes-on pass.
+
+---
+
 ## Session AN — Three-layer Madrasah student experience + parent back fix ✅ (9 June 2026)
 
 The Madrasah split into three clean layers: **Layer 1** overview (unchanged),
