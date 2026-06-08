@@ -12347,6 +12347,13 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
     showToast(action === "approve" ? `Campaign "${app.title}" launched` : action === "reject" ? `Campaign rejected` : `Changes requested`);
   };
 
+  // Route an admin notification (095 types) to its review section.
+  const NOTIF_SECTION = {
+    scholar_application: "scholarApplications", mosque_application: "mosques",
+    mosque_claim: "claims", flag: "flags", dbs_order: "dbs",
+  };
+  const handleNotifNavigate = (n) => setSection(NOTIF_SECTION[n.type] || "overview");
+
   return (
     <div className="min-h-screen bg-stone-50">
       <AdminSidebar
@@ -12373,10 +12380,14 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
           <div className="w-7 h-7 rounded-lg bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={14} /></div>
           <div className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{sectionTitle}</div>
         </div>
-        <div className="w-10"></div>{/* spacer for symmetry */}
+        <NotificationBell userId={authedProfile?.id} onNavigate={handleNotifNavigate} />
       </div>
 
       <main className="md:ml-64 p-4 md:p-8 min-h-screen">
+        {/* Desktop header — notification bell, top right */}
+        <div className="hidden md:flex items-center justify-end mb-6">
+          <NotificationBell userId={authedProfile?.id} onNavigate={handleNotifNavigate} />
+        </div>
         {section === "overview" && <AdminOverview onNavigate={setSection} counts={counts} displayName={displayName} />}
         {section === "mosques" && <AdminMosqueApplications />}
         {section === "claims" && <AdminClaims />}
