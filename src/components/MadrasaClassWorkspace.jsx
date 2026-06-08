@@ -254,7 +254,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
 
       {/* 6 — REPORTS */}
       <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
-        <MadrasaReports classObj={classObj} />
+        <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
       </Section>
 
       {/* 7 — LIVE LESSON (Daily.co — item 14) */}

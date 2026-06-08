@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
-import { Loader2, FileText, Trash2, Send, CheckCircle2, Sparkles, Download, Check, Pencil, RotateCcw, Undo2 } from "lucide-react";
-import { getMadrasaRoster, getClassReports, buildReportSummary, createReport, publishReport, deleteReport } from "../auth";
+import { useState, useEffect, useRef } from "react";
+import { Loader2, FileText, Trash2, Send, CheckCircle2, Sparkles, Download, Check, Pencil, RotateCcw, Undo2, Eye, X } from "lucide-react";
+import { getMadrasaRoster, getClassReports, buildReportSummary, createReport, updateReport, publishReport, deleteReport } from "../auth";
 import { sendMadrasaReportPublished } from "../lib/email";
 import { generateReportSummary, assistantErrorMessage } from "../lib/hrAssistant";
 import { REPORT_SECTIONS, REPORT_RATINGS, serializeReportComment, parseReportComment, ratingStyle } from "../lib/madrasaReport";
 import { downloadCSV } from "../lib/csv";
 import { surahName } from "../data/surahs";
+import MadrasaReportView from "./MadrasaReportView";
 
 const seasonTerm = () => {
   const d = new Date(); const m = d.getMonth(); const y = d.getFullYear();
@@ -16,7 +17,7 @@ const blankSections = () => Object.fromEntries(REPORT_SECTIONS.map((s) => [s.key
 
 // Teacher/admin progress-report board (078 RLS). Fix 3: structured section ratings
 // (stored as JSON in teacher_comment), an optional AI summary, and CSV export.
-const MadrasaReports = ({ classObj }) => {
+const MadrasaReports = ({ classObj, mosqueName }) => {
   const [roster, setRoster] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,11 @@ const MadrasaReports = ({ classObj }) => {
   const [filling, setFilling] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState(null);   // report being edited (null = new)
+  const [wasPublished, setWasPublished] = useState(false); // editing a published report
+  const [editName, setEditName] = useState("");       // name of the edited student (may be off-roster)
+  const [previewReport, setPreviewReport] = useState(null); // row shown in the parent-view modal
+  const formRef = useRef(null);
   // AI summary flow
   const [aiDraft, setAiDraft] = useState("");      // generated/edited preview
   const [aiAccepted, setAiAccepted] = useState(""); // finalized summary that goes on the report
@@ -44,7 +50,27 @@ const MadrasaReports = ({ classObj }) => {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [classObj.id]);
 
   const setSection = (key, field, val) => setSections((s) => ({ ...s, [key]: { ...s[key], [field]: val } }));
-  const reset = () => { setStudentId(""); setSections(blankSections()); setOverall(""); setSummary(null); setTerm(seasonTerm()); setAiDraft(""); setAiAccepted(""); setAiEditing(false); };
+  const reset = () => { setStudentId(""); setSections(blankSections()); setOverall(""); setSummary(null); setTerm(seasonTerm()); setAiDraft(""); setAiAccepted(""); setAiEditing(false); setEditingId(null); setWasPublished(false); setEditName(""); };
+
+  // Load an existing report back into the form to edit + republish. Pre-fills
+  // ratings, comments, overall and the accepted AI summary from the stored JSON
+  // (parseReportComment also handles legacy plain-text rows gracefully).
+  const openEdit = (r) => {
+    const parsed = parseReportComment(r.teacher_comment);
+    setEditingId(r.id);
+    setWasPublished(!!r.published_at);
+    setStudentId(r.student_id);
+    setEditName(studentName(r));
+    setTerm(r.term || seasonTerm());
+    setSections({ ...blankSections(), ...(parsed.sections || {}) });
+    setOverall(parsed.overall || "");
+    setAiAccepted(parsed.ai_summary || "");
+    setAiDraft(""); setAiEditing(false);
+    setSummary(r.attendance_summary || r.hifz_summary || r.homework_summary
+      ? { attendance: r.attendance_summary || {}, hifz: r.hifz_summary || {}, homework: r.homework_summary || {} } : null);
+    setError("");
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const autoFill = async () => {
     if (!studentId) return;
@@ -71,12 +97,24 @@ const MadrasaReports = ({ classObj }) => {
     if (!studentId || !term.trim() || saving) return;
     setSaving(true); setError("");
     const teacherComment = serializeReportComment({ sections, overall, ai_summary: aiAccepted });
-    const { data, error: err } = await createReport({
-      classId: classObj.id, studentId, mosqueId: classObj.mosque_id, term, teacherComment,
-      attendanceSummary: summary?.attendance || {}, hifzSummary: summary?.hifz || {}, homeworkSummary: summary?.homework || {},
-    });
-    if (err) { setSaving(false); setError(err.message || "Couldn't save the report."); return; }
-    if (publish) { const { error: pErr } = await publishReport(data.id); if (!pErr) sendMadrasaReportPublished(data.id).catch(() => {}); }
+    const summaries = { attendance_summary: summary?.attendance || {}, hifz_summary: summary?.hifz || {}, homework_summary: summary?.homework || {} };
+    let reportId = editingId;
+    if (editingId) {
+      const { error: err } = await updateReport(editingId, { term: term.trim(), teacher_comment: teacherComment, ...summaries });
+      if (err) { setSaving(false); setError(err.message || "Couldn't update the report."); return; }
+    } else {
+      const { data, error: err } = await createReport({
+        classId: classObj.id, studentId, mosqueId: classObj.mosque_id, term, teacherComment,
+        attendanceSummary: summaries.attendance_summary, hifzSummary: summaries.hifz_summary, homeworkSummary: summaries.homework_summary,
+      });
+      if (err) { setSaving(false); setError(err.message || "Couldn't save the report."); return; }
+      reportId = data.id;
+    }
+    // Publish when asked, or re-publish edits to an already-published report so
+    // the parent is re-notified of the update.
+    if (reportId && (publish || (editingId && wasPublished))) {
+      const { error: pErr } = await publishReport(reportId); if (!pErr) sendMadrasaReportPublished(reportId).catch(() => {});
+    }
     setSaving(false); reset(); load();
   };
   const publishExisting = async (id) => { const { error: err } = await publishReport(id); if (!err) { sendMadrasaReportPublished(id).catch(() => {}); load(); } };
@@ -108,11 +146,18 @@ const MadrasaReports = ({ classObj }) => {
 
   return (
     <div className="space-y-5">
-      {/* New report */}
-      <form onSubmit={(e) => { e.preventDefault(); create(false); }} className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+      {/* New / edit report */}
+      <form ref={formRef} onSubmit={(e) => { e.preventDefault(); create(false); }} className={`bg-white border rounded-2xl p-4 space-y-3 ${editingId ? "border-emerald-300 ring-1 ring-emerald-100" : "border-stone-200"}`}>
+        {editingId && (
+          <div className="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <span className="text-xs font-medium text-emerald-900 inline-flex items-center gap-1.5"><Pencil size={13} /> Editing {wasPublished ? "a published" : "a draft"} report{wasPublished ? " — saving will re-notify the parent" : ""}</span>
+            <button type="button" onClick={reset} className="text-[11px] text-stone-500 hover:text-stone-800 inline-flex items-center gap-1"><X size={12} /> Cancel</button>
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap">
-          <select value={studentId} onChange={(e) => { setStudentId(e.target.value); setSummary(null); setAiDraft(""); setAiAccepted(""); }} className={`${inputCls} flex-1 min-w-[160px]`}>
+          <select value={studentId} disabled={!!editingId} onChange={(e) => { setStudentId(e.target.value); setSummary(null); setAiDraft(""); setAiAccepted(""); }} className={`${inputCls} flex-1 min-w-[160px] disabled:bg-stone-50 disabled:text-stone-500`}>
             <option value="">Select student…</option>
+            {editingId && !roster.some((e) => (e.student?.id || e.student_id) === studentId) && <option value={studentId}>{editName || "Student"}</option>}
             {roster.map((e) => { const sid = e.student?.id || e.student_id; return <option key={sid} value={sid}>{e.student?.name || "Student"}</option>; })}
           </select>
           <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Term" className={`${inputCls} w-40`} />
@@ -173,9 +218,9 @@ const MadrasaReports = ({ classObj }) => {
 
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="submit" disabled={!studentId || !term.trim() || saving} className="text-sm font-medium border border-stone-300 text-stone-700 px-4 py-2 rounded-lg disabled:opacity-40 hover:border-stone-400">Save draft</button>
+          {!(editingId && wasPublished) && <button type="submit" disabled={!studentId || !term.trim() || saving} className="text-sm font-medium border border-stone-300 text-stone-700 px-4 py-2 rounded-lg disabled:opacity-40 hover:border-stone-400">{editingId ? "Save as draft" : "Save draft"}</button>}
           <button type="button" onClick={() => create(true)} disabled={!studentId || !term.trim() || saving} className="inline-flex items-center gap-1.5 text-sm font-medium bg-emerald-900 text-white px-4 py-2 rounded-lg disabled:opacity-40 hover:bg-emerald-800">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Publish
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} {editingId ? (wasPublished ? "Update & republish" : "Publish") : "Publish"}
           </button>
         </div>
       </form>
@@ -202,17 +247,29 @@ const MadrasaReports = ({ classObj }) => {
               <p className="text-sm font-medium text-stone-900 truncate">{studentName(r)} <span className="text-stone-400 font-normal">· {r.term}</span></p>
               {preview && <p className="text-xs text-stone-500 truncate">{preview}</p>}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {r.published_at ? (
                 <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 inline-flex items-center gap-1"><CheckCircle2 size={11} /> Published</span>
               ) : (
                 <button onClick={() => publishExisting(r.id)} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Send size={11} /> Publish</button>
               )}
+              <button onClick={() => setPreviewReport(r)} title="Preview as the parent sees it" className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Eye size={12} /> Preview</button>
+              <button onClick={() => openEdit(r)} title="Edit this report" className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Pencil size={12} /> Edit</button>
               {!r.published_at && <button onClick={() => remove(r.id)} title="Delete" className="text-stone-400 hover:text-red-600 p-1"><Trash2 size={14} /></button>}
             </div>
           </li>
           );
         })}</ul>
+      )}
+
+      {previewReport && (
+        <MadrasaReportView
+          report={previewReport}
+          studentName={studentName(previewReport)}
+          className={classObj.name}
+          mosqueName={mosqueName}
+          onClose={() => setPreviewReport(null)}
+        />
       )}
     </div>
   );
