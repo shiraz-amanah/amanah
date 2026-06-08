@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, X, MessageCircle, BookOpen, CalendarCheck, FileText,
-  ChevronRight, ChevronDown, Megaphone, Video, GraduationCap, Award, Image, ClipboardList,
+  ChevronRight, Megaphone, Video, GraduationCap, Award, Image,
 } from "lucide-react";
 import {
   getMadrasaRoster, getClassHifz, getStudentAttendance, getHifzProgress, getHomeworkForClasses,
@@ -70,7 +70,6 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [classHifz, setClassHifz] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hifzLoading, setHifzLoading] = useState(true);
-  const [showMore, setShowMore] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
 
   // Per-student slide-in panel
@@ -262,21 +261,17 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <MadrasaLiveLesson classObj={classObj} />
       </Section>
 
-      {/* Additional records — kept but tucked away for 60-second clarity */}
-      <div>
-        <button onClick={() => setShowMore((v) => !v)} className="w-full flex items-center justify-between gap-2 text-sm font-medium text-stone-600 hover:text-stone-900 border-t border-stone-200 pt-4">
-          <span className="inline-flex items-center gap-2"><ClipboardList size={15} /> Additional records — rewards, photos, certificates, waiting list</span>
-          <ChevronDown size={16} className={`transition-transform ${showMore ? "rotate-180" : ""}`} />
-        </button>
-        {showMore && (
-          <div className="space-y-10 mt-6">
-            <Section icon={Award} title="Rewards" subtitle="Stars and merits — parents are notified" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
-            <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
-            <Section icon={GraduationCap} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
-            <Section icon={Users} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
-          </div>
-        )}
-      </div>
+      {/* 8 — REWARDS */}
+      <Section icon={Award} title="Rewards" subtitle="Stars and merits — parents are notified" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
+
+      {/* 9 — PHOTOS */}
+      <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
+
+      {/* 10 — CERTIFICATES */}
+      <Section icon={GraduationCap} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
+
+      {/* 11 — WAITING LIST */}
+      <Section icon={Users} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
 
       {showBulk && <BulkParentMessageModal recipients={parentIds} audienceLabel={`all parents in ${classObj.name || "this class"}`} onClose={() => setShowBulk(false)} />}
 
