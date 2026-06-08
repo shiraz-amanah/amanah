@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap, Star, AlertTriangle, MessageCircle } from "lucide-react";
+import { Loader2, Search, ChevronRight, UserPlus, Users, GraduationCap, Star, AlertTriangle, MessageCircle, FileSpreadsheet } from "lucide-react";
 import BulkParentMessageModal from "./BulkParentMessageModal";
+import MadrasaImportStudents from "./MadrasaImportStudents";
 import MadrasaPendingInvites from "./MadrasaPendingInvites";
 import {
   getMosqueEnrollments, getMosqueAttendanceAll, getMosqueHifzAll,
@@ -30,6 +31,7 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
   const [classFilter, setClassFilter] = useState("");
   const [notice, setNotice] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [refresh, setRefresh] = useState(0);
 
   const classIds = useMemo(() => (classes || []).map((c) => c.id), [classes]);
@@ -96,11 +98,13 @@ const MadrasaStudents = ({ mosqueId, classes = [], onOpenClass, onAddStudent }) 
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowBulk(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+          <button onClick={() => setShowImport(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileSpreadsheet size={14} /> Import students</button>
           <button onClick={() => (onAddStudent ? onAddStudent() : setNotice(true))} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
         </div>
       </div>
 
       {showBulk && <BulkParentMessageModal recipients={allParentIds} audienceLabel="all parents across your classes" onClose={() => setShowBulk(false)} />}
+      {showImport && <MadrasaImportStudents mosqueId={mosqueId} classes={classes} onClose={() => setShowImport(false)} onDone={() => setRefresh((r) => r + 1)} />}
 
       {notice && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm rounded-xl px-4 py-3 mb-4">

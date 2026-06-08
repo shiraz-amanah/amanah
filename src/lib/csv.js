@@ -30,3 +30,37 @@ export function downloadCSV(filename, rows, columns) {
 export function downloadJSON(filename, obj) {
   save(filename, JSON.stringify(obj, null, 2), "application/json;charset=utf-8;");
 }
+
+// RFC-4180 CSV parser (no papaparse). Handles quoted fields, embedded commas,
+// embedded newlines, and "" escaped quotes. Returns { headers, rows } where each
+// row is an object keyed by the (trimmed, lower-cased) header. Strips a UTF-8 BOM
+// and tolerates both \r\n and \n line endings.
+export function parseCSV(text) {
+  const records = [];
+  let field = "", row = [], inQuotes = false;
+  const s = (text || "").replace(/^﻿/, "");
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && s[i + 1] === "\n") i++;
+      row.push(field); records.push(row); field = ""; row = [];
+    } else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); records.push(row); }
+  // Drop fully-empty trailing lines.
+  const clean = records.filter((r) => r.some((v) => (v || "").trim() !== ""));
+  if (!clean.length) return { headers: [], rows: [] };
+  const headers = clean[0].map((h) => (h || "").trim().toLowerCase());
+  const rows = clean.slice(1).map((r) => {
+    const o = {};
+    headers.forEach((h, idx) => { o[h] = (r[idx] ?? "").trim(); });
+    return o;
+  });
+  return { headers, rows };
+}
