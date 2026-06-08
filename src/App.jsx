@@ -12508,7 +12508,7 @@ const GlobalToast = ({ message, onDismiss }) => {
 
 // ==================== APP ROOT ====================
 export default function App() {
-  const { view, params: routeParams, query: routeQuery, navigate } = useUrlState();
+  const { view, params: routeParams, query: routeQuery, navigate, goBack } = useUrlState();
   const [role, setRole] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedScholar, setSelectedScholar] = useState(null);
@@ -13104,7 +13104,7 @@ const handleSignIn = (r) => {
     savedCampaignIds={savedCampaignIds}
     toggleCampaignSave={toggleCampaignSave}
     />;
-if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")} onSignIn={(r) => { setRole(r); navigate("login"); }} />;
+if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} onSignIn={(r) => { setRole(r); navigate("login"); }} />;
   // Scholar onboarding wizard — entry point for an authed user with no
   // scholar listing and no application. Submit posts to
   // scholar_applications and routes to the submitted status page.
@@ -13168,7 +13168,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
-  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => setView("publicHome")} onComplete={async () => {
+  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => goBack("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
     let profile = null;
@@ -13288,7 +13288,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     toggleMosqueSave={toggleMosqueSave}
     onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }}
   />;
-  if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} bookingId={reviewBookingId} onBack={() => window.history.back()} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} onSignIn={handleSignIn} />;
+  if (view === "leaveReview") return <LeaveReview scholar={reviewScholar} booking={mockBooking} bookingId={reviewBookingId} onBack={() => goBack()} onSubmit={(r) => { setSubmittedReview(r); setView("reviewSubmitted"); }} onSignIn={handleSignIn} />;
   if (view === "reviewSubmitted") return <ReviewSubmitted
     review={submittedReview}
     onHome={() => setView("publicHome")}
@@ -13344,7 +13344,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
       conversations={inboxData}
       loading={conversationsLoading && !!authedProfile}
       onConversation={(c) => { setSelectedConversation(c); navigate("conversationView", { id: c.id }); }}
-      onBack={() => window.history.back()}
+      onBack={() => goBack()}
       role={role}
       authedUser={authedUser}
       authedProfile={authedProfile}
@@ -13358,7 +13358,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   }
   if (view === "conversationView") return <ConversationView
     conversation={selectedConversation}
-    onBack={() => role === "user" ? navigate("userDashboard", {}, { tab: "messages" }, { replace: true }) : setView("messagesInbox")}
+    onBack={() => goBack(role === "user" ? "userDashboard" : "messagesInbox", role === "user" ? { tab: "messages" } : {})}
     currentUserId={authedUser?.id}
     role={role}
     authedUser={authedUser}
@@ -13372,24 +13372,24 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onRead={markConversationReadLocal}
     {...messagesChrome}
   />;
-  if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); navigate("jobDetail", { id: j.id }); }} myApplications={myApplications} authedUser={authedUser} authedProfile={authedProfile} onSignIn={handleSignIn} />;
-  if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => setView("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
-  if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => setView("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
-  if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => setView("jobsBoard")} onApply={(j) => { setSelectedJob(j); navigate("applyJob", { id: j.id }); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
-  if (view === "applyJob") return <ApplyToJob job={selectedJob} onBack={() => window.history.back()} onSubmit={(app) => {
+  if (view === "jobsBoard") return <JobsBoard onBack={() => goBack("imamDashboard")} onJob={(j) => { setSelectedJob(j); navigate("jobDetail", { id: j.id }); }} myApplications={myApplications} authedUser={authedUser} authedProfile={authedProfile} onSignIn={handleSignIn} />;
+  if (view === "schedule") return <ScheduleView availability={scholarAvailability} bookings={DEFAULT_BOOKINGS} onBack={() => goBack("imamDashboard")} onEditAvailability={() => setView("availabilityEditor")} />;
+  if (view === "availabilityEditor") return <AvailabilityEditor availability={scholarAvailability} onBack={() => goBack("schedule")} onChange={(a) => { setScholarAvailability(a); setView("schedule"); }} />;
+  if (view === "jobDetail") return <JobDetail job={selectedJob} onBack={() => goBack("jobsBoard")} onApply={(j) => { setSelectedJob(j); navigate("applyJob", { id: j.id }); }} applied={myApplications.some(a => a.jobId === selectedJob?.id)} />;
+  if (view === "applyJob") return <ApplyToJob job={selectedJob} onBack={() => goBack()} onSubmit={(app) => {
     const newApp = { id: `app-${Date.now()}`, jobId: app.job.id, status: "submitted", appliedDate: "just now", message: app.message };
     setMyApplications([newApp, ...myApplications]);
     setSubmittedApplication(app);
     setView("applicationSubmitted");
   }} />;
   if (view === "applicationSubmitted") return <ApplicationSubmitted application={submittedApplication} onJobs={() => setView("jobsBoard")} onHome={() => setView("imamDashboard")} />;
-  if (view === "postJob") return <PostJob onBack={() => setView("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
-  if (view === "allCampaigns") return <AllCampaigns onBack={() => setView("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} savedCampaignIds={savedCampaignIds} toggleCampaignSave={toggleCampaignSave} />;
-  if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => setView("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} isSaved={savedCampaignIds?.has(String(selectedCampaign?.id))} onToggleSave={toggleCampaignSave} />;
-  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => window.history.back()} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "postJob") return <PostJob onBack={() => goBack("mosqueDashboard")} onComplete={() => setView("mosqueDashboard")} mosqueName="Masjid Al-Noor" mosqueCity="Birmingham" />;
+  if (view === "allCampaigns") return <AllCampaigns onBack={() => goBack("publicHome")} onCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} savedCampaignIds={savedCampaignIds} toggleCampaignSave={toggleCampaignSave} />;
+  if (view === "campaignDetail") return <CampaignDetail campaign={selectedCampaign} onBack={() => goBack("allCampaigns")} onDonate={(c) => { setSelectedCampaign(c); setView("donate"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} isSaved={savedCampaignIds?.has(String(selectedCampaign?.id))} onToggleSave={toggleCampaignSave} />;
+  if (view === "donate") return <DonateFlow campaign={selectedCampaign} onBack={() => goBack()} onDone={(d) => { setConfirmedDonation(d); setView("donationSuccess"); }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} />;
   if (view === "donationSuccess") return <DonationSuccess donation={confirmedDonation} onHome={() => setView("publicHome")} />;
-  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => setView("publicHome")} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
-  if (view === "mosquesListing") return <MosquesListing onBack={() => window.history.back()} onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
+  if (view === "categoryListing") return <CategoryListing categoryId={selectedCategory} onBack={() => goBack("publicHome")} onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }} onSignIn={handleSignIn} savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave} authedUser={authedUser} authedProfile={authedProfile} />;
+  if (view === "mosquesListing") return <MosquesListing onBack={() => goBack()} onMosque={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }} savedMosqueIds={savedMosqueIds} onToggleMosqueSave={toggleMosqueSave} authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />;
   if (view === "mosqueDetail") return <MosqueProfile
     mosque={selectedMosque}
     header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />}
@@ -13397,7 +13397,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     isSaved={savedMosqueIds.has(String(selectedMosque?.id))}
     onToggleSave={toggleMosqueSave}
   />;
-  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => window.history.back()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={async (s) => {
+  if (view === "scholarDetail") return <PublicScholarDetail scholar={selectedScholar} onBack={() => goBack()} onBook={(s, p) => { setSelectedScholar(s); setSelectedPkg(p); setView("bookingConfirm"); }} onMessage={async (s) => {
     // Auth gate — same flow as other parent-gated actions.
     if (!authedUser) {
       setUserAuthRole("user");
@@ -13445,21 +13445,21 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     });
     navigate("conversationView", { id: data });
   }} onSignIn={handleSignIn} authedUser={authedUser} authedProfile={authedProfile} myScholar={myScholar} />;
-  if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => window.history.back()} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
+  if (view === "bookingConfirm") return <BookingConfirm scholar={selectedScholar} pkg={selectedPkg} profile={authedProfile} authedUser={authedUser} onBack={() => goBack()} onDone={(b) => { setConfirmedBooking(b); setView("bookingSuccess"); }} />;
   if (view === "bookingSuccess") return <BookingSuccess booking={confirmedBooking} onHome={() => setView("publicHome")} />;
   if (view === "rolePicker") return <RolePicker onPick={(r) => { setRole(r); navigate("login"); }} onPublic={() => setView("publicHome")} />;
   if (view === "login") return <LoginScreen
     role={role}
     onLogin={() => navigate(role === "mosque" ? "mosqueDashboard" : "imamDashboard")}
-    onBack={() => setView("publicHome")}
+    onBack={() => goBack("publicHome")}
     onGoRegister={() => navigate(role === "mosque" ? "mosqueRegister" : "imamRegister")}
     onSwitchRole={(newRole) => setRole(newRole)}
   />;
-  if (view === "mosqueRegister") return <MosqueRegister onBack={() => navigate("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); navigate("registrationPending"); }} />;
-  if (view === "imamRegister") return <ImamRegister onBack={() => navigate("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); navigate("registrationPending"); }} />;
+  if (view === "mosqueRegister") return <MosqueRegister onBack={() => goBack("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("mosque"); navigate("registrationPending"); }} />;
+  if (view === "imamRegister") return <ImamRegister onBack={() => goBack("login")} onComplete={(formData) => { setRegisteredProfile(formData); setRegistrationType("scholar"); navigate("registrationPending"); }} />;
   if (view === "registrationPending") return <RegistrationPending type={registrationType} form={registeredProfile} onHome={() => setView("publicHome")} />;
   if (view === "adminLogin") return <AdminLogin
-    onBack={() => setView("publicHome")}
+    onBack={() => goBack("publicHome")}
     onComplete={async () => {
       const user = await getUser();
       setAuthedUser(user);
@@ -13541,8 +13541,8 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
   />;
-  if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => setView("mosqueDashboard")} />;
-  if (view === "orderCheck") return <OrderCheck onBack={() => setView("mosqueDashboard")} onComplete={(form) => {
+  if (view === "mosqueImamDetail") return <MosqueImamDetail imam={selectedImam} onBack={() => goBack("mosqueDashboard")} />;
+  if (view === "orderCheck") return <OrderCheck onBack={() => goBack("mosqueDashboard")} onComplete={(form) => {
     const newCheck = { id: Date.now(), candidateName: form.candidateName, candidateEmail: form.candidateEmail, dbs: { type: form.dbsLevel.charAt(0).toUpperCase() + form.dbsLevel.slice(1), status: "awaitingcandidate", date: "—" }, rtw: { status: form.includeRtw ? "awaitingcandidate" : "incomplete", date: "—" }, requestedDate: new Date().toISOString().split("T")[0] };
     setChecks([newCheck, ...checks]);
     setView("mosqueDashboard");
@@ -13559,7 +13559,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     creatorType={campaignCreatorType}
     creatorName={currentCreator.name}
     creatorCity={currentCreator.city}
-    onBack={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
+    onBack={() => goBack(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
     onComplete={(form) => { setLaunchedCampaign(form); setView("campaignLaunched"); }}
   />;
   if (view === "campaignLaunched") return <CampaignLaunched
@@ -13571,7 +13571,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
   if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
-  if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => window.history.back()} authedUser={authedUser} onSignIn={handleSignIn} />;
+  if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => goBack()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };
 
