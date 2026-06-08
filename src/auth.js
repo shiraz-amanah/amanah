@@ -366,7 +366,7 @@ export async function getMosqueScholars(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase
     .from('mosque_scholars')
-    .select('scholar:scholars (id, slug, name, title, avatar_initials, avatar_gradient, avatar_url, city)')
+    .select('scholar:scholars (id, slug, name, title, avatar_initials, avatar_gradient, avatar_url, city, subjects, dbs_verified)')
     .eq('mosque_id', mosqueId)
   if (error) { console.error('Error fetching mosque scholars:', error); return [] }
   return (data || []).map(r => r.scholar).filter(Boolean)

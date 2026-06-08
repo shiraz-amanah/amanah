@@ -6,7 +6,9 @@ import MosquePrayerTimes from "../components/MosquePrayerTimes";
 import MosqueDonateModal from "../components/MosqueDonateModal";
 import MosqueClaimModal from "../components/MosqueClaimModal";
 import { CAL_TYPE } from "../data/academicCalendar";
+import { CATEGORIES } from "../data/categories";
 
+const CATEGORY_NAME = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.name]));
 const calFmt = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return d; } };
 
 // Public mosque profile (Session U Day 1). Replaces the old in-App MosqueDetail.
@@ -185,17 +187,29 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
         {teachers.length > 0 && (
           <Section title="Our teachers">
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {teachers.map((s) => (
-                <button key={s.id} onClick={() => onScholar?.(s)} className="text-left flex items-center gap-3 bg-stone-50 border border-stone-200 hover:border-emerald-300 hover:shadow-sm transition-all rounded-xl p-3">
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
-                    {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover" /> : scholarInitials(s)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-1.5"><GraduationCap size={13} className="text-emerald-700 shrink-0" /> {s.name}</p>
-                    <p className="text-xs text-stone-500 truncate">{[s.title, s.city].filter(Boolean).join(" · ") || "Verified scholar"}</p>
-                  </div>
-                </button>
-              ))}
+              {teachers.map((s) => {
+                const subs = (Array.isArray(s.subjects) ? s.subjects : []).map((id) => CATEGORY_NAME[id] || id);
+                return (
+                  <button key={s.id} onClick={() => onScholar?.(s)} className="text-left bg-stone-50 border border-stone-200 hover:border-emerald-300 hover:shadow-sm transition-all rounded-xl p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
+                        {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover" /> : scholarInitials(s)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-1.5"><GraduationCap size={13} className="text-emerald-700 shrink-0" /> {s.name}</p>
+                        <p className="text-xs text-stone-500 truncate">{[s.title, s.city].filter(Boolean).join(" · ") || "Scholar"}</p>
+                        {s.dbs_verified && <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5"><ShieldCheck size={10} /> DBS verified</span>}
+                      </div>
+                    </div>
+                    {subs.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {subs.slice(0, 3).map((n) => <span key={n} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-stone-200 text-stone-600">{n}</span>)}
+                        {subs.length > 3 && <span className="text-[10px] text-stone-400">+{subs.length - 3}</span>}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </Section>
         )}
