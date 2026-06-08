@@ -17,11 +17,14 @@ const blankSections = () => Object.fromEntries(REPORT_SECTIONS.map((s) => [s.key
 
 // Teacher/admin progress-report board (078 RLS). Fix 3: structured section ratings
 // (stored as JSON in teacher_comment), an optional AI summary, and CSV export.
-const MadrasaReports = ({ classObj, mosqueName }) => {
+// `onlyStudentId` scopes the component to a single student (used by the student
+// profile Reports tab): the list shows only that student's reports and the
+// new-report form is locked to them.
+const MadrasaReports = ({ classObj, mosqueName, onlyStudentId }) => {
   const [roster, setRoster] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [studentId, setStudentId] = useState("");
+  const [studentId, setStudentId] = useState(onlyStudentId || "");
   const [term, setTerm] = useState(seasonTerm());
   const [sections, setSections] = useState(blankSections());
   const [overall, setOverall] = useState("");
@@ -50,7 +53,7 @@ const MadrasaReports = ({ classObj, mosqueName }) => {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [classObj.id]);
 
   const setSection = (key, field, val) => setSections((s) => ({ ...s, [key]: { ...s[key], [field]: val } }));
-  const reset = () => { setStudentId(""); setSections(blankSections()); setOverall(""); setSummary(null); setTerm(seasonTerm()); setAiDraft(""); setAiAccepted(""); setAiEditing(false); setEditingId(null); setWasPublished(false); setEditName(""); };
+  const reset = () => { setStudentId(onlyStudentId || ""); setSections(blankSections()); setOverall(""); setSummary(null); setTerm(seasonTerm()); setAiDraft(""); setAiAccepted(""); setAiEditing(false); setEditingId(null); setWasPublished(false); setEditName(""); };
 
   // Load an existing report back into the form to edit + republish. Pre-fills
   // ratings, comments, overall and the accepted AI summary from the stored JSON
@@ -143,6 +146,7 @@ const MadrasaReports = ({ classObj, mosqueName }) => {
   };
 
   const inputCls = "text-sm px-3 py-2 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700/30";
+  const visibleReports = onlyStudentId ? reports.filter((r) => r.student_id === onlyStudentId) : reports;
 
   return (
     <div className="space-y-5">
@@ -155,7 +159,7 @@ const MadrasaReports = ({ classObj, mosqueName }) => {
           </div>
         )}
         <div className="flex gap-2 flex-wrap">
-          <select value={studentId} disabled={!!editingId} onChange={(e) => { setStudentId(e.target.value); setSummary(null); setAiDraft(""); setAiAccepted(""); }} className={`${inputCls} flex-1 min-w-[160px] disabled:bg-stone-50 disabled:text-stone-500`}>
+          <select value={studentId} disabled={!!editingId || !!onlyStudentId} onChange={(e) => { setStudentId(e.target.value); setSummary(null); setAiDraft(""); setAiAccepted(""); }} className={`${inputCls} flex-1 min-w-[160px] disabled:bg-stone-50 disabled:text-stone-500`}>
             <option value="">Select student…</option>
             {editingId && !roster.some((e) => (e.student?.id || e.student_id) === studentId) && <option value={studentId}>{editName || "Student"}</option>}
             {roster.map((e) => { const sid = e.student?.id || e.student_id; return <option key={sid} value={sid}>{e.student?.name || "Student"}</option>; })}
@@ -228,17 +232,17 @@ const MadrasaReports = ({ classObj, mosqueName }) => {
       {/* Reports list */}
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-wider text-stone-500">Reports</p>
-        {reports.length > 0 && <button onClick={exportCsv} className="text-[12px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Download size={12} /> Export CSV</button>}
+        {visibleReports.length > 0 && <button onClick={exportCsv} className="text-[12px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Download size={12} /> Export CSV</button>}
       </div>
       {loading ? (
         <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
-      ) : reports.length === 0 ? (
+      ) : visibleReports.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
           <FileText className="mx-auto text-stone-300 mb-3" size={36} />
           <p className="text-stone-600 text-sm">No reports yet. Create one above — publishing emails the parent.</p>
         </div>
       ) : (
-        <ul className="space-y-2">{reports.map((r) => {
+        <ul className="space-y-2">{visibleReports.map((r) => {
           const parsed = parseReportComment(r.teacher_comment);
           const preview = parsed.ai_summary || parsed.overall || Object.values(parsed.sections).map((v) => v.rating).filter(Boolean).join(" · ");
           return (

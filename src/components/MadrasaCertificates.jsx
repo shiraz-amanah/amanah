@@ -11,7 +11,8 @@ const certMod = () => import("../lib/madrasaCertificate");
 // Teacher/admin certificate generator for one class (Phase 3C). No new data —
 // attendance/Hifz/homework come from the existing buildReportSummary RPC; custom
 // is free text. PDFs are generated + downloaded client-side, never stored.
-const MadrasaCertificates = ({ classObj, mosqueName }) => {
+// `onlyStudentId` scopes the generator to a single student (student profile tab).
+const MadrasaCertificates = ({ classObj, mosqueName, onlyStudentId }) => {
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState({});      // studentId → cert type
@@ -23,10 +24,10 @@ const MadrasaCertificates = ({ classObj, mosqueName }) => {
   useEffect(() => {
     setLoading(true); setErr("");
     getMadrasaRoster(classObj.id)
-      .then((r) => setRoster((r || []).filter((e) => e.status === "active")))
+      .then((r) => setRoster((r || []).filter((e) => e.status === "active" && (!onlyStudentId || (e.student?.id || e.student_id) === onlyStudentId))))
       .catch((e) => console.error("certificates load failed:", e))
       .finally(() => setLoading(false));
-  }, [classObj.id]);
+  }, [classObj.id, onlyStudentId]);
 
   // Resolve the certificate args (type-specific data) for a student, or null + set error.
   const resolveArgs = async (sid, name) => {

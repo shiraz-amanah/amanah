@@ -674,8 +674,9 @@ export async function getMadrasaRoster(classId) {
   if (!classId) return []
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    // profile_id (the parent's user id) powers the teacher's "Message" button (2a-ii)
-    .select('*, student:students(id, name, age, relation, profile_id)')
+    // profile_id (the parent's user id) powers the teacher's "Message" button (2a-ii);
+    // dob/gender/pending_parent_email power the student profile page (Layer 3).
+    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email)')
     .eq('class_id', classId)
     .order('enrolled_at', { ascending: true })
   if (error) { console.error('Error fetching roster:', error); return [] }
@@ -913,6 +914,15 @@ export async function withdrawEnrollment(id) {
   if (!id) return { error: { message: 'id required' } }
   const { data, error } = await supabase
     .from('madrasa_enrollments').update({ status: 'withdrawn' }).eq('id', id).select().single()
+  return { data, error }
+}
+
+// Owner/teacher toggles an enrolment between 'active' and 'withdrawn' from the
+// student profile (068 owner-manage RLS). Used by the Activate/Deactivate toggle.
+export async function setEnrollmentStatus(id, status) {
+  if (!id || !status) return { error: { message: 'id and status required' } }
+  const { data, error } = await supabase
+    .from('madrasa_enrollments').update({ status }).eq('id', id).select().single()
   return { data, error }
 }
 
