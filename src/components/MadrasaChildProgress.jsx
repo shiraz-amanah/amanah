@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, X, MessageCircle, ChevronDown, ChevronUp, Video, Radio, Star, CheckCircle2, AlertCircle, GraduationCap } from "lucide-react";
 import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession } from "../auth";
-import { surahName } from "../data/surahs";
+import { surahName, surahNameAr } from "../data/surahs";
 import MadrasaReportView from "./MadrasaReportView";
 
 // Fix 6 — clean, parent-friendly per-child card (ClassDojo-style): a header with
@@ -201,8 +201,9 @@ const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onW
             <HifzWatermark id={`zellij-${student.id}`} />
             <div className="relative">
               <p className="text-[10px] uppercase tracking-[0.15em] text-emerald-100/80 font-semibold inline-flex items-center gap-1.5"><BookOpen size={12} /> Qur'an &amp; Hifz</p>
-              <p className="text-2xl md:text-3xl font-semibold mt-1 leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{surahName(currentSurah)}</p>
-              {positionText && <p className="text-sm text-emerald-50/90">{positionText}</p>}
+              {surahNameAr(currentSurah) && <p dir="rtl" lang="ar" className="text-3xl md:text-4xl leading-tight mt-1.5" style={{ fontFamily: "'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', 'Times New Roman', serif" }}>{surahNameAr(currentSurah)}</p>}
+              <p className="text-xl md:text-2xl font-semibold mt-0.5 leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{surahName(currentSurah)}</p>
+              {positionText && <p className="text-sm text-emerald-50/90 mt-0.5">{positionText}</p>}
               {(lastLessonLabel || hifzGrade) && <p className="text-xs text-emerald-100/70 mt-1">{lastLessonLabel ? `Last lesson ${lastLessonLabel}` : ""}{lastLessonLabel && hifzGrade ? " · " : ""}{hifzGrade || ""}</p>}
               <div className="mt-3.5">
                 <div className="h-2.5 bg-emerald-950/40 rounded-full overflow-hidden"><div className="h-full bg-white rounded-full transition-all" style={{ width: `${hifzPct}%` }} /></div>
