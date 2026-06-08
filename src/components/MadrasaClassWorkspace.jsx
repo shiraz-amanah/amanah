@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, X, MessageCircle, BookOpen, CalendarCheck, FileText,
-  ChevronRight, Megaphone, Video, GraduationCap, Award, Image,
+  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal,
 } from "lucide-react";
+import { useOverlay, overlayBack } from "../lib/useOverlay";
 import {
   getMadrasaRoster, getClassHifz, getStudentAttendance, getHifzProgress, getHomeworkForClasses,
   getStudentCompletions, getStudentRewards, getStudentReports,
@@ -21,17 +22,29 @@ import BulkParentMessageModal from "./BulkParentMessageModal";
 import MadrasaLiveLesson from "./MadrasaLiveLesson";
 
 // Shared class workspace (admin Madrasah class detail + teacher "My Classes"
-// portal). Redesign (Session AL): NO tabs — every section is a scrollable block
-// in daily-workflow order (Today's register → Qur'an & Hifz hero → Homework →
-// Students → Announcements → Reports → Live lesson), with a per-student slide-in
-// panel (Hifz first). Rewards/Photos/Certificates/Waitlist live in a collapsible
-// "Additional records" group so the primary scroll stays 60-second-readable.
-// Writes run under the 070/071/072 RLS; both admin (owner policy) and the class
-// teacher (definer-helper policy) can read/write here.
+// portal). Session AM: BrightHR-style tabbed profile — a pinned header (quick
+// stats) + a tab bar (Register · Hifz · Homework · Students · Reports · More),
+// each tab showing only its own block instead of one long scroll. Register is
+// the default (live lesson + today's attendance). "More" groups Announcements,
+// Rewards, Photos, Certificates and Waiting list. A per-student slide-in panel
+// (Hifz first) opens from the Hifz and Students tabs. Writes run under the
+// 070/071/072 RLS; both admin (owner policy) and the class teacher
+// (definer-helper policy) can read/write here.
 
 const MS_30D = 30 * 24 * 60 * 60 * 1000;
 const fmtDate = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
 const ayahText = (h) => h?.ayah_from ? ` · ayah ${h.ayah_from}${h.ayah_to && h.ayah_to !== h.ayah_from ? `–${h.ayah_to}` : ""}` : "";
+
+// Tabbed class workspace (BrightHR-style profile). Header (in MosqueMadrasa) +
+// quick stats stay pinned; the tab bar below switches the single visible block.
+const TABS = [
+  ["register", "Register", CalendarCheck],
+  ["hifz", "Hifz", GraduationCap],
+  ["homework", "Homework", BookOpen],
+  ["students", "Students", Users],
+  ["reports", "Reports", FileText],
+  ["more", "More", MoreHorizontal],
+];
 
 const Section = ({ icon: Icon, title, subtitle, accent = "text-emerald-700", children }) => (
   <section className="scroll-mt-4">
@@ -71,6 +84,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [loading, setLoading] = useState(true);
   const [hifzLoading, setHifzLoading] = useState(true);
   const [showBulk, setShowBulk] = useState(false);
+  const [tab, setTab] = useState("register");
 
   // Per-student slide-in panel
   const [panelStudent, setPanelStudent] = useState(null);
@@ -99,6 +113,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   }, [panelStudent]);
   const closePanel = () => { setPanelShown(false); setTimeout(() => setPanelStudent(null), 200); };
   const openStudent = (st, e) => setPanelStudent({ id: st.id || e?.student_id, name: st.name || "Student", age: st.age, relation: st.relation, profile_id: st.profile_id });
+  // Back closes the slide-in panel before leaving the class page.
+  useOverlay(!!panelStudent, closePanel);
 
   // Load the clicked student's stats for the panel.
   useEffect(() => {
@@ -155,8 +171,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   }, [classHifz]);
 
   return (
-    <div className="space-y-10">
-      {/* Quick stats */}
+    <div className="space-y-6">
+      {/* Quick stats (header) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Students" value={loading ? "—" : activeRoster.length} />
         {classObj.capacity != null && <StatCard label="Capacity" value={loading ? "—" : `${activeRoster.length}/${classObj.capacity}`} />}
@@ -164,128 +180,137 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <StatCard label="Subject" value={(classObj.subject || "—").replace(/_/g, " ")} />
       </div>
 
-      {/* Bulk parent messaging (item 10) — teacher context (parent threads) */}
-      {onMessageParent && (
-        <div className="-mt-6 flex justify-end">
-          <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+      {/* Tab bar (BrightHR-style) + bulk-message action */}
+      <div className="border-b border-stone-200 flex items-end justify-between gap-3 flex-wrap">
+        <div className="flex gap-1 overflow-x-auto -mb-px">
+          {TABS.map(([v, l, Icon]) => (
+            <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
+          ))}
+        </div>
+        {onMessageParent && (
+          <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="mb-2 text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+        )}
+      </div>
+
+      {/* REGISTER — live lesson + today's attendance (default) */}
+      {tab === "register" && (
+        <div className="space-y-10">
+          <Section icon={Video} title="Live lesson" subtitle="Remote learning over video">
+            <MadrasaLiveLesson classObj={classObj} />
+          </Section>
+          <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
+            <MadrasaAttendance classObj={classObj} />
+          </Section>
         </div>
       )}
 
-      {/* 1 — TODAY'S REGISTER (most-used, first) */}
-      <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
-        <MadrasaAttendance classObj={classObj} />
-      </Section>
-
-      {/* 2 — QUR'AN & HIFZ (hero — large, per-student progress bars) */}
-      <Section icon={GraduationCap} title="Qur'an & Hifz" subtitle="Each student's position in the Qur'an — surahs memorised out of 114">
-        {hifzLoading || loading ? (
-          <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
-        ) : activeRoster.length === 0 ? (
-          <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-sm text-stone-500">No students enrolled yet.</div>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {activeRoster.map((e) => {
-              const st = e.student || {};
-              const sid = st.id || e.student_id;
-              const h = hifzByStudent[sid] || { last: null, memorized: new Set(), memorizedMonth: new Set() };
-              const mem = h.memorized.size;
-              const month = h.memorizedMonth.size;
-              return (
-                <div key={e.id} className="bg-white border border-stone-200 rounded-2xl p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <button onClick={() => openStudent(st, e)} className="min-w-0 text-left flex-1">
-                      <p className="text-sm font-semibold text-stone-900 truncate">{st.name || "Student"}</p>
-                      <p className="text-xs text-stone-500 truncate mt-0.5">
-                        {h.last ? <>{surahName(h.last.surah_number)}{ayahText(h.last)} · {fmtDate(h.last.session_date)}</> : "No Hifz logged yet"}
-                      </p>
-                    </button>
-                    <button onClick={() => openStudent(st, e)} className="shrink-0 text-[11px] font-medium text-emerald-800 hover:text-emerald-900 border border-emerald-200 hover:border-emerald-300 rounded-lg px-2.5 py-1 inline-flex items-center gap-1"><BookOpen size={12} /> Log entry</button>
-                  </div>
-                  <HifzBar memorized={mem} />
-                  <p className="text-[11px] text-stone-400 mt-1">{mem}/114 surahs memorised{month > 0 ? ` · +${month} this month` : ""}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
-
-      {/* 3 — HOMEWORK */}
-      <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted">
-        <MadrasaHomework classObj={classObj} />
-      </Section>
-
-      {/* 4 — STUDENTS (roster → slide-in panel) */}
-      <Section icon={Users} title="Students" subtitle="Tap a student for their full record">
-        {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
-          : roster.length === 0 ? (
-            <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
-              <Users className="mx-auto text-stone-300 mb-3" size={36} />
-              <p className="text-stone-600 text-sm max-w-md mx-auto">No students enrolled yet. Parents enrol their children into this class from their Amanah dashboard.</p>
-            </div>
+      {/* HIFZ — per-student Qur'an progress */}
+      {tab === "hifz" && (
+        <Section icon={GraduationCap} title="Qur'an & Hifz" subtitle="Each student's position in the Qur'an — surahs memorised out of 114">
+          {hifzLoading || loading ? (
+            <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+          ) : activeRoster.length === 0 ? (
+            <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-sm text-stone-500">No students enrolled yet.</div>
           ) : (
-            <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
-              {roster.map((e) => {
+            <div className="grid sm:grid-cols-2 gap-3">
+              {activeRoster.map((e) => {
                 const st = e.student || {};
+                const sid = st.id || e.student_id;
+                const h = hifzByStudent[sid] || { last: null, memorized: new Set(), memorizedMonth: new Set() };
+                const mem = h.memorized.size;
+                const month = h.memorizedMonth.size;
                 return (
-                  <li key={e.id}>
-                    <button onClick={() => openStudent(st, e)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-stone-900 truncate">{st.name || "Student"}</p>
-                        <p className="text-xs text-stone-500">{[st.age ? `age ${st.age}` : null, st.relation].filter(Boolean).join(" · ") || "—"}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${e.status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{e.status}</span>
-                        <ChevronRight size={15} className="text-stone-400" />
-                      </div>
-                    </button>
-                  </li>
+                  <div key={e.id} className="bg-white border border-stone-200 rounded-2xl p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <button onClick={() => openStudent(st, e)} className="min-w-0 text-left flex-1">
+                        <p className="text-sm font-semibold text-stone-900 truncate">{st.name || "Student"}</p>
+                        <p className="text-xs text-stone-500 truncate mt-0.5">
+                          {h.last ? <>{surahName(h.last.surah_number)}{ayahText(h.last)} · {fmtDate(h.last.session_date)}</> : "No Hifz logged yet"}
+                        </p>
+                      </button>
+                      <button onClick={() => openStudent(st, e)} className="shrink-0 text-[11px] font-medium text-emerald-800 hover:text-emerald-900 border border-emerald-200 hover:border-emerald-300 rounded-lg px-2.5 py-1 inline-flex items-center gap-1"><BookOpen size={12} /> Log entry</button>
+                    </div>
+                    <HifzBar memorized={mem} />
+                    <p className="text-[11px] text-stone-400 mt-1">{mem}/114 surahs memorised{month > 0 ? ` · +${month} this month` : ""}</p>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
-      </Section>
+        </Section>
+      )}
 
-      {/* 5 — ANNOUNCEMENTS */}
-      <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents">
-        <MadrasaAnnouncements classObj={classObj} />
-      </Section>
+      {/* HOMEWORK */}
+      {tab === "homework" && (
+        <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted">
+          <MadrasaHomework classObj={classObj} />
+        </Section>
+      )}
 
-      {/* 6 — REPORTS */}
-      <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
-        <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
-      </Section>
+      {/* STUDENTS (roster → slide-in panel) */}
+      {tab === "students" && (
+        <Section icon={Users} title="Students" subtitle="Tap a student for their full record">
+          {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+            : roster.length === 0 ? (
+              <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+                <Users className="mx-auto text-stone-300 mb-3" size={36} />
+                <p className="text-stone-600 text-sm max-w-md mx-auto">No students enrolled yet. Parents enrol their children into this class from their Amanah dashboard.</p>
+              </div>
+            ) : (
+              <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
+                {roster.map((e) => {
+                  const st = e.student || {};
+                  return (
+                    <li key={e.id}>
+                      <button onClick={() => openStudent(st, e)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-stone-900 truncate">{st.name || "Student"}</p>
+                          <p className="text-xs text-stone-500">{[st.age ? `age ${st.age}` : null, st.relation].filter(Boolean).join(" · ") || "—"}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${e.status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{e.status}</span>
+                          <ChevronRight size={15} className="text-stone-400" />
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+        </Section>
+      )}
 
-      {/* 7 — LIVE LESSON (Daily.co — item 14) */}
-      <Section icon={Video} title="Live lesson" subtitle="Remote learning over video">
-        <MadrasaLiveLesson classObj={classObj} />
-      </Section>
+      {/* REPORTS */}
+      {tab === "reports" && (
+        <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
+          <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
+        </Section>
+      )}
 
-      {/* 8 — REWARDS */}
-      <Section icon={Award} title="Rewards" subtitle="Stars and merits — parents are notified" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
-
-      {/* 9 — PHOTOS */}
-      <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
-
-      {/* 10 — CERTIFICATES */}
-      <Section icon={GraduationCap} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
-
-      {/* 11 — WAITING LIST */}
-      <Section icon={Users} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
+      {/* MORE — announcements, rewards, photos, certificates, waiting list */}
+      {tab === "more" && (
+        <div className="space-y-10">
+          <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
+          <Section icon={Award} title="Rewards" subtitle="Stars and merits — parents are notified" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
+          <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
+          <Section icon={GraduationCap} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
+          <Section icon={Users} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
+        </div>
+      )}
 
       {showBulk && <BulkParentMessageModal recipients={parentIds} audienceLabel={`all parents in ${classObj.name || "this class"}`} onClose={() => setShowBulk(false)} />}
 
       {/* Per-student slide-in panel — Hifz first (item 4) */}
       {panelStudent && (
         <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
-          <div className={`absolute inset-0 bg-stone-900/40 transition-opacity duration-200 ${panelShown ? "opacity-100" : "opacity-0"}`} onClick={closePanel} />
+          <div className={`absolute inset-0 bg-stone-900/40 transition-opacity duration-200 ${panelShown ? "opacity-100" : "opacity-0"}`} onClick={() => overlayBack()} />
           <aside className={`relative bg-stone-50 w-full max-w-md h-full overflow-y-auto shadow-xl transform transition-transform duration-200 ${panelShown ? "translate-x-0" : "translate-x-full"}`}>
             <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{panelStudent.name}</h3>
                 <p className="text-xs text-stone-500">{[panelStudent.age ? `age ${panelStudent.age}` : null, panelStudent.relation].filter(Boolean).join(" · ") || "Student"}</p>
               </div>
-              <button onClick={closePanel} className="text-stone-400 hover:text-stone-700 p-1"><X size={18} /></button>
+              <button onClick={() => overlayBack()} className="text-stone-400 hover:text-stone-700 p-1"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4">
               {/* Hifz progress — first thing shown */}
