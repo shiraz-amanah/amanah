@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
@@ -4714,6 +4714,7 @@ const ConversationView = ({
   savedMosquesCount,
   scholarReviewsCount,
   messagesUnread = 0,
+  onRead,
 }) => {
   // For demo conversations (no real conversation.id matching a UUID), keep
   // the original in-memory behavior. For real conversations, fetch + subscribe.
@@ -4752,7 +4753,10 @@ const ConversationView = ({
     markConversationRead(conversation.id).catch(err =>
       console.error("Error marking read:", err)
     );
- 
+    // Clear the unread badge (bell + Messages tab) immediately, no refresh —
+    // App holds the conversations list and recomputes the count from it.
+    onRead?.(conversation.id);
+
     const unsub = subscribeToMessages([conversation.id], msg => {
       // Ignore our own optimistic echoes — already in state
       setMessages(prev => {
@@ -4761,6 +4765,7 @@ const ConversationView = ({
       });
       // Mark read whenever a new message arrives while the thread is open
       markConversationRead(conversation.id).catch(() => {});
+      onRead?.(conversation.id);
     });
  
     return () => { cancelled = true; unsub(); };
@@ -12577,6 +12582,14 @@ export default function App() {
       .catch(err => console.error("Error fetching conversations:", err))
       .finally(() => setConversationsLoading(false));
   }, [authedProfile, authedUser?.id]);
+
+  // Optimistically clear a conversation's unread flag in the App-level list the
+  // moment its thread is opened, so the bell + Messages-tab badge update in real
+  // time without a page refresh (platform-wide — every dashboard reads these
+  // conversations). The server-side markConversationRead persists it.
+  const markConversationReadLocal = useCallback((conversationId) => {
+    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, hasUnread: false } : c));
+  }, []);
   const [authLoading, setAuthLoading] = useState(true);
   const [returnView, setReturnView] = useState("publicHome");
 
@@ -13354,6 +13367,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => setView("publicHome")}
     savedScholarsCount={savedScholars.length}
     savedMosquesCount={savedMosqueIds?.size || 0}
     messagesUnread={totalMessagesUnread}
+    onRead={markConversationReadLocal}
     {...messagesChrome}
   />;
   if (view === "jobsBoard") return <JobsBoard onBack={() => setView("imamDashboard")} onJob={(j) => { setSelectedJob(j); navigate("jobDetail", { id: j.id }); }} myApplications={myApplications} authedUser={authedUser} authedProfile={authedProfile} onSignIn={handleSignIn} />;
