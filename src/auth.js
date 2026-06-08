@@ -1785,9 +1785,14 @@ export async function deleteNotification(id) {
   return { error }
 }
 // Live new-notification stream for the bell (postgres_changes INSERT, own rows).
+// Unique channel suffix so two simultaneous subscribers for the same user
+// (e.g. the responsive mobile + desktop notification bells, both mounted in
+// the DOM) don't collide on the same realtime topic — Supabase rejects a
+// second postgres_changes listener on an already-joined channel.
+let _notifChannelSeq = 0
 export function subscribeToNotifications(userId, onInsert) {
   if (!userId) return null
-  return supabase.channel(`notifications:${userId}`)
+  return supabase.channel(`notifications:${userId}:${++_notifChannelSeq}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
       (payload) => onInsert?.(payload.new))
     .subscribe()
