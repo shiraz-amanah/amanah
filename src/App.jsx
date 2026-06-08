@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -1082,6 +1082,7 @@ const DashboardTabBar = ({
         { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookingsCount },
         { v: "profile", l: "Profile", i: User, badge: null },
         { v: "availability", l: "Availability", i: Clock, badge: null },
+        { v: "cover", l: "Cover", i: CalendarDays, badge: null },
         { v: "reviews", l: "Reviews", i: Star, badge: scholarReviewsCount || null },
         { v: "dbs", l: "DBS", i: FileCheck, badge: null },
         { v: "messages", l: "Messages", i: MessageCircle, badge: messagesUnread },
@@ -9733,13 +9734,13 @@ const PrayerHub = ({ onBack, onSignIn }) => {
 const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onCloseMobile, displayName }) => {
   const items = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, count: null },
-    { id: "mosques", label: "Mosque applications", icon: Building2, count: null, urgent: false },
-    { id: "claims", label: "Mosque claims", icon: ShieldCheck, count: null, urgent: false },
-    { id: "scholarApplications", label: "Scholar applications", icon: GraduationCap, count: null, urgent: false },
+    { id: "mosques", label: "Mosque applications", icon: Building2, count: counts.mosques, urgent: counts.mosques > 0 },
+    { id: "claims", label: "Mosque claims", icon: ShieldCheck, count: counts.claims, urgent: counts.claims > 0 },
+    { id: "scholarApplications", label: "Scholar applications", icon: GraduationCap, count: counts.scholarApplications, urgent: counts.scholarApplications > 0 },
     { id: "campaigns", label: "Campaign queue", icon: HandCoins, count: counts.campaigns, urgent: counts.campaigns > 0 },
     { id: "flags", label: "Flags & reports", icon: Flag, count: counts.flags, urgent: counts.flags > 0, highlight: true },
-    { id: "reviews", label: "Reviews", icon: Star, count: null, urgent: false },
-    { id: "dbs", label: "DBS orders", icon: FileCheck, count: counts.dbs, urgent: false },
+    { id: "reviews", label: "Reviews", icon: Star, count: counts.reviews, urgent: counts.reviews > 0 },
+    { id: "dbs", label: "DBS orders", icon: FileCheck, count: counts.dbs, urgent: counts.dbs > 0 },
     { id: "users", label: "All users", icon: Users, count: null },
     { id: "settings", label: "Settings", icon: Settings, count: null }
   ];
@@ -9784,7 +9785,7 @@ const AdminSidebar = ({ active, onNavigate, onLogout, counts, mobileOpen, onClos
                 <Icon size={16} />
                 <span className="flex-1 text-left">{item.label}</span>
                 {item.count !== null && item.count > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${item.highlight && item.urgent ? "bg-rose-600 text-white" : item.urgent ? "bg-amber-500 text-stone-950" : "bg-stone-700 text-stone-300"}`}>{item.count}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${item.urgent ? "bg-rose-600 text-white" : "bg-stone-700 text-stone-300"}`}>{item.count}</span>
                 )}
               </button>
             );
@@ -12285,7 +12286,7 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
   const setSection = onSectionChange;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [campaignApps, setCampaignApps] = useState(ADMIN_CAMPAIGN_APPS);
-  const [openFlagsCount, setOpenFlagsCount] = useState(0);
+  const [pendingCounts, setPendingCounts] = useState({ flags: 0, scholarApplications: 0, mosques: 0, claims: 0, reviews: 0, dbs: 0 });
   const [toast, setToast] = useState(null);
   // K-2 → AdminDBSOrders deep-link target (Session L commit 10).
   // Set when admin clicks "View order" inside the K-2 verification
@@ -12293,20 +12294,34 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
   // initializer + sync useEffect on next render.
   const [dbsDetailOrderId, setDbsDetailOrderId] = useState(null);
 
-  // Sidebar badge: open-flag count. AdminFlags owns its own list; this is
-  // a separate lightweight count fetch so the sidebar's "urgent" red dot
-  // reflects reality without coupling the two components.
-  useEffect(() => {
-    let cancelled = false;
-    getAllFlags({ status: "open" })
-      .then(data => { if (!cancelled) setOpenFlagsCount(data.length); })
-      .catch(err => console.error("Failed to fetch open flag count:", err));
-    return () => { cancelled = true; };
+  // Sidebar badges: pending/unreviewed counts across every actionable queue, so
+  // the panel reads like an ops dashboard. Lightweight count fetches (each queue
+  // owns its own full list elsewhere). Re-fetched whenever the admin changes
+  // section, so a badge drops the moment they clear an item and navigate.
+  const loadCounts = useCallback(() => {
+    Promise.all([
+      getAllFlags({ status: "open" }),
+      getAllScholarApplications("pending"),
+      getAllMosqueApplications("pending"),
+      getMosqueClaims("pending"),
+      getReviewsForModeration("pending"),
+      getAllDBSOrders(),
+    ]).then(([flags, sch, mosq, claims, reviews, dbs]) => {
+      setPendingCounts({
+        flags: flags.length,
+        scholarApplications: sch.length,
+        mosques: mosq.length,
+        claims: claims.length,
+        reviews: reviews.length,
+        dbs: (dbs || []).filter((o) => o.stage !== "completed" && o.stage !== "cancelled").length,
+      });
+    }).catch((err) => console.error("Failed to load admin counts:", err));
   }, []);
+  useEffect(() => { loadCounts(); }, [loadCounts, section]);
 
   const counts = {
+    ...pendingCounts,
     campaigns: campaignApps.length,
-    flags: openFlagsCount,
   };
 
   const sectionTitle = {
