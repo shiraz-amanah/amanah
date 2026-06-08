@@ -31,16 +31,30 @@ const MadrasaPhotos = ({ classObj }) => {
 
   const onUpload = async (e) => {
     e.preventDefault();
+    if (uploading) return;
     const file = fileRef.current?.files?.[0];
-    if (!file || uploading) return;
+    if (!file) { setError("Choose a photo to upload first."); return; }
+    const mosqueId = classObj.mosque_id || classObj.mosque?.id;
     setUploading(true); setError("");
-    const { data, error: err } = await uploadClassPhoto({
-      classId: classObj.id, mosqueId: classObj.mosque_id, file, caption, sessionDate, visibleTo: consentedIds,
-    });
-    setUploading(false);
-    if (err) { setError(err.message || "Upload failed."); return; }
-    setCaption(""); if (fileRef.current) fileRef.current.value = "";
-    load(); // reload to fetch the signed URL for the new photo
+    try {
+      const { error: err } = await uploadClassPhoto({
+        classId: classObj.id, mosqueId, file, caption, sessionDate, visibleTo: consentedIds,
+      });
+      if (err) {
+        // Full error is console.error'd in auth.js; surface a useful message here.
+        console.error("Class photo upload error:", err);
+        setError(err.message || err.error?.message || "Upload failed — please try again.");
+        return;
+      }
+      setCaption(""); if (fileRef.current) fileRef.current.value = "";
+      load(); // reload to fetch the signed URL for the new photo
+    } catch (ex) {
+      // A thrown/rejected call previously left the spinner stuck → no more uploads.
+      console.error("Class photo upload threw:", ex);
+      setError(ex?.message || "Upload failed unexpectedly.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const remove = async (photo) => {

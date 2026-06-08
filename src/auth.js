@@ -1356,16 +1356,26 @@ export async function setPhotoConsent({ studentId, mosqueId, consentGiven }) {
 export async function uploadClassPhoto({ classId, mosqueId, file, caption, sessionDate, visibleTo }) {
   if (!classId || !mosqueId || !file) return { error: { message: 'classId, mosqueId and file required' } }
   const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-  const path = `${mosqueId}/${classId}/${crypto.randomUUID()}.${ext}`
+  // Defensive UUID (crypto.randomUUID is only defined in secure contexts).
+  const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const path = `${mosqueId}/${classId}/${uuid}.${ext}`
   const { error: upErr } = await supabase.storage.from(MADRASA_PHOTO_BUCKET)
     .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
-  if (upErr) return { error: upErr }
+  if (upErr) {
+    // Surface the exact storage error (bucket name, path, RLS/404/size) — Fix 4.
+    console.error('Class photo storage upload failed:', { bucket: MADRASA_PHOTO_BUCKET, path, status: upErr.statusCode || upErr.status, message: upErr.message, error: upErr })
+    return { error: upErr }
+  }
   const user = await getUser()
   const { data, error } = await supabase
     .from('madrasa_photos')
     .insert({ class_id: classId, mosque_id: mosqueId, storage_path: path, caption: caption?.trim() || null, session_date: sessionDate || null, uploaded_by: user?.id || null, visible_to: visibleTo || [] })
     .select().single()
-  if (error) { await supabase.storage.from(MADRASA_PHOTO_BUCKET).remove([path]); return { error } }
+  if (error) {
+    console.error('Class photo row insert failed (rolling back object):', { path, message: error.message, details: error.details, error })
+    await supabase.storage.from(MADRASA_PHOTO_BUCKET).remove([path])
+    return { error }
+  }
   return { data }
 }
 async function withSignedUrls(rows) {
