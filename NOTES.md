@@ -7063,6 +7063,116 @@ deep-links. Item 2 "live" badge drop is re-fetch-on-navigate, not a subscription
 
 ---
 
+## Session AT — Admin panel down on prod: two post-AS hotfixes ✅ (8 June 2026)
+
+The AS notification-bell push took the **whole admin panel down on prod**. Two
+bugs, two commits, both built clean and **confirmed restored on prod**.
+
+### `6533df4` — loadCounts crashed on a non-array return
+`getAllDBSOrders()` returns `{ data, error }` (not a bare array, unlike the
+other five count sources). The AS code did `(dbs || []).filter(...)` — but
+`dbs` was the truthy `{data,error}` object, so `|| []` never kicked in and
+`.filter` threw `TypeError: (U||([])).filter is not a function`, crashing
+AdminPanel before its subscriptions mounted. Fix: an `arr()` helper that
+unwraps `.data` and falls back to `[]`, applied to **every** count source
+(not just dbs) so any future shape drift is absorbed.
+
+### `aade2ec` — duplicate realtime channel from two bells
+Console also showed `cannot add postgres_changes callbacks for
+realtime:notifications`. Root cause was **mine from AS**: the admin panel mounts
+two `<NotificationBell>` (responsive mobile bar + desktop header); both stay in
+the DOM (CSS `hidden` ≠ unmounted) and both subscribed to the *same* channel
+topic `notifications:<userId>`. Supabase rejects a second postgres_changes
+listener on an already-joined topic. Fix: `subscribeToNotifications` now appends
+a module-level sequence → `notifications:<userId>:<seq>`, so concurrent
+subscribers for one user get distinct topics. (Each bell keeps its own
+subscription — redundant but correct; a single-bell refactor was noted as a
+possible later optimisation.)
+
+**Lesson logged:** a component rendered twice for responsive layouts double-runs
+every effect, including realtime subscribes — fixed channel names don't survive
+that.
+
+---
+
+## Session AU — Global search: role-scoped ⌘K command palette ✅ (8 June 2026)
+
+A platform-wide command palette over the core entities. **Migration 096 GREEN
+on dev + prod** (2 FTS columns + 6 indexes + `search_global` RPC, `prosecdef=t`).
+3 commits, build clean. Vercel **12/12** (`api/search.js` — at the cap now;
+accepted up-front). Next migration **097**.
+
+### Coverage + scope (agreed, enforced in the DB)
+- **Admin:** scholars, mosques, students, staff, parents (global).
+- **Mosque owner:** students, staff, classes — **their** mosque only.
+- **Parents = admin-only** (not mosque-owned); **classes = mosque-only** (admin
+  searches entities, not timetable blocks). Scholar/parent dashboards deferred.
+
+### Migration 096 (`migrations/096_global_search.sql`)
+- `scholars.search_vector` / `mosques.search_vector` — **generated** tsvector
+  (FTS, GIN). Stored-generated → backfills existing rows at ALTER time, no job.
+  No new embedding columns: the semantic tier reuses 036 `embedding` + 038
+  `match_*`.
+- `pg_trgm` GIN indexes on `students.name`, `profiles.name`, `profiles.email`,
+  `madrasa_classes.name` — short fields, typo-tolerant substring, no semantic.
+- `search_global(p_query, p_limit)` — **SECURITY DEFINER**, scope derived from
+  `auth.uid()` (`is_admin()` + owned-mosque ids), one unified row set
+  `{result_type, result_id, title, subtitle, mosque_id, rank}`. Eight `return
+  query` blocks, each `LIMIT p_limit`.
+  - **Effective-age subtitle** for students: `coalesce(age, extract(year from
+    age(dob)))` — `age` (parent self-serve) vs `dob` (admin enrol, 089) are each
+    sometimes null.
+  - **Dual-role dedup:** a user who is BOTH admin and mosque owner would hit
+    both blocks → duplicate students/staff. Fixed by gating the mosque block's
+    student+staff queries behind `if not v_is_admin` (admin block already has
+    them globally); the **class** query stays ungated so a dual-role user still
+    gets their classes. No client-side dedup needed.
+
+### api/search.js (12/12) + `searchGlobal()` wrapper
+- Forwards the user's Supabase **JWT** to the RPC so `auth.uid()` resolves and
+  scope is enforced **at the DB**, not the API. `searchGlobal(q, roleHint)` in
+  auth.js grabs the session token, POSTs `/api/search`, returns a flat ranked
+  array, degrading to `[]` on no-session/short-query/error.
+- **Semantic enrichment** (admin scholar/mosque only, best-effort): when keyword
+  hits are thin (`< 3`/type) it embeds the query (`text-embedding-3-small`) and
+  calls `match_scholars`/`match_mosques` (036/038), hydrates + appends. Gated on
+  the `role` hint — but that's UX-only, not security (it only ever surfaces
+  active, public marketplace rows; the real boundary is `auth.uid()`). Any
+  failure is swallowed → keyword results still return.
+- `attachSlugs()` batch-hydrates scholar/mosque slugs (the RPC returns ids; the
+  public detail routes are slug-based).
+
+### GlobalSearch.jsx (⌘K palette)
+- Self-contained: owns the ⌘K/Ctrl-K shortcut **and** an `amanah:open-search`
+  window event, so multiple header triggers (mobile + desktop) share **one**
+  modal + listener — deliberately NOT the AS double-mount mistake.
+- Debounced (220ms, seq-guarded), grouped by type, arrow-key nav, AI badge on
+  semantic hits. Routing delegated to each mount via `onSelect(result)`:
+  - **Admin:** scholar/mosque → public detail by slug; student/staff/parent →
+    All users. (AdminPanel gained a `navigate` prop for the detail links.)
+  - **Mosque:** staff → people·team·staffId (deep-links the record); student/
+    class → Madrasah surface.
+
+### Verified vs NOT verified
+**Verified:** 096 green dev+prod (2 search_vector cols, 6 indexes, `search_global`
+`prosecdef=t`); build clean ×N. **NOT verified (needs prod + a browser):** the
+whole runtime path — `/api/search` only exists once Vercel deploys this push, so
+nothing was smoke-tested locally. After deploy, smoke as **admin** (scholars/
+mosques/students/staff/parents + a ⌘K open) and as a **mosque owner** (their
+students/staff/classes only; confirm NO scholars/mosques/parents leak).
+
+### Known limitations (deliberate, logged)
+- Admin student/staff/parent results all land on **All users** — there's no
+  per-entity admin detail surface; the palette's value is the fuzzy-find, the
+  landing is the nearest management surface.
+- Semantic tier only fires for an admin whose keyword search already returned
+  some scholar/mosque rows-worth of signal; a pure-semantic admin query with
+  zero keyword hits won't trigger it (acceptable — semantic is a *fallback*).
+- Mobile admin: ⌘K doesn't exist on touch, but the compact search icon in the
+  mobile top bar dispatches the same open event.
+
+---
+
 ## Session AQ — Academic calendar + Timetable (two quick wins) ✅ (10 June 2026)
 
 Two high-value, low-risk Madrasah features. **Migration 094 GREEN on dev + prod**
