@@ -1668,10 +1668,9 @@ useEffect(() => {
             {/* Verification */}
             <div className="bg-white border border-stone-200 rounded-2xl p-6">
               <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-4">Verification</h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: "Enhanced DBS", icon: ShieldCheck, date: "Nov 2025" },
-                  { label: "Right to Work", icon: FileCheck, date: "Sep 2025" },
                   { label: "Qualifications", icon: GraduationCap, date: "Verified" }
                 ].map(v => {
                   const Icon = v.icon;
@@ -2401,7 +2400,7 @@ const ImamRegister = ({ onComplete, onBack }) => {
     madhhab: "", experience: "", bio: "",
     specialties: [], languages: [],
     availability: "substitute", rate: "",
-    dbsUploaded: false, rtwUploaded: false, ijazahUploaded: false
+    dbsUploaded: false, ijazahUploaded: false
   });
   const [specialtyInput, setSpecialtyInput] = useState("");
   const [languageInput, setLanguageInput] = useState("");
@@ -2418,7 +2417,7 @@ const ImamRegister = ({ onComplete, onBack }) => {
     1: form.name && form.email && form.phone && form.city,
     2: form.madhhab && form.experience && form.bio && form.specialties.length > 0 && form.languages.length > 0,
     3: form.availability && form.rate,
-    4: form.dbsUploaded && form.rtwUploaded
+    4: form.dbsUploaded
   }[step];
 
   const stepTitles = ["Personal details", "Qualifications", "Availability", "Verification"];
@@ -2514,7 +2513,6 @@ const ImamRegister = ({ onComplete, onBack }) => {
               <p className="text-sm text-stone-500 mb-6">We verify within 48 hours so mosques can trust you.</p>
               <div className="space-y-3">
                 <RegUploadRow label="Enhanced DBS Certificate" sublabel="Required · Must be Enhanced level (not Basic or Standard)" uploaded={form.dbsUploaded} onToggle={() => setForm({...form, dbsUploaded: !form.dbsUploaded})} />
-                <RegUploadRow label="Right to Work Document" sublabel="Required · Passport, visa, or share code from gov.uk" uploaded={form.rtwUploaded} onToggle={() => setForm({...form, rtwUploaded: !form.rtwUploaded})} />
                 <RegUploadRow label="Ijazah or Qualification Certificate" sublabel="Optional · Strengthens your profile and reviews" uploaded={form.ijazahUploaded} onToggle={() => setForm({...form, ijazahUploaded: !form.ijazahUploaded})} />
               </div>
               <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3">
@@ -2568,9 +2566,8 @@ const RegistrationPending = ({ type, form, onHome }) => (
           ) : (
             <>
               <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We verify your DBS certificate with the issuing body</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>We check your Right to Work documents</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>If you provided an ijazah, we verify with the institution</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">4</span><span>Your profile goes live and mosques can contact you</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>If you provided an ijazah, we verify with the institution</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>Your profile goes live and mosques can contact you</span></li>
             </>
           )}
         </ol>
@@ -2909,10 +2906,9 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
         </div>
 
         <h3 className="text-sm font-medium text-stone-900 uppercase tracking-wider mb-3">Verification status</h3>
-        <div className="grid md:grid-cols-3 gap-3 mb-8">
+        <div className="grid md:grid-cols-2 gap-3 mb-8">
           {[
             { title: "Enhanced DBS", status: "verified", detail: "Expires 14 Nov 2025" },
-            { title: "Right to Work", status: "verified", detail: "Verified 02 Sep 2025" },
             { title: "Ijazah", status: "verified", detail: "Al-Azhar University" }
           ].map(card => (
             <div key={card.title} className="bg-white border border-stone-200 rounded-2xl p-4">
