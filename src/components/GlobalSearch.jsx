@@ -25,6 +25,9 @@ const TYPE_META = {
   class:   { label: "Classes",  icon: BookOpen },
 };
 const GROUP_ORDER = ["scholar", "mosque", "student", "staff", "parent", "class"];
+// Cap rows shown per group so one large group can't push the others out of view
+// (e.g. a broad term matching many scholars burying a single student hit).
+const GROUP_CAP = 6;
 
 // A lightweight trigger button. Dispatches the open event so it can live in any
 // number of header bars while one <GlobalSearch> owns the modal.
@@ -113,20 +116,28 @@ export default function GlobalSearch({ roleHint = null, onSelect }) {
     onSelect?.(r);
   }, [onSelect]);
 
-  // Arrow keys move a flat cursor across the (ordered) result list.
+  // Grouped, display-ordered view. Each group is capped (GROUP_CAP) so no single
+  // type buries the rest. flatItems mirrors the on-screen order so the arrow-key
+  // cursor + Enter act on the SAME row the user sees — results[] is in RPC order,
+  // which differs from this grouped view (the source of an earlier select-wrong-row
+  // bug).
+  const groups = GROUP_ORDER
+    .map((type) => {
+      const items = results.filter((r) => r.type === type);
+      return { type, shown: items.slice(0, GROUP_CAP), extra: Math.max(0, items.length - GROUP_CAP) };
+    })
+    .filter((g) => g.shown.length);
+  const flatItems = groups.flatMap((g) => g.shown);
+
+  // Arrow keys move a flat cursor across the displayed (grouped) order.
   const onInputKey = (e) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, flatItems.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter") { e.preventDefault(); choose(results[active]); }
+    else if (e.key === "Enter") { e.preventDefault(); choose(flatItems[active]); }
   };
 
   if (!open) return null;
 
-  const groups = GROUP_ORDER
-    .map((type) => ({ type, items: results.filter((r) => r.type === type) }))
-    .filter((g) => g.items.length);
-
-  // Flat index → so highlight + Enter line up with arrow-key order.
   let flatIndex = -1;
   const query = q.trim();
 
@@ -169,7 +180,7 @@ export default function GlobalSearch({ roleHint = null, onSelect }) {
               return (
                 <div key={g.type} className="mb-1">
                   <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">{Meta.label}</p>
-                  {g.items.map((r) => {
+                  {g.shown.map((r) => {
                     flatIndex += 1;
                     const idx = flatIndex;
                     const isActive = idx === active;
@@ -195,6 +206,9 @@ export default function GlobalSearch({ roleHint = null, onSelect }) {
                       </button>
                     );
                   })}
+                  {g.extra > 0 && (
+                    <p className="px-4 py-1.5 text-[11px] text-stone-400">+{g.extra} more — keep typing to refine</p>
+                  )}
                 </div>
               );
             })

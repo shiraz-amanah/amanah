@@ -222,9 +222,11 @@ export default async function handler(req, res) {
     semantic: false,
   }));
 
-  // Semantic enrichment is admin-only (it surfaces public marketplace scholars/
-  // mosques). The DB already enforced the real scope above.
-  if (role === 'admin') {
+  // Semantic enrichment is admin-only and a TRUE fallback: only when the keyword
+  // tier found NOTHING. Firing it whenever scholars/mosques were merely thin
+  // buried exact keyword hits of other types (a student named "Adam" drowned
+  // under fuzzy scholar/mosque matches). If keyword found anything, trust it.
+  if (role === 'admin' && results.length === 0) {
     const extra = await semanticEnrich(q, results, ctx, process.env);
     results.push(...extra);
   }
