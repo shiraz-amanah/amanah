@@ -144,7 +144,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
 
       {/* Tab bar + bulk-message action */}
       <div className="border-b border-stone-200 flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 overflow-x-auto -mb-px">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px min-w-0 flex-1">
           {TABS.map(([v, l, Icon]) => (
             <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
           ))}
