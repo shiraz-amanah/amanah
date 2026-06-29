@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
-  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal, CalendarClock, ShieldAlert, BarChart3,
+  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, CalendarClock, ShieldAlert, BarChart3, ScrollText, Hourglass,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
 import MadrasaTimetable from "./MadrasaTimetable";
@@ -46,7 +46,13 @@ export const TABS = [
   ["attendance", "Attendance", BarChart3],
   ["behaviour", "Behaviour", ShieldAlert],
   ["timetable", "Timetable", CalendarClock],
-  ["more", "More", MoreHorizontal],
+  // Previously grouped under "More" — now each is a first-class sidebar item.
+  ["announcements", "Announcements", Megaphone],
+  ["rewards", "Rewards", Award],
+  ["photos", "Photos", Image],
+  ["certificates", "Certificates", ScrollText],
+  ["waitlist", "Waiting list", Hourglass],
+  ["livelesson", "Live lesson", Video],
 ];
 
 const Section = ({ icon: Icon, title, subtitle, accent = "text-emerald-700", children }) => (
@@ -287,16 +293,24 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, tab: con
         </Section>
       )}
 
-      {/* MORE — announcements, give reward, photos, certificates, waiting list, live lesson */}
-      {tab === "more" && (
-        <div className="space-y-10">
-          <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
-          <Section icon={Award} title="Give reward" subtitle="Award a star, merit or note — parents are emailed on positive rewards" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
-          <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
-          <Section icon={GraduationCap} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
-          <Section icon={Users} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
-          <Section icon={Video} title="Live lesson" subtitle="Remote learning over video"><MadrasaLiveLesson classObj={classObj} /></Section>
-        </div>
+      {/* Former "More" group — now individual tabs/sidebar items. */}
+      {tab === "announcements" && (
+        <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
+      )}
+      {tab === "rewards" && (
+        <Section icon={Award} title="Give reward" subtitle="Award a star, merit or note — parents are emailed on positive rewards" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
+      )}
+      {tab === "photos" && (
+        <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
+      )}
+      {tab === "certificates" && (
+        <Section icon={ScrollText} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
+      )}
+      {tab === "waitlist" && (
+        <Section icon={Hourglass} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
+      )}
+      {tab === "livelesson" && (
+        <Section icon={Video} title="Live lesson" subtitle="Remote learning over video"><MadrasaLiveLesson classObj={classObj} /></Section>
       )}
 
       {showBulk && <BulkParentMessageModal recipients={parentIds} audienceLabel={`all parents in ${classObj.name || "this class"}`} onClose={() => setShowBulk(false)} />}
