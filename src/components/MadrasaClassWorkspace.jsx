@@ -35,7 +35,9 @@ const MS_30D = 30 * 24 * 60 * 60 * 1000;
 const fmtDate = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
 const ayahText = (h) => h?.ayah_from ? ` · ayah ${h.ayah_from}${h.ayah_to && h.ayah_to !== h.ayah_from ? `–${h.ayah_to}` : ""}` : "";
 
-const TABS = [
+// Exported so the persistent sidebar (MadrasaSidebar) renders the class tabs from
+// the same source of truth as the workspace content switch.
+export const TABS = [
   ["register", "Register", CalendarCheck],
   ["students", "Students", Users],
   ["hifz", "Hifz", GraduationCap],
@@ -72,13 +74,19 @@ const HifzBar = ({ memorized }) => (
   </div>
 );
 
-const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
+// `tab`/`onTabChange` make the tab selection controllable: MosqueMadrasa drives it
+// from the persistent sidebar (with hideTabBar to suppress the internal bar). Left
+// uncontrolled (and bar shown) it's self-contained — the teacher staff portal
+// relies on that, so the props are optional and default to internal state.
+const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, tab: controlledTab, onTabChange, hideTabBar = false }) => {
   const [roster, setRoster] = useState([]);
   const [classHifz, setClassHifz] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hifzLoading, setHifzLoading] = useState(true);
   const [showBulk, setShowBulk] = useState(false);
-  const [tab, setTab] = useState("register");
+  const [tabState, setTabState] = useState("register");
+  const tab = controlledTab ?? tabState;
+  const setTab = onTabChange ?? setTabState;
   const [profileEnrollment, setProfileEnrollment] = useState(null); // Layer 3 student profile
 
   const reload = () => {
@@ -144,17 +152,26 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <StatCard label="Subject" value={(classObj.subject || "—").replace(/_/g, " ")} />
       </div>
 
-      {/* Tab bar + bulk-message action */}
-      <div className="border-b border-stone-200 flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px min-w-0 flex-1">
-          {TABS.map(([v, l, Icon]) => (
-            <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
-          ))}
+      {/* Tab bar + bulk-message action. When hideTabBar (sidebar-driven), drop the
+          bar but keep the Message-all-parents action right-aligned. */}
+      {hideTabBar ? (
+        onMessageParent && (
+          <div className="flex justify-end">
+            <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+          </div>
+        )
+      ) : (
+        <div className="border-b border-stone-200 flex items-end justify-between gap-3 flex-wrap">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px min-w-0 flex-1">
+            {TABS.map(([v, l, Icon]) => (
+              <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
+            ))}
+          </div>
+          {onMessageParent && (
+            <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="mb-2 text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+          )}
         </div>
-        {onMessageParent && (
-          <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="mb-2 text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
-        )}
-      </div>
+      )}
 
       {/* REGISTER — today's attendance (default) + live-lesson entry point (Session AV) */}
       {tab === "register" && (
