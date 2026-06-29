@@ -42,7 +42,10 @@ const MadrasaRewards = ({ classObj }) => {
     const { data, error } = await awardReward({ classId: classObj.id, studentId, mosqueId: classObj.mosque_id, type, note: note.trim() || null });
     setAwarding(null);
     if (error || !data) { setMsg("Couldn't award that just now."); return; }
-    if (isPositiveReward(type)) sendMadrasaRewardAwarded(data.id).catch(() => {});
+    // Email only positive rewards the parent is allowed to see (098). Quick-awards
+    // here default visible_to_parent true, so this is belt-and-braces — but it keeps
+    // the email gate identical to the Behaviour tab (never email an internal note).
+    if (isPositiveReward(type) && data.visible_to_parent !== false) sendMadrasaRewardAwarded(data.id).catch(() => {});
     setNote("");
     setMsg(isPositiveReward(type) ? `${META[type].label} awarded — parent emailed.` : `${META[type].label} logged (private — parent not emailed).`);
     load();

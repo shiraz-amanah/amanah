@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
-  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal, CalendarClock,
+  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal, CalendarClock, ShieldAlert,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
 import MadrasaTimetable from "./MadrasaTimetable";
@@ -14,6 +14,7 @@ import MadrasaReports from "./MadrasaReports";
 import MadrasaPhotos from "./MadrasaPhotos";
 import MadrasaWaitlist from "./MadrasaWaitlist";
 import MadrasaRewards from "./MadrasaRewards";
+import MadrasaBehaviour from "./MadrasaBehaviour";
 import MadrasaCertificates from "./MadrasaCertificates";
 import BulkParentMessageModal from "./BulkParentMessageModal";
 import MadrasaLiveLesson from "./MadrasaLiveLesson";
@@ -39,6 +40,7 @@ const TABS = [
   ["hifz", "Hifz", GraduationCap],
   ["homework", "Homework", BookOpen],
   ["reports", "Reports", FileText],
+  ["behaviour", "Behaviour", ShieldAlert],
   ["timetable", "Timetable", CalendarClock],
   ["more", "More", MoreHorizontal],
 ];
@@ -239,6 +241,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       {tab === "reports" && (
         <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
           <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
+        </Section>
+      )}
+
+      {/* BEHAVIOUR — incident logging + follow-up (098). Internal-by-default. */}
+      {tab === "behaviour" && (
+        <Section icon={ShieldAlert} title="Behaviour & conduct" subtitle="Log incidents, keep concerns internal until you escalate, and track follow-up" accent="text-rose-600">
+          <MadrasaBehaviour classObj={classObj} />
         </Section>
       )}
 

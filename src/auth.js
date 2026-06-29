@@ -1485,15 +1485,43 @@ export async function deleteMadrasaPhoto(photo) {
 const REWARD_POSITIVE = ['star', 'merit', 'achievement']
 export const isPositiveReward = (t) => REWARD_POSITIVE.includes(t)
 
-// Award a reward to a student (teacher/owner write RLS; mosque_id forced to match
-// the class). Positive types (star/merit/achievement) email the parent — the
-// caller fires sendMadrasaRewardAwarded after a successful insert.
-export async function awardReward({ classId, studentId, mosqueId, type, note }) {
+// Award a reward / log a behaviour incident for a student (teacher/owner write
+// RLS; mosque_id forced to match the class). Positive types (star/merit/
+// achievement) email the parent — the caller fires sendMadrasaRewardAwarded
+// after a successful insert, AND ONLY when visibleToParent (an internal concern
+// must never email). The 098 incident fields (severity/category/actionTaken/
+// status/visibleToParent) are optional — omitting them lets the DB defaults
+// apply (status 'resolved', visible_to_parent true), so existing reward callers
+// are unaffected.
+export async function awardReward({ classId, studentId, mosqueId, type, note, severity, category, actionTaken, status, visibleToParent }) {
   if (!classId || !studentId || !mosqueId || !type) return { error: { message: 'classId, studentId, mosqueId and type required' } }
   const user = await getUser()
+  const row = { class_id: classId, student_id: studentId, mosque_id: mosqueId, type, note: note || null, awarded_by: user?.id || null }
+  if (severity !== undefined) row.severity = severity || null
+  if (category !== undefined) row.category = category || null
+  if (actionTaken !== undefined) row.action_taken = actionTaken || null
+  if (status !== undefined) row.status = status
+  if (visibleToParent !== undefined) row.visible_to_parent = visibleToParent
   const { data, error } = await supabase
     .from('madrasa_rewards')
-    .insert({ class_id: classId, student_id: studentId, mosque_id: mosqueId, type, note: note || null, awarded_by: user?.id || null })
+    .insert(row)
+    .select('*, student:students(id, name)').single()
+  return { data, error }
+}
+
+// Update a behaviour incident's follow-up state (teacher/owner write RLS):
+// resolve/reopen (status), record what was done (actionTaken), or escalate an
+// internal concern to the parent (visibleToParent → true makes it parent-readable
+// under the 098 policy). Returns the reshaped row.
+export async function updateReward(id, { status, actionTaken, visibleToParent } = {}) {
+  if (!id) return { error: { message: 'id required' } }
+  const patch = {}
+  if (status !== undefined) patch.status = status
+  if (actionTaken !== undefined) patch.action_taken = actionTaken || null
+  if (visibleToParent !== undefined) patch.visible_to_parent = visibleToParent
+  const { data, error } = await supabase
+    .from('madrasa_rewards')
+    .update(patch).eq('id', id)
     .select('*, student:students(id, name)').single()
   return { data, error }
 }
