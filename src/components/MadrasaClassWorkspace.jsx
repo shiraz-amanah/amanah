@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
-  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal, CalendarClock, ShieldAlert,
+  ChevronRight, Megaphone, Video, GraduationCap, Award, Image, MoreHorizontal, CalendarClock, ShieldAlert, BarChart3,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
 import MadrasaTimetable from "./MadrasaTimetable";
@@ -11,6 +11,7 @@ import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
 import MadrasaHomework from "./MadrasaHomework";
 import MadrasaReports from "./MadrasaReports";
+import MadrasaAttendanceReport from "./MadrasaAttendanceReport";
 import MadrasaPhotos from "./MadrasaPhotos";
 import MadrasaWaitlist from "./MadrasaWaitlist";
 import MadrasaRewards from "./MadrasaRewards";
@@ -40,6 +41,7 @@ const TABS = [
   ["hifz", "Hifz", GraduationCap],
   ["homework", "Homework", BookOpen],
   ["reports", "Reports", FileText],
+  ["attendance", "Attendance", BarChart3],
   ["behaviour", "Behaviour", ShieldAlert],
   ["timetable", "Timetable", CalendarClock],
   ["more", "More", MoreHorizontal],
@@ -241,6 +243,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       {tab === "reports" && (
         <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
           <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
+        </Section>
+      )}
+
+      {/* ATTENDANCE — class-level summary: per-student rates + session history */}
+      {tab === "attendance" && (
+        <Section icon={BarChart3} title="Attendance report" subtitle="Per-student attendance rates and session history — lowest first so gaps surface" accent="text-sky-700">
+          <MadrasaAttendanceReport classObj={classObj} />
         </Section>
       )}
 
