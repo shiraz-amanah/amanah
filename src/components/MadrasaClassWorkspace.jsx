@@ -156,10 +156,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         )}
       </div>
 
-      {/* REGISTER — today's attendance (default) */}
+      {/* REGISTER — today's attendance (default) + live-lesson entry point (Session AV) */}
       {tab === "register" && (
         <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
-          <MadrasaAttendance classObj={classObj} />
+          <div className="space-y-4">
+            <MadrasaLiveLesson classObj={classObj} compact />
+            <MadrasaAttendance classObj={classObj} />
+          </div>
         </Section>
       )}
 
