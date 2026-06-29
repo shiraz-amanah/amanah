@@ -1220,6 +1220,63 @@ ${ePara('JazakAllah khair.')}${eSignoff}`;
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Session AW — a class photo was shared with a selected set of consented
+// students. The bell notification is created by the 099 trigger; this intent
+// emails each selected student's parent. Authorizes the caller (owns the mosque,
+// teaches the class, or admin), resolves the photo's visible_to → distinct
+// parents, and sends one email each (email opt-out respected, addresses deduped).
+async function handleMadrasaPhotoShared(env, caller, photoId) {
+  const prows = await sbGet(env, `madrasa_photos?id=eq.${photoId}&select=class_id,mosque_id,caption,visible_to`);
+  const photo = Array.isArray(prows) ? prows[0] : null;
+  if (!photo) return { status: 404, body: { ok: false, error: 'photo_not_found' } };
+
+  // Authorize: caller owns the mosque, teaches the class, or is admin.
+  const crows = await sbGet(env, `madrasa_classes?id=eq.${photo.class_id}&select=name,teacher_staff_id`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  const mrows = await sbGet(env, `mosques?id=eq.${photo.mosque_id}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  const ownsMosque = mosque?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls?.teacher_staff_id) {
+    const srows = await sbGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  const recipientIds = (Array.isArray(photo.visible_to) ? photo.visible_to : []).filter(isUuid);
+  if (recipientIds.length === 0) return { status: 200, body: { ok: true, sent: 0, skipped: 'no_recipients' } };
+
+  // visible_to holds student ids → resolve distinct parent profile_ids.
+  const studs = await sbGet(env, `students?id=in.(${recipientIds.join(',')})&select=profile_id`);
+  const parentIds = [...new Set((studs || []).map((s) => s.profile_id).filter(Boolean))];
+
+  const mosqueName = mosque?.name || 'the madrasah';
+  const className = cls?.name || 'class';
+  const captionLine = photo.caption ? ePara(`“${escapeHtml(photo.caption)}”`) : '';
+  const ids = [];
+  const seenEmails = new Set();
+  for (const pid of parentIds) {
+    const parent = await getProfile(env, pid);
+    if (!parent?.email) continue;
+    if (parent.notifications && parent.notifications.email === false) continue;
+    const key = parent.email.toLowerCase();
+    if (seenEmails.has(key)) continue;
+    seenEmails.add(key);
+    const inner = `${eGreeting(parent.name || 'there')}${eHeading('New class photo shared with you')}
+${ePara(`A new photo from <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)} has been shared with you.`)}
+${captionLine}${ctaButton('View photos', env.PUBLIC_APP_URL)}${eSignoff}`;
+    try {
+      ids.push(await sendEmail(env, { to: parent.email, subject: `New class photo — ${mosqueName}`, html: wrapEmail('New class photo', inner) }));
+    } catch (e) {
+      // One bad address must not abort the rest of the fan-out.
+      console.error('[send-transactional] photo email failed', e?.message);
+    }
+  }
+  return { status: 200, body: { ok: true, sent: ids.length, ids } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1370,6 +1427,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_certificate') {
       if (!isUuid(body.studentId) || !isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_ids' });
       const out = await handleMadrasaCertificate(env, caller, body);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_photo_shared') {
+      if (!isUuid(body.photoId)) return res.status(400).json({ ok: false, error: 'invalid_photoId' });
+      const out = await handleMadrasaPhotoShared(env, caller, body.photoId);
       return res.status(out.status).json(out.body);
     }
     if (body.intent === 'contract_invite') {

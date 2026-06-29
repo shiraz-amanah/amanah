@@ -161,6 +161,16 @@ export function sendMadrasaRewardAwarded(rewardId) {
   return postTransactional({ intent: 'madrasa_reward_awarded', rewardId });
 }
 
+// Session AW — a class photo was shared with a selected set of consented
+// students. Fired after uploadClassPhoto succeeds; the server resolves the
+// photo's visible_to → each selected student's parent and emails them ("New
+// class photo shared with you"). The bell notification is handled separately by
+// the 099 DB trigger. Fire-and-forget.
+export function sendMadrasaPhotoShared(photoId) {
+  if (!photoId) return Promise.resolve({ ok: false, error: 'missing_photoId' });
+  return postTransactional({ intent: 'madrasa_photo_shared', photoId });
+}
+
 // Madrasa Fix 5 — email a client-generated certificate PDF to the parent. The
 // PDF is built in the browser and passed as base64; the server authorizes the
 // caller, verifies enrolment, resolves the parent + attaches it. Fire-and-forget.

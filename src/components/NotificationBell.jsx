@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Loader2, CheckCheck, GraduationCap, FileText, CalendarDays, Star, UserCheck, MessageCircle, Building2, ShieldCheck, Flag, FileCheck } from "lucide-react";
+import { Bell, Loader2, CheckCheck, GraduationCap, FileText, CalendarDays, Star, UserCheck, MessageCircle, Building2, ShieldCheck, Flag, FileCheck, Image } from "lucide-react";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, subscribeToNotifications } from "../auth";
 
 // Header bell + notifications feed. Self-contained: loads the recipient's feed,
@@ -9,14 +9,14 @@ import { getNotifications, markNotificationRead, markAllNotificationsRead, subsc
 
 const TYPE_ICON = {
   homework: GraduationCap, report: FileText, attendance: CalendarDays,
-  reward: Star, cover_request: UserCheck, message: MessageCircle, system: Bell,
+  reward: Star, cover_request: UserCheck, message: MessageCircle, system: Bell, photo: Image,
   // admin types (095)
   scholar_application: GraduationCap, mosque_application: Building2,
   mosque_claim: ShieldCheck, flag: Flag, dbs_order: FileCheck,
 };
 const TYPE_TONE = {
   homework: "text-emerald-600", report: "text-emerald-600", attendance: "text-amber-600",
-  reward: "text-amber-500", cover_request: "text-emerald-600", message: "text-stone-500", system: "text-stone-500",
+  reward: "text-amber-500", cover_request: "text-emerald-600", message: "text-stone-500", system: "text-stone-500", photo: "text-sky-600",
   scholar_application: "text-emerald-600", mosque_application: "text-emerald-600",
   mosque_claim: "text-amber-600", flag: "text-rose-600", dbs_order: "text-sky-600",
 };
