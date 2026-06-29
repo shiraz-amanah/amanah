@@ -3,15 +3,14 @@ import { Loader2, Trophy, Trash2, Users } from "lucide-react";
 import { getMadrasaRoster, getClassRewards, awardReward, deleteReward, isPositiveReward } from "../auth";
 import { sendMadrasaRewardAwarded } from "../lib/email";
 
-// type → emoji / label / pill colour. star/merit/achievement are positive (email
-// the parent + count to the leaderboard); warning/concern are private (no email,
-// excluded from the leaderboard).
+// type → emoji / label / pill colour. Only the positive types live here now —
+// star/merit/achievement (email the parent + count to the leaderboard). The
+// warning/concern incident path moved to the dedicated Behaviour tab (098),
+// where it carries severity/category/follow-up and is internal-by-default.
 const TYPES = [
   { v: "star",        emoji: "⭐", label: "Star",        cls: "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100" },
   { v: "merit",       emoji: "🏅", label: "Merit",       cls: "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100" },
   { v: "achievement", emoji: "🏆", label: "Achievement", cls: "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100" },
-  { v: "warning",     emoji: "⚠️", label: "Warning",     cls: "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100" },
-  { v: "concern",     emoji: "📋", label: "Concern",     cls: "bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100" },
 ];
 const META = Object.fromEntries(TYPES.map((t) => [t.v, t]));
 const dateText = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -47,7 +46,7 @@ const MadrasaRewards = ({ classObj }) => {
     // the email gate identical to the Behaviour tab (never email an internal note).
     if (isPositiveReward(type) && data.visible_to_parent !== false) sendMadrasaRewardAwarded(data.id).catch(() => {});
     setNote("");
-    setMsg(isPositiveReward(type) ? `${META[type].label} awarded — parent emailed.` : `${META[type].label} logged (private — parent not emailed).`);
+    setMsg(`${META[type].label} awarded — parent emailed.`);
     load();
   };
 
@@ -60,9 +59,13 @@ const MadrasaRewards = ({ classObj }) => {
 
   const nameOf = (r) => r.student?.name || roster.find((e) => (e.student?.id || e.student_id) === r.student_id)?.student?.name || "Student";
 
+  // Incidents (warning/concern) now live in the Behaviour tab — this board is
+  // positive-only, so its history shows positive rewards and nothing else.
+  const positiveRewards = rewards.filter((r) => isPositiveReward(r.type));
+
   // positive-reward counts per student → leaderboard + per-roster badge
   const positiveByStudent = {};
-  for (const r of rewards) if (isPositiveReward(r.type)) positiveByStudent[r.student_id] = (positiveByStudent[r.student_id] || 0) + 1;
+  for (const r of positiveRewards) positiveByStudent[r.student_id] = (positiveByStudent[r.student_id] || 0) + 1;
   const leaderboard = roster
     .map((e) => ({ id: e.student?.id || e.student_id, name: e.student?.name || "Student", stars: positiveByStudent[e.student?.id || e.student_id] || 0 }))
     .filter((x) => x.stars > 0)
@@ -117,10 +120,10 @@ const MadrasaRewards = ({ classObj }) => {
       {/* History */}
       <div>
         <p className="text-[10px] uppercase tracking-wider text-stone-500 mb-2">Recent awards</p>
-        {rewards.length === 0 ? (
+        {positiveRewards.length === 0 ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center"><p className="text-stone-500 text-sm">No rewards logged yet.</p></div>
         ) : (
-          <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{rewards.map((r) => (
+          <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{positiveRewards.map((r) => (
             <li key={r.id} className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
               <div className="min-w-0">
                 <p className="text-stone-900 truncate"><span className="mr-1">{META[r.type]?.emoji}</span><span className="font-medium">{nameOf(r)}</span> · {META[r.type]?.label || r.type}</p>
