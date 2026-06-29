@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronLeft, ChevronRight, Trash2, FileText, BarChart3, CalendarClock, List,
+  Users, Clock, MapPin, ChevronRight, Trash2, CalendarClock, List,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
+import MadrasaSidebar from "./MadrasaSidebar";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 import MadrasaStudents from "./MadrasaStudents";
 import MadrasaAnalytics from "./MadrasaAnalytics";
@@ -14,12 +15,14 @@ import MadrasaStudentProfile from "./MadrasaStudentProfile";
 import MadrasaTimetable from "./MadrasaTimetable";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
 
-const SECTIONS = [["classes", "Classes", GraduationCap], ["students", "Students", Users], ["analytics", "Analytics", BarChart3]];
-
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
-// class's roster. Students enrol parent-side (Phase 1b) so rosters are empty
-// until then.
+// class's roster. As of Session AV the whole section is a two-pane layout: a
+// persistent MadrasaSidebar (Classes/Students/Analytics/Reports + the selected
+// class's tabs) on the left, content on the right. `nav` = { kind:'section'|
+// 'class', key } drives the content; `detailClass` is the open class (persists
+// in the sidebar until ×-closed). The class workspace runs in controlled mode
+// (hideTabBar) so the sidebar owns class-tab selection.
 
 const SUBJECTS = [["quran", "Qur'an"], ["hifz", "Hifz"], ["arabic", "Arabic"], ["islamic_studies", "Islamic Studies"], ["other", "Other"]];
 const SUBJECT_LABEL = Object.fromEntries(SUBJECTS);
@@ -45,20 +48,16 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const [detailClass, setDetailClass] = useState(null); // class shown in the full-page detail view
-  const [showReports, setShowReports] = useState(false); // reports & exports view
-  const [section, setSection] = useState("classes");     // Classes | Students | Analytics
-  const [classView, setClassView] = useState("list");    // Classes tab: list | timetable
+  const [nav, setNav] = useState({ kind: "section", key: "classes" }); // sidebar selection
+  const [detailClass, setDetailClass] = useState(null);  // class open in the sidebar (persists)
+  const [classView, setClassView] = useState("list");    // Classes section: list | timetable
   const [showEnrol, setShowEnrol] = useState(false);     // Path A add-student wizard
   const [studentsKey, setStudentsKey] = useState(0);     // bump to refresh the Students list after enrol
   const [profileCtx, setProfileCtx] = useState(null);    // { enrollment, classObj } — full student profile (Layer 3)
 
-  // Class detail + reports centre + student profile are local-state sub-views,
-  // not URL routes. Registering each as an overlay makes Back return to the
-  // previous view instead of leaving the dashboard. In-app backs call
-  // overlayBack() so both Back paths behave identically.
-  useOverlay(!!detailClass, () => setDetailClass(null));
-  useOverlay(showReports, () => setShowReports(false));
+  // The Layer-3 student profile is a true drill-down — register it as an overlay
+  // so browser Back closes it instead of leaving the dashboard. The sidebar nav
+  // (section / class selection) is in-page state, not an overlay.
   useOverlay(!!profileCtx, () => setProfileCtx(null));
 
   // Open the full student profile from the overview Students tab. classObj is the
@@ -99,86 +98,38 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
 
   const archive = async (c) => {
     const { error: e } = await updateMadrasaClass(c.id, { status: c.status === "archived" ? "active" : "archived" });
-    if (e) setError(e.message); else reload();
+    if (e) setError(e.message); else { if (detailClass?.id === c.id) closeClass(); reload(); }
   };
 
-  // Open a class's full-page detail view. Accepts a class object or an id
-  // (the cross-class dashboard passes ids).
-  const openClass = (idOrObj) => setDetailClass(typeof idOrObj === "string" ? (classes.find((c) => c.id === idOrObj) || null) : idOrObj);
+  // Sidebar navigation. Opening a class selects it and lands on its Register tab;
+  // it then persists in the sidebar (under the divider) until ×-closed.
+  const onNav = (kind, key) => setNav({ kind, key });
+  const openClass = (idOrObj) => {
+    const c = typeof idOrObj === "string" ? (classes.find((x) => x.id === idOrObj) || null) : idOrObj;
+    if (!c) return;
+    setDetailClass(c); setNav({ kind: "class", key: "register" });
+  };
+  const closeClass = () => { setDetailClass(null); setNav({ kind: "section", key: "classes" }); };
 
   // Schedule row editor
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
   const setSlot = (i, k, v) => set("schedule", form.schedule.map((s, idx) => idx === i ? { ...s, [k]: v } : s));
   const rmSlot = (i) => set("schedule", form.schedule.filter((_, idx) => idx !== i));
 
-  // ---- Full student profile (Layer 3) — from the overview Students tab ----
-  if (profileCtx) {
-    return (
-      <MadrasaStudentProfile
-        enrollment={profileCtx.enrollment}
-        classObj={profileCtx.classObj}
-        mosqueId={mosqueId}
-        mosqueName={mosque?.name}
-        onBack={() => overlayBack()}
-        onChanged={() => { setStudentsKey((k) => k + 1); reload(); }}
-      />
-    );
-  }
-
-  // ---- Reports & exports view (owner only — this whole tab is the owner's) ----
-  if (showReports) {
-    return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => overlayBack()} />;
-  }
-
-  // ---- Class detail (full page) — that class's own Students/Attendance/
-  // Classwork/Records via the workspace's own tab bar. ----
-  if (detailClass) {
-    return (
-      <div>
-        <button onClick={() => overlayBack()} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> All classes</button>
-        <div className="mb-5">
-          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{detailClass.name}</h2>
-          <p className="text-sm text-stone-600">{SUBJECT_LABEL[detailClass.subject] || detailClass.subject}{detailClass.teacher?.name ? ` · ${detailClass.teacher.name}` : ""}{detailClass.room ? ` · ${detailClass.room}` : ""}{detailClass.schedule ? ` · ${scheduleText(detailClass.schedule)}` : ""}</p>
-        </div>
-        <MadrasaClassWorkspace classObj={detailClass} mosqueName={mosque?.name} />
-      </div>
-    );
-  }
-
-  return (
+  // ---- Classes section (list / timetable + create-edit form) ----
+  const classesSection = (
     <div>
-      <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
-          <p className="text-sm text-stone-600">Your classes, teachers and rosters.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowReports(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Reports</button>
-          {section === "classes" && !showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
-        </div>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        {!showForm && classes.length > 0 ? (
+          <div className="inline-flex bg-stone-100 rounded-lg p-0.5">
+            <button onClick={() => setClassView("list")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "list" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><List size={13} /> List</button>
+            <button onClick={() => setClassView("timetable")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "timetable" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><CalendarClock size={13} /> Timetable</button>
+          </div>
+        ) : <span />}
+        {!showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
       </div>
 
-      {/* Three sections only — Classes · Students · Analytics. These are the
-          page's primary navigation, so they sit directly under the title and
-          above the assistant (Session AM: the assistant used to push them down,
-          which made tab clicks feel like they "didn't land"). */}
-      <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
-        {SECTIONS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => setSection(v)} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${section === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
-        ))}
-      </div>
-
-      <MadrasaAssistant mosqueId={mosqueId} />
-      <div className="mb-5" />
-
-      {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
-
-      {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} mosqueName={mosque?.name} onOpenStudent={openStudent} onAddStudent={() => setShowEnrol(true)} />}
-      {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />}
-
-      {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
-
-      {section === "classes" && showForm && (
+      {showForm && (
         <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6 space-y-3 mb-5">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider">{editingId ? "Edit class" : "New class"}</h3>
@@ -213,53 +164,111 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
         </div>
       )}
 
-      {/* List / Timetable view switcher — sits directly above the class content */}
-      {section === "classes" && !showForm && classes.length > 0 && (
-        <div className="flex justify-end mb-3">
-          <div className="inline-flex bg-stone-100 rounded-lg p-0.5">
-            <button onClick={() => setClassView("list")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "list" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><List size={13} /> List</button>
-            <button onClick={() => setClassView("timetable")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "timetable" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><CalendarClock size={13} /> Timetable</button>
-          </div>
-        </div>
-      )}
-
-      {section === "classes" && classView === "timetable" && classes.length > 0 && (
+      {classView === "timetable" && classes.length > 0 && (
         <MadrasaTimetable classes={classes.filter((c) => c.status !== "archived")} />
       )}
 
-      {section === "classes" && classView === "list" && (loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+      {classView === "list" && (loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         : classes.length === 0 && !showForm ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
             <GraduationCap className="mx-auto text-stone-300 mb-3" size={36} />
             <p className="text-stone-600 text-sm max-w-md mx-auto">No classes yet. Create your first class to start building your madrasah.</p>
           </div>
         ) : (
-            <div className="space-y-2">
-              {classes.map((c) => (
-                <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
-                  <button onClick={() => openClass(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span>
-                        {c.status === "archived" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">Archived</span>}
-                      </p>
-                      <p className="text-xs text-stone-500 truncate flex items-center gap-2 mt-0.5">
-                        {c.teacher?.name && <span>{c.teacher.name}</span>}
-                        <span className="inline-flex items-center gap-1"><Clock size={11} /> {scheduleText(c.schedule)}</span>
-                        {c.room && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {c.room}</span>}
-                      </p>
-                    </div>
-                    <span className="text-xs text-stone-600 inline-flex items-center gap-1 whitespace-nowrap"><Users size={12} /> {counts[c.id] || 0}{c.capacity ? `/${c.capacity}` : ""}</span>
-                    <ChevronRight size={16} className="text-stone-300 shrink-0" />
-                  </button>
-                  <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
-                  <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
-                </div>
-              ))}
-            </div>
-          )
-        )}
+          <div className="space-y-2">
+            {classes.map((c) => (
+              <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
+                <button onClick={() => openClass(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span>
+                      {c.status === "archived" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">Archived</span>}
+                    </p>
+                    <p className="text-xs text-stone-500 truncate flex items-center gap-2 mt-0.5">
+                      {c.teacher?.name && <span>{c.teacher.name}</span>}
+                      <span className="inline-flex items-center gap-1"><Clock size={11} /> {scheduleText(c.schedule)}</span>
+                      {c.room && <span className="inline-flex items-center gap-1"><MapPin size={11} /> {c.room}</span>}
+                    </p>
+                  </div>
+                  <span className="text-xs text-stone-600 inline-flex items-center gap-1 whitespace-nowrap"><Users size={12} /> {counts[c.id] || 0}{c.capacity ? `/${c.capacity}` : ""}</span>
+                  <ChevronRight size={16} className="text-stone-300 shrink-0" />
+                </button>
+                <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+                <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+
+  // ---- Content pane — driven by sidebar `nav` (+ profile drill-down) ----
+  const renderContent = () => {
+    if (profileCtx) {
+      return (
+        <MadrasaStudentProfile
+          enrollment={profileCtx.enrollment}
+          classObj={profileCtx.classObj}
+          mosqueId={mosqueId}
+          mosqueName={mosque?.name}
+          onBack={() => overlayBack()}
+          onChanged={() => { setStudentsKey((k) => k + 1); reload(); }}
+        />
+      );
+    }
+
+    if (nav.kind === "class" && detailClass) {
+      return (
+        <div>
+          <div className="mb-5">
+            <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{detailClass.name}</h2>
+            <p className="text-sm text-stone-600">{SUBJECT_LABEL[detailClass.subject] || detailClass.subject}{detailClass.teacher?.name ? ` · ${detailClass.teacher.name}` : ""}{detailClass.room ? ` · ${detailClass.room}` : ""}{detailClass.schedule ? ` · ${scheduleText(detailClass.schedule)}` : ""}</p>
+          </div>
+          <MadrasaClassWorkspace
+            classObj={detailClass}
+            mosqueName={mosque?.name}
+            tab={nav.key}
+            onTabChange={(t) => setNav({ kind: "class", key: t })}
+            hideTabBar
+          />
+        </div>
+      );
+    }
+
+    if (nav.key === "reports") {
+      return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => onNav("section", "classes")} />;
+    }
+
+    // Remaining section views show the assistant above their content (as before).
+    return (
+      <>
+        <MadrasaAssistant mosqueId={mosqueId} />
+        <div className="mb-5" />
+        {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
+        {nav.key === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} mosqueName={mosque?.name} onOpenStudent={openStudent} onAddStudent={() => setShowEnrol(true)} />}
+        {nav.key === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />}
+        {nav.key === "classes" && classesSection}
+      </>
+    );
+  };
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
+        <p className="text-sm text-stone-600">Your classes, teachers and rosters.</p>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-6">
+        <MadrasaSidebar nav={nav} onNav={onNav} selectedClass={detailClass} onCloseClass={closeClass} />
+        <div className="flex-1 min-w-0">
+          {renderContent()}
+        </div>
+      </div>
+
+      {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
     </div>
   );
 };
