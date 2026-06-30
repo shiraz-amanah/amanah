@@ -1,6 +1,6 @@
 import {
   Building2, HandCoins, MessageCircle,
-  User, ShieldCheck, CheckCircle2, AlertCircle, LogOut, Megaphone,
+  User, ShieldCheck, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
 import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosquePrayerEditor from "./MosquePrayerEditor";
@@ -8,6 +8,7 @@ import MosqueRamadanMode from "./MosqueRamadanMode";
 import MosqueRamadanEditor from "./MosqueRamadanEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
+import MosqueAnnouncementsManager from "./MosqueAnnouncementsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
 import MosqueMadrasa from "./MosqueMadrasa";
@@ -205,7 +206,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <MosqueEventsManager mosqueId={mosque.id} />
           )}
           {activeTab === "mosque" && activeSub === "announcements" && (
-            <Placeholder title="Announcements" icon={Megaphone} blurb="Post community announcements to your public mosque profile and to followers. This is part of an upcoming release." />
+            <MosqueAnnouncementsManager mosqueId={mosque.id} />
           )}
           {activeTab === "mosque" && activeSub === "donations" && (
             <Placeholder title="Donations" blurb="Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here." />
