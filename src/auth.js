@@ -393,11 +393,40 @@ export async function toggleMosqueScholar(mosqueId, scholarId, link) {
 const todayDate = () => new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
 
 // --- Events (owner dashboard CRUD; RLS migration 051 gates to the owner) ---
-export async function createMosqueEvent({ mosqueId, title, description, date, time, type, image_url }) {
+// --- Recurring-event helpers (migration 100). Approach (b): each occurrence is
+// its own dated row; siblings share a recurrence_group_id. Horizon: weekly keeps
+// ~26 occurrences, monthly ~12, rolled forward by topUpRecurringEvents on load. ---
+const RECUR_COUNT = { weekly: 26, monthly: 12 }
+const stepDate = (dateStr, cadence) => {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  if (cadence === 'weekly') dt.setUTCDate(dt.getUTCDate() + 7)
+  else dt.setUTCMonth(dt.getUTCMonth() + 1)
+  return dt.toISOString().slice(0, 10)
+}
+const occurrenceDates = (anchor, cadence, count) => {
+  const out = []; let cursor = anchor
+  for (let i = 0; i < count; i++) { out.push(cursor); cursor = stepDate(cursor, cadence) }
+  return out
+}
+const horizonDate = (cadence) => {
+  const dt = new Date()
+  if (cadence === 'weekly') dt.setUTCDate(dt.getUTCDate() + RECUR_COUNT.weekly * 7)
+  else dt.setUTCMonth(dt.getUTCMonth() + RECUR_COUNT.monthly)
+  return dt.toISOString().slice(0, 10)
+}
+
+export async function createMosqueEvent({ mosqueId, title, description, date, time, type, image_url, recurrence = 'none' }) {
+  const base = { mosque_id: mosqueId, title, description: description || null, time: time || null, type, image_url: image_url || null }
+  if (recurrence === 'weekly' || recurrence === 'monthly') {
+    const gid = crypto.randomUUID()
+    const rows = occurrenceDates(date, recurrence, RECUR_COUNT[recurrence])
+      .map((d) => ({ ...base, date: d, recurrence, recurrence_group_id: gid }))
+    const { data, error } = await supabase.from('mosque_events').insert(rows).select()
+    return { data, error }
+  }
   const { data, error } = await supabase
-    .from('mosque_events')
-    .insert({ mosque_id: mosqueId, title, description: description || null, date, time: time || null, type, image_url: image_url || null })
-    .select().single()
+    .from('mosque_events').insert({ ...base, date }).select().single()
   return { data, error }
 }
 export async function getMosqueEvents(mosqueId) {
@@ -407,14 +436,68 @@ export async function getMosqueEvents(mosqueId) {
   if (error) { console.error('Error fetching mosque events:', error); return [] }
   return data || []
 }
-export async function updateMosqueEvent(id, updates) {
+// Scoped edit/delete for events. scope 'one' acts on the single occurrence row;
+// 'future' acts on this occurrence + all later ones in the same recurrence group.
+// 'future' edits propagate content only — each sibling keeps its own date. A
+// one-off (no group id) always resolves to the single-row path regardless of scope.
+export async function updateMosqueEventScope(occurrence, fields, scope) {
+  if (scope === 'future' && occurrence.recurrence_group_id) {
+    const { date, ...content } = { ...fields, updated_at: new Date().toISOString() }
+    const { error } = await supabase
+      .from('mosque_events').update(content)
+      .eq('recurrence_group_id', occurrence.recurrence_group_id)
+      .gte('date', occurrence.date)
+    return { error }
+  }
   const { data, error } = await supabase
-    .from('mosque_events').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+    .from('mosque_events').update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', occurrence.id).select().single()
   return { data, error }
 }
-export async function deleteMosqueEvent(id) {
-  const { error } = await supabase.from('mosque_events').delete().eq('id', id)
+export async function deleteMosqueEventScope(occurrence, scope) {
+  if (scope === 'future' && occurrence.recurrence_group_id) {
+    const { error } = await supabase
+      .from('mosque_events').delete()
+      .eq('recurrence_group_id', occurrence.recurrence_group_id)
+      .gte('date', occurrence.date)
+    return { error }
+  }
+  const { error } = await supabase.from('mosque_events').delete().eq('id', occurrence.id)
   return { error }
+}
+// Roll every recurring series for a mosque forward to the horizon. Idempotent —
+// only inserts dates that don't yet exist. Called on owner load (v1; a scheduled
+// cron is the planned long-term replacement). Template fields are copied from the
+// group's latest occurrence.
+export async function topUpRecurringEvents(mosqueId) {
+  if (!mosqueId) return { inserted: 0 }
+  const { data, error } = await supabase
+    .from('mosque_events').select('*').eq('mosque_id', mosqueId).neq('recurrence', 'none')
+  if (error || !data?.length) return { inserted: 0 }
+  const groups = {}
+  for (const r of data) (groups[r.recurrence_group_id] ||= []).push(r)
+  const newRows = []
+  for (const gid in groups) {
+    const rows = groups[gid].sort((a, b) => a.date.localeCompare(b.date))
+    const cadence = rows[0].recurrence
+    if (cadence !== 'weekly' && cadence !== 'monthly') continue
+    const template = rows[rows.length - 1]
+    const existing = new Set(rows.map((r) => r.date))
+    const horizon = horizonDate(cadence)
+    let cursor = stepDate(template.date, cadence)
+    while (cursor <= horizon) {
+      if (!existing.has(cursor)) newRows.push({
+        mosque_id: mosqueId, title: template.title, description: template.description,
+        date: cursor, time: template.time, type: template.type, image_url: template.image_url,
+        recurrence: cadence, recurrence_group_id: gid,
+      })
+      cursor = stepDate(cursor, cadence)
+    }
+  }
+  if (!newRows.length) return { inserted: 0 }
+  const { error: insErr } = await supabase.from('mosque_events').insert(newRows)
+  if (insErr) { console.error('Error topping up recurring events:', insErr); return { inserted: 0 } }
+  return { inserted: newRows.length }
 }
 
 // --- Announcements ---
