@@ -7940,3 +7940,4 @@ Platform not fully functional without these.
 50. Scroll restoration — browser back returns to top of page
 51. Smoke test suite — start with auth, booking, DBS order flows
 52. Mosque stale test data cleanup — mosque1@test.com stale DBS row, test1@gmail.com paid Enhanced row
+53. Recurring-events cron top-up — recurring mosque events (migration 100, approach b: one dated row per occurrence to a horizon of 26 weekly / 12 monthly) are currently rolled forward by `topUpRecurringEvents(mosqueId)` called on **owner load** of the Events tab. A mosque that's never re-opened will see its series eventually run past the horizon and stop appearing. Follow-up: a scheduled cron (CRON_SECRET infra already exists) that tops up every active mosque's series daily/weekly, replacing the on-load trigger. Until then, "going forward" holds only while the dashboard is visited.
