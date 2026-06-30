@@ -9053,7 +9053,7 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
 // Real-data scholar dashboard. Activated when an auth user has a
 // scholars row pointing at them (myScholar). Read-only this session
 // except for meeting_url editing on bookings.
-const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessages, onScholarUpdate, tab = "bookings", onTabChange, onNotificationNavigate }) => {
+const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, conversations, conversationsLoading, onConversation, onScholarUpdate, tab = "bookings", onTabChange, onNotificationNavigate }) => {
   // tab is URL-backed (?tab=X in /scholar-dashboard). onTabChange navigates
   // with replace:true so each tab click doesn't pollute browser history.
   // setTab kept as a local alias to avoid renaming 7 internal references.
@@ -9198,7 +9198,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             </div>
           </button>
           <div className="flex items-center gap-2">
-            <NotificationBell userId={authedUser?.id} onNavigate={(n) => { if (n.type === "message") onOpenMessages?.(); else if (n.type === "cover_request") (onNotificationNavigate || setTab)("cover"); else (onNotificationNavigate || setTab)("bookings"); }} />
+            <NotificationBell userId={authedUser?.id} onNavigate={(n) => { if (n.type === "message") setTab("messages"); else if (n.type === "cover_request") (onNotificationNavigate || setTab)("cover"); else (onNotificationNavigate || setTab)("bookings"); }} />
             <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient, avatar_url: scholar?.avatar_url, name: scholar?.name }} size="sm" />
           </div>
         </div>
@@ -9207,7 +9207,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
       <div className="max-w-6xl mx-auto px-5 md:px-6 py-6 md:py-8 flex flex-col md:flex-row gap-6">
         <ScholarSidebar
           active={tab}
-          onSelect={(v) => (v === "messages" ? onOpenMessages() : setTab(v))}
+          onSelect={setTab}
           onLogout={onLogout}
           counts={{ bookings: upcomingBookings.length, reviews: reviews.length }}
           scholarName={scholar?.name}
@@ -9446,6 +9446,17 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
           <div>
             <DBSOrderingPanel scholarId={scholar?.id} />
           </div>
+        )}
+
+        {tab === "messages" && (
+          <MessagesInbox
+            embedded
+            role="scholar"
+            conversations={conversations || []}
+            loading={conversationsLoading}
+            onConversation={onConversation}
+            onBack={() => setTab("bookings")}
+          />
         )}
 
         {tab === "account" && (
@@ -13095,12 +13106,19 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
+  // Adapted inbox + unread total — declared before the first dashboard render that
+  // needs them (scholar Messages tab is the earliest). Used by scholar/user/mosque
+  // embedded inboxes + the standalone messages chrome below.
+  const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
+  const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
   if (view === "scholarDashboard") return <ScholarDashboard
     scholar={myScholar}
     authedUser={authedUser}
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
-    onOpenMessages={() => { setRole("scholar"); setView("messagesInbox"); }}
+    conversations={inboxData}
+    conversationsLoading={conversationsLoading && !!authedProfile}
+    onConversation={(c) => { setSelectedConversation(c); setRole("scholar"); navigate("conversationView", { id: c.id }); }}
     onScholarUpdate={(updated) => setMyScholar(updated)}
     tab={routeQuery.tab || "bookings"}
     onTabChange={(t) => navigate("scholarDashboard", {}, { tab: t }, { replace: true })}
@@ -13175,8 +13193,6 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
       showToast("Password updated — please sign in.");
     }}
   />;
-  const inboxData = (conversations || []).map(adaptConversation).filter(Boolean);
-  const totalMessagesUnread = inboxData.reduce((sum, c) => sum + (c.unread || 0), 0);
   if (view === "userDashboard" && authedUser && !authedProfile) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -13298,6 +13314,10 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
     // redirects to the dashboard tab so the user shell nav stays present.
     if (role === "user") {
       navigate("userDashboard", {}, { tab: "messages" }, { replace: true });
+      return null;
+    }
+    if (role === "scholar") {
+      navigate("scholarDashboard", {}, { tab: "messages" }, { replace: true });
       return null;
     }
     return <MessagesInbox
