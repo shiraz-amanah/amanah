@@ -2,15 +2,16 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCog, CalendarDays, Clock, Banknote,
   Building2, Calendar, Megaphone, HandCoins, GraduationCap,
-  ShieldAlert, ClipboardCheck, FileText, ChevronDown, LogOut,
+  ShieldAlert, ClipboardCheck, FileText, ChevronDown, LogOut, BarChart3,
 } from "lucide-react";
 
 // Phase 1 of the platform-wide sidebar (Session AX). The unified persistent left
 // nav for the mosque admin dashboard — replaces the old top tab bar + per-tab
 // sub-tab bars. Presentational: state (active tab/sub) is URL-backed in App.jsx
 // and reaches MosqueDashboard as props, so this just renders from `nav` and calls
-// `onSelect(tab, sub)`. Madrasah is a single top-level entry (Option A) — it loads
-// MosqueMadrasa, which keeps its own MadrasaSidebar in the content pane.
+// `onSelect(tab, sub)`. Madrasah is a normal accordion group with four sections
+// (Classes/Students/Analytics/Reports); the class drill-down lives inside the
+// Madrasah content pane (MosqueMadrasa), not in this sidebar — one nav level only.
 //
 // MOSQUE_NAV is exported so MosqueDashboard derives its sub-tab defaults + valid
 // tab list from the same source of truth (no drift between nav and routing).
@@ -24,7 +25,10 @@ export const MOSQUE_NAV = [
     ["profile", "Profile", Building2], ["events", "Events", Calendar],
     ["announcements", "Announcements", Megaphone], ["donations", "Donations", HandCoins],
   ] },
-  { tab: "madrasah", label: "Madrasah", icon: GraduationCap, items: [] },
+  { tab: "madrasah", label: "Madrasah", icon: GraduationCap, items: [
+    ["classes", "Classes", GraduationCap], ["students", "Students", Users],
+    ["analytics", "Analytics", BarChart3], ["reports", "Reports", FileText],
+  ] },
   { tab: "compliance", label: "Compliance", icon: ShieldAlert, items: [
     ["safeguarding", "Safeguarding", ShieldAlert], ["compliance", "Compliance", ClipboardCheck],
     ["documents", "Documents", FileText],

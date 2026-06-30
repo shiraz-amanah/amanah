@@ -34,8 +34,9 @@ import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
 // transformed via transformMosque in the router). Null → graceful empty state.
 
 // Sub-tabs + valid tab list derive from MOSQUE_NAV (single source of truth shared
-// with the sidebar). Madrasah has no sub-tabs here — it delegates to MosqueMadrasa,
-// which carries its own MadrasaSidebar in the content pane.
+// with the sidebar). Madrasah's four sections (Classes/Students/Analytics/Reports)
+// are sub-tabs like any other group; MosqueMadrasa is content-only and renders the
+// active section from `sub`, with the class drill-down kept inside its content pane.
 const SUBTABS = Object.fromEntries(MOSQUE_NAV.map((g) => [g.tab, g.items]));
 const ALL_VALUES = [...MOSQUE_NAV.map((g) => g.tab), "messages", "account"];
 
@@ -178,9 +179,15 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <Placeholder title="Donations" blurb="Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here." />
           )}
 
-          {/* ---- Madrasah (Option A — MosqueMadrasa keeps its own MadrasaSidebar) ---- */}
+          {/* ---- Madrasah (content-only; section driven by `sub`, class drill-down in-pane) ---- */}
           {activeTab === "madrasah" && (
-            <MosqueMadrasa mosqueId={mosque.id} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />
+            <MosqueMadrasa
+              mosqueId={mosque.id}
+              mosque={mosque}
+              onMosqueUpdate={onMosqueUpdate}
+              sub={activeSub}
+              onSubChange={(s) => setTab("madrasah", s)}
+            />
           )}
 
           {/* ---- Compliance ---- */}

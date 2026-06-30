@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
-  Users, Clock, MapPin, ChevronRight, Trash2, CalendarClock, List,
+  Users, Clock, MapPin, ChevronRight, ChevronLeft, Trash2, CalendarClock, List,
 } from "lucide-react";
 import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
-import MadrasaSidebar from "./MadrasaSidebar";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 import MadrasaStudents from "./MadrasaStudents";
 import MadrasaAnalytics from "./MadrasaAnalytics";
@@ -17,12 +16,13 @@ import { useOverlay, overlayBack } from "../lib/useOverlay";
 
 // Madrasa Phase 1a — admin class management. Create/edit/archive classes,
 // assign a teacher (mosque_staff), set schedule/capacity/room, and view each
-// class's roster. As of Session AV the whole section is a two-pane layout: a
-// persistent MadrasaSidebar (Classes/Students/Analytics/Reports + the selected
-// class's tabs) on the left, content on the right. `nav` = { kind:'section'|
-// 'class', key } drives the content; `detailClass` is the open class (persists
-// in the sidebar until ×-closed). The class workspace runs in controlled mode
-// (hideTabBar) so the sidebar owns class-tab selection.
+// class's roster. Content-only: the unified MosqueSidebar owns section nav and
+// passes the active section as `sub` (classes/students/analytics/reports). The
+// class drill-down lives here in the content pane — opening a class shows its
+// header + a Back control + the self-contained MadrasaClassWorkspace (its own
+// tab bar, uncontrolled, exactly like the teacher staff portal). No class tabs
+// leak into the sidebar. `onSubChange` lets in-page actions (Reports back) move
+// the active section.
 
 const SUBJECTS = [["quran", "Qur'an"], ["hifz", "Hifz"], ["arabic", "Arabic"], ["islamic_studies", "Islamic Studies"], ["other", "Other"]];
 const SUBJECT_LABEL = Object.fromEntries(SUBJECTS);
@@ -35,7 +35,8 @@ const Field = ({ label, children }) => (<div><label className={labelCls}>{label}
 const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "" };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
-const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
+const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) => {
+  const section = sub || "classes"; // active sidebar section
   const [classes, setClasses] = useState([]);
   const [counts, setCounts] = useState({});
   const [staff, setStaff] = useState([]);
@@ -48,16 +49,15 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const [nav, setNav] = useState({ kind: "section", key: "classes" }); // sidebar selection
-  const [detailClass, setDetailClass] = useState(null);  // class open in the sidebar (persists)
+  const [detailClass, setDetailClass] = useState(null);  // class open in the content pane (drill-down)
   const [classView, setClassView] = useState("list");    // Classes section: list | timetable
   const [showEnrol, setShowEnrol] = useState(false);     // Path A add-student wizard
   const [studentsKey, setStudentsKey] = useState(0);     // bump to refresh the Students list after enrol
   const [profileCtx, setProfileCtx] = useState(null);    // { enrollment, classObj } — full student profile (Layer 3)
 
   // The Layer-3 student profile is a true drill-down — register it as an overlay
-  // so browser Back closes it instead of leaving the dashboard. The sidebar nav
-  // (section / class selection) is in-page state, not an overlay.
+  // so browser Back closes it instead of leaving the dashboard. (Section nav is
+  // URL-backed via `sub`; the class drill-down is in-page `detailClass` state.)
   useOverlay(!!profileCtx, () => setProfileCtx(null));
 
   // Open the full student profile from the overview Students tab. classObj is the
@@ -101,15 +101,21 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
     if (e) setError(e.message); else { if (detailClass?.id === c.id) closeClass(); reload(); }
   };
 
-  // Sidebar navigation. Opening a class selects it and lands on its Register tab;
-  // it then persists in the sidebar (under the divider) until ×-closed.
-  const onNav = (kind, key) => setNav({ kind, key });
+  // Content-pane drill-down. Opening a class shows it in the content pane under the
+  // Classes section (the workspace owns its own tabs). It stays open until Back is
+  // pressed; navigating to another sidebar section closes it (effect below).
   const openClass = (idOrObj) => {
     const c = typeof idOrObj === "string" ? (classes.find((x) => x.id === idOrObj) || null) : idOrObj;
     if (!c) return;
-    setDetailClass(c); setNav({ kind: "class", key: "register" });
+    setDetailClass(c);
+    if (section !== "classes") onSubChange?.("classes"); // drill-down lives under Classes
   };
-  const closeClass = () => { setDetailClass(null); setNav({ kind: "section", key: "classes" }); };
+  const closeClass = () => setDetailClass(null);
+
+  // Leaving the Classes section (via the sidebar) exits any open class so the
+  // section's own content shows. Returning to Classes lands on the list, not the
+  // stale class. The drill-down only ever renders under section === "classes".
+  useEffect(() => { if (section !== "classes") setDetailClass(null); }, [section]);
 
   // Schedule row editor
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
@@ -204,7 +210,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
     </div>
   );
 
-  // ---- Content pane — driven by sidebar `nav` (+ profile drill-down) ----
+  // ---- Content pane — driven by the active `section` (+ class / profile drill-down) ----
   const renderContent = () => {
     if (profileCtx) {
       return (
@@ -219,26 +225,25 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
       );
     }
 
-    if (nav.kind === "class" && detailClass) {
+    // Class drill-down — only ever under the Classes section. The workspace runs
+    // self-contained (its own tab bar), same as the teacher staff portal.
+    if (section === "classes" && detailClass) {
       return (
         <div>
+          <button onClick={closeClass} className="inline-flex items-center gap-1 text-sm font-medium text-stone-500 hover:text-stone-800 mb-4">
+            <ChevronLeft size={16} /> Back to classes
+          </button>
           <div className="mb-5">
             <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{detailClass.name}</h2>
             <p className="text-sm text-stone-600">{SUBJECT_LABEL[detailClass.subject] || detailClass.subject}{detailClass.teacher?.name ? ` · ${detailClass.teacher.name}` : ""}{detailClass.room ? ` · ${detailClass.room}` : ""}{detailClass.schedule ? ` · ${scheduleText(detailClass.schedule)}` : ""}</p>
           </div>
-          <MadrasaClassWorkspace
-            classObj={detailClass}
-            mosqueName={mosque?.name}
-            tab={nav.key}
-            onTabChange={(t) => setNav({ kind: "class", key: t })}
-            hideTabBar
-          />
+          <MadrasaClassWorkspace classObj={detailClass} mosqueName={mosque?.name} />
         </div>
       );
     }
 
-    if (nav.key === "reports") {
-      return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => onNav("section", "classes")} />;
+    if (section === "reports") {
+      return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => onSubChange?.("classes")} />;
     }
 
     // Remaining section views show the assistant above their content (as before).
@@ -247,26 +252,26 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate }) => {
         <MadrasaAssistant mosqueId={mosqueId} />
         <div className="mb-5" />
         {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
-        {nav.key === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} mosqueName={mosque?.name} onOpenStudent={openStudent} onAddStudent={() => setShowEnrol(true)} />}
-        {nav.key === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />}
-        {nav.key === "classes" && classesSection}
+        {section === "students" && <MadrasaStudents key={studentsKey} mosqueId={mosqueId} classes={classes} mosqueName={mosque?.name} onOpenStudent={openStudent} onAddStudent={() => setShowEnrol(true)} />}
+        {section === "analytics" && <MadrasaAnalytics mosqueId={mosqueId} classes={classes} onOpenClass={openClass} mosque={mosque} onMosqueUpdate={onMosqueUpdate} />}
+        {section === "classes" && classesSection}
       </>
     );
   };
 
+  // The class drill-down renders its own header; section views get the Madrasah heading.
+  const inClass = section === "classes" && detailClass;
+
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
-        <p className="text-sm text-stone-600">Your classes, teachers and rosters.</p>
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-6">
-        <MadrasaSidebar nav={nav} onNav={onNav} selectedClass={detailClass} onCloseClass={closeClass} />
-        <div className="flex-1 min-w-0">
-          {renderContent()}
+      {!inClass && (
+        <div className="mb-6">
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
+          <p className="text-sm text-stone-600">Your classes, teachers and rosters.</p>
         </div>
-      </div>
+      )}
+
+      {renderContent()}
 
       {showEnrol && <MadrasaEnrolWizard mosqueId={mosqueId} classes={classes} onClose={() => setShowEnrol(false)} onDone={() => { setStudentsKey((k) => k + 1); reload(); }} />}
     </div>
