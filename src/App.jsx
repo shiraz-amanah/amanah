@@ -42,6 +42,7 @@ import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQi
 import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
 import AdminSidebar from "./components/AdminSidebar";
+import ScholarSidebar from "./components/ScholarSidebar";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
 import ContractSign from "./pages/ContractSign";
@@ -9183,23 +9184,12 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
     timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short"
   });
 
-  const tabs = [
-    { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
-    { v: "profile", l: "Profile", i: User, badge: null },
-    { v: "availability", l: "Availability", i: Clock, badge: null },
-    { v: "cover", l: "Cover", i: CalendarDays, badge: null },
-    { v: "reviews", l: "Reviews", i: Star, badge: reviews.length || null },
-    { v: "dbs", l: "DBS", i: FileCheck, badge: null },
-    { v: "messages", l: "Messages", i: MessageCircle, badge: null },
-    { v: "account", l: "Account", i: Settings, badge: null },
-  ];
-
   const firstName = (scholar?.name || "").split(" ").slice(-2, -1)[0] || (scholar?.name || "Scholar");
 
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <button onClick={onPublic} className="flex items-center gap-2.5 md:gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
             <div className="text-left">
@@ -9210,29 +9200,19 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
           <div className="flex items-center gap-2">
             <NotificationBell userId={authedUser?.id} onNavigate={(n) => { if (n.type === "message") onOpenMessages?.(); else if (n.type === "cover_request") (onNotificationNavigate || setTab)("cover"); else (onNotificationNavigate || setTab)("bookings"); }} />
             <Avatar scholar={{ initials: scholar?.avatar_initials, avatarGradient: scholar?.avatar_gradient, avatar_url: scholar?.avatar_url, name: scholar?.name }} size="sm" />
-            <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
-          {tabs.map(t => {
-            const Icon = t.i;
-            const isActive = tab === t.v;
-            return (
-              <button
-                key={t.v}
-                onClick={() => t.v === "messages" ? onOpenMessages() : setTab(t.v)}
-                className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
-              >
-                <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l} {t.badge > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>}</span>
-              </button>
-            );
-          })}
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8">
+      <div className="max-w-6xl mx-auto px-5 md:px-6 py-6 md:py-8 flex flex-col md:flex-row gap-6">
+        <ScholarSidebar
+          active={tab}
+          onSelect={(v) => (v === "messages" ? onOpenMessages() : setTab(v))}
+          onLogout={onLogout}
+          counts={{ bookings: upcomingBookings.length, reviews: reviews.length }}
+          scholarName={scholar?.name}
+        />
+        <main className="flex-1 min-w-0">
         {tab === "bookings" && (
           <div>
             <div className="mb-6">
@@ -9487,7 +9467,8 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, onOpenMessa
             </button>
           </div>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
