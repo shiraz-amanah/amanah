@@ -3,8 +3,6 @@ import { Loader2, Check, AlertCircle, Save, Upload, Plus, X } from "lucide-react
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "../data/mosqueTaxonomy";
 import { updateMosqueProfile } from "../auth";
 import { uploadMosqueLogo, uploadMosquePhoto, removeMosquePhoto } from "../lib/storage";
-import MosquePrayerEditor from "./MosquePrayerEditor";
-import MosqueRamadanEditor from "./MosqueRamadanEditor";
 
 const MAX_PHOTOS = 10;
 
@@ -239,12 +237,6 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
           ))}
         </div>
       </div>
-
-      {/* Prayer & Jumu'ah times — self-saving sub-editor */}
-      <MosquePrayerEditor mosque={mosque} onSaved={onSaved} />
-
-      {/* Ramadan 30-day calendar — self-saving sub-editor */}
-      <MosqueRamadanEditor mosque={mosque} onSaved={onSaved} />
 
       {/* Services */}
       <div className={cardCls}>

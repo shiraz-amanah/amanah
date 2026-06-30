@@ -3,6 +3,9 @@ import {
   User, ShieldCheck, CheckCircle2, AlertCircle, LogOut, Megaphone,
 } from "lucide-react";
 import MosqueProfileEditor from "./MosqueProfileEditor";
+import MosquePrayerEditor from "./MosquePrayerEditor";
+import MosqueRamadanMode from "./MosqueRamadanMode";
+import MosqueRamadanEditor from "./MosqueRamadanEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
@@ -166,6 +169,27 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
               <div>
                 <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Our teachers</h3>
                 <MosqueScholarLinks mosqueId={mosque.id} />
+              </div>
+            </div>
+          )}
+          {activeTab === "mosque" && activeSub === "prayer" && (
+            <div>
+              <div className="mb-6">
+                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Prayer times</h2>
+                <p className="text-sm text-stone-600">Daily adhan &amp; iqamah times, Jumu'ah sessions and a seasonal note.</p>
+              </div>
+              <MosquePrayerEditor mosque={mosque} onSaved={onMosqueUpdate} />
+            </div>
+          )}
+          {activeTab === "mosque" && activeSub === "ramadan" && (
+            <div>
+              <div className="mb-6">
+                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Ramadan</h2>
+                <p className="text-sm text-stone-600">Ramadan mode, Ramadan prayer times and your 30-day timetable.</p>
+              </div>
+              <div className="space-y-8">
+                <MosqueRamadanMode mosque={mosque} onSaved={onMosqueUpdate} />
+                <MosqueRamadanEditor mosque={mosque} onSaved={onMosqueUpdate} />
               </div>
             </div>
           )}
