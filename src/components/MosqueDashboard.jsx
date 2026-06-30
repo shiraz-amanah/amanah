@@ -157,20 +157,28 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           {activeTab === "people" && activeSub === "payroll" && (
             <MosquePayroll mosqueId={mosque.id} mosqueName={mosque.name} />
           )}
+          {activeTab === "people" && activeSub === "publiclisting" && (
+            <div>
+              <div className="mb-6">
+                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public listing</h2>
+                <p className="text-sm text-stone-600">Choose which staff appear on your public profile, and link the teachers who serve your mosque.</p>
+              </div>
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public team listing</h3>
+                  <MosqueStaffPublic mosqueId={mosque.id} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Our teachers</h3>
+                  <MosqueScholarLinks mosqueId={mosque.id} />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ---- Mosque ---- */}
           {activeTab === "mosque" && activeSub === "profile" && (
-            <div className="space-y-8">
-              <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
-              <div>
-                <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public team listing</h3>
-                <MosqueStaffPublic mosqueId={mosque.id} />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Our teachers</h3>
-                <MosqueScholarLinks mosqueId={mosque.id} />
-              </div>
-            </div>
+            <MosqueProfileEditor mosque={mosque} onSaved={onMosqueUpdate} />
           )}
           {activeTab === "mosque" && activeSub === "prayer" && (
             <div>
