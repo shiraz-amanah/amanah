@@ -1,6 +1,6 @@
 import {
-  Building2, HandCoins, MessageCircle,
-  User, ShieldCheck, CheckCircle2, AlertCircle, LogOut,
+  Building2, HandCoins,
+  ShieldCheck, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
 import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosquePrayerEditor from "./MosquePrayerEditor";
@@ -42,7 +42,7 @@ import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
 // are sub-tabs like any other group; MosqueMadrasa is content-only and renders the
 // active section from `sub`, with the class drill-down kept inside its content pane.
 const SUBTABS = Object.fromEntries(MOSQUE_NAV.map((g) => [g.tab, g.items]));
-const ALL_VALUES = [...MOSQUE_NAV.map((g) => g.tab), "messages", "account"];
+const ALL_VALUES = MOSQUE_NAV.map((g) => g.tab); // includes messages + account (now sidebar items)
 
 const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
   <div>
@@ -122,19 +122,12 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
               else if (["homework", "report", "attendance", "reward", "photo"].includes(n.type)) setTab("madrasah");
               else setTab("dashboard");
             }} />
-            <button onClick={() => setTab("messages")} className={`relative p-2 rounded-lg ${activeTab === "messages" ? "text-emerald-800 bg-emerald-50" : "text-stone-600 hover:text-stone-900"}`} aria-label="Messages">
-              <MessageCircle size={17} />
-              {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-semibold flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
-            </button>
-            <button onClick={() => setTab("account")} className={`p-2 rounded-lg ${activeTab === "account" ? "text-emerald-800 bg-emerald-50" : "text-stone-600 hover:text-stone-900"}`} aria-label="Account">
-              <User size={17} />
-            </button>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 flex flex-col md:flex-row gap-6">
-        <MosqueSidebar nav={{ tab: activeTab, sub: activeSub }} onSelect={setTab} onLogout={onLogout} mosque={mosque} />
+        <MosqueSidebar nav={{ tab: activeTab, sub: activeSub }} onSelect={setTab} onLogout={onLogout} mosque={mosque} unread={unread} />
 
         <main className="flex-1 min-w-0">
           {/* ---- Dashboard ---- */}

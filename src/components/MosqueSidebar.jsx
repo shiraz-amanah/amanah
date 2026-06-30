@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Users, UserCog, CalendarDays, Clock, Banknote,
   Building2, Calendar, Megaphone, HandCoins, GraduationCap,
   ShieldAlert, ClipboardCheck, FileText, ChevronDown, LogOut, BarChart3, Moon, Globe,
+  MessageCircle, User,
 } from "lucide-react";
 
 // Phase 1 of the platform-wide sidebar (Session AX). The unified persistent left
@@ -35,9 +36,13 @@ export const MOSQUE_NAV = [
     ["safeguarding", "Safeguarding", ShieldAlert], ["compliance", "Compliance", ClipboardCheck],
     ["documents", "Documents", FileText],
   ] },
+  // Personal/utility top-level entries (leaf-less, like Dashboard). Messages
+  // carries the unread badge that used to live on the header icon.
+  { tab: "messages", label: "Messages", icon: MessageCircle, items: [] },
+  { tab: "account", label: "Account", icon: User, items: [] },
 ];
 
-const MosqueSidebar = ({ nav, onSelect, onLogout, mosque }) => {
+const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0 }) => {
   // Which accordion sections are expanded. Seeded with the active section, and the
   // active section auto-opens whenever the tab changes (e.g. a search deep-link).
   const [open, setOpen] = useState(() => new Set([nav.tab]));
@@ -82,6 +87,7 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque }) => {
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${active && !hasItems ? "bg-emerald-50 text-emerald-800" : active ? "text-emerald-800" : "text-stone-700 hover:bg-stone-100"}`}>
                   <Icon size={16} className="shrink-0" />
                   <span className="flex-1 text-left">{g.label}</span>
+                  {g.tab === "messages" && unread > 0 && <span className="shrink-0 bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{unread > 9 ? "9+" : unread}</span>}
                   {hasItems && <ChevronDown size={14} onClick={(e) => { e.stopPropagation(); toggle(g.tab); }} className={`shrink-0 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />}
                 </button>
                 {hasItems && isOpen && (
@@ -114,9 +120,10 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque }) => {
             const active = groupActive(g);
             return (
               <button key={g.tab} onClick={() => headerClick(g)} title={g.label}
-                className={`shrink-0 flex flex-col items-center gap-1 w-[68px] px-2 py-2 rounded-lg ${active ? "bg-emerald-50 text-emerald-800" : "text-stone-500 hover:bg-stone-100"}`}>
+                className={`relative shrink-0 flex flex-col items-center gap-1 w-[68px] px-2 py-2 rounded-lg ${active ? "bg-emerald-50 text-emerald-800" : "text-stone-500 hover:bg-stone-100"}`}>
                 <Icon size={18} />
                 <span className="text-[10px] font-medium">{g.label}</span>
+                {g.tab === "messages" && unread > 0 && <span className="absolute top-1 right-2 bg-emerald-600 text-white text-[9px] font-semibold min-w-[15px] h-[15px] px-1 rounded-full flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
               </button>
             );
           })}
