@@ -3,6 +3,7 @@ import { Calendar, MapPin, ChevronRight, ArrowRight } from "lucide-react";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import { getUpcomingEvents } from "../auth";
 import GeometricDivider from "./GeometricDivider";
+import RecurrenceBadge from "./RecurrenceBadge";
 
 // Homepage "Upcoming events" section (Session U Day 1; re-sited + redesigned in
 // Session AL). Sits between the scholar categories and "Verified mosques near
@@ -79,9 +80,12 @@ const HomepageEvents = ({ onMosque, onViewAll }) => {
                     </div>
                   </div>
                   <p className="text-sm font-semibold text-stone-900 mb-1 line-clamp-2">{e.title}</p>
-                  <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center justify-between mt-2 gap-2">
                     <span className="text-xs text-stone-500 inline-flex items-center gap-1"><Calendar size={11} className="text-emerald-700" /> {fmtDate(e.date)}{e.time ? ` · ${e.time}` : ""}</span>
-                    <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{typeLabel(e.type)}</span>
+                    <span className="inline-flex items-center gap-1.5 shrink-0">
+                      <RecurrenceBadge recurrence={e.recurrence} />
+                      <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{typeLabel(e.type)}</span>
+                    </span>
                   </div>
                   <span className="text-xs text-emerald-700 font-medium inline-flex items-center gap-0.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">View mosque <ChevronRight size={12} /></span>
                 </div>

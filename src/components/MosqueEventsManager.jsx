@@ -3,6 +3,7 @@ import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Calendar, Upload,
 import { uploadMosqueEventImage } from "../lib/storage";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import { getMosqueEvents, createMosqueEvent, updateMosqueEventScope, deleteMosqueEventScope, topUpRecurringEvents } from "../auth";
+import RecurrenceBadge from "./RecurrenceBadge";
 
 // Mosque dashboard → Events sub-tab (Session U Day 1; recurrence added migration
 // 100). Events surface on the homepage + public profile — create, edit, delete.
@@ -170,7 +171,7 @@ const MosqueEventsManager = ({ mosqueId }) => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">
                   <span className="truncate">{e.title}</span>
-                  {e._series && <span className="shrink-0 text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded inline-flex items-center gap-1"><Repeat size={9} /> {cadenceLabel(e.recurrence)}</span>}
+                  {e._series && <RecurrenceBadge recurrence={e.recurrence} />}
                 </p>
                 <p className="text-xs text-stone-500">{fmtDate(e.date)}{e.time ? ` · ${e.time}` : ""} · <span className="text-emerald-700">{typeLabel(e.type)}</span>{e._series ? " · next occurrence" : ""}</p>
               </div>

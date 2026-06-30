@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient'
 import { geocodePostcode } from './lib/postcode'
+import { collapseRecurringEvents } from './lib/events'
 import {
   sendBookingConfirmedEmail, sendScholarApprovedEmail, sendBookingCancelledEmail,
   sendWelcomeEmail, sendScholarApplicationSubmittedEmail, sendScholarApplicationRejectedEmail,
@@ -529,24 +530,27 @@ export async function deleteMosqueAnnouncement(id) {
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).
+// Recurring series are collapsed to their next occurrence (one tile, not 26). We
+// over-fetch so the collapse still yields `limit` distinct events — the earliest
+// dated rows can be many occurrences of the same series.
 export async function getUpcomingEvents(limit = 10) {
   const { data, error } = await supabase
     .from('mosque_events')
-    .select('id, title, date, time, type, image_url, mosque:mosques (id, slug, name, logo_url, photo_url, city)')
+    .select('id, title, date, time, type, image_url, recurrence, recurrence_group_id, mosque:mosques (id, slug, name, logo_url, photo_url, city)')
     .gte('date', todayDate())
     .order('date', { ascending: true })
-    .limit(limit)
+    .limit(Math.max(limit * 20, 60))
   if (error) { console.error('Error fetching upcoming events:', error); return [] }
-  return data || []
+  return collapseRecurringEvents(data || [], limit)
 }
-// Upcoming events for one mosque (public profile).
+// Upcoming events for one mosque (public profile). Same collapse + over-fetch.
 export async function getMosqueUpcomingEvents(mosqueId, limit = 5) {
   if (!mosqueId) return []
   const { data, error } = await supabase
     .from('mosque_events').select('*').eq('mosque_id', mosqueId)
-    .gte('date', todayDate()).order('date', { ascending: true }).limit(limit)
+    .gte('date', todayDate()).order('date', { ascending: true }).limit(Math.max(limit * 20, 60))
   if (error) { console.error('Error fetching mosque upcoming events:', error); return [] }
-  return data || []
+  return collapseRecurringEvents(data || [], limit)
 }
 
 // ==================== Mosque staff directory (Session U Day 2) ================

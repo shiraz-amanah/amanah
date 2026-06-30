@@ -5,6 +5,7 @@ import { getMosqueUpcomingEvents, getMosqueAnnouncements, getMosqueTeam, getMosq
 import MosquePrayerTimes from "../components/MosquePrayerTimes";
 import MosqueDonateModal from "../components/MosqueDonateModal";
 import MosqueClaimModal from "../components/MosqueClaimModal";
+import RecurrenceBadge from "../components/RecurrenceBadge";
 import { CAL_TYPE } from "../data/academicCalendar";
 import { CATEGORIES } from "../data/categories";
 
@@ -245,7 +246,7 @@ const MosqueProfile = ({ mosque, header, onScholar, isSaved, onToggleSave }) => 
                     {e.image_url ? <img src={e.image_url} alt="" className="w-full h-full object-cover" /> : <Calendar size={16} className="text-emerald-700" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-stone-900 truncate">{e.title}</p>
+                    <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2"><span className="truncate">{e.title}</span><RecurrenceBadge recurrence={e.recurrence} /></p>
                     <p className="text-xs text-stone-500">{fmtDate(e.date)}{e.time ? ` · ${e.time}` : ""} · <span className="text-emerald-700">{typeLabel(e.type)}</span></p>
                     {e.description && <p className="text-xs text-stone-600 mt-0.5 line-clamp-2">{e.description}</p>}
                   </div>

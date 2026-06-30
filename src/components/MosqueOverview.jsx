@@ -7,6 +7,8 @@ import {
 import { getMosqueBriefing } from "../lib/hrAssistant";
 import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments } from "../auth";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
+import { collapseRecurringEvents } from "../lib/events";
+import RecurrenceBadge from "./RecurrenceBadge";
 import Markdown from "./Markdown";
 
 const eventTypeLabel = (v) => MOSQUE_EVENT_TYPES.find((t) => t.v === v)?.l || v;
@@ -98,7 +100,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const dbsVerified = staff.filter((s) => s.dbs_status === "verified").length;
   const dbsPct = totalStaff ? Math.round((dbsVerified / totalStaff) * 100) : 0;
   const eventsThisWeek = events.filter((e) => isThisWeek(e.date)).length;
-  const upcomingEvents = events.filter((e) => e.date >= todayStr()).slice(0, 6); // getMosqueEvents is date-asc
+  const upcomingEvents = collapseRecurringEvents(events.filter((e) => e.date >= todayStr()), 6); // date-asc; collapse recurring series to next occurrence
   const unread = (conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0);
   const tsPending = timesheets.filter((t) => t.clock_out && t.status === "pending").length;
   const expiringDocs = docs.filter((d) => d.expiry_date && d.expiry_date <= in30Str());
@@ -114,7 +116,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const activity = [
     ...reviewPending.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} completed onboarding — review pending`, flag: true })),
     ...staff.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} added to staff` })),
-    ...events.map((e) => ({ when: e.created_at, text: `Event "${e.title}" created` })),
+    ...collapseRecurringEvents(events).map((e) => ({ when: e.created_at, text: `Event "${e.title}" created` })),
     ...docs.map((d) => ({ when: d.created_at, text: `Document "${d.label}" uploaded` })),
   ].filter((a) => a.when).sort((a, b) => (a.when < b.when ? 1 : -1)).slice(0, 10);
 
@@ -213,9 +215,12 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
                   {e.image_url && <img src={e.image_url} alt="" className="w-full h-24 object-cover" />}
                   <div className="p-4">
                     <p className="text-sm font-semibold text-stone-900 mb-1 line-clamp-2">{e.title}</p>
-                    <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center justify-between mt-2 gap-2">
                       <span className="text-xs text-stone-500 inline-flex items-center gap-1"><Calendar size={11} className="text-emerald-700" /> {fmtEventDate(e.date)}{e.time ? ` · ${e.time}` : ""}</span>
-                      <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{eventTypeLabel(e.type)}</span>
+                      <span className="inline-flex items-center gap-1.5 shrink-0">
+                        <RecurrenceBadge recurrence={e.recurrence} />
+                        <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{eventTypeLabel(e.type)}</span>
+                      </span>
                     </div>
                   </div>
                 </button>
