@@ -26,6 +26,7 @@ import MosqueProfile from "./pages/MosqueProfile";
 import AdminClaims from "./components/AdminClaims";
 import MosqueClaimAccept from "./components/MosqueClaimAccept";
 import HomepageEvents from "./components/HomepageEvents";
+import GeometricDivider from "./components/GeometricDivider";
 import { isDailyRoomUrl } from "./lib/video";
 import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "./data/mosqueTaxonomy";
@@ -530,6 +531,7 @@ useEffect(() => {
 
 {/* Mosques near you */}
 <section id="mosques-near-you" className="max-w-7xl mx-auto px-5 md:px-6 py-10 md:py-16">
+  <GeometricDivider className="mb-8 md:mb-10" />
   <div className="flex items-end justify-between mb-6 md:mb-8">
     <div>
       <div className="flex items-center gap-2 mb-1 flex-wrap">
