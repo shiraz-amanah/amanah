@@ -20,6 +20,7 @@ import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
 import MosqueDocuments from "./MosqueDocuments";
 import MosqueScholarLinks from "./MosqueScholarLinks";
+import CommunityMembers from "./CommunityMembers";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -225,6 +226,17 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           )}
           {activeTab === "compliance" && activeSub === "documents" && (
             <MosqueDocuments mosqueId={mosque.id} />
+          )}
+
+          {/* ---- Community ---- */}
+          {activeTab === "community" && activeSub === "members" && (
+            <CommunityMembers mosqueId={mosque.id} />
+          )}
+          {activeTab === "community" && activeSub === "visitors" && (
+            <Placeholder title="Visitor register" icon={CheckCircle2} blurb="QR check-in sessions and the live attendance feed land in the next update. You'll open a session, display a QR at the entrance, and watch named + anonymous check-ins arrive in real time." />
+          )}
+          {activeTab === "community" && activeSub === "groups" && (
+            <Placeholder title="Groups" icon={Building2} blurb="Organise members into groups — Youth, Sisters' circle, Volunteers, Committee — for filtering, announcements, and future governance. Coming in the next update." />
           )}
 
           {/* ---- Header-only: Messages ---- */}

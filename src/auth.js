@@ -527,6 +527,65 @@ export async function deleteMosqueAnnouncement(id) {
   return { error }
 }
 
+// ================= Community — members (migration 101) =================
+// Congregation directory. Owner CRUD gated by community_members RLS. Account-
+// linked members carry profile_id; manually-added / invited members don't.
+// (Enrolled parents are surfaced read-only via a follow-up owner-scoped RPC;
+// email invites via a send-transactional intent — both tracked separately.)
+export async function getCommunityMembers(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('community_members').select('*').eq('mosque_id', mosqueId)
+    .order('name', { ascending: true })
+  if (error) { console.error('Error fetching community members:', error); return [] }
+  return data || []
+}
+export async function getCommunityMember(id) {
+  if (!id) return null
+  const { data, error } = await supabase
+    .from('community_members').select('*').eq('id', id).maybeSingle()
+  if (error) { console.error('Error fetching community member:', error); return null }
+  return data
+}
+export async function createCommunityMember({ mosqueId, name, email, phone, address, notes, status = 'active', photoUrl }) {
+  const { data, error } = await supabase
+    .from('community_members')
+    .insert({ mosque_id: mosqueId, name, email: email || null, phone: phone || null,
+              address: address || null, notes: notes || null, status, photo_url: photoUrl || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateCommunityMember(id, updates) {
+  const { data, error } = await supabase
+    .from('community_members').update(updates).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteCommunityMember(id) {
+  const { error } = await supabase.from('community_members').delete().eq('id', id)
+  return { error }
+}
+// Member-profile detail reads (owner-scoped by RLS): the member's group
+// memberships and their attendance history (joined to session name/date).
+export async function getCommunityMemberGroups(memberId) {
+  if (!memberId) return []
+  const { data, error } = await supabase
+    .from('community_group_members')
+    .select('joined_at, group:community_groups(id, name)')
+    .eq('member_id', memberId)
+  if (error) { console.error('Error fetching member groups:', error); return [] }
+  return data || []
+}
+export async function getCommunityMemberAttendance(memberId) {
+  if (!memberId) return []
+  const { data, error } = await supabase
+    .from('community_attendance')
+    .select('id, checked_in_at, check_in_method, is_first_time, session:community_sessions(id, name, session_date)')
+    .eq('member_id', memberId)
+    .order('checked_in_at', { ascending: false })
+  if (error) { console.error('Error fetching member attendance:', error); return [] }
+  return data || []
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).
