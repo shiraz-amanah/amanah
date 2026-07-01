@@ -708,6 +708,27 @@ export async function communityCheckIn({ sessionId, name, phone, method = 'qr' }
   return { data: (data || [])[0] || null, error }
 }
 
+// --- Member self-service (the signed-in member's own community view) ---
+// Membership rows come via the community_members self-read policy (profile_id =
+// auth.uid()); attendance + groups via auth.uid()-scoped definer RPCs (101).
+export async function getMyCommunityMemberships() {
+  const { data, error } = await supabase
+    .from('community_members')
+    .select('id, mosque_id, name, status, joined_at, mosque:mosques(id, name, slug, city)')
+  if (error) { console.error('Error fetching my community memberships:', error); return [] }
+  return data || []
+}
+export async function getMyCommunityAttendance() {
+  const { data, error } = await supabase.rpc('my_community_attendance')
+  if (error) { console.error('Error fetching my community attendance:', error); return [] }
+  return data || []
+}
+export async function getMyCommunityGroups() {
+  const { data, error } = await supabase.rpc('my_community_groups')
+  if (error) { console.error('Error fetching my community groups:', error); return [] }
+  return data || []
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

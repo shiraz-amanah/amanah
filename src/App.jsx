@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -51,6 +51,7 @@ import GlobalSearch, { GlobalSearchTrigger } from "./components/GlobalSearch";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
+import CommunityMember from "./components/CommunityMember";
 import CommunityCheckIn from "./components/CommunityCheckIn";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import MadrasaEnrolAccept from "./pages/MadrasaEnrolAccept";
@@ -7579,7 +7580,7 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onViewMosque, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange PUSHES a history entry
   // per tab switch (Session AN) so the parent's browser Back steps back through
   // tabs / sub-views in reverse order instead of jumping to the homepage. setTab
@@ -7611,14 +7612,20 @@ const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchM
   // Madrasah tab is hidden until the parent has an enrolled child or is on a
   // waiting list (mid-enrolment). Demo mode always shows it. Visibility guard
   // only — the Enrol Now flow lives on the public MadrasaBrowse page, so this
-  // never blocks a first enrolment.
+  // never blocks a first enrolment. The Community tab uses the same shape: shown
+  // only when the user is a linked community member of some mosque.
   const [hasMadrasa, setHasMadrasa] = useState(isDemo);
+  const [hasCommunity, setHasCommunity] = useState(false);
   useEffect(() => {
     if (isDemo) { setHasMadrasa(true); return; }
     let alive = true;
-    Promise.all([getMyMadrasaEnrollments(), getMyWaitlist()])
-      .then(([enr, wl]) => { if (alive) setHasMadrasa((enr?.length || 0) + (wl?.length || 0) > 0); })
-      .catch((e) => console.error("madrasa visibility check failed:", e));
+    Promise.all([getMyMadrasaEnrollments(), getMyWaitlist(), getMyCommunityMemberships()])
+      .then(([enr, wl, mem]) => {
+        if (!alive) return;
+        setHasMadrasa((enr?.length || 0) + (wl?.length || 0) > 0);
+        setHasCommunity((mem?.length || 0) > 0);
+      })
+      .catch((e) => console.error("dashboard visibility check failed:", e));
     return () => { alive = false; };
   }, [isDemo]);
 
@@ -7908,6 +7915,7 @@ setBookings(transformed);
           {[
             { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
             ...(hasMadrasa ? [{ v: "madrasa", l: "Madrasah", i: GraduationCap, badge: null }] : []),
+            ...(hasCommunity ? [{ v: "community", l: "Community", i: HeartHandshake, badge: null }] : []),
             { v: "donations", l: "My giving", i: HandCoins, badge: null },
             { v: "saved", l: "My scholars", i: Heart, badge: savedScholars.length },
             { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosqueIds?.size || 0 },
@@ -8174,6 +8182,7 @@ setBookings(transformed);
         )}
 
         {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} />}
+        {tab === "community" && <CommunityMember onBrowse={onPublic} onViewMosque={onViewMosque} />}
 
         {tab === "donations" && (
           <div>
@@ -13228,6 +13237,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
+    onViewMosque={(slug) => { if (slug) navigate("mosqueDetail", { slug }); }}
     onBookAgain={async (scholarId) => {
       if (!scholarId) {
         console.error("onBookAgain called without a scholarId — booking transform missing field?");
