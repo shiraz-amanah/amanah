@@ -88,6 +88,15 @@ export async function askCommunity(mosqueId, question = "") {
 }
 export const getCommunityInsights = (mosqueId) => askCommunity(mosqueId, "");
 
+// Governance assistant (mode:'governance_ops', owner-authed). Empty question →
+// a governance brief (overdue actions, terms expiring, AGM due); with a question
+// → a free-text answer. Returns { ok, answer } or { ok:false, error }.
+export async function askGovernance(mosqueId, question = "") {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  return postBrief({ mode: "governance_ops", mosqueId, question });
+}
+export const getGovernanceBrief = (mosqueId) => askGovernance(mosqueId, "");
+
 // Parent-friendly AI summary from a report's structured sections
 // (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
 export async function generateReportSummary({ classId, sections, overall, studentName, term }) {

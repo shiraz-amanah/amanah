@@ -472,6 +472,82 @@ async function handleCommunityOps(req, res, body, env) {
   } catch (err) { console.error('[community-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Session BB — governance assistant (mode:'governance_ops'). Owner-JWT authed.
+// Aggregates committee terms, meetings (last AGM), and the action tracker into a
+// daily brief + free-text Q&A. (Document RAG is added in P5.)
+async function buildGovernanceContext(env, mosqueId) {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const in60 = new Date(now.getTime() + 60 * 86400000).toISOString().slice(0, 10);
+  const in7 = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+
+  const [committee, meetings, actions] = await Promise.all([
+    mhGet(env, `governance_committee_members?mosque_id=eq.${mosqueId}&active=eq.true&select=name,role,term_end`),
+    mhGet(env, `governance_meetings?mosque_id=eq.${mosqueId}&order=meeting_date.desc&select=type,title,meeting_date`),
+    mhGet(env, `governance_actions?mosque_id=eq.${mosqueId}&select=description,due_date,status,committee_member_id`),
+  ]);
+  const C = Array.isArray(committee) ? committee : [];
+  const M = Array.isArray(meetings) ? meetings : [];
+  const A = Array.isArray(actions) ? actions : [];
+
+  const agms = M.filter((m) => m.type === 'agm');
+  const lastAgm = agms[0]?.meeting_date || null;
+  const monthsSinceAgm = lastAgm ? Math.round((now - new Date(lastAgm)) / (30.44 * 86400000)) : null;
+  const open = A.filter((a) => a.status !== 'complete');
+
+  return {
+    today,
+    committee_size: C.length,
+    roles: C.map((c) => c.role),
+    terms_expiring: C.filter((c) => c.term_end && c.term_end <= in60).map((c) => ({ name: c.name, role: c.role, term_end: c.term_end, expired: c.term_end < today })),
+    last_agm_date: lastAgm,
+    months_since_last_agm: monthsSinceAgm,
+    annual_agm_overdue: monthsSinceAgm != null && monthsSinceAgm >= 12,
+    meetings_last_6: M.slice(0, 6).map((m) => ({ type: m.type, title: m.title, date: m.meeting_date })),
+    open_actions: open.length,
+    overdue_actions: open.filter((a) => a.due_date && a.due_date < today).map((a) => ({ description: a.description, due: a.due_date })),
+    due_this_week: open.filter((a) => a.due_date && a.due_date >= today && a.due_date <= in7).map((a) => ({ description: a.description, due: a.due_date })),
+  };
+}
+
+async function handleGovernanceOps(req, res, body, env) {
+  if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const context = { mosque: mosque.name, ...(await buildGovernanceContext(env, body.mosqueId)) };
+  const q = (body.question || '').trim();
+  const system = `You are a governance assistant for "${mosque.name}", a UK mosque/charity. You are given the mosque's real governance data as JSON: committee members + roles, terms expiring within 60 days (expired flagged), the last AGM date + months since (annual_agm_overdue when ≥12 months), recent meetings, and the action tracker (open, overdue, due this week). Answer ONLY from this data, concisely, in UK English. Today is ${context.today}. Be specific with names, dates and counts. Do not invent data.`;
+  const userMsg = q
+    ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
+    : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 4-5 short, specific lines (no preamble or numbering) as a governance brief. Prioritise: overdue actions (count + a couple named), actions due this week, committee terms expiring/expired (name them), and whether the annual AGM is due (months since the last one). If an area is clear, you may briefly note it.`;
+
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[governance-ops] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const answer = tb?.text?.trim();
+    if (!answer) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json({ ok: true, answer });
+  } catch (err) { console.error('[governance-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -509,6 +585,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'community_ops') {
       return handleCommunityOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'governance_ops') {
+      return handleGovernanceOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 
