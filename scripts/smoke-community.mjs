@@ -81,6 +81,8 @@ async function teardown() {
     // Madrasah fixtures (103A derived-parents): enrolments/classes are mosque-scoped.
     await svc.from('madrasa_enrollments').delete().eq('mosque_id', m.id);
     await svc.from('madrasa_classes').delete().eq('mosque_id', m.id);
+    // Events + RSVPs (104): rsvps cascade from the event delete.
+    await svc.from('mosque_events').delete().eq('mosque_id', m.id);
     await svc.from('mosques').delete().eq('id', m.id);
   }
   // Students aren't mosque-scoped — clean by parent linkage.
@@ -166,6 +168,13 @@ async function seed() {
     .select('id').single();
   if (invErr) throw new Error(`seed invitee: ${invErr.message}`);
   ids.invitee_row = inv.id;
+
+  // --- 104: an event to RSVP to ---
+  const { data: ev, error: evErr } = await svc.from('mosque_events')
+    .insert({ mosque_id: ids.mosque, title: 'Community Iftar (smoke)', date: '2026-08-01', type: 'community' })
+    .select('id').single();
+  if (evErr) throw new Error(`seed event: ${evErr.message}`);
+  ids.event = ev.id;
 }
 
 async function t1_sessionPublic() {
@@ -324,6 +333,43 @@ async function t10_linkMemberships() {
   assert(!again.error && again.data === 0, `T10d re-run is idempotent → count=${again.data}`);
 }
 
+// Migration 104: community_event_rsvps — member manages own (upsert), reads only
+// own; owner reads all RSVPs for their events; anon locked out.
+async function t11_eventRsvps() {
+  const rsvp = (client, profileId, response) => client.from('community_event_rsvps')
+    .upsert({ event_id: ids.event, profile_id: profileId, response, updated_at: new Date().toISOString() }, { onConflict: 'event_id,profile_id' });
+
+  const member = await signIn(EM.member);
+  const up1 = await rsvp(member, ids.member, 'yes');
+  assert(!up1.error, `T11a member RSVPs 'yes'${up1.error ? ' — ' + up1.error.message : ''}`);
+  const up2 = await rsvp(member, ids.member, 'maybe'); // re-RSVP updates, not duplicates
+  assert(!up2.error, `T11b member changes RSVP to 'maybe'${up2.error ? ' — ' + up2.error.message : ''}`);
+
+  const parent = await signIn(EM.parent);
+  await rsvp(parent, ids.parent, 'no');
+
+  // Member sees ONLY their own row (1), value 'maybe'.
+  const mineRes = await member.from('community_event_rsvps').select('response, profile_id').eq('event_id', ids.event);
+  raw('member sees', mineRes.data);
+  const mine = mineRes.data || [];
+  assert(mine.length === 1 && mine[0].profile_id === ids.member && mine[0].response === 'maybe',
+    `T11c member reads only own RSVP → ${mine.length} row, response=${mine[0]?.response}`);
+
+  // Owner reads ALL RSVPs for their event (2) and can tally.
+  const owner = await signIn(EM.owner);
+  const allRes = await owner.from('community_event_rsvps').select('response').eq('event_id', ids.event);
+  raw('owner sees', allRes.data);
+  const all = allRes.data || [];
+  const counts = all.reduce((a, r) => ((a[r.response] = (a[r.response] || 0) + 1), a), {});
+  assert(all.length === 2 && counts.maybe === 1 && counts.no === 1,
+    `T11d owner reads all RSVPs for their event → ${all.length} rows, counts=${JSON.stringify(counts)}`);
+
+  // Anon: no policy → 0 rows / denied.
+  const anonRes = await anon().from('community_event_rsvps').select('*').eq('event_id', ids.event);
+  assert(!!anonRes.error || (anonRes.data || []).length === 0,
+    `T11e anon read community_event_rsvps → ${anonRes.error ? 'denied' : (anonRes.data || []).length + ' rows'} (expected 0/denied)`);
+}
+
 try {
   await teardown(); // clean any leftovers from a prior run
   await seed();
@@ -337,6 +383,7 @@ try {
   await t8_currentSession();
   await t9_derivedParents();
   await t10_linkMemberships();
+  await t11_eventRsvps();
 } catch (err) {
   bad(`FATAL: ${err.message}`);
 } finally {

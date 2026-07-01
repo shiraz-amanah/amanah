@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Calendar, Upload, Repeat } from "lucide-react";
 import { uploadMosqueEventImage } from "../lib/storage";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
-import { getMosqueEvents, createMosqueEvent, updateMosqueEventScope, deleteMosqueEventScope, topUpRecurringEvents } from "../auth";
+import { getMosqueEvents, createMosqueEvent, updateMosqueEventScope, deleteMosqueEventScope, topUpRecurringEvents, getMyEventRsvpCounts } from "../auth";
 import RecurrenceBadge from "./RecurrenceBadge";
 
 // Mosque dashboard → Events sub-tab (Session U Day 1; recurrence added migration
@@ -34,8 +34,16 @@ const MosqueEventsManager = ({ mosqueId }) => {
   const [evBusy, setEvBusy] = useState(false);
   const [evImgBusy, setEvImgBusy] = useState(false);
   const [scope, setScope] = useState(null); // { mode:'edit'|'delete', occurrence, fields? }
+  const [rsvpCounts, setRsvpCounts] = useState({}); // eventId → { yes, no, maybe }
 
   const refresh = () => getMosqueEvents(mosqueId).then(setEvents);
+
+  // Per-event RSVP tallies (owner reads their events' RSVPs via RLS).
+  useEffect(() => {
+    let alive = true;
+    getMyEventRsvpCounts().then((c) => { if (alive) setRsvpCounts(c); }).catch(() => {});
+    return () => { alive = false; };
+  }, [mosqueId]);
 
   useEffect(() => {
     let alive = true;
@@ -174,6 +182,9 @@ const MosqueEventsManager = ({ mosqueId }) => {
                   {e._series && <RecurrenceBadge recurrence={e.recurrence} />}
                 </p>
                 <p className="text-xs text-stone-500">{fmtDate(e.date)}{e.time ? ` · ${e.time}` : ""} · <span className="text-emerald-700">{typeLabel(e.type)}</span>{e._series ? " · next occurrence" : ""}</p>
+                {(() => { const c = rsvpCounts[e.id]; return c && (c.yes + c.no + c.maybe) > 0 ? (
+                  <p className="text-[11px] text-stone-400 mt-0.5">{c.yes} going{c.maybe ? ` · ${c.maybe} maybe` : ""}{c.no ? ` · ${c.no} can't` : ""}</p>
+                ) : null; })()}
               </div>
               <button onClick={() => editEvent(e)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
               <button onClick={() => deleteEvent(e)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>

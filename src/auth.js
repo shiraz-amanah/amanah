@@ -766,6 +766,34 @@ export async function getCommunityCurrentSession(mosqueId) {
   return (data || [])[0] || null
 }
 
+// --- Event RSVP (migration 104) ---
+// Member sets/changes their RSVP (upsert; RLS with-check pins profile_id to the
+// caller). response ∈ 'yes' | 'no' | 'maybe'.
+export async function setEventRsvp(eventId, response) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { message: 'not signed in' } }
+  const { data, error } = await supabase
+    .from('community_event_rsvps')
+    .upsert({ event_id: eventId, profile_id: user.id, response, updated_at: new Date().toISOString() }, { onConflict: 'event_id,profile_id' })
+    .select().single()
+  return { data, error }
+}
+// The signed-in member's own RSVPs (RLS = own): [{ event_id, response }].
+export async function getMyEventRsvps() {
+  const { data, error } = await supabase.from('community_event_rsvps').select('event_id, response')
+  if (error) { console.error('Error fetching my event RSVPs:', error); return [] }
+  return data || []
+}
+// Per-event RSVP tallies for the owner's events (RLS scopes to their events):
+// { [eventId]: { yes, no, maybe } }.
+export async function getMyEventRsvpCounts() {
+  const { data, error } = await supabase.from('community_event_rsvps').select('event_id, response')
+  if (error) { console.error('Error fetching event RSVP counts:', error); return {} }
+  const map = {}
+  for (const r of data || []) { const c = (map[r.event_id] ||= { yes: 0, no: 0, maybe: 0 }); if (c[r.response] != null) c[r.response]++ }
+  return map
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

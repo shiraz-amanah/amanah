@@ -6,7 +6,7 @@ import {
 import {
   getMyCommunityMemberships, getMyCommunityAttendance, getMyCommunityGroups,
   getMosqueById, getMosqueUpcomingEvents, getMosqueAnnouncements,
-  getCommunityCurrentSession, communityCheckIn,
+  getCommunityCurrentSession, communityCheckIn, getMyEventRsvps, setEventRsvp,
 } from "../auth";
 import { useGeolocation, haversineDistance } from "../lib/geo";
 import MosquePrayerTimes from "./MosquePrayerTimes";
@@ -20,6 +20,7 @@ import MosquePrayerTimes from "./MosquePrayerTimes";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const methodIcon = { qr: QrCode, geofence: MapPinned, manual: Hand };
+const RSVP_OPTS = [["yes", "Going"], ["maybe", "Maybe"], ["no", "Can't"]];
 
 const GEO_OPTIN_KEY = "amanah_geofence_optin";
 const GEOFENCE_METRES = 100;
@@ -122,21 +123,31 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
   const [events, setEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [mosqueLoading, setMosqueLoading] = useState(false);
+  const [rsvps, setRsvps] = useState({}); // eventId → 'yes'|'no'|'maybe'
 
-  // Membership + own attendance/groups (span all memberships; filter per mosque).
+  // Membership + own attendance/groups/RSVPs (span all memberships).
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([getMyCommunityMemberships(), getMyCommunityAttendance(), getMyCommunityGroups()])
-      .then(([m, a, g]) => {
+    Promise.all([getMyCommunityMemberships(), getMyCommunityAttendance(), getMyCommunityGroups(), getMyEventRsvps()])
+      .then(([m, a, g, r]) => {
         if (!alive) return;
         setMemberships(m); setAttendance(a); setGroups(g);
+        setRsvps(Object.fromEntries((r || []).map((x) => [x.event_id, x.response])));
         if (m.length) setActiveId((cur) => cur || m[0].mosque_id);
       })
       .catch((e) => console.error("community member load failed:", e))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
+
+  // RSVP to an event (optimistic; revert on error).
+  const onRsvp = async (eventId, response) => {
+    const prev = rsvps[eventId];
+    setRsvps((r) => ({ ...r, [eventId]: response }));
+    const { error } = await setEventRsvp(eventId, response);
+    if (error) setRsvps((r) => ({ ...r, [eventId]: prev }));
+  };
 
   // Selected mosque's public content.
   useEffect(() => {
@@ -206,11 +217,21 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
             <div className={cardCls}>
               <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Calendar size={15} className="text-emerald-700" /> Upcoming events</p>
               {events.length ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {events.map((e) => (
-                    <div key={e.id} className="flex items-center gap-2 text-sm">
-                      <span className="text-xs text-stone-400 w-16 shrink-0">{fmtDate(e.date)}</span>
-                      <span className="text-stone-700 truncate">{e.title}</span>
+                    <div key={e.id} className="text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-stone-400 w-16 shrink-0">{fmtDate(e.date)}</span>
+                        <span className="text-stone-700 truncate flex-1">{e.title}</span>
+                      </div>
+                      <div className="flex gap-1 mt-1.5 ml-16">
+                        {RSVP_OPTS.map(([val, label]) => (
+                          <button key={val} onClick={() => onRsvp(e.id, val)}
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${rsvps[e.id] === val ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-stone-600 border-stone-300 hover:border-emerald-400"}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
