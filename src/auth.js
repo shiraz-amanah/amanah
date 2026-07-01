@@ -637,7 +637,7 @@ export async function getCommunityGroupMembers(groupId) {
   if (!groupId) return []
   const { data, error } = await supabase
     .from('community_group_members')
-    .select('id, joined_at, member:community_members(id, name, status, email, phone)')
+    .select('id, joined_at, member:community_members(id, name, status, email, phone, profile_id)')
     .eq('group_id', groupId)
     .order('joined_at', { ascending: true })
   if (error) { console.error('Error fetching group members:', error); return [] }

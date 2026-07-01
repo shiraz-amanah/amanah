@@ -13,8 +13,9 @@ import { sendBulkParentMessage, getMosqueEnrollments, getExportRoster, getMadras
 
 const inputCls = "w-full text-sm px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100";
 
-const BulkParentMessageModal = ({ mosqueId, classes: classesProp, defaultClassId, recipients = [], audienceLabel = "all parents", onClose }) => {
+const BulkParentMessageModal = ({ mosqueId, classes: classesProp, defaultClassId, recipients = [], audienceLabel = "all parents", noun = "parent", onClose }) => {
   const rich = !!mosqueId;
+  const plural = `${noun}s`;
 
   const [loading, setLoading] = useState(rich);
   const [classes, setClasses] = useState(classesProp || []);
@@ -87,7 +88,7 @@ const BulkParentMessageModal = ({ mosqueId, classes: classesProp, defaultClassId
   const send = async () => {
     if (sending) return;
     if (!body.trim()) { setError("Write a message first."); return; }
-    if (count === 0) { setError("No parents selected to message."); return; }
+    if (count === 0) { setError(`No ${plural} selected to message.`); return; }
     const text = (title.trim() ? `${title.trim()}\n\n` : "") + body.trim();
     setSending(true); setError("");
     const r = await sendBulkParentMessage(recipientIds, text);
@@ -101,7 +102,7 @@ const BulkParentMessageModal = ({ mosqueId, classes: classesProp, defaultClassId
       <div className="absolute inset-0 bg-stone-900/40" onClick={sending ? undefined : onClose} />
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-stone-200 px-5 py-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-stone-900 inline-flex items-center gap-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><MessageCircle size={18} className="text-emerald-700" /> Message parents</h3>
+          <h3 className="text-lg font-semibold text-stone-900 inline-flex items-center gap-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><MessageCircle size={18} className="text-emerald-700" /> Message {plural}</h3>
           <button onClick={onClose} disabled={sending} className="text-stone-400 hover:text-stone-700 p-1 disabled:opacity-40"><X size={18} /></button>
         </div>
 
@@ -110,7 +111,7 @@ const BulkParentMessageModal = ({ mosqueId, classes: classesProp, defaultClassId
             <div className="text-center py-4">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto mb-3"><Check size={22} /></div>
               <p className="text-sm font-medium text-stone-900">Message sent</p>
-              <p className="text-sm text-stone-600 mt-1">Delivered to {result.sent} parent{result.sent === 1 ? "" : "s"}{result.failed ? ` · ${result.failed} failed` : ""}{result.skipped ? ` · ${result.skipped} skipped` : ""}.</p>
+              <p className="text-sm text-stone-600 mt-1">Delivered to {result.sent} {result.sent === 1 ? noun : plural}{result.failed ? ` · ${result.failed} failed` : ""}{result.skipped ? ` · ${result.skipped} skipped` : ""}.</p>
               <button onClick={onClose} className="mt-4 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2 rounded-lg">Done</button>
             </div>
           ) : loading ? (
@@ -149,12 +150,12 @@ const BulkParentMessageModal = ({ mosqueId, classes: classesProp, defaultClassId
                     : <ul className="flex flex-wrap gap-1.5">{richRecipients.map((r) => <li key={r.uid} className="text-[11px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{r.name}</li>)}</ul>}
                 </div>
               )}
-              {showPreview && !rich && <p className="text-xs text-stone-500">Each of the {count} parent{count === 1 ? "" : "s"} receives this in their own thread.</p>}
+              {showPreview && !rich && <p className="text-xs text-stone-500">Each of the {count} {count === 1 ? noun : plural} receives this in their own thread.</p>}
 
               {/* Message */}
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className={inputCls} />
-              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Write your message to parents…" className={`${inputCls} resize-y`} />
-              <p className="text-[11px] text-stone-400">Each parent receives this privately in their own 1:1 conversation thread.</p>
+              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder={`Write your message to ${plural}…`} className={`${inputCls} resize-y`} />
+              <p className="text-[11px] text-stone-400">Each {noun} receives this privately in their own 1:1 conversation thread.</p>
 
               {error && <p className="text-sm text-rose-700">{error}</p>}
               <div className="flex justify-end gap-2">

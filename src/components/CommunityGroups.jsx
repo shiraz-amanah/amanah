@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, UsersRound, ChevronRight, ArrowLeft, UserPlus } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, UsersRound, ChevronRight, ArrowLeft, UserPlus, MessageCircle } from "lucide-react";
 import {
   getCommunityGroups, createCommunityGroup, updateCommunityGroup, deleteCommunityGroup,
   getCommunityGroupMembers, addMemberToGroup, removeMemberFromGroup, getCommunityMembers,
 } from "../auth";
+import BulkParentMessageModal from "./BulkParentMessageModal";
 
 // Mosque dashboard → Community → Groups. Organisational segments only (not group
 // chat). Create/edit/delete groups; a group detail assigns members (add/remove).
@@ -23,6 +24,7 @@ const GroupDetail = ({ group, onBack, onChanged }) => {
   const [err, setErr] = useState(null);
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showMessage, setShowMessage] = useState(false);
 
   const load = () => Promise.all([getCommunityGroupMembers(group.id), getCommunityMembers(group.mosque_id)])
     .then(([gm, all]) => { setRows(gm); setAllMembers(all); });
@@ -39,6 +41,8 @@ const GroupDetail = ({ group, onBack, onChanged }) => {
 
   const inGroup = new Set(rows.map((r) => r.member?.id));
   const candidates = allMembers.filter((m) => !inGroup.has(m.id));
+  // Members with a linked account can be messaged (via the existing 1:1 threads).
+  const messageRecipients = rows.map((r) => r.member?.profile_id).filter(Boolean);
 
   const add = async () => {
     if (!pick) return;
@@ -57,11 +61,24 @@ const GroupDetail = ({ group, onBack, onChanged }) => {
   return (
     <div className="space-y-5">
       <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5"><ArrowLeft size={15} /> Back to groups</button>
-      <div>
-        <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{group.name}</h2>
-        {group.description && <p className="text-sm text-stone-600">{group.description}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{group.name}</h2>
+          {group.description && <p className="text-sm text-stone-600">{group.description}</p>}
+        </div>
+        {messageRecipients.length > 0 && (
+          <button onClick={() => setShowMessage(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message group</button>
+        )}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
+      {showMessage && (
+        <BulkParentMessageModal
+          recipients={messageRecipients}
+          audienceLabel={`${group.name} (${messageRecipients.length} member${messageRecipients.length === 1 ? "" : "s"})`}
+          noun="member"
+          onClose={() => setShowMessage(false)}
+        />
+      )}
 
       {/* Add member */}
       <div className={cardCls}>
