@@ -377,6 +377,101 @@ async function handleReportSummary(req, res, body, env) {
   } catch (err) { console.error('[report-summary] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Session AZ — community attendance insights (mode:'community_ops'). Owner-JWT
+// authed like mosque_hr. Aggregates the mosque's community data (members, check-in
+// sessions, attendance) into welfare + trend signals. No member PII beyond names,
+// which owners already see in their own directory.
+async function buildCommunityContext(env, mosqueId) {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const d28 = new Date(now.getTime() - 28 * 86400000).toISOString().slice(0, 10);
+  const d56 = new Date(now.getTime() - 56 * 86400000).toISOString().slice(0, 10);
+  const since180 = new Date(now.getTime() - 180 * 86400000).toISOString().slice(0, 10);
+  const yearStart = `${today.slice(0, 4)}-01-01`;
+  const month = today.slice(0, 7);
+
+  const [members, sessions] = await Promise.all([
+    mhGet(env, `community_members?mosque_id=eq.${mosqueId}&select=id,name,status,joined_at`),
+    mhGet(env, `community_sessions?mosque_id=eq.${mosqueId}&session_date=gte.${since180}&order=session_date.desc&select=id,name,session_date,manual_headcount`),
+  ]);
+  const M = Array.isArray(members) ? members : [];
+  const S = Array.isArray(sessions) ? sessions : [];
+  const sessionIds = S.map((s) => s.id);
+  const att = sessionIds.length
+    ? await mhGet(env, `community_attendance?session_id=in.(${sessionIds.join(',')})&select=session_id,member_id,is_first_time,checked_in_at`)
+    : [];
+  const A = Array.isArray(att) ? att : [];
+
+  // Last-seen per member → welfare flags (active members quiet for 4+ weeks;
+  // exclude those who joined within the last 4 weeks).
+  const lastSeen = {};
+  A.forEach((a) => { if (a.member_id) { const d = (a.checked_in_at || '').slice(0, 10); if (!lastSeen[a.member_id] || d > lastSeen[a.member_id]) lastSeen[a.member_id] = d; } });
+  const notSeen = M
+    .filter((m) => m.status === 'active' && (m.joined_at || today) <= d28 && (!lastSeen[m.id] || lastSeen[m.id] < d28))
+    .map((m) => ({ name: m.name, last_seen: lastSeen[m.id] || null }))
+    .slice(0, 15);
+
+  // Per-session aggregation.
+  const bySession = {};
+  A.forEach((a) => { const s = (bySession[a.session_id] ||= { named: 0, anon: 0, first: 0 }); if (a.member_id) s.named++; else s.anon++; if (a.is_first_time) s.first++; });
+  const agg = S.map((s) => { const g = bySession[s.id] || { named: 0, anon: 0, first: 0 }; const total = g.named + g.anon + (s.manual_headcount || 0); return { name: s.name, date: s.session_date, named: g.named, anonymous: g.anon + (s.manual_headcount || 0), total, first_time: g.first }; });
+
+  const last4 = agg.filter((s) => s.date >= d28);
+  const prev4 = agg.filter((s) => s.date < d28 && s.date >= d56);
+  const avg = (arr) => (arr.length ? Math.round(arr.reduce((x, s) => x + s.total, 0) / arr.length) : 0);
+  const ftSum = (arr) => arr.reduce((x, s) => x + s.first_time, 0);
+
+  return {
+    today,
+    total_members: M.length,
+    active_members: M.filter((m) => m.status === 'active').length,
+    inactive_members: M.filter((m) => m.status !== 'active').length,
+    members_not_seen_4w: notSeen,
+    recent_sessions: agg.slice(0, 12),
+    attendance: { avg_footfall_last_4w: avg(last4), avg_footfall_prev_4w: avg(prev4), sessions_this_year: agg.filter((s) => s.date >= yearStart).length, footfall_this_month: agg.filter((s) => s.date.slice(0, 7) === month).reduce((x, s) => x + s.total, 0) },
+    first_time: { last_4w: ftSum(last4), prev_4w: ftSum(prev4) },
+    peak_sessions: [...agg].sort((a, b) => b.total - a.total).slice(0, 3),
+  };
+}
+
+async function handleCommunityOps(req, res, body, env) {
+  if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const context = { mosque: mosque.name, ...(await buildCommunityContext(env, body.mosqueId)) };
+  const q = (body.question || '').trim();
+  const system = `You are a community & congregation assistant for "${mosque.name}", a UK mosque. You are given the mosque's real community data as JSON: member counts, members not seen in 4+ weeks (with last-seen dates, null = never checked in), recent check-in sessions with named/anonymous/total footfall and first-time counts, footfall averages (last 4 weeks vs previous 4), sessions this year, footfall this month, first-time visitor counts (last 4 weeks vs previous), and the peak sessions. Answer ONLY from this data, concisely, in UK English. Today is ${context.today}. When suggesting outreach, be warm and pastoral. Do not invent members or numbers.`;
+  const userMsg = q
+    ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
+    : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 4-5 short, specific proactive insights (one line each, no preamble or numbering). Prioritise: members not seen in 4+ weeks (name a few and suggest a welfare check or personal outreach), notable Jumu'ah/attendance trends (compare last 4 weeks to the previous 4), the peak session, and the first-time visitor trend. If a member has never checked in, say so.`;
+
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[community-ops] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const answer = tb?.text?.trim();
+    if (!answer) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json({ ok: true, answer });
+  } catch (err) { console.error('[community-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -411,6 +506,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'report_summary') {
       return handleReportSummary(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'community_ops') {
+      return handleCommunityOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 

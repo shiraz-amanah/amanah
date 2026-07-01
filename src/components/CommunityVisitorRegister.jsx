@@ -8,6 +8,7 @@ import {
   getCommunitySessions, createCommunitySession, closeCommunitySession,
   setCommunitySessionHeadcount, getSessionAttendance, subscribeToCommunityAttendance,
 } from "../auth";
+import CommunityAI from "./CommunityAI";
 
 // Mosque dashboard → Community → Visitor register. Open a session, display its
 // QR at the entrance, and watch named + anonymous check-ins arrive live
@@ -227,6 +228,8 @@ const CommunityVisitorRegister = ({ mosqueId }) => {
         {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Open session</button>}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
+
+      <CommunityAI mosqueId={mosqueId} />
 
       {showForm && (
         <div className={cardCls}>

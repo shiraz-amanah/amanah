@@ -79,6 +79,15 @@ async function postMadrasa(mosqueId, question) {
 export const getMadrasaBriefing = (mosqueId) => postMadrasa(mosqueId, "");
 export const askMadrasa = (mosqueId, question) => postMadrasa(mosqueId, question);
 
+// Community attendance insights (mode:'community_ops', owner-authed). Empty
+// question → 4-5 proactive insights (welfare flags, trends, peak, first-time);
+// with a question → a free-text answer. Returns { ok, answer } or { ok:false }.
+export async function askCommunity(mosqueId, question = "") {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  return postBrief({ mode: "community_ops", mosqueId, question });
+}
+export const getCommunityInsights = (mosqueId) => askCommunity(mosqueId, "");
+
 // Parent-friendly AI summary from a report's structured sections
 // (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
 export async function generateReportSummary({ classId, sections, overall, studentName, term }) {
