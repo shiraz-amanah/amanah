@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Search, Users, ChevronRight, Mail, Phone, Send, ArrowLeft, CheckCircle2, GraduationCap } from "lucide-react";
-import { getCommunityMembers, createCommunityMember, updateCommunityMember, deleteCommunityMember, getCommunityDerivedParents } from "../auth";
+import { getCommunityMembers, createCommunityMember, updateCommunityMember, deleteCommunityMember, getCommunityDerivedParents, getCommunityGroups, getCommunityGroupMemberships } from "../auth";
 import { sendCommunityMemberInvite } from "../lib/email";
 import CommunityMemberProfile from "./CommunityMemberProfile";
 
@@ -69,11 +69,14 @@ const InviteCard = ({ member, onBack }) => {
 const CommunityMembers = ({ mosqueId }) => {
   const [members, setMembers] = useState([]);
   const [derived, setDerived] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [groupMemberships, setGroupMemberships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(blank);
@@ -88,8 +91,8 @@ const CommunityMembers = ({ mosqueId }) => {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([getCommunityMembers(mosqueId), getCommunityDerivedParents(mosqueId)])
-      .then(([m, d]) => { if (alive) { setMembers(m); setDerived(d); } })
+    Promise.all([getCommunityMembers(mosqueId), getCommunityDerivedParents(mosqueId), getCommunityGroups(mosqueId), getCommunityGroupMemberships(mosqueId)])
+      .then(([m, d, g, gm]) => { if (alive) { setMembers(m); setDerived(d); setGroups(g); setGroupMemberships(gm); } })
       .catch((e) => { if (alive) setErr(e?.message || "Couldn't load members."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -152,11 +155,14 @@ const CommunityMembers = ({ mosqueId }) => {
     !(p.email && memberEmails.has(p.email.toLowerCase())));
 
   const matchQ = (...fields) => !q || fields.some((v) => (v || "").toLowerCase().includes(q));
+  // Member ids in the selected group (null = no group filter).
+  const groupMemberIds = groupFilter === "all" ? null : new Set(groupMemberships.filter((gm) => gm.group_id === groupFilter).map((gm) => gm.member_id));
   const realRows = members
-    .filter((m) => (statusFilter === "all" || m.status === statusFilter) && matchQ(m.name, m.email, m.phone))
+    .filter((m) => (statusFilter === "all" || m.status === statusFilter) && matchQ(m.name, m.email, m.phone) && (!groupMemberIds || groupMemberIds.has(m.id)))
     .map((m) => ({ ...m, _derived: false }));
-  // Derived families are enrolled = "active"; hidden when filtering to inactive.
-  const derivedRows = (statusFilter === "inactive" ? [] : derivedOnly)
+  // Derived families are enrolled = "active"; hidden when filtering to inactive or
+  // to a specific group (they aren't group members — they live in community_group_members).
+  const derivedRows = (statusFilter === "inactive" || groupFilter !== "all" ? [] : derivedOnly)
     .filter((p) => matchQ(p.name, p.email))
     .map((p) => ({ id: `derived-${p.profile_id || p.email}`, name: p.name || p.email, email: p.email, _derived: true, is_pending: p.is_pending, child_count: p.child_count }));
   const combined = [...realRows, ...derivedRows].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -210,6 +216,12 @@ const CommunityMembers = ({ mosqueId }) => {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+        {groups.length > 0 && (
+          <select className={inputCls + " sm:w-44"} value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
+            <option value="all">All groups</option>
+            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* List */}

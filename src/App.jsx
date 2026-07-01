@@ -53,6 +53,7 @@ import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
 import CommunityMember from "./components/CommunityMember";
 import CommunityCheckIn from "./components/CommunityCheckIn";
+import { useSilentGeofence } from "./lib/useSilentGeofence";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import MadrasaEnrolAccept from "./pages/MadrasaEnrolAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
@@ -12849,6 +12850,11 @@ useEffect(() => {
   // Used for cross-cutting messages originated by the App router.
   const [globalToast, setGlobalToast] = useState(null);
   const showToast = (msg) => setGlobalToast(msg);
+
+  // Passive site-wide geofence auto check-in (item 6): once authed, if the member
+  // opted in and is within 100m of an open session at their mosque, silently check
+  // them in — on any page, not just the Community tab. Silent except a success toast.
+  useSilentGeofence(authedUser?.id, (sessionName, mosqueName) => showToast(`Checked in to ${sessionName} at ${mosqueName}`));
 
   // Full sign-out helper — used in three places now (logout buttons,
   // suspended bounce, cross-path admin bounce). Clears everything

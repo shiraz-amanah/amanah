@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import {
   Sparkles, Loader2, Users, ShieldCheck, Calendar, MessageCircle, Clock,
   ClipboardCheck, AlertCircle, CalendarDays, FileText, Activity,
-  UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle, ChevronRight,
+  UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle, ChevronRight, HeartHandshake,
 } from "lucide-react";
 import { getMosqueBriefing } from "../lib/hrAssistant";
-import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments } from "../auth";
+import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments, getCommunityMembers } from "../auth";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import { collapseRecurringEvents } from "../lib/events";
 import RecurrenceBadge from "./RecurrenceBadge";
@@ -58,6 +58,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const [timesheets, setTimesheets] = useState([]);
   const [rotaSlots, setRotaSlots] = useState({});
   const [docs, setDocs] = useState([]);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // AI briefing — independent of the data widgets so a slow/failed Anthropic
@@ -81,14 +82,16 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
       getMosqueTimeLogs(mosque.id),
       getMosqueRota(mosque.id, mondayOf(new Date())),
       getMosqueDocuments(mosque.id),
+      getCommunityMembers(mosque.id),
     ])
-      .then(([s, e, t, r, d]) => {
+      .then(([s, e, t, r, d, cm]) => {
         if (!alive) return;
         setStaff((s || []).filter((x) => !x.archived));
         setEvents(e || []);
         setTimesheets(t || []);
         setRotaSlots(r?.slots || {});
         setDocs(d || []);
+        setMembers(cm || []);
       })
       .catch((err) => console.error("dashboard load failed:", err))
       .finally(() => { if (alive) setLoading(false); });
@@ -100,6 +103,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const dbsVerified = staff.filter((s) => s.dbs_status === "verified").length;
   const dbsPct = totalStaff ? Math.round((dbsVerified / totalStaff) * 100) : 0;
   const eventsThisWeek = events.filter((e) => isThisWeek(e.date)).length;
+  const activeMembers = members.filter((m) => m.status === "active").length;
   const upcomingEvents = collapseRecurringEvents(events.filter((e) => e.date >= todayStr()), 6); // date-asc; collapse recurring series to next occurrence
   const unread = (conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0);
   const tsPending = timesheets.filter((t) => t.clock_out && t.status === "pending").length;
@@ -148,6 +152,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
         <StatCard icon={Users} label="Total staff" value={loading ? "—" : totalStaff} onClick={() => onNavigate?.("people", "team")} />
         <StatCard icon={ShieldCheck} label="DBS verified" value={loading ? "—" : `${dbsPct}%`} tone={dbsPct < 100 && totalStaff ? "amber" : "stone"} onClick={() => onNavigate?.("people", "hr")} />
         <StatCard icon={Calendar} label="Events this week" value={loading ? "—" : eventsThisWeek} onClick={() => onNavigate?.("mosque", "events")} />
+        <StatCard icon={HeartHandshake} label="Community members" value={loading ? "—" : activeMembers} onClick={() => onNavigate?.("community", "members")} />
         <StatCard icon={MessageCircle} label="Unread messages" value={unread} onClick={() => onNavigate?.("messages")} />
         <StatCard icon={Clock} label="Timesheets pending" value={loading ? "—" : tsPending} tone={tsPending ? "amber" : "stone"} onClick={() => onNavigate?.("people", "timesheets")} />
         <StatCard icon={ClipboardCheck} label="Docs expiring" value={loading ? "—" : expiringDocs.length} tone={expiringDocs.length ? "amber" : "stone"} onClick={() => onNavigate?.("compliance", "documents")} />

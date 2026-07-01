@@ -643,6 +643,18 @@ export async function getCommunityGroupMembers(groupId) {
   if (error) { console.error('Error fetching group members:', error); return [] }
   return data || []
 }
+// Flat { member_id, group_id } pairs for all of a mosque's groups — lets the
+// Members directory filter by group client-side (no new RPC). Inner-join filter
+// scopes to the mosque's groups.
+export async function getCommunityGroupMemberships(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('community_group_members')
+    .select('member_id, group_id, group:community_groups!inner(mosque_id)')
+    .eq('group.mosque_id', mosqueId)
+  if (error) { console.error('Error fetching group memberships:', error); return [] }
+  return (data || []).map((r) => ({ member_id: r.member_id, group_id: r.group_id }))
+}
 export async function addMemberToGroup(groupId, memberId) {
   const { data, error } = await supabase
     .from('community_group_members')
