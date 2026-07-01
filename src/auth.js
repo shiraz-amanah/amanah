@@ -575,6 +575,23 @@ export async function getCommunityMemberGroups(memberId) {
   if (error) { console.error('Error fetching member groups:', error); return [] }
   return data || []
 }
+// Derived enrolled-parents (migration 103A): parents of actively-enrolled
+// students, surfaced READ-ONLY in the directory (owner-scoped RPC; not written
+// into community_members). Returns [{ profile_id, name, email, is_pending, child_count }].
+export async function getCommunityDerivedParents(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.rpc('community_derived_parents', { p_mosque_id: mosqueId })
+  if (error) { console.error('Error fetching derived parents:', error); return [] }
+  return data || []
+}
+// Auto-link the caller's account to invited membership rows carrying their email
+// (migration 103B). Idempotent; returns the count linked. Called on bootstrap.
+export async function linkMyCommunityMemberships() {
+  const { data, error } = await supabase.rpc('community_link_my_memberships')
+  if (error) { console.error('Error linking community memberships:', error); return 0 }
+  return data || 0
+}
+
 export async function getCommunityMemberAttendance(memberId) {
   if (!memberId) return []
   const { data, error } = await supabase

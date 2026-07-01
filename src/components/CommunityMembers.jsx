@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Search, Users, ChevronRight, Mail, Phone, Send, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { getCommunityMembers, createCommunityMember, updateCommunityMember, deleteCommunityMember } from "../auth";
+import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Search, Users, ChevronRight, Mail, Phone, Send, ArrowLeft, CheckCircle2, GraduationCap } from "lucide-react";
+import { getCommunityMembers, createCommunityMember, updateCommunityMember, deleteCommunityMember, getCommunityDerivedParents } from "../auth";
 import { sendCommunityMemberInvite } from "../lib/email";
 import CommunityMemberProfile from "./CommunityMemberProfile";
 
@@ -68,6 +68,7 @@ const InviteCard = ({ member, onBack }) => {
 
 const CommunityMembers = ({ mosqueId }) => {
   const [members, setMembers] = useState([]);
+  const [derived, setDerived] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
@@ -87,8 +88,8 @@ const CommunityMembers = ({ mosqueId }) => {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    getCommunityMembers(mosqueId)
-      .then((m) => { if (alive) setMembers(m); })
+    Promise.all([getCommunityMembers(mosqueId), getCommunityDerivedParents(mosqueId)])
+      .then(([m, d]) => { if (alive) { setMembers(m); setDerived(d); } })
       .catch((e) => { if (alive) setErr(e?.message || "Couldn't load members."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -140,19 +141,32 @@ const CommunityMembers = ({ mosqueId }) => {
   }
 
   const q = query.trim().toLowerCase();
-  const filtered = members.filter((m) => {
-    if (statusFilter !== "all" && m.status !== statusFilter) return false;
-    if (!q) return true;
-    return [m.name, m.email, m.phone].some((v) => (v || "").toLowerCase().includes(q));
-  });
   const activeCount = members.filter((m) => m.status === "active").length;
+
+  // Dedupe derived enrolled-parents against real member rows (by profile_id or
+  // email) so nobody appears twice; they're never written into community_members.
+  const memberProfileIds = new Set(members.filter((m) => m.profile_id).map((m) => m.profile_id));
+  const memberEmails = new Set(members.filter((m) => m.email).map((m) => m.email.toLowerCase()));
+  const derivedOnly = derived.filter((p) =>
+    !(p.profile_id && memberProfileIds.has(p.profile_id)) &&
+    !(p.email && memberEmails.has(p.email.toLowerCase())));
+
+  const matchQ = (...fields) => !q || fields.some((v) => (v || "").toLowerCase().includes(q));
+  const realRows = members
+    .filter((m) => (statusFilter === "all" || m.status === statusFilter) && matchQ(m.name, m.email, m.phone))
+    .map((m) => ({ ...m, _derived: false }));
+  // Derived families are enrolled = "active"; hidden when filtering to inactive.
+  const derivedRows = (statusFilter === "inactive" ? [] : derivedOnly)
+    .filter((p) => matchQ(p.name, p.email))
+    .map((p) => ({ id: `derived-${p.profile_id || p.email}`, name: p.name || p.email, email: p.email, _derived: true, is_pending: p.is_pending, child_count: p.child_count }));
+  const combined = [...realRows, ...derivedRows].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Members</h2>
-          <p className="text-sm text-stone-600">{members.length} member{members.length === 1 ? "" : "s"}{members.length ? ` · ${activeCount} active` : ""}. Your congregation directory.</p>
+          <p className="text-sm text-stone-600">{members.length} member{members.length === 1 ? "" : "s"}{members.length ? ` · ${activeCount} active` : ""}{derivedOnly.length ? ` · ${derivedOnly.length} enrolled famil${derivedOnly.length === 1 ? "y" : "ies"}` : ""}. Your congregation directory.</p>
         </div>
         {!showForm && (
           <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add member</button>
@@ -199,9 +213,25 @@ const CommunityMembers = ({ mosqueId }) => {
       </div>
 
       {/* List */}
-      {loading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : filtered.length > 0 ? (
+      {loading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : combined.length > 0 ? (
         <div className="space-y-2">
-          {filtered.map((m) => (
+          {combined.map((m) => m._derived ? (
+            // Read-only enrolled-family row (derived from madrasah — never editable).
+            <div key={m.id} className="bg-stone-50 border border-stone-200 rounded-xl p-3 flex items-center gap-3">
+              <span className="w-9 h-9 rounded-full bg-white border border-stone-200 text-stone-500 flex items-center justify-center shrink-0"><GraduationCap size={15} /></span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-stone-800 flex items-center gap-2 flex-wrap">
+                  {m.name}
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">Enrolled family</span>
+                  {m.is_pending && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">Pending</span>}
+                </span>
+                <span className="text-xs text-stone-500 flex items-center gap-3 mt-0.5">
+                  {m.email && <span className="inline-flex items-center gap-1 truncate"><Mail size={11} /> {m.email}</span>}
+                  <span>{m.child_count} child{m.child_count === 1 ? "" : "ren"} in madrasah</span>
+                </span>
+              </div>
+            </div>
+          ) : (
             <div key={m.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
               <button onClick={() => setSelectedId(m.id)} className="flex-1 min-w-0 text-left flex items-center gap-3 group">
                 <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-sm font-medium">{m.name.slice(0, 1).toUpperCase()}</span>

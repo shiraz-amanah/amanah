@@ -29,9 +29,12 @@ if (!URL.includes(DEV_REF)) { console.error(`SAFETY: SUPABASE_URL is not dev (${
 const PW = 'smoke-community-2026';
 const SLUG = 'community-smoke-mosque';
 const EM = {
-  owner:  'community-smoke-owner@example.com',
-  member: 'community-smoke-member@example.com',
+  owner:   'community-smoke-owner@example.com',
+  member:  'community-smoke-member@example.com',
+  parent:  'community-smoke-parent@example.com',   // signed-up enrolled parent (103A)
+  invitee: 'community-smoke-invitee@example.com',   // invited member, links by email (103B)
 };
+const PENDING_EMAIL = 'community-smoke-pending@example.com'; // enrolled parent, no account
 
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
 const anon = () => createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -75,8 +78,15 @@ async function teardown() {
     await svc.from('community_sessions').delete().eq('mosque_id', m.id);
     await svc.from('community_groups').delete().eq('mosque_id', m.id);
     await svc.from('community_members').delete().eq('mosque_id', m.id);
+    // Madrasah fixtures (103A derived-parents): enrolments/classes are mosque-scoped.
+    await svc.from('madrasa_enrollments').delete().eq('mosque_id', m.id);
+    await svc.from('madrasa_classes').delete().eq('mosque_id', m.id);
     await svc.from('mosques').delete().eq('id', m.id);
   }
+  // Students aren't mosque-scoped — clean by parent linkage.
+  await svc.from('students').delete().eq('pending_parent_email', PENDING_EMAIL);
+  const parentU = await findUserByEmail(EM.parent);
+  if (parentU) await svc.from('students').delete().eq('profile_id', parentU.id);
   for (const email of Object.values(EM)) {
     const u = await findUserByEmail(email);
     if (u) await svc.auth.admin.deleteUser(u.id);
@@ -127,6 +137,35 @@ async function seed() {
   const { error: gmErr } = await svc.from('community_group_members')
     .insert({ group_id: ids.group, member_id: ids.member_row });
   if (gmErr) throw new Error(`seed group member: ${gmErr.message}`);
+
+  // --- 103A: madrasah enrolments → derived parents ---
+  ids.parent = await ensureUser(EM.parent);
+  const { data: cls, error: clsErr } = await svc.from('madrasa_classes')
+    .insert({ mosque_id: ids.mosque, name: 'Smoke Class' }).select('id').single();
+  if (clsErr) throw new Error(`seed class: ${clsErr.message}`);
+  ids.class = cls.id;
+  // Signed-up parent with TWO children; one pending parent (no account) with one.
+  const mkStudent = async (fields) => {
+    const { data, error } = await svc.from('students').insert(fields).select('id').single();
+    if (error) throw new Error(`seed student: ${error.message}`);
+    return data.id;
+  };
+  const s1 = await mkStudent({ name: 'Child One', profile_id: ids.parent });
+  const s2 = await mkStudent({ name: 'Child Two', profile_id: ids.parent });
+  const s3 = await mkStudent({ name: 'Child Pending', pending_parent_email: PENDING_EMAIL });
+  for (const sid of [s1, s2, s3]) {
+    const { error } = await svc.from('madrasa_enrollments')
+      .insert({ class_id: ids.class, student_id: sid, mosque_id: ids.mosque, status: 'active' });
+    if (error) throw new Error(`seed enrolment: ${error.message}`);
+  }
+
+  // --- 103B: an invited member row (email set, profile_id null) to auto-link ---
+  ids.invitee = await ensureUser(EM.invitee);
+  const { data: inv, error: invErr } = await svc.from('community_members')
+    .insert({ mosque_id: ids.mosque, name: 'Invited One', email: EM.invitee, status: 'active' })
+    .select('id').single();
+  if (invErr) throw new Error(`seed invitee: ${invErr.message}`);
+  ids.invitee_row = inv.id;
 }
 
 async function t1_sessionPublic() {
@@ -239,6 +278,52 @@ async function t8_currentSession() {
   assert(r && r.id === ids.session, `T8b member finds the open session → id matches (${r?.name})`);
 }
 
+// Migration 103A: community_derived_parents — owner-scoped, includes signed-up
+// (child_count) + pending parents; anon denied; non-owner gets 0 rows.
+async function t9_derivedParents() {
+  const anonRes = await anon().rpc('community_derived_parents', { p_mosque_id: ids.mosque });
+  if (anonRes.error) ok(`T9a anon community_derived_parents → denied: ${anonRes.error.message} (expected)`);
+  else bad(`T9a anon community_derived_parents was ALLOWED (${JSON.stringify(anonRes.data)})`);
+
+  const owner = await signIn(EM.owner);
+  const res = await owner.rpc('community_derived_parents', { p_mosque_id: ids.mosque });
+  if (res.error) { bad(`T9b owner community_derived_parents errored — ${res.error.message}`); return; }
+  raw('parents', res.data);
+  const rows = res.data || [];
+  const signedUp = rows.find((p) => p.email === EM.parent);
+  const pending = rows.find((p) => p.email === PENDING_EMAIL);
+  assert(rows.length === 2, `T9b owner sees 2 derived parents (got ${rows.length})`);
+  assert(signedUp && signedUp.profile_id === ids.parent && signedUp.is_pending === false && signedUp.child_count === 2,
+    `T9c signed-up parent → profile_id set, is_pending=false, child_count=${signedUp?.child_count}`);
+  assert(pending && pending.profile_id === null && pending.is_pending === true && pending.child_count === 1,
+    `T9d pending parent → profile_id=null, is_pending=true, child_count=${pending?.child_count}`);
+
+  // Non-owner (the member) → in-query authz returns 0 rows.
+  const member = await signIn(EM.member);
+  const nonOwner = await member.rpc('community_derived_parents', { p_mosque_id: ids.mosque });
+  assert(!nonOwner.error && (nonOwner.data || []).length === 0,
+    `T9e non-owner community_derived_parents → 0 rows (in-query authz)`);
+}
+
+// Migration 103B: community_link_my_memberships — links invited rows by email,
+// idempotent, returns count.
+async function t10_linkMemberships() {
+  const anonRes = await anon().rpc('community_link_my_memberships');
+  if (anonRes.error) ok(`T10a anon community_link_my_memberships → denied: ${anonRes.error.message} (expected)`);
+  else bad(`T10a anon community_link_my_memberships was ALLOWED`);
+
+  const c = await signIn(EM.invitee);
+  const first = await c.rpc('community_link_my_memberships');
+  if (first.error) { bad(`T10b link errored — ${first.error.message}`); return; }
+  raw('linked count', first.data);
+  assert(first.data === 1, `T10b invitee links their membership → count=${first.data}`);
+  const { data: row } = await svc.from('community_members').select('profile_id').eq('id', ids.invitee_row).single();
+  assert(row?.profile_id === ids.invitee, `T10c the invited row now carries profile_id (${row?.profile_id === ids.invitee})`);
+
+  const again = await c.rpc('community_link_my_memberships');
+  assert(!again.error && again.data === 0, `T10d re-run is idempotent → count=${again.data}`);
+}
+
 try {
   await teardown(); // clean any leftovers from a prior run
   await seed();
@@ -250,6 +335,8 @@ try {
   await t6_memberSelfReads();
   await t7_closedSessionRefused();
   await t8_currentSession();
+  await t9_derivedParents();
+  await t10_linkMemberships();
 } catch (err) {
   bad(`FATAL: ${err.message}`);
 } finally {
