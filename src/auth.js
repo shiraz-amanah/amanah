@@ -1244,6 +1244,29 @@ export async function submitPledge({ sessionId, donorName, amount, email, giftAi
   return { data, error }
 }
 
+// ---- Qard Hasan (P4) — confidential benevolent loans, owner-only ----
+export async function getQardHasan(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.from('finance_qard_hasan').select('*').eq('mosque_id', mosqueId).order('loan_date', { ascending: false })
+  if (error) { console.error('Error fetching Qard Hasan:', error); return [] }
+  return data || []
+}
+export async function createQardHasan({ mosqueId, recipientName, amount, loanDate, repaymentSchedule, amountRepaid, status, notes }) {
+  const { data, error } = await supabase.from('finance_qard_hasan')
+    .insert({ mosque_id: mosqueId, recipient_name: recipientName, amount, loan_date: loanDate || undefined,
+              repayment_schedule: repaymentSchedule || null, amount_repaid: amountRepaid ?? 0, status: status || 'active', notes: notes || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateQardHasan(id, updates) {
+  const { data, error } = await supabase.from('finance_qard_hasan').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteQardHasan(id) {
+  const { error } = await supabase.from('finance_qard_hasan').delete().eq('id', id)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

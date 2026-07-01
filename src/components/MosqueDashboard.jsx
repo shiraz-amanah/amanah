@@ -32,6 +32,7 @@ import GovernanceAI from "./GovernanceAI";
 import FinanceSadaqah from "./FinanceSadaqah";
 import FinanceWaqf from "./FinanceWaqf";
 import FinancePledges from "./FinancePledges";
+import FinanceQard from "./FinanceQard";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -281,7 +282,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <FinancePledges mosqueId={mosque.id} />
           )}
           {activeTab === "finance" && activeSub === "qard" && (
-            <Placeholder title="Qard Hasan" icon={CheckCircle2} blurb="A confidential interest-free benevolent-loan register — owner-only — is coming soon." />
+            <FinanceQard mosqueId={mosque.id} />
           )}
           {activeTab === "finance" && activeSub === "reports" && (
             <Placeholder title="Finance Reports" icon={CheckCircle2} blurb="Income by category, the Gift Aid (HMRC) report, pledge tracker, Waqf summary, and the AI Finance Brief arrive at the end of this module." />
