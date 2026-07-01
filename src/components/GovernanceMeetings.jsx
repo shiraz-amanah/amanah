@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, CalendarDays, ChevronRight, ArrowLeft,
-  ArrowUp, ArrowDown, Users, FileText, MapPin, Video,
+  ArrowUp, ArrowDown, Users, FileText, MapPin, Video, Sparkles, Gavel, ListChecks,
 } from "lucide-react";
 import {
   getGovernanceMeetings, createGovernanceMeeting, updateGovernanceMeeting, deleteGovernanceMeeting,
   getMeetingAgenda, addAgendaItem, deleteAgendaItem, updateAgendaItem,
   getMeetingAttendees, setMeetingAttendee, removeMeetingAttendee, getGovernanceCommittee,
+  getMeetingResolutions, addResolution, deleteResolution, createGovernanceAction,
 } from "../auth";
+import { extractMinutes } from "../lib/hrAssistant";
 import { roleLabel } from "./GovernanceCommittee";
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
@@ -28,18 +30,79 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
   const [newItem, setNewItem] = useState("");
   const [minutes, setMinutes] = useState(initial.minutes_text || "");
   const [minutesBusy, setMinutesBusy] = useState(false);
+  const [resolutions, setResolutions] = useState([]);
+  const [newRes, setNewRes] = useState("");
+  const [extraction, setExtraction] = useState(null); // editable AI result
+  const [extracting, setExtracting] = useState(false);
+  const [exErr, setExErr] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmed, setConfirmed] = useState(null);
 
-  const load = () => Promise.all([getMeetingAgenda(meeting.id), getMeetingAttendees(meeting.id), getGovernanceCommittee(mosqueId)])
-    .then(([ag, at, cm]) => { setAgenda(ag); setAttendees(at); setCommittee(cm.filter((c) => c.active)); });
+  const load = () => Promise.all([getMeetingAgenda(meeting.id), getMeetingAttendees(meeting.id), getGovernanceCommittee(mosqueId), getMeetingResolutions(meeting.id)])
+    .then(([ag, at, cm, rs]) => { setAgenda(ag); setAttendees(at); setCommittee(cm.filter((c) => c.active)); setResolutions(rs); });
 
   useEffect(() => {
     let alive = true; setLoading(true);
-    Promise.all([getMeetingAgenda(meeting.id), getMeetingAttendees(meeting.id), getGovernanceCommittee(mosqueId)])
-      .then(([ag, at, cm]) => { if (alive) { setAgenda(ag); setAttendees(at); setCommittee(cm.filter((c) => c.active)); } })
+    Promise.all([getMeetingAgenda(meeting.id), getMeetingAttendees(meeting.id), getGovernanceCommittee(mosqueId), getMeetingResolutions(meeting.id)])
+      .then(([ag, at, cm, rs]) => { if (alive) { setAgenda(ag); setAttendees(at); setCommittee(cm.filter((c) => c.active)); setResolutions(rs); } })
       .catch((e) => { if (alive) setErr(e?.message || "Couldn't load."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [meeting.id, mosqueId]);
+
+  // Best-effort match of an AI-extracted name to a committee member.
+  const matchMember = (name) => {
+    if (!name) return "";
+    const n = name.trim().toLowerCase();
+    const hit = committee.find((c) => c.name.toLowerCase() === n) || committee.find((c) => c.name.toLowerCase().includes(n) || n.includes(c.name.toLowerCase()));
+    return hit?.id || "";
+  };
+
+  const runExtract = async () => {
+    setExErr(null); setConfirmed(null); setExtracting(true);
+    const r = await extractMinutes(mosqueId, minutes);
+    setExtracting(false);
+    if (!r.ok) { setExErr(r.error === "missing_notes" ? "Add some minutes first." : `Couldn't extract (${r.error}).`); return; }
+    const e = r.extraction;
+    setExtraction({
+      actions: (e.actions || []).map((a) => ({ description: a.description || "", committee_member_id: matchMember(a.suggested_owner), due_date: a.due_date || "" })),
+      resolutions: (e.resolutions || []).map((x) => ({ title: x.title || "", text: x.text || "" })),
+      attendees: (e.attendees || []).map((name) => ({ name, committee_member_id: matchMember(name) })),
+      discussion_points: e.discussion_points || [],
+    });
+  };
+
+  const confirmExtraction = async () => {
+    setConfirmBusy(true); setExErr(null);
+    try {
+      for (const a of extraction.actions) {
+        if (!a.description.trim()) continue;
+        await createGovernanceAction({ mosqueId, meetingId: meeting.id, committeeMemberId: a.committee_member_id || null, description: a.description.trim(), dueDate: a.due_date || null, status: "open" });
+      }
+      for (const r of extraction.resolutions) {
+        if (!r.text.trim()) continue;
+        await addResolution({ mosqueId, meetingId: meeting.id, title: r.title || null, resolutionText: r.text.trim() });
+      }
+      for (const at of extraction.attendees) {
+        if (at.committee_member_id) await setMeetingAttendee({ meetingId: meeting.id, committeeMemberId: at.committee_member_id, present: true });
+      }
+      const savedActions = extraction.actions.filter((a) => a.description.trim()).length;
+      const savedRes = extraction.resolutions.filter((r) => r.text.trim()).length;
+      const savedAtt = extraction.attendees.filter((a) => a.committee_member_id).length;
+      setConfirmed({ actions: savedActions, resolutions: savedRes, attendees: savedAtt });
+      setExtraction(null);
+      load();
+    } catch (e) { setExErr(e?.message || "Couldn't save."); }
+    setConfirmBusy(false);
+  };
+
+  const addRes = async () => {
+    if (!newRes.trim()) return;
+    const { error } = await addResolution({ mosqueId, meetingId: meeting.id, resolutionText: newRes.trim() });
+    if (error) { setErr(error.message); return; }
+    setNewRes(""); load();
+  };
+  const removeRes = async (id) => { await deleteResolution(id); load(); };
 
   const addItem = async () => {
     if (!newItem.trim()) return;
@@ -133,10 +196,76 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
 
           {/* Minutes */}
           <div className={cardCls + " lg:col-span-2"}>
-            <p className="text-sm font-semibold text-stone-900 mb-1 flex items-center gap-1.5"><FileText size={15} className="text-emerald-700" /> Minutes</p>
-            <p className="text-xs text-stone-400 mb-2">Paste the minutes here. Document upload + AI extraction land in later updates.</p>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><FileText size={15} className="text-emerald-700" /> Minutes</p>
+              <button onClick={runExtract} disabled={extracting || !minutes.trim()} className="text-sm bg-gradient-to-br from-emerald-600 to-emerald-800 hover:opacity-90 disabled:opacity-40 text-white font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{extracting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} AI extract from minutes</button>
+            </div>
+            <p className="text-xs text-stone-400 mb-2">Paste the minutes, then let AI pull out actions, resolutions and attendance for you to review.</p>
             <textarea rows={6} className={inputCls + " resize-y"} value={minutes} onChange={(e) => setMinutes(e.target.value)} placeholder="Paste meeting minutes…" />
-            <button onClick={saveMinutes} disabled={minutesBusy} className="mt-2 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{minutesBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save minutes</button>
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
+              <button onClick={saveMinutes} disabled={minutesBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{minutesBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save minutes</button>
+              {exErr && <span className="text-sm text-rose-700">{exErr}</span>}
+              {confirmed && <span className="text-sm text-emerald-700 inline-flex items-center gap-1"><Check size={14} /> Saved {confirmed.actions} action(s), {confirmed.resolutions} resolution(s), {confirmed.attendees} attendee(s).</span>}
+            </div>
+          </div>
+
+          {/* AI extraction review */}
+          {extraction && (
+            <div className={cardCls + " lg:col-span-2 border-emerald-200"}>
+              <p className="text-sm font-semibold text-emerald-900 mb-3 flex items-center gap-1.5"><Sparkles size={15} /> Review extraction — edit, then confirm</p>
+              <div className="mb-4">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5 flex items-center gap-1"><ListChecks size={11} /> Action items</p>
+                {extraction.actions.length ? extraction.actions.map((a, i) => (
+                  <div key={i} className="flex flex-col md:flex-row gap-2 mb-2 md:items-center">
+                    <input className={inputCls + " flex-1"} value={a.description} onChange={(e) => setExtraction((x) => ({ ...x, actions: x.actions.map((y, j) => j === i ? { ...y, description: e.target.value } : y) }))} />
+                    <select className={inputCls + " md:w-44"} value={a.committee_member_id} onChange={(e) => setExtraction((x) => ({ ...x, actions: x.actions.map((y, j) => j === i ? { ...y, committee_member_id: e.target.value } : y) }))}><option value="">Unassigned</option>{committee.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                    <input type="date" className={inputCls + " md:w-40"} value={a.due_date} onChange={(e) => setExtraction((x) => ({ ...x, actions: x.actions.map((y, j) => j === i ? { ...y, due_date: e.target.value } : y) }))} />
+                    <button onClick={() => setExtraction((x) => ({ ...x, actions: x.actions.filter((_, j) => j !== i) }))} className="text-stone-400 hover:text-rose-600 p-1 shrink-0"><X size={14} /></button>
+                  </div>
+                )) : <p className="text-sm text-stone-400">None found.</p>}
+              </div>
+              <div className="mb-4">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5 flex items-center gap-1"><Gavel size={11} /> Resolutions</p>
+                {extraction.resolutions.length ? extraction.resolutions.map((r, i) => (
+                  <div key={i} className="flex gap-2 mb-2 items-center">
+                    <input className={inputCls + " flex-1"} value={r.text} onChange={(e) => setExtraction((x) => ({ ...x, resolutions: x.resolutions.map((y, j) => j === i ? { ...y, text: e.target.value } : y) }))} />
+                    <button onClick={() => setExtraction((x) => ({ ...x, resolutions: x.resolutions.filter((_, j) => j !== i) }))} className="text-stone-400 hover:text-rose-600 p-1 shrink-0"><X size={14} /></button>
+                  </div>
+                )) : <p className="text-sm text-stone-400">None found.</p>}
+              </div>
+              <div className="mb-4">
+                <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5 flex items-center gap-1"><Users size={11} /> Attendance (matched to committee)</p>
+                {extraction.attendees.length ? <div className="flex flex-wrap gap-1.5">{extraction.attendees.map((a, i) => <span key={i} className={`text-xs px-2.5 py-1 rounded-full border ${a.committee_member_id ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-stone-100 text-stone-500 border-stone-200"}`}>{a.name}{a.committee_member_id ? "" : " · no match"}</span>)}</div> : <p className="text-sm text-stone-400">None found.</p>}
+              </div>
+              {extraction.discussion_points.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5">Discussion points</p>
+                  <ul className="list-disc pl-5 space-y-0.5 text-sm text-stone-600">{extraction.discussion_points.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={confirmExtraction} disabled={confirmBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{confirmBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Confirm &amp; save</button>
+                <button onClick={() => setExtraction(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Discard</button>
+              </div>
+            </div>
+          )}
+
+          {/* Resolutions */}
+          <div className={cardCls + " lg:col-span-2"}>
+            <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Gavel size={15} className="text-emerald-700" /> Resolutions</p>
+            <div className="space-y-1.5 mb-3">
+              {resolutions.map((r) => (
+                <div key={r.id} className="flex items-start gap-2 text-sm bg-stone-50 border border-stone-100 rounded-lg px-2.5 py-1.5">
+                  <span className="flex-1 min-w-0 text-stone-700">{r.title ? <strong>{r.title}: </strong> : ""}{r.resolution_text}</span>
+                  <button onClick={() => removeRes(r.id)} className="text-stone-300 hover:text-rose-600 shrink-0"><X size={13} /></button>
+                </div>
+              ))}
+              {!resolutions.length && <p className="text-sm text-stone-400">No resolutions recorded.</p>}
+            </div>
+            <div className="flex gap-2">
+              <input className={inputCls} value={newRes} onChange={(e) => setNewRes(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRes()} placeholder="Record a resolution…" />
+              <button onClick={addRes} disabled={!newRes.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg shrink-0"><Plus size={14} /></button>
+            </div>
           </div>
         </div>
       )}

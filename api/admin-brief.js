@@ -548,6 +548,62 @@ async function handleGovernanceOps(req, res, body, env) {
   } catch (err) { console.error('[governance-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Session BB P4b — AI minute extraction (mode:'governance_minutes'). Owner-JWT
+// authed. Reads raw meeting notes and returns STRUCTURED JSON: action items
+// (+ suggested owner/due date), resolutions, attendees, discussion points.
+function parseJsonLoose(text) {
+  if (!text) return null;
+  let t = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  try { return JSON.parse(t); } catch { /* fall through */ }
+  const s = t.indexOf('{'), e = t.lastIndexOf('}');
+  if (s >= 0 && e > s) { try { return JSON.parse(t.slice(s, e + 1)); } catch { /* nope */ } }
+  return null;
+}
+
+async function handleGovernanceMinutes(req, res, body, env) {
+  if (!body.mosqueId) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+  const notes = (body.notes || '').trim();
+  if (!notes) return res.status(400).json({ ok: false, error: 'missing_notes' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+  const mrows = await mhGet(env, `mosques?id=eq.${body.mosqueId}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return res.status(404).json({ ok: false, error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const system = `You extract structured records from UK mosque/charity meeting notes. Today is ${today}. Return ONLY valid JSON (no prose, no markdown fences) exactly matching:
+{"actions":[{"description":string,"suggested_owner":string|null,"due_date":"YYYY-MM-DD"|null}],"resolutions":[{"title":string|null,"text":string}],"attendees":[string],"discussion_points":[string]}
+Rules: actions = concrete tasks/to-dos with an owner if named and a due date if stated or clearly implied (resolve relative dates like "next week" against today; else null). resolutions = formal decisions/motions passed. attendees = people recorded present (names only). discussion_points = brief bullet summaries of what was discussed. Use names exactly as written. If a section has nothing, use an empty array. Do not invent content not in the notes.`;
+
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1500, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: `Meeting notes:\n\n${notes}` }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[governance-minutes] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const extraction = parseJsonLoose(tb?.text);
+    if (!extraction) return res.status(502).json({ ok: false, error: 'no_output' });
+    // Normalise shape so the client can trust arrays.
+    const norm = {
+      actions: Array.isArray(extraction.actions) ? extraction.actions : [],
+      resolutions: Array.isArray(extraction.resolutions) ? extraction.resolutions : [],
+      attendees: Array.isArray(extraction.attendees) ? extraction.attendees : [],
+      discussion_points: Array.isArray(extraction.discussion_points) ? extraction.discussion_points : [],
+    };
+    return res.status(200).json({ ok: true, extraction: norm });
+  } catch (err) { console.error('[governance-minutes] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -588,6 +644,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'governance_ops') {
       return handleGovernanceOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'governance_minutes') {
+      return handleGovernanceMinutes(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 

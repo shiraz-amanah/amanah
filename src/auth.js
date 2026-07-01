@@ -1067,6 +1067,35 @@ export async function deleteGovernanceDocument(id) {
   return { error }
 }
 
+// ---- Governance — resolutions (P4b, migration 108) ----
+export async function getMeetingResolutions(meetingId) {
+  if (!meetingId) return []
+  const { data, error } = await supabase
+    .from('governance_resolutions').select('*').eq('meeting_id', meetingId)
+    .order('created_at', { ascending: true })
+  if (error) { console.error('Error fetching resolutions:', error); return [] }
+  return data || []
+}
+export async function getGovernanceResolutions(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('governance_resolutions').select('*, meeting:governance_meetings(type, title, meeting_date)').eq('mosque_id', mosqueId)
+    .order('resolution_date', { ascending: false, nullsFirst: false })
+  if (error) { console.error('Error fetching resolutions:', error); return [] }
+  return data || []
+}
+export async function addResolution({ mosqueId, meetingId, title, resolutionText, resolutionDate }) {
+  const { data, error } = await supabase.from('governance_resolutions')
+    .insert({ mosque_id: mosqueId, meeting_id: meetingId || null, title: title || null,
+              resolution_text: resolutionText, resolution_date: resolutionDate || null })
+    .select().single()
+  return { data, error }
+}
+export async function deleteResolution(id) {
+  const { error } = await supabase.from('governance_resolutions').delete().eq('id', id)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

@@ -97,6 +97,14 @@ export async function askGovernance(mosqueId, question = "") {
 }
 export const getGovernanceBrief = (mosqueId) => askGovernance(mosqueId, "");
 
+// AI minute extraction (mode:'governance_minutes', owner-authed). Raw notes →
+// { ok, extraction: { actions, resolutions, attendees, discussion_points } }.
+export async function extractMinutes(mosqueId, notes) {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  if (!notes || !notes.trim()) return { ok: false, error: "missing_notes" };
+  return postBrief({ mode: "governance_minutes", mosqueId, notes }, { timeoutMs: 30000 });
+}
+
 // Parent-friendly AI summary from a report's structured sections
 // (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
 export async function generateReportSummary({ classId, sections, overall, studentName, term }) {
