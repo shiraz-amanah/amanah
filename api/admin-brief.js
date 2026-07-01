@@ -608,6 +608,100 @@ Rules: actions = concrete tasks/to-dos with an owner if named and a due date if 
   } catch (err) { console.error('[governance-minutes] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Session BC P6 — Islamic Finance assistant. Aggregates Sadaqah, Waqf, Pledges
+// (+ payments) into a finance context for the daily brief / Q&A.
+async function buildFinanceContext(env, mosqueId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [sadaqah, pledges, payments, waqf, campaigns] = await Promise.all([
+    mhGet(env, `finance_sadaqah?mosque_id=eq.${mosqueId}&select=amount,gift_aid_eligible,campaign_id`),
+    mhGet(env, `finance_pledges?mosque_id=eq.${mosqueId}&select=id,donor_name,amount_pledged,due_date,gift_aid_eligible,campaign_id`),
+    mhGet(env, `finance_pledge_payments?mosque_id=eq.${mosqueId}&select=pledge_id,amount`),
+    mhGet(env, `finance_waqf_assets?mosque_id=eq.${mosqueId}&select=principal_amount,yield_generated,yield_distributed`),
+    mhGet(env, `finance_campaigns?mosque_id=eq.${mosqueId}&select=id,kind,name,target_amount`),
+  ]);
+  const S = Array.isArray(sadaqah) ? sadaqah : [], P = Array.isArray(pledges) ? pledges : [];
+  const PY = Array.isArray(payments) ? payments : [], W = Array.isArray(waqf) ? waqf : [], C = Array.isArray(campaigns) ? campaigns : [];
+  const paidByPledge = {};
+  PY.forEach((p) => { paidByPledge[p.pledge_id] = (paidByPledge[p.pledge_id] || 0) + Number(p.amount); });
+  const totalPledged = P.reduce((s, p) => s + Number(p.amount_pledged), 0);
+  const totalReceived = P.reduce((s, p) => s + (paidByPledge[p.id] || 0), 0);
+  const outstanding = P.map((p) => ({ ...p, paid: paidByPledge[p.id] || 0, out: Number(p.amount_pledged) - (paidByPledge[p.id] || 0) })).filter((p) => p.out > 0.001);
+  const overdue = outstanding.filter((p) => p.due_date && p.due_date < today);
+  const severelyOverdue = overdue.filter((p) => p.due_date < new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+  const gaEligible = S.filter((d) => d.gift_aid_eligible).reduce((s, d) => s + Number(d.amount), 0)
+    + PY.filter((py) => { const pl = P.find((x) => x.id === py.pledge_id); return pl && pl.gift_aid_eligible; }).reduce((s, py) => s + Number(py.amount), 0);
+  const yieldAvailable = W.reduce((s, a) => s + (Number(a.yield_generated) - Number(a.yield_distributed)), 0);
+  return {
+    today,
+    sadaqah_total: S.reduce((s, d) => s + Number(d.amount), 0),
+    pledged_total: totalPledged, received_total: totalReceived, outstanding_total: totalPledged - totalReceived,
+    outstanding_pledges: outstanding.length,
+    outstanding_donors: outstanding.slice(0, 12).map((p) => ({ donor: p.donor_name, outstanding: p.out, due: p.due_date || null })),
+    overdue_count: overdue.length,
+    severely_overdue: severelyOverdue.map((p) => ({ donor: p.donor_name, outstanding: p.out, due: p.due_date })),
+    gift_aid_unclaimed_claimable: Math.round(gaEligible * 0.25 * 100) / 100,
+    waqf_principal_protected: W.reduce((s, a) => s + Number(a.principal_amount), 0),
+    waqf_yield_available: yieldAvailable,
+    campaigns: C.map((c) => ({ kind: c.kind, name: c.name, target: c.target_amount })),
+  };
+}
+
+async function authOwner(req, res, env, mosqueId) {
+  if (!mosqueId) { res.status(400).json({ ok: false, error: 'invalid_mosqueId' }); return null; }
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) { res.status(401).json({ ok: false, error: 'unauthorized' }); return null; }
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) { res.status(401).json({ ok: false, error: 'unauthorized' }); return null; }
+    caller = await r.json();
+  } catch { res.status(401).json({ ok: false, error: 'unauthorized' }); return null; }
+  const mrows = await mhGet(env, `mosques?id=eq.${mosqueId}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) { res.status(404).json({ ok: false, error: 'mosque_not_found' }); return null; }
+  if (mosque.user_id !== caller.id) { res.status(403).json({ ok: false, error: 'forbidden' }); return null; }
+  return mosque;
+}
+
+async function callAnthropic(env, tag, { system, userMsg, maxTokens = 500 }) {
+  const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+  });
+  if (!aiRes.ok) { const t = await aiRes.text(); console.error(`[${tag}] anthropic_failed`, aiRes.status, t.slice(0, 300)); return { error: `anthropic_failed:${aiRes.status}` }; }
+  const data = await aiRes.json();
+  const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+  const answer = tb?.text?.trim();
+  return answer ? { answer } : { error: 'no_output' };
+}
+
+async function handleFinanceOps(req, res, body, env) {
+  const mosque = await authOwner(req, res, env, body.mosqueId);
+  if (!mosque) return;
+  const context = { mosque: mosque.name, ...(await buildFinanceContext(env, body.mosqueId)) };
+  const q = (body.question || '').trim();
+  const system = `You are a finance assistant for "${mosque.name}", a UK mosque/charity. You are given the mosque's real finance data as JSON: Sadaqah total, pledges (pledged/received/outstanding totals, outstanding donors + due dates, overdue count, severely-overdue donors >30 days), Gift Aid claimable (25% of eligible), Waqf principal (protected) + yield available for distribution, and campaigns. Answer ONLY from this data, concisely, in UK English, with specific figures. Money is GBP (£). Today is ${context.today}. Do not invent data. Note: Zakat is NOT handled here.`;
+  const userMsg = q
+    ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
+    : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 4-5 short, specific lines (no preamble or numbering) as a daily finance brief. Prioritise: total outstanding pledges (£ + donor count), overdue pledges (count; name any severely overdue >30 days as needing a personal follow-up rather than another email), Gift Aid claimable if any, and Waqf yield available for distribution. Use £ figures.`;
+  const r = await callAnthropic(env, 'finance-ops', { system, userMsg });
+  if (r.error) return res.status(502).json({ ok: false, error: r.error });
+  return res.status(200).json({ ok: true, answer: r.answer });
+}
+
+async function handlePledgeReminder(req, res, body, env) {
+  const mosque = await authOwner(req, res, env, body.mosqueId);
+  if (!mosque) return;
+  const p = body.pledge || {};
+  if (!p.donor_name || p.amount_pledged == null) return res.status(400).json({ ok: false, error: 'missing_pledge' });
+  const system = `You draft warm, personal pledge-reminder emails for "${mosque.name}", a UK mosque. Tone: appreciative and gentle Islamic encouragement — NEVER debt-chasing or transactional. Open with "Assalamu Alaikum [name]," and thank them (JazakAllah khair) for their pledge. Reference the amount, campaign and due date if given. Invite them warmly to fulfil it and offer help. Keep it under 130 words. Return ONLY the email body (no subject line, no markdown).`;
+  const userMsg = `Pledge details (JSON): ${JSON.stringify({ donor: p.donor_name, amount: p.amount_pledged, outstanding: p.outstanding ?? null, campaign: p.campaign_name || null, due_date: p.due_date || null, mosque: mosque.name })}\n\nDraft the reminder email body.`;
+  const r = await callAnthropic(env, 'pledge-reminder', { system, userMsg });
+  if (r.error) return res.status(502).json({ ok: false, error: r.error });
+  return res.status(200).json({ ok: true, draft: r.answer });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -651,6 +745,12 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'governance_minutes') {
       return handleGovernanceMinutes(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'finance_ops') {
+      return handleFinanceOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'pledge_reminder') {
+      return handlePledgeReminder(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 

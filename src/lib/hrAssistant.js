@@ -95,6 +95,21 @@ export async function askGovernance(mosqueId, question = "", documents = []) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
   return postBrief({ mode: "governance_ops", mosqueId, question, documents });
 }
+
+// Islamic Finance assistant (Session BC P6).
+export async function getFinanceBrief(mosqueId) {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  return postBrief({ mode: "finance_ops", mosqueId });
+}
+export async function askFinance(mosqueId, question = "") {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  return postBrief({ mode: "finance_ops", mosqueId, question });
+}
+export async function draftPledgeReminder(mosqueId, pledge) {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  if (!pledge?.donor_name) return { ok: false, error: "missing_pledge" };
+  return postBrief({ mode: "pledge_reminder", mosqueId, pledge }, { timeoutMs: 30000 });
+}
 export const getGovernanceBrief = (mosqueId) => askGovernance(mosqueId, "");
 
 // AI minute extraction (mode:'governance_minutes', owner-authed). Raw notes →

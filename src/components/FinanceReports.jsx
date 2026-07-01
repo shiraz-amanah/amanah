@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2, BarChart3, Download, ShieldCheck, HandCoins, Gem, HandHeart, TrendingUp } from "lucide-react";
 import { getSadaqah, getFinancePledges, getWaqfAssets, getFinanceCampaigns } from "../auth";
 import { money } from "./FinanceSadaqah";
+import FinanceAI from "./FinanceAI";
 
 // Finance → Reports. Client-side aggregation across Sadaqah, Waqf and Pledges,
 // with period filters + the Gift Aid (HMRC-format) claimable export. Owner-only.
@@ -95,6 +96,8 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
           {PERIODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
+
+      <FinanceAI mosqueId={mosqueId} />
 
       {/* Income by category */}
       <div>

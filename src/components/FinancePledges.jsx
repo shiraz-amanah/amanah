@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import QRCode from "qrcode";
 import {
-  Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, HandCoins, Radio, Download, Lock, Sparkles, ChevronRight, ArrowLeft, CircleDollarSign,
+  Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, HandCoins, Radio, Download, Lock, Sparkles, ChevronRight, ArrowLeft, CircleDollarSign, Copy, ClipboardCheck,
 } from "lucide-react";
 import {
   getFinancePledges, createPledge, updatePledge, deletePledge, addPledgePayment,
   getFinanceCampaigns, createFinanceCampaign, deleteFinanceCampaign,
   getPledgeSessions, createPledgeSession, closePledgeSession, getSessionPledges, subscribeToPledges,
 } from "../auth";
+import { draftPledgeReminder, assistantErrorMessage } from "../lib/hrAssistant";
 import { money } from "./FinanceSadaqah";
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
@@ -112,6 +113,10 @@ const FinancePledges = ({ mosqueId }) => {
   const [payAmt, setPayAmt] = useState("");
   const [fStatus, setFStatus] = useState("all");
   const [liveId, setLiveId] = useState(null);
+  const [draftFor, setDraftFor] = useState(null);
+  const [draftText, setDraftText] = useState("");
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [showCamp, setShowCamp] = useState(false);
   const [cf, setCf] = useState(blankCamp);
   const [newSess, setNewSess] = useState("");
@@ -153,6 +158,14 @@ const FinancePledges = ({ mosqueId }) => {
     const { error } = await createFinanceCampaign({ mosqueId, kind: "pledge", name: cf.name.trim(), targetAmount: num(cf.target_amount), deadline: cf.deadline || null });
     if (error) { setErr(error.message); return; }
     setCf(blankCamp); setShowCamp(false); refresh();
+  };
+  const runDraft = async (p) => {
+    setDraftFor(p.id); setDraftText(""); setDraftBusy(true); setCopied(false); setErr(null);
+    const out = Number(p.amount_pledged) - paidOf(p);
+    const r = await draftPledgeReminder(mosqueId, { donor_name: p.donor_name, amount_pledged: p.amount_pledged, outstanding: out, campaign_name: p.campaign?.name, due_date: p.due_date });
+    setDraftBusy(false);
+    if (!r.ok) { setErr(assistantErrorMessage(r.error)); setDraftFor(null); return; }
+    setDraftText(r.draft);
   };
   const openSession = async () => {
     if (!newSess.trim()) return;
@@ -260,6 +273,7 @@ const FinancePledges = ({ mosqueId }) => {
                           <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{p.donor_name} {p.campaign?.name && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{p.campaign.name}</span>}{p.gift_aid_eligible && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Gift Aid</span>}</p>
                           <p className="text-xs text-stone-500">{money(paid)} of {money(p.amount_pledged)}{out > 0.001 ? ` · ${money(out)} outstanding` : ""}{p.due_date ? ` · due ${fmtDate(p.due_date)}` : ""}</p>
                         </div>
+                        {out > 0.001 && <button onClick={() => runDraft(p)} title="AI reminder" className="text-emerald-700 hover:text-emerald-900 p-1.5 shrink-0"><Sparkles size={14} /></button>}
                         {out > 0.001 && <button onClick={() => { setPayFor(payFor === p.id ? null : p.id); setPayAmt(""); }} className="text-emerald-800 hover:text-emerald-900 text-sm font-medium inline-flex items-center gap-1 shrink-0"><CircleDollarSign size={14} /> Payment</button>}
                         <button onClick={() => editPledge(p)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
                         <button onClick={() => removePledge(p.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
@@ -268,6 +282,20 @@ const FinancePledges = ({ mosqueId }) => {
                         <div className="flex gap-2 mt-2 ml-16">
                           <input type="number" min="0" step="0.01" className={inputCls + " max-w-[160px]"} value={payAmt} onChange={(e) => setPayAmt(e.target.value)} placeholder={`Amount (max ${money(out)})`} />
                           <button onClick={() => recordPayment(p)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-3 py-2 rounded-lg">Record</button>
+                        </div>
+                      )}
+                      {draftFor === p.id && (
+                        <div className="mt-2 ml-16 bg-emerald-50/60 border border-emerald-100 rounded-lg p-3">
+                          {draftBusy ? <div className="text-sm text-stone-400 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Drafting a warm reminder…</div> : (
+                            <>
+                              <p className="text-xs text-stone-500 mb-1.5 flex items-center gap-1"><Sparkles size={12} className="text-emerald-700" /> AI-drafted reminder — review &amp; edit before sending</p>
+                              <textarea rows={6} className={inputCls + " resize-y"} value={draftText} onChange={(e) => setDraftText(e.target.value)} />
+                              <div className="flex gap-2 mt-2">
+                                <button onClick={() => { navigator.clipboard?.writeText(draftText).catch(() => {}); setCopied(true); }} className="text-sm border border-stone-300 hover:bg-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{copied ? <><ClipboardCheck size={13} /> Copied</> : <><Copy size={13} /> Copy</>}</button>
+                                <button onClick={() => setDraftFor(null)} className="text-sm text-stone-500 hover:text-stone-800 px-2">Close</button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
