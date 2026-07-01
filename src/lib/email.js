@@ -56,6 +56,19 @@ export function sendCommunityMemberInvite(memberId, message = '') {
   return postTransactional({ intent: 'community_member_invite', memberId, message });
 }
 
+// Facility booking approved → emails the requester a confirmation. Fired by the
+// owner on approval. Server resolves the recipient + details from the booking.
+export function sendFacilityBookingConfirmed(bookingId) {
+  if (!bookingId) return Promise.resolve({ ok: false, error: 'missing_bookingId' });
+  return postTransactional({ intent: 'facility_booking_confirmed', bookingId });
+}
+// Facility booking cancelled/rejected → notifies the counterparty (owner→requester
+// or requester→owner). Fired by whoever cancels.
+export function sendFacilityBookingCancelled(bookingId) {
+  if (!bookingId) return Promise.resolve({ ok: false, error: 'missing_bookingId' });
+  return postTransactional({ intent: 'facility_booking_cancelled', bookingId });
+}
+
 // Scholar approved/verified → emails the scholar. Fired when an admin publishes
 // the scholar (status → active). `scholarId` is scholars.id.
 export function sendScholarApprovedEmail(scholarId) {

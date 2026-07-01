@@ -885,6 +885,69 @@ ${ePara('<span style="font-size:13px;color:#9ca3af;">Create your Amanah account 
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Facility/hall bookings (Session BA). Readable London date + time-range.
+function fmtBookingWhen(startIso, endIso) {
+  try {
+    const s = new Date(startIso), e = new Date(endIso);
+    const d = s.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: SESSION_TZ });
+    const t = (x) => x.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: SESSION_TZ });
+    return `${d}, ${t(s)}–${t(e)}`;
+  } catch { return String(startIso); }
+}
+const BOOKING_SELECT = 'purpose,start_at,end_at,requester_email,requester_name,requester_profile_id,quoted_price,admin_note,facility:mosque_facilities(name),mosque:mosques(name,user_id)';
+
+// Owner approved a booking → email the requester a confirmation.
+async function handleFacilityBookingConfirmed(env, caller, bookingId) {
+  const rows = await sbGet(env, `mosque_bookings?id=eq.${bookingId}&select=${BOOKING_SELECT}`);
+  const b = Array.isArray(rows) ? rows[0] : null;
+  if (!b) return { status: 404, body: { ok: false, error: 'booking_not_found' } };
+  const ownerOk = b.mosque?.user_id === caller.id || (await isAdmin(env, caller.id));
+  if (!ownerOk) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  let to = b.requester_email || null;
+  if (!to && b.requester_profile_id) { const p = await getProfile(env, b.requester_profile_id); to = p?.email || null; }
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  const price = b.quoted_price != null ? `£${Number(b.quoted_price).toFixed(2)}` : null;
+  const inner = `${eGreeting(b.requester_name)}${eHeading('Your booking is confirmed')}
+${ePara(`<strong>${escapeHtml(b.mosque?.name || 'The mosque')}</strong> has confirmed your booking of <strong>${escapeHtml(b.facility?.name || 'the facility')}</strong> for <strong>${escapeHtml(b.purpose)}</strong>.`)}
+${ePara(`<strong>When:</strong> ${escapeHtml(fmtBookingWhen(b.start_at, b.end_at))}`)}
+${price ? ePara(`<strong>Price:</strong> ${price} — payment will be arranged separately with the mosque.`) : ''}
+${ctaButton('View your bookings', env.PUBLIC_APP_URL)}
+${ePara('<span style="font-size:13px;color:#9ca3af;">Need to change something? Contact the mosque, or cancel from your dashboard.</span>')}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: `Booking confirmed — ${b.facility?.name || 'facility'} · Amanah`, html: wrapEmail('Booking confirmed', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
+// A booking was cancelled/rejected. Owner cancels → notify the requester;
+// requester cancels → notify the owner. Caller must be one of the two.
+async function handleFacilityBookingCancelled(env, caller, bookingId) {
+  const rows = await sbGet(env, `mosque_bookings?id=eq.${bookingId}&select=${BOOKING_SELECT}`);
+  const b = Array.isArray(rows) ? rows[0] : null;
+  if (!b) return { status: 404, body: { ok: false, error: 'booking_not_found' } };
+  const isOwner = b.mosque?.user_id === caller.id || (await isAdmin(env, caller.id));
+  const isRequester = b.requester_profile_id && b.requester_profile_id === caller.id;
+  if (!isOwner && !isRequester) return { status: 403, body: { ok: false, error: 'forbidden' } };
+
+  let to, greetName, lead;
+  if (isOwner) {
+    to = b.requester_email || (b.requester_profile_id ? (await getProfile(env, b.requester_profile_id))?.email : null);
+    greetName = b.requester_name;
+    lead = `<strong>${escapeHtml(b.mosque?.name || 'The mosque')}</strong> has cancelled your booking of <strong>${escapeHtml(b.facility?.name || 'the facility')}</strong> for <strong>${escapeHtml(b.purpose)}</strong>.`;
+  } else {
+    const ownerProfile = b.mosque?.user_id ? await getProfile(env, b.mosque.user_id) : null;
+    to = ownerProfile?.email || null;
+    greetName = null;
+    lead = `A booking of <strong>${escapeHtml(b.facility?.name || 'a facility')}</strong> for <strong>${escapeHtml(b.purpose)}</strong> by ${escapeHtml(b.requester_name)} has been cancelled.`;
+  }
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+  const inner = `${eGreeting(greetName)}${eHeading('Booking cancelled')}
+${ePara(lead)}
+${ePara(`<strong>When:</strong> ${escapeHtml(fmtBookingWhen(b.start_at, b.end_at))}`)}
+${b.admin_note ? ePara(`<strong>Note:</strong> ${escapeHtml(b.admin_note)}`) : ''}
+${ctaButton('Open Amanah', env.PUBLIC_APP_URL)}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: `Booking cancelled — ${b.facility?.name || 'facility'} · Amanah`, html: wrapEmail('Booking cancelled', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -1480,6 +1543,16 @@ export default async function handler(req, res) {
     if (body.intent === 'community_member_invite') {
       if (!isUuid(body.memberId)) return res.status(400).json({ ok: false, error: 'invalid_memberId' });
       const out = await handleCommunityMemberInvite(env, caller, body.memberId, body.message);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'facility_booking_confirmed') {
+      if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
+      const out = await handleFacilityBookingConfirmed(env, caller, body.bookingId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'facility_booking_cancelled') {
+      if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
+      const out = await handleFacilityBookingCancelled(env, caller, body.bookingId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

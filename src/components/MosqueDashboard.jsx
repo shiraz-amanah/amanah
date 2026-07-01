@@ -8,6 +8,7 @@ import MosqueRamadanMode from "./MosqueRamadanMode";
 import MosqueRamadanEditor from "./MosqueRamadanEditor";
 import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
+import MosqueBookings from "./MosqueBookings";
 import MosqueAnnouncementsManager from "./MosqueAnnouncementsManager";
 import MosqueStaffDirectory from "./MosqueStaffDirectory";
 import MosqueOverview from "./MosqueOverview";
@@ -200,6 +201,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           )}
           {activeTab === "mosque" && activeSub === "events" && (
             <MosqueEventsManager mosqueId={mosque.id} />
+          )}
+          {activeTab === "mosque" && activeSub === "bookings" && (
+            <MosqueBookings mosqueId={mosque.id} />
           )}
           {activeTab === "mosque" && activeSub === "announcements" && (
             <MosqueAnnouncementsManager mosqueId={mosque.id} />

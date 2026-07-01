@@ -810,6 +810,84 @@ export async function getMyEventRsvpCounts() {
   return map
 }
 
+// ================= Facility / hall bookings (migration 105) =================
+// Facilities — owner CRUD; members read active ones to request.
+export async function getMosqueFacilities(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_facilities').select('*').eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: true })
+  if (error) { console.error('Error fetching facilities:', error); return [] }
+  return data || []
+}
+export async function getActiveMosqueFacilities(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_facilities').select('*').eq('mosque_id', mosqueId).eq('active', true)
+    .order('name', { ascending: true })
+  if (error) { console.error('Error fetching active facilities:', error); return [] }
+  return data || []
+}
+export async function createMosqueFacility({ mosqueId, name, description, capacity, hourlyRate, photoUrl }) {
+  const { data, error } = await supabase.from('mosque_facilities')
+    .insert({ mosque_id: mosqueId, name, description: description || null, capacity: capacity || null,
+              hourly_rate: hourlyRate ?? null, photo_url: photoUrl || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateMosqueFacility(id, updates) {
+  const { data, error } = await supabase.from('mosque_facilities')
+    .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteMosqueFacility(id) {
+  const { error } = await supabase.from('mosque_facilities').delete().eq('id', id)
+  return { error }
+}
+
+// Bookings — owner reads all (with facility name); sets status (approve/reject).
+// A 23P01 exclusion_violation on approve = a clash with an existing approved
+// booking; callers surface it as a friendly message.
+export async function getMosqueBookings(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_bookings')
+    .select('*, facility:mosque_facilities(name, hourly_rate)')
+    .eq('mosque_id', mosqueId)
+    .order('start_at', { ascending: true })
+  if (error) { console.error('Error fetching bookings:', error); return [] }
+  return data || []
+}
+export async function setBookingStatus(id, status, note) {
+  const patch = { status, reviewed_at: new Date().toISOString() }
+  if (note !== undefined) patch.admin_note = note || null
+  const { data, error } = await supabase.from('mosque_bookings')
+    .update(patch).eq('id', id).select('*, facility:mosque_facilities(name)').single()
+  return { data, error }
+}
+
+// Member — request (via definer RPC), read own, cancel (via definer RPC).
+export async function requestFacilityBooking({ facilityId, purpose, notes, start, end, attendees, name, email, phone }) {
+  const { data, error } = await supabase.rpc('request_facility_booking', {
+    p_facility_id: facilityId, p_purpose: purpose, p_notes: notes || null,
+    p_start: start, p_end: end, p_attendees: attendees || null,
+    p_name: name || null, p_email: email || null, p_phone: phone || null,
+  })
+  return { data, error }
+}
+export async function getMyFacilityBookings() {
+  const { data, error } = await supabase
+    .from('mosque_bookings')
+    .select('*, facility:mosque_facilities(name), mosque:mosques(name)')
+    .order('start_at', { ascending: true })
+  if (error) { console.error('Error fetching my bookings:', error); return [] }
+  return data || []
+}
+export async function cancelFacilityBooking(id, note) {
+  const { data, error } = await supabase.rpc('cancel_facility_booking', { p_id: id, p_note: note || null })
+  return { data, error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

@@ -10,6 +10,7 @@ import {
 } from "../auth";
 import { useGeolocation, haversineDistance } from "../lib/geo";
 import MosquePrayerTimes from "./MosquePrayerTimes";
+import CommunityFacilityBooking from "./CommunityFacilityBooking";
 
 // UserDashboard → Community tab (role='user'). The member-facing view of the
 // mosque(s) they belong to: prayer times, announcements, upcoming events (read-
@@ -282,6 +283,9 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
               ) : <p className="text-sm text-stone-400">You're not in any groups yet.</p>}
             </div>
           </div>
+
+          {/* Facility booking */}
+          {active.mosque?.id && <CommunityFacilityBooking mosque={active.mosque} memberName={active.name} />}
         </>
       )}
 
