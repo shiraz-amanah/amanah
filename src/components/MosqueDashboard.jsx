@@ -30,6 +30,7 @@ import GovernanceActions from "./GovernanceActions";
 import GovernanceDocuments from "./GovernanceDocuments";
 import GovernanceAI from "./GovernanceAI";
 import FinanceSadaqah from "./FinanceSadaqah";
+import FinanceWaqf from "./FinanceWaqf";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -273,7 +274,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <FinanceSadaqah mosqueId={mosque.id} />
           )}
           {activeTab === "finance" && activeSub === "waqf" && (
-            <Placeholder title="Waqf" icon={CheckCircle2} blurb="The Waqf endowment register (principal-protected) + Waqf campaigns + PDF certificates land in the next update." />
+            <FinanceWaqf mosqueId={mosque.id} mosqueName={mosque.name} />
           )}
           {activeTab === "finance" && activeSub === "pledges" && (
             <Placeholder title="Pledges" icon={CheckCircle2} blurb="Pledge campaigns, the donor pledge register, AI reminders, and live Pledge Night are coming next." />

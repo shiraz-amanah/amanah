@@ -1146,6 +1146,32 @@ export async function deleteSadaqah(id) {
   return { error }
 }
 
+// Waqf assets (endowments) — principal protected, separate from yield.
+export async function getWaqfAssets(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('finance_waqf_assets').select('*, trustee:governance_committee_members(name, role)')
+    .eq('mosque_id', mosqueId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching waqf assets:', error); return [] }
+  return data || []
+}
+export async function createWaqfAsset({ mosqueId, name, description, purpose, donorName, endowedDate, principalAmount, yieldGenerated, yieldDistributed, yieldNotes, trusteeCommitteeMemberId }) {
+  const { data, error } = await supabase.from('finance_waqf_assets')
+    .insert({ mosque_id: mosqueId, name, description: description || null, purpose: purpose || null, donor_name: donorName || null,
+              endowed_date: endowedDate || null, principal_amount: principalAmount ?? 0, yield_generated: yieldGenerated ?? 0,
+              yield_distributed: yieldDistributed ?? 0, yield_notes: yieldNotes || null, trustee_committee_member_id: trusteeCommitteeMemberId || null })
+    .select('*, trustee:governance_committee_members(name, role)').single()
+  return { data, error }
+}
+export async function updateWaqfAsset(id, updates) {
+  const { data, error } = await supabase.from('finance_waqf_assets').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select('*, trustee:governance_committee_members(name, role)').single()
+  return { data, error }
+}
+export async function deleteWaqfAsset(id) {
+  const { error } = await supabase.from('finance_waqf_assets').delete().eq('id', id)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).
