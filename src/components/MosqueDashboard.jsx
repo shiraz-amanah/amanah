@@ -29,6 +29,7 @@ import GovernanceMeetings from "./GovernanceMeetings";
 import GovernanceActions from "./GovernanceActions";
 import GovernanceDocuments from "./GovernanceDocuments";
 import GovernanceAI from "./GovernanceAI";
+import FinanceSadaqah from "./FinanceSadaqah";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -265,6 +266,23 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           )}
           {activeTab === "governance" && activeSub === "ai" && (
             <GovernanceAI mosqueId={mosque.id} />
+          )}
+
+          {/* ---- Finance ---- */}
+          {activeTab === "finance" && activeSub === "sadaqah" && (
+            <FinanceSadaqah mosqueId={mosque.id} />
+          )}
+          {activeTab === "finance" && activeSub === "waqf" && (
+            <Placeholder title="Waqf" icon={CheckCircle2} blurb="The Waqf endowment register (principal-protected) + Waqf campaigns + PDF certificates land in the next update." />
+          )}
+          {activeTab === "finance" && activeSub === "pledges" && (
+            <Placeholder title="Pledges" icon={CheckCircle2} blurb="Pledge campaigns, the donor pledge register, AI reminders, and live Pledge Night are coming next." />
+          )}
+          {activeTab === "finance" && activeSub === "qard" && (
+            <Placeholder title="Qard Hasan" icon={CheckCircle2} blurb="A confidential interest-free benevolent-loan register — owner-only — is coming soon." />
+          )}
+          {activeTab === "finance" && activeSub === "reports" && (
+            <Placeholder title="Finance Reports" icon={CheckCircle2} blurb="Income by category, the Gift Aid (HMRC) report, pledge tracker, Waqf summary, and the AI Finance Brief arrive at the end of this module." />
           )}
 
           {/* ---- Header-only: Messages ---- */}

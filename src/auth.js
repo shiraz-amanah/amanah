@@ -1096,6 +1096,56 @@ export async function deleteResolution(id) {
   return { error }
 }
 
+// ================= Islamic Finance (migration 109) — owner-only =================
+// Campaigns (kind: sadaqah_jariyah | waqf | pledge).
+export async function getFinanceCampaigns(mosqueId, kind = null) {
+  if (!mosqueId) return []
+  let q = supabase.from('finance_campaigns').select('*').eq('mosque_id', mosqueId)
+  if (kind) q = q.eq('kind', kind)
+  const { data, error } = await q.order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching finance campaigns:', error); return [] }
+  return data || []
+}
+export async function createFinanceCampaign({ mosqueId, kind, name, description, targetAmount, deadline }) {
+  const { data, error } = await supabase.from('finance_campaigns')
+    .insert({ mosque_id: mosqueId, kind, name, description: description || null, target_amount: targetAmount ?? null, deadline: deadline || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateFinanceCampaign(id, updates) {
+  const { data, error } = await supabase.from('finance_campaigns').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteFinanceCampaign(id) {
+  const { error } = await supabase.from('finance_campaigns').delete().eq('id', id)
+  return { error }
+}
+
+// Sadaqah donations (general or campaign-tied).
+export async function getSadaqah(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('finance_sadaqah').select('*, campaign:finance_campaigns(name)')
+    .eq('mosque_id', mosqueId).order('donation_date', { ascending: false })
+  if (error) { console.error('Error fetching sadaqah:', error); return [] }
+  return data || []
+}
+export async function createSadaqah({ mosqueId, campaignId, donorName, donorAddress, amount, donationDate, purpose, giftAidEligible }) {
+  const { data, error } = await supabase.from('finance_sadaqah')
+    .insert({ mosque_id: mosqueId, campaign_id: campaignId || null, donor_name: donorName || null, donor_address: donorAddress || null,
+              amount, donation_date: donationDate || undefined, purpose: purpose || null, gift_aid_eligible: !!giftAidEligible })
+    .select('*, campaign:finance_campaigns(name)').single()
+  return { data, error }
+}
+export async function updateSadaqah(id, updates) {
+  const { data, error } = await supabase.from('finance_sadaqah').update(updates).eq('id', id).select('*, campaign:finance_campaigns(name)').single()
+  return { data, error }
+}
+export async function deleteSadaqah(id) {
+  const { error } = await supabase.from('finance_sadaqah').delete().eq('id', id)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).
