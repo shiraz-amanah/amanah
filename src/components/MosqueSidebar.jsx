@@ -4,6 +4,7 @@ import {
   Building2, Calendar, Megaphone, HandCoins, GraduationCap,
   ShieldAlert, ClipboardCheck, FileText, ChevronDown, LogOut, BarChart3, Moon, Globe,
   MessageCircle, User, HeartHandshake, QrCode, UsersRound, CalendarCheck,
+  Landmark, ListChecks, Sparkles,
 } from "lucide-react";
 
 // Phase 1 of the platform-wide sidebar (Session AX). The unified persistent left
@@ -40,6 +41,11 @@ export const MOSQUE_NAV = [
   { tab: "community", label: "Community", icon: HeartHandshake, items: [
     ["members", "Members", Users], ["visitors", "Visitor register", QrCode],
     ["groups", "Groups", UsersRound],
+  ] },
+  { tab: "governance", label: "Governance", icon: Landmark, items: [
+    ["committee", "Committee", Users], ["meetings", "Meetings", CalendarDays],
+    ["actions", "Actions", ListChecks], ["documents", "Documents", FileText],
+    ["ai", "AI Assistant", Sparkles],
   ] },
   // Personal/utility top-level entries (leaf-less, like Dashboard). Messages
   // carries the unread badge that used to live on the header icon.

@@ -888,6 +888,54 @@ export async function cancelFacilityBooking(id, note) {
   return { data, error }
 }
 
+// ================= Governance — committee (migration 106) =================
+// Admin-only (owner RLS). Committee register + per-member profile detail.
+export async function getGovernanceCommittee(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('governance_committee_members').select('*').eq('mosque_id', mosqueId)
+    .order('active', { ascending: false }).order('name', { ascending: true })
+  if (error) { console.error('Error fetching committee:', error); return [] }
+  return data || []
+}
+export async function createCommitteeMember({ mosqueId, name, role, email, phone, termStart, termEnd, feeStatus, notes }) {
+  const { data, error } = await supabase.from('governance_committee_members')
+    .insert({ mosque_id: mosqueId, name, role, email: email || null, phone: phone || null,
+              term_start: termStart || null, term_end: termEnd || null,
+              fee_status: feeStatus || 'outstanding', notes: notes || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateCommitteeMember(id, updates) {
+  const { data, error } = await supabase.from('governance_committee_members')
+    .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteCommitteeMember(id) {
+  const { error } = await supabase.from('governance_committee_members').delete().eq('id', id)
+  return { error }
+}
+// Profile detail: meeting attendance + actions assigned to this member.
+export async function getCommitteeMemberAttendance(memberId) {
+  if (!memberId) return []
+  const { data, error } = await supabase
+    .from('governance_attendees')
+    .select('present, meeting:governance_meetings(id, type, title, meeting_date)')
+    .eq('committee_member_id', memberId)
+  if (error) { console.error('Error fetching member attendance:', error); return [] }
+  return data || []
+}
+export async function getCommitteeMemberActions(memberId) {
+  if (!memberId) return []
+  const { data, error } = await supabase
+    .from('governance_actions')
+    .select('id, description, due_date, status')
+    .eq('committee_member_id', memberId)
+    .order('due_date', { ascending: true, nullsFirst: false })
+  if (error) { console.error('Error fetching member actions:', error); return [] }
+  return data || []
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

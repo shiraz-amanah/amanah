@@ -24,6 +24,7 @@ import MosqueScholarLinks from "./MosqueScholarLinks";
 import CommunityMembers from "./CommunityMembers";
 import CommunityGroups from "./CommunityGroups";
 import CommunityVisitorRegister from "./CommunityVisitorRegister";
+import GovernanceCommittee from "./GovernanceCommittee";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -243,6 +244,23 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           )}
           {activeTab === "community" && activeSub === "groups" && (
             <CommunityGroups mosqueId={mosque.id} />
+          )}
+
+          {/* ---- Governance ---- */}
+          {activeTab === "governance" && activeSub === "committee" && (
+            <GovernanceCommittee mosqueId={mosque.id} />
+          )}
+          {activeTab === "governance" && activeSub === "meetings" && (
+            <Placeholder title="Meetings" icon={CheckCircle2} blurb="Meeting log, agenda builder, minutes with AI extraction, and resolutions land in the next update." />
+          )}
+          {activeTab === "governance" && activeSub === "actions" && (
+            <Placeholder title="Actions" icon={CheckCircle2} blurb="A cross-meeting action tracker with owners, due dates and overdue flags is coming next." />
+          )}
+          {activeTab === "governance" && activeSub === "documents" && (
+            <Placeholder title="Documents" icon={CheckCircle2} blurb="Constitution, charity registration and governing documents — with AI Q&A over them — coming soon." />
+          )}
+          {activeTab === "governance" && activeSub === "ai" && (
+            <Placeholder title="Governance AI Assistant" icon={CheckCircle2} blurb="A daily governance brief and free-text Q&A over your committee, actions and documents is coming soon." />
           )}
 
           {/* ---- Header-only: Messages ---- */}
