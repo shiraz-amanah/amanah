@@ -25,6 +25,8 @@ import CommunityMembers from "./CommunityMembers";
 import CommunityGroups from "./CommunityGroups";
 import CommunityVisitorRegister from "./CommunityVisitorRegister";
 import GovernanceCommittee from "./GovernanceCommittee";
+import GovernanceMeetings from "./GovernanceMeetings";
+import GovernanceActions from "./GovernanceActions";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -251,10 +253,10 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <GovernanceCommittee mosqueId={mosque.id} />
           )}
           {activeTab === "governance" && activeSub === "meetings" && (
-            <Placeholder title="Meetings" icon={CheckCircle2} blurb="Meeting log, agenda builder, minutes with AI extraction, and resolutions land in the next update." />
+            <GovernanceMeetings mosqueId={mosque.id} />
           )}
           {activeTab === "governance" && activeSub === "actions" && (
-            <Placeholder title="Actions" icon={CheckCircle2} blurb="A cross-meeting action tracker with owners, due dates and overdue flags is coming next." />
+            <GovernanceActions mosqueId={mosque.id} />
           )}
           {activeTab === "governance" && activeSub === "documents" && (
             <Placeholder title="Documents" icon={CheckCircle2} blurb="Constitution, charity registration and governing documents — with AI Q&A over them — coming soon." />

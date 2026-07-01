@@ -936,6 +936,110 @@ export async function getCommitteeMemberActions(memberId) {
   return data || []
 }
 
+// ---- Governance — meetings + agenda + attendees (P2) ----
+export async function getGovernanceMeetings(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('governance_meetings').select('*').eq('mosque_id', mosqueId)
+    .order('meeting_date', { ascending: false })
+  if (error) { console.error('Error fetching meetings:', error); return [] }
+  return data || []
+}
+export async function createGovernanceMeeting({ mosqueId, type, title, meetingDate, location, isOnline, quorumMet }) {
+  const { data, error } = await supabase.from('governance_meetings')
+    .insert({ mosque_id: mosqueId, type, title: title || null, meeting_date: meetingDate,
+              location: location || null, is_online: !!isOnline, quorum_met: quorumMet ?? null })
+    .select().single()
+  return { data, error }
+}
+export async function updateGovernanceMeeting(id, updates) {
+  const { data, error } = await supabase.from('governance_meetings')
+    .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteGovernanceMeeting(id) {
+  const { error } = await supabase.from('governance_meetings').delete().eq('id', id)
+  return { error }
+}
+export async function getMeetingAgenda(meetingId) {
+  if (!meetingId) return []
+  const { data, error } = await supabase
+    .from('governance_agenda_items').select('*').eq('meeting_id', meetingId)
+    .order('position', { ascending: true })
+  if (error) { console.error('Error fetching agenda:', error); return [] }
+  return data || []
+}
+export async function addAgendaItem({ meetingId, position, title, notes }) {
+  const { data, error } = await supabase.from('governance_agenda_items')
+    .insert({ meeting_id: meetingId, position: position ?? 0, title, notes: notes || null }).select().single()
+  return { data, error }
+}
+export async function updateAgendaItem(id, updates) {
+  const { data, error } = await supabase.from('governance_agenda_items').update(updates).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteAgendaItem(id) {
+  const { error } = await supabase.from('governance_agenda_items').delete().eq('id', id)
+  return { error }
+}
+export async function getMeetingAttendees(meetingId) {
+  if (!meetingId) return []
+  const { data, error } = await supabase
+    .from('governance_attendees')
+    .select('id, present, committee_member_id, member:governance_committee_members(name, role)')
+    .eq('meeting_id', meetingId)
+  if (error) { console.error('Error fetching attendees:', error); return [] }
+  return data || []
+}
+export async function setMeetingAttendee({ meetingId, committeeMemberId, present }) {
+  // The (meeting_id, committee_member_id) unique index is PARTIAL (…where
+  // committee_member_id is not null), which PostgREST upsert onConflict can't
+  // match — so select-then-insert/update instead of upsert.
+  const { data: existing } = await supabase.from('governance_attendees')
+    .select('id').eq('meeting_id', meetingId).eq('committee_member_id', committeeMemberId).maybeSingle()
+  if (existing) {
+    const { data, error } = await supabase.from('governance_attendees')
+      .update({ present: !!present }).eq('id', existing.id).select().single()
+    return { data, error }
+  }
+  const { data, error } = await supabase.from('governance_attendees')
+    .insert({ meeting_id: meetingId, committee_member_id: committeeMemberId, present: !!present }).select().single()
+  return { data, error }
+}
+export async function removeMeetingAttendee(meetingId, committeeMemberId) {
+  const { error } = await supabase.from('governance_attendees').delete()
+    .eq('meeting_id', meetingId).eq('committee_member_id', committeeMemberId)
+  return { error }
+}
+
+// ---- Governance — actions tracker (P2) ----
+export async function getGovernanceActions(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('governance_actions')
+    .select('*, member:governance_committee_members(name), meeting:governance_meetings(type, title, meeting_date)')
+    .eq('mosque_id', mosqueId)
+    .order('due_date', { ascending: true, nullsFirst: false })
+  if (error) { console.error('Error fetching actions:', error); return [] }
+  return data || []
+}
+export async function createGovernanceAction({ mosqueId, meetingId, committeeMemberId, description, dueDate, status, notes }) {
+  const { data, error } = await supabase.from('governance_actions')
+    .insert({ mosque_id: mosqueId, meeting_id: meetingId || null, committee_member_id: committeeMemberId || null,
+              description, due_date: dueDate || null, status: status || 'open', notes: notes || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateGovernanceAction(id, updates) {
+  const { data, error } = await supabase.from('governance_actions')
+    .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteGovernanceAction(id) {
+  const { error } = await supabase.from('governance_actions').delete().eq('id', id)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).
