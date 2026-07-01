@@ -33,6 +33,7 @@ import FinanceSadaqah from "./FinanceSadaqah";
 import FinanceWaqf from "./FinanceWaqf";
 import FinancePledges from "./FinancePledges";
 import FinanceQard from "./FinanceQard";
+import FinanceReports from "./FinanceReports";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -285,7 +286,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <FinanceQard mosqueId={mosque.id} />
           )}
           {activeTab === "finance" && activeSub === "reports" && (
-            <Placeholder title="Finance Reports" icon={CheckCircle2} blurb="Income by category, the Gift Aid (HMRC) report, pledge tracker, Waqf summary, and the AI Finance Brief arrive at the end of this module." />
+            <FinanceReports mosqueId={mosque.id} mosqueName={mosque.name} />
           )}
 
           {/* ---- Header-only: Messages ---- */}
