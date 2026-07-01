@@ -586,6 +586,60 @@ export async function getCommunityMemberAttendance(memberId) {
   return data || []
 }
 
+// ================= Community — groups (migration 101) =================
+// Organisational segments (Youth, Sisters' circle, Volunteers, Committee, …).
+// Owner CRUD gated by community_groups / community_group_members RLS.
+export async function getCommunityGroups(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('community_groups')
+    .select('*, members:community_group_members(count)')
+    .eq('mosque_id', mosqueId)
+    .order('name', { ascending: true })
+  if (error) { console.error('Error fetching community groups:', error); return [] }
+  // Flatten the aggregate count ({ members: [{ count }] } → memberCount).
+  return (data || []).map((g) => ({ ...g, memberCount: g.members?.[0]?.count ?? 0 }))
+}
+export async function createCommunityGroup({ mosqueId, name, description }) {
+  const { data, error } = await supabase
+    .from('community_groups')
+    .insert({ mosque_id: mosqueId, name, description: description || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateCommunityGroup(id, updates) {
+  const { data, error } = await supabase
+    .from('community_groups').update(updates).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteCommunityGroup(id) {
+  const { error } = await supabase.from('community_groups').delete().eq('id', id)
+  return { error }
+}
+export async function getCommunityGroupMembers(groupId) {
+  if (!groupId) return []
+  const { data, error } = await supabase
+    .from('community_group_members')
+    .select('id, joined_at, member:community_members(id, name, status, email, phone)')
+    .eq('group_id', groupId)
+    .order('joined_at', { ascending: true })
+  if (error) { console.error('Error fetching group members:', error); return [] }
+  return data || []
+}
+export async function addMemberToGroup(groupId, memberId) {
+  const { data, error } = await supabase
+    .from('community_group_members')
+    .insert({ group_id: groupId, member_id: memberId })
+    .select().single()
+  return { data, error }
+}
+export async function removeMemberFromGroup(groupId, memberId) {
+  const { error } = await supabase
+    .from('community_group_members').delete()
+    .eq('group_id', groupId).eq('member_id', memberId)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).
