@@ -640,6 +640,74 @@ export async function removeMemberFromGroup(groupId, memberId) {
   return { error }
 }
 
+// ============ Community — visitor register / sessions (migration 101) ============
+// A session is a check-in window (Jumu'ah, an event). Owner CRUD gated by RLS;
+// the public QR check-in goes through anon-safe SECURITY DEFINER RPCs (below).
+export async function getCommunitySessions(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('community_sessions').select('*').eq('mosque_id', mosqueId)
+    .order('session_date', { ascending: false }).order('opened_at', { ascending: false })
+  if (error) { console.error('Error fetching community sessions:', error); return [] }
+  return data || []
+}
+export async function createCommunitySession({ mosqueId, name, closesAt }) {
+  const { data, error } = await supabase
+    .from('community_sessions')
+    .insert({ mosque_id: mosqueId, name, closes_at: closesAt || null })
+    .select().single()
+  return { data, error }
+}
+export async function closeCommunitySession(id) {
+  const { data, error } = await supabase
+    .from('community_sessions').update({ closed_at: new Date().toISOString() })
+    .eq('id', id).select().single()
+  return { data, error }
+}
+export async function setCommunitySessionHeadcount(id, count) {
+  const { data, error } = await supabase
+    .from('community_sessions').update({ manual_headcount: Math.max(0, Number(count) || 0) })
+    .eq('id', id).select().single()
+  return { data, error }
+}
+// Attendance rows for a session (owner-scoped by RLS), member name joined for
+// the feed. Anonymous rows carry their own name; member rows resolve via join.
+export async function getSessionAttendance(sessionId) {
+  if (!sessionId) return []
+  const { data, error } = await supabase
+    .from('community_attendance')
+    .select('id, member_id, name, phone, check_in_method, is_first_time, checked_in_at, member:community_members(name)')
+    .eq('session_id', sessionId)
+    .order('checked_in_at', { ascending: false })
+  if (error) { console.error('Error fetching session attendance:', error); return [] }
+  return data || []
+}
+// Realtime INSERT feed for a session's check-ins (mirrors subscribeToMessages).
+// RLS-respecting: only the mosque owner receives rows for their sessions.
+export function subscribeToCommunityAttendance(sessionId, onRow) {
+  if (!sessionId) return () => {}
+  const channel = supabase.channel(`community-attendance-${sessionId}-${Date.now()}`)
+  channel.on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'community_attendance', filter: `session_id=eq.${sessionId}` },
+    (payload) => onRow(payload.new)
+  )
+  channel.subscribe()
+  return () => { supabase.removeChannel(channel) }
+}
+// --- Public QR check-in (anon-safe RPCs; used by the /check-in landing page) ---
+export async function getPublicCommunitySession(sessionId) {
+  if (!sessionId) return { data: null, error: { message: 'missing session' } }
+  const { data, error } = await supabase.rpc('community_session_public', { p_session_id: sessionId })
+  return { data: (data || [])[0] || null, error }
+}
+export async function communityCheckIn({ sessionId, name, phone, method = 'qr' }) {
+  const { data, error } = await supabase.rpc('community_check_in', {
+    p_session_id: sessionId, p_name: name || null, p_phone: phone || null, p_method: method,
+  })
+  return { data: (data || [])[0] || null, error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

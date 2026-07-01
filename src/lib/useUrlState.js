@@ -21,6 +21,8 @@ const ROUTES = [
   { view: 'scholarDetail',               path: '/scholar/:slug' },
   { view: 'categoryListing',             path: '/category/:id' },
   { view: 'prayerHub',                   path: '/prayer' },
+  // Public QR check-in landing (?mosque=&session=). No auth required.
+  { view: 'communityCheckIn',            path: '/check-in' },
 
   // Auth
   { view: 'userAuth',                    path: '/auth' },

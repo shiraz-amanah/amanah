@@ -51,6 +51,7 @@ import GlobalSearch, { GlobalSearchTrigger } from "./components/GlobalSearch";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
+import CommunityCheckIn from "./components/CommunityCheckIn";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import MadrasaEnrolAccept from "./pages/MadrasaEnrolAccept";
 import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
@@ -13553,6 +13554,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
   if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
   if (view === "mosqueClaimAccept") return <MosqueClaimAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
+  if (view === "communityCheckIn") return <CommunityCheckIn mosqueId={routeQuery.mosque} sessionId={routeQuery.session} authedUser={authedUser} onHome={() => setView("publicHome")} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => goBack()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };

@@ -22,6 +22,7 @@ import MosqueDocuments from "./MosqueDocuments";
 import MosqueScholarLinks from "./MosqueScholarLinks";
 import CommunityMembers from "./CommunityMembers";
 import CommunityGroups from "./CommunityGroups";
+import CommunityVisitorRegister from "./CommunityVisitorRegister";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -234,7 +235,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <CommunityMembers mosqueId={mosque.id} />
           )}
           {activeTab === "community" && activeSub === "visitors" && (
-            <Placeholder title="Visitor register" icon={CheckCircle2} blurb="QR check-in sessions and the live attendance feed land in the next update. You'll open a session, display a QR at the entrance, and watch named + anonymous check-ins arrive in real time." />
+            <CommunityVisitorRegister mosqueId={mosque.id} />
           )}
           {activeTab === "community" && activeSub === "groups" && (
             <CommunityGroups mosqueId={mosque.id} />
