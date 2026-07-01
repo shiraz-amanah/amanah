@@ -48,6 +48,14 @@ export function sendBookingConfirmedEmail(bookingId) {
   return postTransactional({ intent: 'booking_confirmed', bookingId });
 }
 
+// Community member invite → emails a congregation member their signup link.
+// Owner-gated server-side; recipient resolved from the community_members row.
+// `message` is an optional personal note (escaped + capped server-side).
+export function sendCommunityMemberInvite(memberId, message = '') {
+  if (!memberId) return Promise.resolve({ ok: false, error: 'missing_memberId' });
+  return postTransactional({ intent: 'community_member_invite', memberId, message });
+}
+
 // Scholar approved/verified → emails the scholar. Fired when an admin publishes
 // the scholar (status → active). `scholarId` is scholars.id.
 export function sendScholarApprovedEmail(scholarId) {

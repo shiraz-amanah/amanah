@@ -857,6 +857,34 @@ ${ePara('<span style="font-size:13px;color:#9ca3af;">If you weren\'t expecting t
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Community membership invite (Session AZ). A mosque admin invites a congregation
+// member by email from the Members directory. Owner-gated; recipient resolved
+// server-side from the community_members row (never client-supplied). The
+// optional personal message IS client-supplied but is HTML-escaped + length-
+// capped, and only reaches the owner's own DB-resolved member — no open-relay
+// surface. Signup link pre-fills the email + carries the mosque id; the actual
+// account↔membership auto-link lands with migration 103.
+async function handleCommunityMemberInvite(env, caller, memberId, message) {
+  const rows = await sbGet(env, `community_members?id=eq.${memberId}&select=name,email,mosque_id`);
+  const mem = Array.isArray(rows) ? rows[0] : null;
+  if (!mem) return { status: 404, body: { ok: false, error: 'member_not_found' } };
+  const { mosque, ok } = await ownsMosque(env, caller, mem.mosque_id);
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const to = (mem.email || '').trim();
+  if (!to) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+
+  const mosqueName = mosque?.name || 'A mosque';
+  const note = typeof message === 'string' ? message.trim().slice(0, 1000) : '';
+  const link = `${env.PUBLIC_APP_URL}/auth?email=${encodeURIComponent(to)}&mosque=${mem.mosque_id}`;
+  const inner = `${eGreeting(mem.name)}${eHeading(`You're invited to join ${escapeHtml(mosqueName)}`)}
+${ePara(`<strong>${escapeHtml(mosqueName)}</strong> has invited you to join their community on Amanah — a trusted place to keep up with prayer times, announcements and events, and to check in at Jumu'ah.`)}
+${note ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 16px 0;"><tr><td style="border-left:3px solid #10b981; background:#f0fdf4; border-radius:6px; padding:12px 16px;"><p style="margin:0; font-size:15px; line-height:1.6; color:#374151; font-style:italic;">${escapeHtml(note)}</p></td></tr></table>` : ''}
+${ctaButton('Join your community', link)}
+${ePara('<span style="font-size:13px;color:#9ca3af;">Create your Amanah account with this email address to be linked to your mosque. If you weren\'t expecting this, you can safely ignore this email.</span>')}${eSignoff}`;
+  const id = await sendEmail(env, { to, subject: `You're invited to join ${mosqueName} — Amanah`, html: wrapEmail('Join your community on Amanah', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -1447,6 +1475,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_enrollment_invite') {
       if (!isUuid(body.inviteId)) return res.status(400).json({ ok: false, error: 'invalid_inviteId' });
       const out = await handleMadrasaEnrollmentInvite(env, caller, body.inviteId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'community_member_invite') {
+      if (!isUuid(body.memberId)) return res.status(400).json({ ok: false, error: 'invalid_memberId' });
+      const out = await handleCommunityMemberInvite(env, caller, body.memberId, body.message);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

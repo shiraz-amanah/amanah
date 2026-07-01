@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Search, Users, ChevronRight, Mail, Phone } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, Search, Users, ChevronRight, Mail, Phone, Send, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { getCommunityMembers, createCommunityMember, updateCommunityMember, deleteCommunityMember } from "../auth";
+import { sendCommunityMemberInvite } from "../lib/email";
 import CommunityMemberProfile from "./CommunityMemberProfile";
 
 // Mosque dashboard → Community → Members. Congregation directory: manual add /
@@ -19,6 +20,52 @@ const StatusBadge = ({ status }) => (
   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${status === "active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{status}</span>
 );
 
+// Invite a member by email — warm signup link with an optional personal note.
+// Sent via the community_member_invite intent (owner-gated server-side).
+const InviteCard = ({ member, onBack }) => {
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(null);
+
+  const send = async () => {
+    setBusy(true); setError(null);
+    const r = await sendCommunityMemberInvite(member.id, message.trim());
+    setBusy(false);
+    if (!r.ok) { setError(r.error === "no_recipient" ? "This member has no email address." : `Couldn't send the invite (${r.error}).`); return; }
+    setSent(true);
+  };
+
+  return (
+    <div className="space-y-5 max-w-xl">
+      <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5"><ArrowLeft size={15} /> Back to members</button>
+      <div className={cardCls}>
+        {sent ? (
+          <div className="text-center py-4">
+            <CheckCircle2 className="mx-auto text-emerald-600 mb-2" size={32} />
+            <p className="text-sm font-medium text-stone-900">Invite sent to {member.name}</p>
+            <p className="text-xs text-stone-500 mt-1">{member.email}</p>
+            <button onClick={onBack} className="mt-4 text-sm text-emerald-800 hover:text-emerald-900 font-medium">Back to members</button>
+          </div>
+        ) : (
+          <>
+            <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Invite {member.name}</h3>
+            <p className="text-sm text-stone-600 mb-4">We'll email <span className="font-medium">{member.email}</span> a warm invite with a signup link that pre-fills their email.</p>
+            <label className={labelCls}>Personal message (optional)</label>
+            <textarea rows={3} className={inputCls + " resize-none"} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} placeholder="e.g. We'd love to have you as part of the community." />
+            {error && <p className="text-sm text-rose-700 mt-2 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
+            <div className="flex gap-2 mt-4">
+              <button onClick={send} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send invite</button>
+              <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
+            </div>
+            <p className="text-xs text-stone-400 mt-4 border-t border-stone-100 pt-3">The member will be fully linked to your mosque once they sign up with this email (coming in the next update).</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const CommunityMembers = ({ mosqueId }) => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +80,7 @@ const CommunityMembers = ({ mosqueId }) => {
   const [busy, setBusy] = useState(false);
 
   const [selectedId, setSelectedId] = useState(null);
+  const [inviteId, setInviteId] = useState(null);
 
   const refresh = () => getCommunityMembers(mosqueId).then(setMembers);
 
@@ -73,6 +121,10 @@ const CommunityMembers = ({ mosqueId }) => {
     if (error) { setErr(error.message); return; }
     setMembers((xs) => xs.filter((x) => x.id !== id));
   };
+
+  // Invite drill-down (in-pane).
+  const inviteMember = inviteId ? members.find((m) => m.id === inviteId) : null;
+  if (inviteMember) return <InviteCard member={inviteMember} onBack={() => setInviteId(null)} />;
 
   // Member-profile drill-down (in-pane).
   if (selectedId) {
@@ -161,6 +213,9 @@ const CommunityMembers = ({ mosqueId }) => {
                   </span>
                 </span>
               </button>
+              {m.email && !m.profile_id && (
+                <button onClick={() => setInviteId(m.id)} title="Invite by email" className="text-stone-400 hover:text-emerald-700 p-1.5"><Mail size={14} /></button>
+              )}
               <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
               <button onClick={() => remove(m.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
               <button onClick={() => setSelectedId(m.id)} className="text-stone-300 hover:text-stone-500 p-1"><ChevronRight size={16} /></button>

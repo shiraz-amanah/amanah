@@ -7403,9 +7403,9 @@ const ResetPassword = ({ onDone }) => {
 };
 
 // ==================== USER SIGN UP / LOGIN ====================
-const UserAuth = ({ mode = "login", role = "user", onBack, onComplete, onSwitchMode, onForgotPassword }) => {
+const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, onComplete, onSwitchMode, onForgotPassword }) => {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ name: "", email: "", password: "", interest: "", interests: [] });
+  const [form, setForm] = useState({ name: "", email: initialEmail || "", password: "", interest: "", interests: [] });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -13156,7 +13156,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
-  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} onBack={() => goBack("publicHome")} onComplete={async () => {
+  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} initialEmail={routeQuery.email || ""} onBack={() => goBack("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
     let profile = null;
