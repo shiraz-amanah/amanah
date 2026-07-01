@@ -91,9 +91,9 @@ export const getCommunityInsights = (mosqueId) => askCommunity(mosqueId, "");
 // Governance assistant (mode:'governance_ops', owner-authed). Empty question →
 // a governance brief (overdue actions, terms expiring, AGM due); with a question
 // → a free-text answer. Returns { ok, answer } or { ok:false, error }.
-export async function askGovernance(mosqueId, question = "") {
+export async function askGovernance(mosqueId, question = "", documents = []) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
-  return postBrief({ mode: "governance_ops", mosqueId, question });
+  return postBrief({ mode: "governance_ops", mosqueId, question, documents });
 }
 export const getGovernanceBrief = (mosqueId) => askGovernance(mosqueId, "");
 

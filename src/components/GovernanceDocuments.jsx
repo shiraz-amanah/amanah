@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Plus, Trash2, Pencil, AlertCircle, Check, X, FileText, Search, Upload, ExternalLink, Sparkles } from "lucide-react";
 import { getGovernanceDocuments, createGovernanceDocument, updateGovernanceDocument, deleteGovernanceDocument } from "../auth";
 import { uploadGovernanceDoc, getSignedDocUrl } from "../lib/storage";
+import { reindexGovernanceDocument } from "../lib/governanceRag";
 
 // Governance → Documents. Searchable library: constitution, charity registration,
 // annual accounts, governing documents. Upload a PDF/Word to the private
@@ -49,11 +50,15 @@ const GovernanceDocuments = ({ mosqueId }) => {
     }
     const fields = { category: form.category, title: form.title.trim(), doc_date: form.doc_date || null, notes: form.notes.trim() || null, doc_text: form.doc_text.trim() || null };
     if (docUrl) fields.doc_url = docUrl;
-    const { error } = editing
+    const { data, error } = editing
       ? await updateGovernanceDocument(editing, fields)
       : await createGovernanceDocument({ mosqueId, ...fields, docUrl, docText: fields.doc_text, docDate: fields.doc_date });
+    if (error) { setBusy(false); setErr(error.message || "Couldn't save."); return; }
+    // (Re)index the document text for AI Q&A — replaces chunks (or clears them
+    // when the text is removed). Best-effort; a failure doesn't block the save.
+    const docId = editing || data?.id;
+    if (docId) { setErr(null); const { error: idxErr } = await reindexGovernanceDocument(docId, mosqueId, fields.doc_text || ""); if (idxErr) console.warn("indexing:", idxErr); }
     setBusy(false);
-    if (error) { setErr(error.message || "Couldn't save."); return; }
     setForm(blank); setFile(null); setEditing(null); setShowForm(false); refresh();
   };
   const startEdit = (d) => { setEditing(d.id); setForm({ category: d.category || "other", title: d.title, doc_date: d.doc_date || "", notes: d.notes || "", doc_text: d.doc_text || "" }); setFile(null); setShowForm(true); };

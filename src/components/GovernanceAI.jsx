@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2, Send } from "lucide-react";
 import { askGovernance, getGovernanceBrief, assistantErrorMessage } from "../lib/hrAssistant";
+import { retrieveGovernanceChunks } from "../lib/governanceRag";
 import Markdown from "./Markdown";
 
 // Governance → AI Assistant. Auto-loads a governance brief on mount (overdue
@@ -31,7 +32,10 @@ const GovernanceAI = ({ mosqueId }) => {
     const question = q.trim();
     if (!question) return;
     setAsking(true); setError(null); setAnswer(null);
-    const r = await askGovernance(mosqueId, question);
+    // RAG: retrieve relevant document excerpts (constitution etc.) so the
+    // assistant can quote them alongside the governance data.
+    const documents = await retrieveGovernanceChunks(mosqueId, question).catch(() => []);
+    const r = await askGovernance(mosqueId, question, documents);
     setAsking(false);
     if (!r.ok) { setError(assistantErrorMessage(r.error)); return; }
     setAnswer(r.answer);
@@ -41,7 +45,7 @@ const GovernanceAI = ({ mosqueId }) => {
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Governance Assistant</h2>
-        <p className="text-sm text-stone-600">A daily governance brief plus answers on your committee, meetings and actions.</p>
+        <p className="text-sm text-stone-600">A daily governance brief plus answers on your committee, meetings, actions and uploaded documents.</p>
       </div>
 
       <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-5">
@@ -59,7 +63,7 @@ const GovernanceAI = ({ mosqueId }) => {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && ask()}
-            placeholder="e.g. Which actions are overdue? Whose term expires soon?"
+            placeholder="e.g. What does our constitution say about quorum? Which actions are overdue?"
             className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
           />
           <button onClick={ask} disabled={asking || !q.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{asking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>

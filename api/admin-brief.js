@@ -527,8 +527,12 @@ async function handleGovernanceOps(req, res, body, env) {
   if (mosque.user_id !== caller.id) return res.status(403).json({ ok: false, error: 'forbidden' });
 
   const context = { mosque: mosque.name, ...(await buildGovernanceContext(env, body.mosqueId)) };
+  // RAG: relevant governance-document excerpts retrieved client-side (embed +
+  // match_governance_chunks) and passed here so the assistant can quote them.
+  const docs = Array.isArray(body.documents) ? body.documents.filter((d) => typeof d === 'string' && d.trim()).slice(0, 8) : [];
+  if (docs.length) context.relevant_documents = docs;
   const q = (body.question || '').trim();
-  const system = `You are a governance assistant for "${mosque.name}", a UK mosque/charity. You are given the mosque's real governance data as JSON: committee members + roles, terms expiring within 60 days (expired flagged), the last AGM date + months since (annual_agm_overdue when ≥12 months), recent meetings, and the action tracker (open, overdue, due this week). Answer ONLY from this data, concisely, in UK English. Today is ${context.today}. Be specific with names, dates and counts. Do not invent data.`;
+  const system = `You are a governance assistant for "${mosque.name}", a UK mosque/charity. You are given the mosque's real governance data as JSON: committee members + roles, terms expiring within 60 days (expired flagged), the last AGM date + months since (annual_agm_overdue when ≥12 months), recent meetings, and the action tracker (open, overdue, due this week). You may also be given relevant_documents — excerpts from the mosque's own governance documents (e.g. the constitution). When the question is about the documents/constitution, answer from those excerpts and quote the relevant wording; if the excerpts don't contain the answer, say the documents don't appear to cover it. Otherwise answer from the governance data. ONLY use the provided data — do not invent content. Concise, UK English. Today is ${context.today}.`;
   const userMsg = q
     ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
     : `Data (JSON): ${JSON.stringify(context)}\n\nGive exactly 4-5 short, specific lines (no preamble or numbering) as a governance brief. Prioritise: overdue actions (count + a couple named), actions due this week, committee terms expiring/expired (name them), and whether the annual AGM is due (months since the last one). If an area is clear, you may briefly note it.`;

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   if (!texts || texts.length === 0) {
     return res.status(400).json({ ok: false, error: 'missing_texts' });
   }
-  if (type !== 'scholar' && type !== 'mosque') {
+  if (type !== 'scholar' && type !== 'mosque' && type !== 'governance') {
     return res.status(400).json({ ok: false, error: 'invalid_type' });
   }
 
