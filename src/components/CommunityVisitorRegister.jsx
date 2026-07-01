@@ -7,6 +7,7 @@ import {
 import {
   getCommunitySessions, createCommunitySession, closeCommunitySession,
   setCommunitySessionHeadcount, getSessionAttendance, subscribeToCommunityAttendance,
+  closeExpiredCommunitySessions,
 } from "../auth";
 import CommunityAI from "./CommunityAI";
 
@@ -195,7 +196,10 @@ const CommunityVisitorRegister = ({ mosqueId }) => {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    getCommunitySessions(mosqueId)
+    // Opportunistic auto-close on owner load (item 5, no cron): close any sessions
+    // past their closes_at window, then load the fresh list reflecting it.
+    closeExpiredCommunitySessions(mosqueId)
+      .then(() => getCommunitySessions(mosqueId))
       .then((s) => { if (alive) setSessions(s); })
       .catch((e) => { if (alive) setErr(e?.message || "Couldn't load sessions."); })
       .finally(() => { if (alive) setLoading(false); });

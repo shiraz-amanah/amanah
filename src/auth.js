@@ -693,6 +693,22 @@ export async function closeCommunitySession(id) {
     .eq('id', id).select().single()
   return { data, error }
 }
+// Opportunistic auto-close (item 5, no cron): close any of the mosque's sessions
+// that are past their closes_at window but not yet closed. Called on owner load
+// of the Visitor register (mirrors topUpRecurringEvents). `.lte('closes_at', …)`
+// excludes rows with a null closes_at, so no-auto-close sessions stay open.
+export async function closeExpiredCommunitySessions(mosqueId) {
+  if (!mosqueId) return { closed: 0 }
+  const { data, error } = await supabase
+    .from('community_sessions')
+    .update({ closed_at: new Date().toISOString() })
+    .eq('mosque_id', mosqueId)
+    .is('closed_at', null)
+    .lte('closes_at', new Date().toISOString())
+    .select('id')
+  if (error) { console.error('Error auto-closing expired sessions:', error); return { closed: 0 } }
+  return { closed: (data || []).length }
+}
 export async function setCommunitySessionHeadcount(id, count) {
   const { data, error } = await supabase
     .from('community_sessions').update({ manual_headcount: Math.max(0, Number(count) || 0) })
