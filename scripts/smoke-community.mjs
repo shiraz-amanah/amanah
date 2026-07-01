@@ -224,6 +224,21 @@ async function t7_closedSessionRefused() {
   bad(`T7 closed-session check-in was ALLOWED — expected refusal`);
 }
 
+// Geofence support (migration 102): community_current_session finds the open
+// session for a mosque. Member-only (authenticated); anon denied.
+async function t8_currentSession() {
+  const anonRes = await anon().rpc('community_current_session', { p_mosque_id: ids.mosque });
+  if (anonRes.error) ok(`T8a anon community_current_session → denied: ${anonRes.error.message} (expected)`);
+  else bad(`T8a anon community_current_session was ALLOWED (${JSON.stringify(anonRes.data)}) — expected denial`);
+
+  const c = await signIn(EM.member);
+  const memRes = await c.rpc('community_current_session', { p_mosque_id: ids.mosque });
+  if (memRes.error) { bad(`T8b member community_current_session errored — ${memRes.error.message}`); return; }
+  raw('open session', memRes.data);
+  const r = (memRes.data || [])[0];
+  assert(r && r.id === ids.session, `T8b member finds the open session → id matches (${r?.name})`);
+}
+
 try {
   await teardown(); // clean any leftovers from a prior run
   await seed();
@@ -234,6 +249,7 @@ try {
   await t5_memberCheckInAndDedup();
   await t6_memberSelfReads();
   await t7_closedSessionRefused();
+  await t8_currentSession();
 } catch (err) {
   bad(`FATAL: ${err.message}`);
 } finally {

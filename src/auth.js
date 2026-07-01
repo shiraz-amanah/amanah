@@ -728,6 +728,14 @@ export async function getMyCommunityGroups() {
   if (error) { console.error('Error fetching my community groups:', error); return [] }
   return data || []
 }
+// The currently-open session at a mosque, for geofence auto check-in (migration
+// 102). Member-only RPC; returns { id, name, session_date } or null.
+export async function getCommunityCurrentSession(mosqueId) {
+  if (!mosqueId) return null
+  const { data, error } = await supabase.rpc('community_current_session', { p_mosque_id: mosqueId })
+  if (error) { console.error('Error fetching current community session:', error); return null }
+  return (data || [])[0] || null
+}
 
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
