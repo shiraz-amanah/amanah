@@ -1172,6 +1172,78 @@ export async function deleteWaqfAsset(id) {
   return { error }
 }
 
+// ---- Pledges + payments (P3) ----
+// Pledges with their payments embedded (paid = sum; outstanding = pledged - paid).
+export async function getFinancePledges(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('finance_pledges')
+    .select('*, campaign:finance_campaigns(name), payments:finance_pledge_payments(amount)')
+    .eq('mosque_id', mosqueId).order('due_date', { ascending: true, nullsFirst: false })
+  if (error) { console.error('Error fetching pledges:', error); return [] }
+  return data || []
+}
+export async function createPledge({ mosqueId, campaignId, donorName, donorEmail, donorAddress, amountPledged, dueDate, giftAidEligible }) {
+  const { data, error } = await supabase.from('finance_pledges')
+    .insert({ mosque_id: mosqueId, campaign_id: campaignId || null, donor_name: donorName, donor_email: donorEmail || null, donor_address: donorAddress || null,
+              amount_pledged: amountPledged, due_date: dueDate || null, gift_aid_eligible: !!giftAidEligible, source: 'admin' })
+    .select('*, campaign:finance_campaigns(name), payments:finance_pledge_payments(amount)').single()
+  return { data, error }
+}
+export async function updatePledge(id, updates) {
+  const { data, error } = await supabase.from('finance_pledges').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select('*, campaign:finance_campaigns(name), payments:finance_pledge_payments(amount)').single()
+  return { data, error }
+}
+export async function deletePledge(id) {
+  const { error } = await supabase.from('finance_pledges').delete().eq('id', id)
+  return { error }
+}
+export async function addPledgePayment({ pledgeId, mosqueId, amount, paidDate }) {
+  const { data, error } = await supabase.from('finance_pledge_payments')
+    .insert({ pledge_id: pledgeId, mosque_id: mosqueId, amount, paid_date: paidDate || undefined }).select().single()
+  return { data, error }
+}
+
+// ---- Pledge Night sessions + realtime + public submit RPCs ----
+export async function getPledgeSessions(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.from('finance_pledge_sessions').select('*').eq('mosque_id', mosqueId).order('opened_at', { ascending: false })
+  if (error) { console.error('Error fetching pledge sessions:', error); return [] }
+  return data || []
+}
+export async function createPledgeSession({ mosqueId, campaignId, name, closesAt }) {
+  const { data, error } = await supabase.from('finance_pledge_sessions')
+    .insert({ mosque_id: mosqueId, campaign_id: campaignId || null, name, closes_at: closesAt || null }).select().single()
+  return { data, error }
+}
+export async function closePledgeSession(id) {
+  const { data, error } = await supabase.from('finance_pledge_sessions').update({ closed_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function getSessionPledges(sessionId) {
+  if (!sessionId) return []
+  const { data, error } = await supabase.from('finance_pledges').select('id, donor_name, amount_pledged, created_at').eq('session_id', sessionId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching session pledges:', error); return [] }
+  return data || []
+}
+export function subscribeToPledges(sessionId, onRow) {
+  if (!sessionId) return () => {}
+  const channel = supabase.channel(`pledges-${sessionId}-${Date.now()}`)
+  channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'finance_pledges', filter: `session_id=eq.${sessionId}` }, (payload) => onRow(payload.new))
+  channel.subscribe()
+  return () => { supabase.removeChannel(channel) }
+}
+// Public (anon) Pledge Night page.
+export async function getPledgeSessionPublic(sessionId) {
+  if (!sessionId) return { data: null, error: { message: 'missing session' } }
+  const { data, error } = await supabase.rpc('pledge_session_public', { p_session_id: sessionId })
+  return { data: (data || [])[0] || null, error }
+}
+export async function submitPledge({ sessionId, donorName, amount, email, giftAid }) {
+  const { data, error } = await supabase.rpc('submit_pledge', { p_session_id: sessionId, p_donor_name: donorName, p_amount: amount, p_email: email || null, p_gift_aid: !!giftAid })
+  return { data, error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

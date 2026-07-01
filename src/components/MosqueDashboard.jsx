@@ -31,6 +31,7 @@ import GovernanceDocuments from "./GovernanceDocuments";
 import GovernanceAI from "./GovernanceAI";
 import FinanceSadaqah from "./FinanceSadaqah";
 import FinanceWaqf from "./FinanceWaqf";
+import FinancePledges from "./FinancePledges";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -277,7 +278,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <FinanceWaqf mosqueId={mosque.id} mosqueName={mosque.name} />
           )}
           {activeTab === "finance" && activeSub === "pledges" && (
-            <Placeholder title="Pledges" icon={CheckCircle2} blurb="Pledge campaigns, the donor pledge register, AI reminders, and live Pledge Night are coming next." />
+            <FinancePledges mosqueId={mosque.id} />
           )}
           {activeTab === "finance" && activeSub === "qard" && (
             <Placeholder title="Qard Hasan" icon={CheckCircle2} blurb="A confidential interest-free benevolent-loan register — owner-only — is coming soon." />

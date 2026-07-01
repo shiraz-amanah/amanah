@@ -53,6 +53,7 @@ import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
 import CommunityMember from "./components/CommunityMember";
 import CommunityCheckIn from "./components/CommunityCheckIn";
+import FinancePledgePublic from "./components/FinancePledgePublic";
 import { useSilentGeofence } from "./lib/useSilentGeofence";
 import MosqueStaffInviteAccept from "./pages/MosqueStaffInviteAccept";
 import MadrasaEnrolAccept from "./pages/MadrasaEnrolAccept";
@@ -13575,6 +13576,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
   if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
   if (view === "mosqueClaimAccept") return <MosqueClaimAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
   if (view === "communityCheckIn") return <CommunityCheckIn mosqueId={routeQuery.mosque} sessionId={routeQuery.session} authedUser={authedUser} onHome={() => setView("publicHome")} />;
+  if (view === "pledgePublic") return <FinancePledgePublic sessionId={routeQuery.session} onHome={() => setView("publicHome")} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => goBack()} authedUser={authedUser} onSignIn={handleSignIn} />;
   return null;
   };

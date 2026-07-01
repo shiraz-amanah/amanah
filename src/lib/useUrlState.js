@@ -23,6 +23,8 @@ const ROUTES = [
   { view: 'prayerHub',                   path: '/prayer' },
   // Public QR check-in landing (?mosque=&session=). No auth required.
   { view: 'communityCheckIn',            path: '/check-in' },
+  // Public Pledge Night page (?mosque=&session=). No auth required.
+  { view: 'pledgePublic',                path: '/pledge' },
 
   // Auth
   { view: 'userAuth',                    path: '/auth' },
