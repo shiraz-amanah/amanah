@@ -27,6 +27,7 @@ import CommunityVisitorRegister from "./CommunityVisitorRegister";
 import GovernanceCommittee from "./GovernanceCommittee";
 import GovernanceMeetings from "./GovernanceMeetings";
 import GovernanceActions from "./GovernanceActions";
+import GovernanceDocuments from "./GovernanceDocuments";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
@@ -259,7 +260,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <GovernanceActions mosqueId={mosque.id} />
           )}
           {activeTab === "governance" && activeSub === "documents" && (
-            <Placeholder title="Documents" icon={CheckCircle2} blurb="Constitution, charity registration and governing documents — with AI Q&A over them — coming soon." />
+            <GovernanceDocuments mosqueId={mosque.id} />
           )}
           {activeTab === "governance" && activeSub === "ai" && (
             <Placeholder title="Governance AI Assistant" icon={CheckCircle2} blurb="A daily governance brief and free-text Q&A over your committee, actions and documents is coming soon." />

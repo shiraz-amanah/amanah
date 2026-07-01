@@ -1040,6 +1040,33 @@ export async function deleteGovernanceAction(id) {
   return { error }
 }
 
+// ---- Governance — documents (P3). doc_url = private governance-docs path
+// (view via signed URL); doc_text feeds the P5 RAG. ----
+export async function getGovernanceDocuments(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('governance_documents').select('*').eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching governance documents:', error); return [] }
+  return data || []
+}
+export async function createGovernanceDocument({ mosqueId, category, title, docUrl, docText, docDate, notes }) {
+  const { data, error } = await supabase.from('governance_documents')
+    .insert({ mosque_id: mosqueId, category: category || null, title, doc_url: docUrl || null,
+              doc_text: docText || null, doc_date: docDate || null, notes: notes || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateGovernanceDocument(id, updates) {
+  const { data, error } = await supabase.from('governance_documents')
+    .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteGovernanceDocument(id) {
+  const { error } = await supabase.from('governance_documents').delete().eq('id', id)
+  return { error }
+}
+
 // --- Public reads (anon-safe; RLS public-read is gated to active mosques) ---
 // Upcoming events across all active mosques, for the homepage. Joins the mosque
 // for card display (name/logo/slug).

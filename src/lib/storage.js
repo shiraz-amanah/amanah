@@ -218,6 +218,39 @@ export async function uploadMosqueHrDoc(file, mosqueId, prefix = "") {
   return { path, error: null };
 }
 
+// Governance documents → PRIVATE governance-docs bucket (107). PDF/Word/txt.
+// Path `{mosqueId}/{timestamp}.{ext}` (RLS checks foldername[1] = owned mosque).
+// Returns { path, error }; view via getSignedDocUrl("governance-docs", path).
+const GOV_ALLOWED = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/msword": "doc",
+  "text/plain": "txt",
+};
+export async function uploadGovernanceDoc(file, mosqueId) {
+  if (!file) return { path: null, error: "No file selected." };
+  if (!mosqueId) return { path: null, error: "Missing mosque." };
+  const ext = GOV_ALLOWED[file.type];
+  if (!ext) return { path: null, error: "Use a PDF, Word (.doc/.docx) or .txt file." };
+  if (file.size > DOC_MAX_BYTES) return { path: null, error: "File must be under 10MB." };
+
+  const path = `${mosqueId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("governance-docs")
+    .upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+  if (error) {
+    console.error("uploadGovernanceDoc failed:", { message: error?.message, statusCode: error?.statusCode, path });
+    const blob = `${error?.message || ""} ${error?.statusCode || ""}`;
+    const msg = /bucket|not found/i.test(blob)
+      ? "Governance document storage isn't set up yet."
+      : /row-level security|policy|unauthor|403/i.test(blob)
+      ? "Upload was blocked by storage permissions."
+      : "Couldn't upload the document — try again.";
+    return { path: null, error: msg };
+  }
+  return { path, error: null };
+}
+
 // Mint a short-lived signed URL for a private document path (admin "View …"
 // links). `expiresIn` is seconds. Returns { url, error }.
 export async function getSignedDocUrl(bucket, path, expiresIn = 3600) {
