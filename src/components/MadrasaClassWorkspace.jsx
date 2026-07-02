@@ -111,6 +111,44 @@ const StudentAvatar = ({ student, rate }) => {
     </div>
   );
 };
+// Class Hifz heatmap — students as rows, 114 surahs as columns, colour = status.
+const HIFZ_CELL = { memorized: "bg-emerald-500", revising: "bg-teal-400", in_progress: "bg-amber-400" };
+const ClassHifzHeatmap = ({ roster, statusByStudent }) => (
+  <div className="bg-white border border-stone-200 rounded-2xl p-4">
+    <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+      <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><GraduationCap size={15} className="text-emerald-700" /> Class Qur'an map</p>
+      <div className="flex items-center gap-3 text-[10px] text-stone-500 flex-wrap">
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Memorised</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-teal-400" /> Revising</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> In progress</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-stone-200" /> Not started</span>
+      </div>
+    </div>
+    <div className="overflow-x-auto scrollbar-hide">
+      <div className="min-w-max space-y-1">
+        {roster.map((e) => {
+          const st = e.student || {}; const sid = st.id || e.student_id;
+          const smap = statusByStudent[sid] || {};
+          const mem = Object.values(smap).filter((v) => v === "memorized").length;
+          return (
+            <div key={e.id} className="flex items-center gap-1">
+              <div className="sticky left-0 z-10 bg-white w-24 sm:w-28 shrink-0 pr-2 truncate text-xs font-medium text-stone-700">{st.name || "Student"}</div>
+              <div className="flex gap-px">
+                {Array.from({ length: 114 }, (_, i) => i + 1).map((n) => {
+                  const s = smap[n];
+                  return <div key={n} title={`${n}. ${surahName(n)} — ${s ? s.replace("_", " ") : "not started"}`} className={`w-2 h-4 rounded-[1px] ${s ? HIFZ_CELL[s] : "bg-stone-200"}`} />;
+                })}
+              </div>
+              <span className="pl-2 text-[10px] text-stone-400 shrink-0 whitespace-nowrap">{mem}/114</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+    <p className="text-[10px] text-stone-400 mt-2">Each column is a surah, 1 → 114 left to right. Hover a cell for details.</p>
+  </div>
+);
+
 // Subtle octagram watermark (reused from the parent Hifz hero) — stone strokes for white cards.
 const CardWatermark = ({ id }) => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
@@ -193,6 +231,22 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     }
     return map;
   }, [classHifz]);
+
+  // Per (student, surah) best status for the class Hifz heatmap. memorized wins
+  // over revising wins over in_progress.
+  const hifzStatusByStudent = useMemo(() => {
+    const RANK = { in_progress: 1, revising: 2, memorized: 3 };
+    const m = {};
+    for (const e of classHifz) {
+      const sid = e.student_id;
+      if (!m[sid]) m[sid] = {};
+      const prev = m[sid][e.surah_number];
+      if (!prev || (RANK[e.status] || 0) > (RANK[prev] || 0)) m[sid][e.surah_number] = e.status;
+    }
+    return m;
+  }, [classHifz]);
+  // "Ready for next": their most recent log entry is a completed (memorized) surah.
+  const readyForNext = (sid) => hifzByStudent[sid]?.last?.status === "memorized";
 
   // Per-student attendance rate + last-seen + star count for the Students cards.
   const statsByStudent = useMemo(() => {
@@ -380,29 +434,37 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
           ) : activeRoster.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-sm text-stone-500">No students enrolled yet.</div>
           ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {activeRoster.map((e) => {
-                const st = e.student || {};
-                const sid = st.id || e.student_id;
-                const h = hifzByStudent[sid] || { last: null, memorized: new Set(), memorizedMonth: new Set() };
-                const mem = h.memorized.size;
-                const month = h.memorizedMonth.size;
-                return (
-                  <button key={e.id} onClick={() => openProfile(e)} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-stone-900 truncate">{st.name || "Student"}</p>
-                        <p className="text-xs text-stone-500 truncate mt-0.5">
-                          {h.last ? <>{surahName(h.last.surah_number)}{ayahText(h.last)} · {fmtDate(h.last.session_date)}</> : "No Hifz logged yet"}
-                        </p>
+            <div className="space-y-4">
+              {/* Class heatmap — whole-class progress at a glance (P3, read-only) */}
+              <ClassHifzHeatmap roster={activeRoster} statusByStudent={hifzStatusByStudent} />
+              <div className="grid sm:grid-cols-2 gap-3">
+                {activeRoster.map((e) => {
+                  const st = e.student || {};
+                  const sid = st.id || e.student_id;
+                  const h = hifzByStudent[sid] || { last: null, memorized: new Set(), memorizedMonth: new Set() };
+                  const mem = h.memorized.size;
+                  const month = h.memorizedMonth.size;
+                  const ready = readyForNext(sid);
+                  return (
+                    <button key={e.id} onClick={() => openProfile(e)} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold text-stone-900 truncate">{st.name || "Student"}</p>
+                            {ready && <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 whitespace-nowrap">Ready for next</span>}
+                          </div>
+                          <p className="text-xs text-stone-500 truncate mt-0.5">
+                            {h.last ? <>{surahName(h.last.surah_number)}{ayahText(h.last)} · {fmtDate(h.last.session_date)}</> : "No Hifz logged yet"}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[11px] font-medium text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1 inline-flex items-center gap-1"><BookOpen size={12} /> Log</span>
                       </div>
-                      <span className="shrink-0 text-[11px] font-medium text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1 inline-flex items-center gap-1"><BookOpen size={12} /> Log</span>
-                    </div>
-                    <HifzBar memorized={mem} />
-                    <p className="text-[11px] text-stone-400 mt-1">{mem}/114 surahs memorised{month > 0 ? ` · +${month} this month` : ""}</p>
-                  </button>
-                );
-              })}
+                      <HifzBar memorized={mem} />
+                      <p className="text-[11px] text-stone-400 mt-1">{mem}/114 surahs memorised{month > 0 ? ` · +${month} this month` : ""}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </Section>
