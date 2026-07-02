@@ -156,6 +156,16 @@ Session AJ had already concluded "prod infra good (bucket+policies+helpers), so 
 - **Fix 2 (403):** new data-layer `canManageClassPhotos({ mosqueId, teacherStaffId })` mirrors the 080 storage RLS (owner OR the class's assigned teacher). `MadrasaPhotos` checks it on mount and **hides the upload form** for unauthorized teachers, showing a lock notice instead — fail-fast in the UI, never hit the 403. Verified 6/6 against real dev RLS (owner any class ✓, assigned teacher own class ✓, other/unassigned teacher ✗, anon ✗).
 - Build clean. **Not browser-verified** (no driver/creds) — the retry toast + form-gate want an eyes-on pass on a deployed build.
 
+### Bug 3 — Attendance "who marked the register" teacher name never displayed → **fixed** (no migration)
+`madrasa_attendance.marked_by` (uuid → `profiles(id)`, FK exists since 070) was stamped on every register mark but **no read joined it and no UI rendered it** — grep confirmed zero `marked_by`/`markedBy` references in components. Additive fix, not a broken-everywhere pattern:
+- `getClassAttendance` (`auth.js`) select now embeds `markedByProfile:profiles!marked_by(id, name)` alongside the existing `student:students(...)`.
+- `MadrasaAttendanceReport` session-history rows now append **"· by {name}"** (the marker is rolled up per session from the first row that carries a name).
+- Verified 5/5 against real dev RLS (teacher marks → both owner AND teacher read the embed and see the marker name "Ustadh Bilal"; profiles RLS permits reading the marker's profile through the embed).
+- **Scope note:** applied to the class-level attendance record (the canonical teacher/owner "attendance records" view). `getStudentAttendance` (parent child-progress / student profile) was left as-is — those surfaces don't currently show a per-session marker and the brief scoped this to attendance records; easy follow-up if wanted.
+
+### Session BD state
+3/3 bugs handled: Bug 1 refuted (no code), Bugs 2 & 3 fixed, each its own commit. Touched `src/auth.js`, `src/components/MadrasaPhotos.jsx`, `src/components/MadrasaAttendanceReport.jsx`, `NOTES.md`. `npm run build` clean. No migration (all client/data-layer). Pushed to `main`; prod eyes-on pass pending after Vercel deploys.
+
 ## Session BC — Islamic Finance (ZISWAF) module ✅ (1 July 2026)
 
 The mosque's full charitable-finance suite (admin-only): Sadaqah, Waqf, Pledges (with a live Pledge Night), Qard Hasan, Reports, and three AI features. **8 commits** (`7fe9c6f..3358ad5`, incl. the belated `3358ad5` committing the P0 schema + smoke), every `npm run build` clean. **Migration 109 green dev+prod** (parity confirmed). **Vercel still 12/12** — every AI feature folds into `admin-brief`; no new functions. Built P0–P6, each build- + browser/handler-verified before commit. **Next migration 110.**

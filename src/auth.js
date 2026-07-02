@@ -1914,7 +1914,7 @@ export async function getMadrasaAttendance(classId, sessionDate) {
 export async function getClassAttendance(classId, { from, to } = {}) {
   if (!classId) return []
   let q = supabase.from('madrasa_attendance')
-    .select('*, student:students(id, name)')
+    .select('*, student:students(id, name), markedByProfile:profiles!marked_by(id, name)')
     .eq('class_id', classId)
     .order('session_date', { ascending: true })
   if (from) q = q.gte('session_date', from)

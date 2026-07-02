@@ -63,8 +63,9 @@ const MadrasaAttendanceReport = ({ classObj }) => {
     const map = {};
     for (const a of rows) {
       const d = a.session_date;
-      const s = map[d] || (map[d] = { date: d, present: 0, late: 0, absent: 0, excused: 0 });
+      const s = map[d] || (map[d] = { date: d, present: 0, late: 0, absent: 0, excused: 0, markedBy: null });
       if (a.status in s) s[a.status] += 1;
+      if (!s.markedBy && a.markedByProfile?.name) s.markedBy = a.markedByProfile.name;
     }
     return Object.values(map).sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [rows]);
@@ -152,7 +153,7 @@ const MadrasaAttendanceReport = ({ classObj }) => {
               <li key={s.date} className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
                 <div className="min-w-0">
                   <p className="text-stone-900 font-medium">{fmtDate(s.date)}</p>
-                  <p className="text-[11px] text-stone-500">{s.present} present · {s.late} late · {s.absent} absent{s.excused > 0 ? ` · ${s.excused} excused` : ""} · {marked} marked</p>
+                  <p className="text-[11px] text-stone-500">{s.present} present · {s.late} late · {s.absent} absent{s.excused > 0 ? ` · ${s.excused} excused` : ""} · {marked} marked{s.markedBy ? ` · by ${s.markedBy}` : ""}</p>
                 </div>
                 <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${tone.pill}`}>{rate == null ? "—" : pct(rate)}</span>
               </li>
