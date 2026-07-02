@@ -142,7 +142,7 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
           </div>
           {r.gaRows.length ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="hidden md:table w-full text-sm">
                 <thead><tr className="text-left text-[10px] uppercase tracking-wider text-stone-400 border-b border-stone-100">
                   <th className="py-1.5 pr-3 font-medium">Donor</th><th className="py-1.5 pr-3 font-medium">Address</th><th className="py-1.5 pr-3 font-medium">Date</th><th className="py-1.5 pr-3 font-medium text-right">Amount</th><th className="py-1.5 font-medium text-right">Gift Aid</th>
                 </tr></thead>
@@ -158,6 +158,21 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
                   ))}
                 </tbody>
               </table>
+              {/* Mobile card list — same Gift Aid rows, no horizontal scroll */}
+              <div className="md:hidden divide-y divide-stone-50">
+                {r.gaRows.map((x, i) => (
+                  <div key={i} className="py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-stone-800 truncate">{x.donor}</p>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm text-stone-800">{money(x.amount)}</p>
+                        <p className="text-[11px] text-emerald-700">+{money(x.amount * 0.25)} GA</p>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-stone-500 mt-0.5 truncate">{x.date ? new Date(x.date).toLocaleDateString("en-GB") : "—"} · {x.address || <span className="text-amber-600">address missing</span>}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : <p className="text-sm text-stone-400">No Gift Aid–eligible donations in this period.</p>}
         </div>

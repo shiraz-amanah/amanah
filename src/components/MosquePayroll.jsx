@@ -82,7 +82,7 @@ const MosquePayroll = ({ mosqueId, mosqueName }) => {
           </div>
         ) : (
           <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="hidden md:table w-full text-sm">
               <thead className="bg-stone-50 text-left">
                 <tr>
                   <th className="px-4 py-2.5 font-semibold text-stone-700">Staff</th>
@@ -106,6 +106,25 @@ const MosquePayroll = ({ mosqueId, mosqueName }) => {
                 </tr>
               </tbody>
             </table>
+            {/* Mobile card list — same data, no horizontal scroll */}
+            <div className="md:hidden divide-y divide-stone-100">
+              {summary.map((s, i) => (
+                <div key={i} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate">{s.name}</p>
+                    <p className="text-xs text-stone-500">{s.role || "—"}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold text-stone-900 tabular-nums">{s.hours}<span className="text-xs font-normal text-stone-400"> hrs</span></p>
+                    <p className="text-[11px] text-stone-400 tabular-nums">{s.shifts} shift{s.shifts === 1 ? "" : "s"}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="px-4 py-3 bg-stone-50 flex items-center justify-between">
+                <p className="text-sm font-semibold text-stone-900">Total</p>
+                <p className="text-sm font-semibold text-stone-900 tabular-nums">{grandHours} hrs</p>
+              </div>
+            </div>
           </div>
         )}
     </div>

@@ -43,8 +43,8 @@ const ContractsOverview = ({ mosqueId, onViewStaff }) => {
     </div>
   );
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+      <table className="hidden md:table w-full text-sm">
         <thead className="bg-stone-50 text-left">
           <tr>
             <th className="px-4 py-2.5 font-semibold text-stone-700">Staff</th>
@@ -66,6 +66,18 @@ const ContractsOverview = ({ mosqueId, onViewStaff }) => {
           ))}
         </tbody>
       </table>
+      {/* Mobile card list — same contracts, no horizontal scroll */}
+      <div className="md:hidden divide-y divide-stone-100">
+        {rows.map((c) => (
+          <div key={c.id} onClick={() => c.staff_id && view(c)} className={`px-4 py-3 flex items-center justify-between gap-3 ${c.staff_id ? "cursor-pointer active:bg-stone-50" : ""}`}>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-stone-900 truncate">{c.staff?.name || "—"}</p>
+              <p className="text-xs text-stone-500 truncate">{CONTRACT_TYPE_LABEL[c.contract_type] || c.contract_type} · {(c.sent_at || c.created_at || "").slice(0, 10) || "—"}</p>
+            </div>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full border capitalize shrink-0 ${C_STATUS[c.status] || C_STATUS.draft}`}>{c.status}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
