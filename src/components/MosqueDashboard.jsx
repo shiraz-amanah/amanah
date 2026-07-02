@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Building2, HandCoins,
   ShieldCheck, CheckCircle2, AlertCircle, LogOut,
@@ -72,11 +71,6 @@ const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
 );
 
 const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
-  // When a Madrasah class is open in the content pane, its workspace owns nav —
-  // ignore sidebar clicks on Madrasah sub-items so they can't close the class
-  // (exit is via "Back to classes"). Other top-level groups still navigate away.
-  // Declared before the early return below so hook order stays stable. (Fix 2.)
-  const [classOpen, setClassOpen] = useState(false);
   if (!mosque) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -100,7 +94,6 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
   // Tab + sub + selected staff are URL-backed (?tab=&sub=&staffId=), navigated with
   // pushState so the browser Back button steps back through in-app views.
   const setTab = (newTab, newSub) => {
-    if (classOpen && newTab === "madrasah") return; // a class is open — sidebar Madrasah nav is locked
     const s = newSub !== undefined ? newSub : (newTab === activeTab ? activeSub : (SUBTABS[newTab]?.[0]?.[0] ?? ""));
     if (newTab === activeTab && (s || "") === (activeSub || "") && !staffId) return; // no-op, avoid history spam
     onNavigate?.(newTab, s || "", "");
@@ -237,7 +230,6 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
               onMosqueUpdate={onMosqueUpdate}
               sub={activeSub}
               onSubChange={(s) => setTab("madrasah", s)}
-              onClassOpenChange={setClassOpen}
             />
           )}
 

@@ -35,7 +35,7 @@ const Field = ({ label, children }) => (<div><label className={labelCls}>{label}
 const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "" };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
-const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, onClassOpenChange }) => {
+const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) => {
   const section = sub || "classes"; // active sidebar section
   const [classes, setClasses] = useState([]);
   const [counts, setCounts] = useState({});
@@ -59,13 +59,6 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, onC
   // so browser Back closes it instead of leaving the dashboard. (Section nav is
   // URL-backed via `sub`; the class drill-down is in-page `detailClass` state.)
   useOverlay(!!profileCtx, () => setProfileCtx(null));
-
-  // Tell the dashboard when a class is open in the content pane so the left
-  // sidebar can ignore Madrasah sub-item clicks (the workspace owns its own nav;
-  // exit is via "Back to classes"). Reset on unmount so leaving Madrasah re-enables
-  // the sidebar. (Fix 2.)
-  useEffect(() => { onClassOpenChange?.(!!detailClass); /* eslint-disable-next-line */ }, [detailClass]);
-  useEffect(() => () => onClassOpenChange?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the full student profile from the overview Students tab. classObj is the
   // student's enrolment class (resolved by MadrasaStudents from its classes list).
@@ -109,8 +102,11 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, onC
   };
 
   // Content-pane drill-down. Opening a class shows it in the content pane under the
-  // Classes section (the workspace owns its own tabs). It stays open until Back is
-  // pressed; navigating to another sidebar section closes it (effect below).
+  // Classes section (the workspace owns its own tabs). `detailClass` is REMEMBERED
+  // across sidebar section changes: navigating to All students / Analytics / Reports
+  // hides the workspace (it only renders under section === "classes") but keeps the
+  // class in state, so clicking Classes lands the user back in the class they were
+  // in. Only "Back to classes" (closeClass) fully clears the context.
   const openClass = (idOrObj) => {
     const c = typeof idOrObj === "string" ? (classes.find((x) => x.id === idOrObj) || null) : idOrObj;
     if (!c) return;
@@ -118,11 +114,6 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, onC
     if (section !== "classes") onSubChange?.("classes"); // drill-down lives under Classes
   };
   const closeClass = () => setDetailClass(null);
-
-  // Leaving the Classes section (via the sidebar) exits any open class so the
-  // section's own content shows. Returning to Classes lands on the list, not the
-  // stale class. The drill-down only ever renders under section === "classes".
-  useEffect(() => { if (section !== "classes") setDetailClass(null); }, [section]);
 
   // Schedule row editor
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
