@@ -208,12 +208,30 @@ const MadrasaReportsCenter = ({ classes = [], mosqueId, mosqueName, onBack }) =>
           </div>
           {preview.rows.length === 0 ? <p className="text-sm text-stone-400 py-4">No data for this selection.</p> : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="hidden md:table w-full text-xs">
                 <thead><tr className="text-left text-stone-500 border-b border-stone-200">{preview.columns.map((c, i) => <th key={i} className="py-1.5 pr-3 font-medium whitespace-nowrap">{c.label}</th>)}</tr></thead>
                 <tbody>{preview.rows.slice(0, 200).map((row, ri) => (
                   <tr key={ri} className="border-b border-stone-50">{preview.columns.map((c, ci) => <td key={ci} className="py-1.5 pr-3 text-stone-700 whitespace-nowrap">{typeof c.get === "function" ? c.get(row) : row[c.key]}</td>)}</tr>
                 ))}</tbody>
               </table>
+              {/* Mobile — one card per row; first column is the title, rest are label:value */}
+              <div className="md:hidden divide-y divide-stone-100">
+                {preview.rows.slice(0, 200).map((row, ri) => {
+                  const val = (c) => (typeof c.get === "function" ? c.get(row) : row[c.key]);
+                  return (
+                    <div key={ri} className="py-2.5">
+                      <p className="text-sm font-medium text-stone-800">{val(preview.columns[0])}</p>
+                      {preview.columns.length > 1 && (
+                        <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                          {preview.columns.slice(1).map((c, ci) => (
+                            <p key={ci} className="text-[11px] text-stone-600"><span className="text-stone-400">{c.label}:</span> {val(c)}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
               {preview.rows.length > 200 && <p className="text-[11px] text-stone-400 mt-2">Showing first 200 of {preview.rows.length} — export for the full set.</p>}
             </div>
           )}

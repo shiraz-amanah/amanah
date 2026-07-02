@@ -121,8 +121,8 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
           {rows && (
             <div className="space-y-2">
               <p className="text-sm text-stone-700">{validRows.length} valid · {invalidRows.length} will be skipped (missing name/role)</p>
-              <div className="overflow-x-auto border border-stone-100 rounded-lg">
-                <table className="w-full text-xs">
+              <div className="border border-stone-100 rounded-lg overflow-hidden">
+                <table className="hidden md:table w-full text-xs">
                   <thead className="bg-stone-50 text-stone-500"><tr><th className="text-left px-2 py-1.5">Name</th><th className="text-left px-2 py-1.5">Role</th><th className="text-left px-2 py-1.5">Email</th><th className="text-left px-2 py-1.5">Type</th></tr></thead>
                   <tbody>
                     {rows.slice(0, 5).map((r, i) => (
@@ -135,6 +135,18 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
                     ))}
                   </tbody>
                 </table>
+                {/* Mobile — one card per preview row */}
+                <div className="md:hidden divide-y divide-stone-100">
+                  {rows.slice(0, 5).map((r, i) => (
+                    <div key={i} className={`px-3 py-2 ${valid(r) ? "" : "bg-rose-50"}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-stone-800">{r.name || <span className="text-rose-600">— missing name</span>}</p>
+                        <span className="text-[11px] text-stone-500 shrink-0">{r.staff_type}</span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 truncate">{r.role || <span className="text-rose-600">missing role</span>}{r.email ? ` · ${r.email}` : ""}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
               {rows.length > 5 && <p className="text-xs text-stone-400">+ {rows.length - 5} more rows</p>}
               <button onClick={doImport} disabled={importing || validRows.length === 0} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Import {validRows.length} staff</button>

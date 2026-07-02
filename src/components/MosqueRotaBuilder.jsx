@@ -93,7 +93,7 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
       {msg && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {msg}</p>}
 
       {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div> : (
-        <div className="overflow-x-auto border border-stone-200 rounded-xl">
+        <><div className="hidden md:block overflow-x-auto border border-stone-200 rounded-xl">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-stone-50">
@@ -118,6 +118,25 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
             </tbody>
           </table>
         </div>
+        {/* Mobile — one card per day, slots stacked (no horizontal scroll) */}
+        <div className="md:hidden space-y-3">
+          {DAYS.map(([day, dayL]) => (
+            <div key={day} className="border border-stone-200 rounded-xl p-3">
+              <p className="text-xs uppercase tracking-wider text-stone-500 font-medium mb-2">{dayL}</p>
+              <div className="space-y-1.5">
+                {SLOTS.map(([slot, slotL]) => (
+                  <label key={slot} className="flex items-center gap-2">
+                    <span className="text-xs text-stone-600 w-20 shrink-0">{slotL}</span>
+                    <select value={slots[day]?.[slot] || ""} onChange={(e) => setCell(day, slot, e.target.value)} className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-stone-200 focus:border-emerald-600 outline-none bg-white">
+                      <option value="">—</option>
+                      {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div></>
       )}
       {staff.length === 0 && !loading && <p className="text-xs text-stone-500">Add staff first to assign them to rota slots.</p>}
     </div>

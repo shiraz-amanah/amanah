@@ -154,6 +154,16 @@ Four targeted fixes, pure frontend, no migration. **Phased into 2 commits** (Fix
 
 **Parked (from Session BF, still open):** bulk Hifz log, dark mode, swipe-to-mark attendance.
 
+## Session BH — Platform-wide mobile responsive pass (2 July 2026)
+
+**Audit (Playwright @ 390px, ~70 surfaces across 4 roles + public).** Result: platform is in **strong mobile shape** — no Critical issues (no page-overflow, unreachable controls, or unreadable text) on public pages, all 35 mosque-owner sidebar sections, the 7-tab Madrasah workspace + More sheet + card grid + heatmap, 8 scholar tabs, 8 parent tabs, 8 admin sections. Overflow detector (`scrollWidth > 390`) flagged only: homepage (394, 4px decorative hero bleed — left as-is) and the class Timetable (`min-w-[640px]` in `overflow-x-auto` — by-design weekly-grid scroll, left as-is). **Caveat honestly logged:** most data surfaces were empty in dev, so data-table overflow was assessed statically (which raw `<table>` collapses vs scrolls vs compresses).
+
+**Fix (Option B — collapse tables to responsive cards; `hidden md:table` + `md:hidden` card list of the same data). No migration.** Two phases:
+- **Phase 1 `87204a1`** (Playwright 0/4 overflow @390px, seeded data; Payroll + editable Ramadan cards visually confirmed): **MosquePayroll** (name/role + hrs/shifts + Total), **MosqueRamadanEditor** (per-day card, 3 editable time inputs in a 3-col grid), **MosqueHR** (contract cards, tap-to-view), **FinanceReports** (Gift Aid rows → cards).
+- **Phase 2 `<this>`** (0/3 overflow; Rota + Safeguarding recruitment visually confirmed): **MosqueRotaBuilder** (2D slot×day grid → per-day cards with stacked slot selects), **MosqueSafeguarding** (recruitment matrix → per-staff cards with toggle chips), **MadrasaReportsCenter** (generic report preview → per-row label:value cards), **MosqueBulkImport** + **MadrasaImportStudents** (CSV-preview modals → per-row cards). _ReportsCenter + the 2 modals are build-clean + code-reviewed but not visually confirmed — their previews need generated data / a CSV upload that couldn't be triggered headlessly; same low-risk pattern as the confirmed ones._
+
+**Left as-is (Minor, per plan):** homepage 4px decorative bleed; class Timetable weekly-grid horizontal scroll (by-design).
+
 ## Session BF — Madrasah class workspace → 5-tab intelligent teaching workspace (2 July 2026)
 
 Phased UX upgrade replacing the 14-item horizontal tab bar in `MadrasaClassWorkspace.jsx` with 5 tabs (**Today · Students · Hifz · Work · Class**), a smart header, and a mobile bottom nav. **Pure frontend, no migrations.** Decisions locked: phased P1–P5 commits; no recharts (SVG/flex bars in P4); bulk-Hifz **skipped** (pedagogically wrong to mark all students identical — future enhancement); AI class brief **in P5** (`class_ops` mode in `admin-brief`); Class tab stays one scrollable page.

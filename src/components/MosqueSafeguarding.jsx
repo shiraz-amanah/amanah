@@ -256,8 +256,8 @@ const MosqueSafeguarding = ({ mosqueId }) => {
 
         {sub === "recruitment" && (
           staff.length === 0 ? <p className="text-sm text-stone-500">No staff yet.</p> : (
-          <div className="bg-white border border-stone-200 rounded-2xl overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+            <table className="hidden md:table w-full text-sm">
               <thead><tr className="bg-stone-50 text-left"><th className="px-3 py-2 text-xs uppercase tracking-wider text-stone-500 font-medium sticky left-0 bg-stone-50">Staff</th>{RECRUIT_FIELDS.map(([, l]) => <th key={l} className="px-2 py-2 text-[11px] text-stone-500 font-medium text-center">{l}</th>)}</tr></thead>
               <tbody>{staff.map((s) => { const r = recById[s.id] || {}; return (
                 <tr key={s.id} className="border-t border-stone-100">
@@ -270,6 +270,21 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                 </tr>
               ); })}</tbody>
             </table>
+            {/* Mobile — one card per staff, recruitment checks as toggle chips */}
+            <div className="md:hidden divide-y divide-stone-100">
+              {staff.map((s) => { const r = recById[s.id] || {}; return (
+                <div key={s.id} className="px-4 py-3">
+                  <p className="text-sm font-medium text-stone-700 mb-2">{s.name}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {RECRUIT_FIELDS.map(([k, l]) => (
+                      <button key={k} onClick={() => toggleRecruit(s.id, k)} className={`text-[11px] px-2 py-1 rounded-full border inline-flex items-center gap-1 ${r[k] ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-500"}`}>
+                        {r[k] && <Check size={11} />} {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ); })}
+            </div>
           </div>
           )
         )}

@@ -175,7 +175,7 @@ const MadrasaImportStudents = ({ mosqueId, classes = [], onClose, onDone }) => {
 
               <div className="border border-stone-200 rounded-xl overflow-hidden">
                 <div className="max-h-[44vh] overflow-y-auto">
-                  <table className="w-full text-xs">
+                  <table className="hidden md:table w-full text-xs">
                     <thead className="bg-stone-50 text-stone-500 sticky top-0">
                       <tr className="text-left">
                         <th className="px-3 py-2 font-medium">Row</th><th className="px-3 py-2 font-medium">Child</th>
@@ -202,6 +202,24 @@ const MadrasaImportStudents = ({ mosqueId, classes = [], onClose, onDone }) => {
                       })}
                     </tbody>
                   </table>
+                  {/* Mobile — one card per CSV row */}
+                  <div className="md:hidden divide-y divide-stone-100">
+                    {rows.map((r) => {
+                      const ok = r.errors.length === 0;
+                      return (
+                        <div key={r.rowNum} className={`px-3 py-2 ${ok ? "bg-emerald-50/40" : "bg-rose-50/50"}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-stone-800 truncate"><span className="text-stone-400">#{r.rowNum}</span> {r.name || <span className="text-stone-400">—</span>}</p>
+                            {ok
+                              ? <span className="text-[11px] text-emerald-700 inline-flex items-center gap-1 shrink-0"><CheckCircle2 size={11} /> Ready</span>
+                              : <span className="text-[11px] text-rose-700 inline-flex items-center gap-1 shrink-0"><AlertTriangle size={11} /> Error</span>}
+                          </div>
+                          <p className="text-[11px] text-stone-500 truncate">{r.dobIso || "—"} · {r.email || "—"} · {r.classLabel}</p>
+                          {!ok && <p className="text-[11px] text-rose-700 mt-0.5">{r.errors.join("; ")}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
