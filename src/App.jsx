@@ -43,6 +43,7 @@ import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
 import AdminSidebar from "./components/AdminSidebar";
 import ScholarSidebar from "./components/ScholarSidebar";
+import UserSidebar from "./components/UserSidebar";
 import MosqueStaffPortal from "./components/MosqueStaffPortal";
 import MosqueStaffOnboard from "./components/MosqueStaffOnboard";
 import ContractSign from "./pages/ContractSign";
@@ -7897,7 +7898,7 @@ setBookings(transformed);
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <button onClick={onPublic} className="flex items-center gap-2.5 md:gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
             <div className="text-left">
@@ -7908,38 +7909,21 @@ setBookings(transformed);
           <div className="flex items-center gap-2">
             <NotificationBell userId={profile?.id} onNavigate={(n) => (onNotificationNavigate || setTab)(n.type === "message" ? "messages" : "madrasa")} />
             <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700", avatarUrl: user.avatarUrl, name: user.name }} size="sm" />
-            <button onClick={onLogout} className="text-sm text-stone-600 hover:text-stone-900 p-2"><LogOut size={15} /></button>
           </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
-          {[
-            { v: "bookings", l: "Bookings", i: Calendar, badge: upcomingBookings.length },
-            ...(hasMadrasa ? [{ v: "madrasa", l: "Madrasah", i: GraduationCap, badge: null }] : []),
-            ...(hasCommunity ? [{ v: "community", l: "Community", i: HeartHandshake, badge: null }] : []),
-            { v: "donations", l: "My giving", i: HandCoins, badge: null },
-            { v: "saved", l: "My scholars", i: Heart, badge: savedScholars.length },
-            { v: "mosques", l: "My Mosques", i: Building2, badge: savedMosqueIds?.size || 0 },
-            { v: "messages", l: "Messages", i: MessageCircle, badge: isDemo ? 2 : 0 },
-            { v: "account", l: "Account", i: Settings, badge: null }
-          ].map(t => {
-            const Icon = t.i;
-            const isActive = tab === t.v;
-            return (
-              <button
-                key={t.v}
-                onClick={() => setTab(t.v)}
-                className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
-              >
-                <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l} {t.badge > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>}</span>
-              </button>
-            );
-          })}
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-5 md:px-6 py-6 md:py-8">
+      <div className="max-w-6xl mx-auto px-5 md:px-6 py-6 md:py-8 flex flex-col md:flex-row gap-6">
+        <UserSidebar
+          active={tab}
+          onSelect={setTab}
+          onLogout={onLogout}
+          userName={user.name}
+          hasMadrasa={hasMadrasa}
+          hasCommunity={hasCommunity}
+          counts={{ bookings: upcomingBookings.length, saved: savedScholars.length, mosques: savedMosqueIds?.size || 0, messages: isDemo ? 2 : 0 }}
+        />
+        <main className="flex-1 min-w-0">
         {staffMembership?.mosque && onStaffPortal && (
           <button
             onClick={onStaffPortal}
@@ -8716,6 +8700,7 @@ setBookings(transformed);
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 };
