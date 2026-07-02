@@ -115,6 +115,12 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
   };
   const closeClass = () => setDetailClass(null);
 
+  // The "All students" student profile (profileCtx) renders ahead of any section,
+  // so it must be cleared when the sidebar section changes — otherwise clicking
+  // Classes/Analytics/Reports leaves you stuck on the profile (Bug 1). Unlike
+  // detailClass (remembered & restored), the All-students profile is *left* on nav.
+  useEffect(() => { setProfileCtx(null); }, [section]);
+
   // Schedule row editor
   const addSlot = () => set("schedule", [...form.schedule, { day: "Monday", start: "", end: "" }]);
   const setSlot = (i, k, v) => set("schedule", form.schedule.map((s, idx) => idx === i ? { ...s, [k]: v } : s));
