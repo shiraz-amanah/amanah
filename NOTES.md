@@ -136,6 +136,20 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 
 ---
 
+## Session BG — Madrasah workspace fixes: tab split · sidebar lock · label · profile menu (2 July 2026)
+
+Four targeted fixes, pure frontend, no migration. **Phased into 2 commits** (Fix 2 was a genuine multi-file nav change). Every fix **reproduced/verified in the browser** (Playwright on dev) before committing.
+
+**Commit A `5f51cf9` — Fixes 1 + 3 + 4** (Playwright 18/18):
+- **Fix 1 — Work → 3 tabs.** Replaced the single "Work" tab with **Homework · Reports · Attendance** (7 tabs total). Each shows only its component; the 8-week `AttendanceTrend` chart moved to the top of the Attendance tab. **Mobile:** bottom bar is now **5 (Today·Students·Hifz·Class·More)** + a **More sheet** (Homework·Reports·Attendance) — owner-chosen over 7-cramped/icon-only. Header contextual-stat + bottom nav derive from `TABS`/`MOBILE_PRIMARY`.
+- **Fix 3 — sidebar label.** `MosqueSidebar` MOSQUE_NAV Madrasah sub-item **"Students" → "All students"** (value unchanged → no URL/sessionStorage reset). Disambiguates from the class-level Students tab.
+- **Fix 4 — profile 3-dot menu backdrop.** Root cause (found by browser repro, not guessed): the menu's `fixed inset-0 z-10` backdrop covered the **whole viewport incl. the sidebar**, so a sidebar click hit the backdrop. `elementFromPoint` at a sidebar coord returned the backdrop div. **Fix:** replaced the backdrop with a `document` mousedown click-outside listener (ref'd menu) — no overlay, sidebar stays clickable (one click closes the menu AND navigates). _Honest note: the generic "sidebar never works in a profile" did NOT reproduce — the sidebar is fine when the menu is closed; the bug is specifically the open-menu backdrop._
+
+**Commit B `<this>` — Fix 2** (Playwright 10/10):
+- **Sidebar shouldn't close an open class.** Reproduced: with a class open, clicking sidebar "All students"/"Analytics" changed `sub` and unmounted the workspace (render gate is `section==="classes" && detailClass`, and `section` comes from the sidebar via `setTab`→`onNavigate`). **Fix (3 files):** `MosqueMadrasa` reports class-open up via a new `onClassOpenChange` prop (effect on `detailClass`, reset on unmount); `MosqueDashboard` tracks `classOpen` and **`setTab` ignores `newTab==="madrasah"` while a class is open** — so Madrasah sub-clicks are inert and `sub=classes` (hence "Classes" highlight) is preserved. Exit stays via **"Back to classes"**; other top-level groups still navigate away (lock resets on `MosqueMadrasa` unmount, so Madrasah is re-enterable). _Gotcha found: `MosqueDashboard` had no React import (pure prop-driven) — added `useState`, and placed it above the `if (!mosque)` early return to keep hook order stable._
+
+**Parked (from Session BF, still open):** bulk Hifz log, dark mode, swipe-to-mark attendance.
+
 ## Session BF — Madrasah class workspace → 5-tab intelligent teaching workspace (2 July 2026)
 
 Phased UX upgrade replacing the 14-item horizontal tab bar in `MadrasaClassWorkspace.jsx` with 5 tabs (**Today · Students · Hifz · Work · Class**), a smart header, and a mobile bottom nav. **Pure frontend, no migrations.** Decisions locked: phased P1–P5 commits; no recharts (SVG/flex bars in P4); bulk-Hifz **skipped** (pedagogically wrong to mark all students identical — future enhancement); AI class brief **in P5** (`class_ops` mode in `admin-brief`); Class tab stays one scrollable page.

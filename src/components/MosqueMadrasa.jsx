@@ -35,7 +35,7 @@ const Field = ({ label, children }) => (<div><label className={labelCls}>{label}
 const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "" };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
-const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) => {
+const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, onClassOpenChange }) => {
   const section = sub || "classes"; // active sidebar section
   const [classes, setClasses] = useState([]);
   const [counts, setCounts] = useState({});
@@ -59,6 +59,13 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
   // so browser Back closes it instead of leaving the dashboard. (Section nav is
   // URL-backed via `sub`; the class drill-down is in-page `detailClass` state.)
   useOverlay(!!profileCtx, () => setProfileCtx(null));
+
+  // Tell the dashboard when a class is open in the content pane so the left
+  // sidebar can ignore Madrasah sub-item clicks (the workspace owns its own nav;
+  // exit is via "Back to classes"). Reset on unmount so leaving Madrasah re-enables
+  // the sidebar. (Fix 2.)
+  useEffect(() => { onClassOpenChange?.(!!detailClass); /* eslint-disable-next-line */ }, [detailClass]);
+  useEffect(() => () => onClassOpenChange?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the full student profile from the overview Students tab. classObj is the
   // student's enrolment class (resolved by MadrasaStudents from its classes list).
