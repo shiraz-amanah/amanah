@@ -149,6 +149,39 @@ const ClassHifzHeatmap = ({ roster, statusByStudent }) => (
   </div>
 );
 
+// 8-week class attendance trend — pure CSS/flex bars, no chart library.
+const barTone = (r) => r == null ? "bg-stone-200" : r >= 90 ? "bg-emerald-500" : r >= 75 ? "bg-amber-400" : "bg-rose-500";
+const wLabel = (ts) => new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const AttendanceTrend = ({ data }) => {
+  const rated = data.filter((d) => d.rate != null);
+  const avg = rated.length ? Math.round(rated.reduce((s, d) => s + d.rate, 0) / rated.length) : null;
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><BarChart3 size={15} className="text-sky-700" /> Attendance — last 8 weeks</p>
+        {avg != null && <span className="text-[11px] text-stone-500">{avg}% avg</span>}
+      </div>
+      {rated.length === 0 ? (
+        <p className="text-sm text-stone-400 py-8 text-center">No attendance recorded in the last 8 weeks.</p>
+      ) : (
+        <>
+          <div className="flex items-end gap-1.5 sm:gap-2 h-40 mt-3">
+            {data.map((d) => (
+              <div key={d.monday} className="flex-1 h-full flex flex-col justify-end items-center gap-1" title={`Week of ${wLabel(d.monday)} — ${d.rate == null ? "no sessions" : d.rate + "%"}`}>
+                <span className="text-[10px] font-medium text-stone-500">{d.rate == null ? "" : `${d.rate}%`}</span>
+                <div className={`w-full rounded-t-md ${barTone(d.rate)}`} style={{ height: `${d.rate == null ? 2 : Math.max(2, d.rate)}%` }} />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-1.5 sm:gap-2 mt-1.5">
+            {data.map((d) => <span key={d.monday} className="flex-1 text-center text-[9px] text-stone-400">{wLabel(d.monday)}</span>)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 // Subtle octagram watermark (reused from the parent Hifz hero) — stone strokes for white cards.
 const CardWatermark = ({ id }) => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
@@ -267,6 +300,25 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     return counted > 0 ? Math.round(((s.present + s.late) / counted) * 100) : null;
   };
   const absentTodaySet = useMemo(() => new Set((todayAtt || []).filter((a) => a.status === "absent").map((a) => a.student_id)), [todayAtt]);
+
+  // 8-week weekly class attendance rate for the Work-tab trend chart. Monday-based
+  // buckets; excused excluded from the denominator (same as the report). Oldest → newest.
+  const weeklyTrend = useMemo(() => {
+    const DAY = 864e5;
+    const mondayOf = (d) => { const x = new Date(typeof d === "string" ? d + "T00:00:00" : d); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); x.setHours(0, 0, 0, 0); return x.getTime(); };
+    const thisMonday = mondayOf(new Date());
+    const buckets = Array.from({ length: 8 }, () => ({ present: 0, counted: 0 }));
+    for (const a of classAtt) {
+      const idx = Math.round((thisMonday - mondayOf(a.session_date)) / (7 * DAY));
+      if (idx < 0 || idx >= 8) continue;
+      const b = buckets[idx];
+      if (a.status === "present" || a.status === "late") { b.present += 1; b.counted += 1; }
+      else if (a.status === "absent") { b.counted += 1; }
+    }
+    return buckets
+      .map((b, idx) => ({ rate: b.counted ? Math.round((b.present / b.counted) * 100) : null, monday: thisMonday - idx * 7 * DAY }))
+      .reverse();
+  }, [classAtt]);
   // Kept above the early return below so hook order is stable when a profile opens.
   const memorizedTotal = useMemo(() => {
     let sum = 0;
@@ -475,7 +527,12 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <div className="space-y-8">
           <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted"><MadrasaHomework classObj={classObj} /></Section>
           <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish"><MadrasaReports classObj={classObj} mosqueName={mosqueName} /></Section>
-          <Section icon={BarChart3} title="Attendance trends" subtitle="Per-student attendance rates and session history — lowest first so gaps surface" accent="text-sky-700"><MadrasaAttendanceReport classObj={classObj} /></Section>
+          <Section icon={BarChart3} title="Attendance trends" subtitle="Weekly class rate over the last 8 weeks, then per-student rates and session history" accent="text-sky-700">
+            <div className="space-y-4">
+              <AttendanceTrend data={weeklyTrend} />
+              <MadrasaAttendanceReport classObj={classObj} />
+            </div>
+          </Section>
         </div>
       )}
 
