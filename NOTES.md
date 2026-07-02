@@ -136,6 +136,18 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 
 ---
 
+## Session BF — Madrasah class workspace → 5-tab intelligent teaching workspace (2 July 2026)
+
+Phased UX upgrade replacing the 14-item horizontal tab bar in `MadrasaClassWorkspace.jsx` with 5 tabs (**Today · Students · Hifz · Work · Class**), a smart header, and a mobile bottom nav. **Pure frontend, no migrations.** Decisions locked: phased P1–P5 commits; no recharts (SVG/flex bars in P4); bulk-Hifz **skipped** (pedagogically wrong to mark all students identical — future enhancement); AI class brief **in P5** (`class_ops` mode in `admin-brief`); Class tab stays one scrollable page.
+
+### P1 — structure + smart header + mobile bottom nav + regroup (SHIPPED)
+- **5 tabs** replace 14. Mapping: Today = LiveLesson(compact) + Attendance; Students = existing roster list; Hifz = existing per-student cards; Work = Homework + Reports + AttendanceReport (one scroll); Class = Announcements + Behaviour/Rewards (side-by-side) + Photos + Certificates + Waitlist + Timetable (one scroll). Every underlying component unchanged — remounted only.
+- **Smart header** replaces the 3 stat tiles: class name + meta (subject · teacher · room · schedule) + per-tab contextual stat (Today = "X/Y present today · %" or "Register not taken yet"; Students = count/capacity; Hifz = class avg %) + pulsing **LIVE badge** (polls `getActiveMadrasaSession` every 30s).
+- **Duplicate-header fix (caught by Playwright):** both callers (`MosqueMadrasa` drill-down + `MosqueStaffPortal`) rendered their own class name `<h2>` + meta before the workspace. Promoted that into the smart header and **removed the redundant block from both callers** (kept their Back links). Added `room` to the workspace meta so nothing was lost.
+- **Mobile:** fixed bottom nav (`< md`, `nav.fixed.bottom-0`, emerald active, icon+label) + `pb-20` content padding; desktop keeps the top tab bar (`md:` only).
+- **Verified:** `npm run build` clean + **Playwright 18/18** on dev (seeded owner/class/2 students) — 5 tabs present + render without error, single class-name (no dup header), Today stat, roster lists, mobile bottom nav visible, desktop bar hidden on mobile.
+- **Deferred to later phases:** Students card grid + attendance rings (P2), Hifz class heatmap + read-only (P3), Work 8-week SVG trend chart (P4), AI `class_ops` brief + welfare/"ready to progress" flags (P5), class settings form (folds into Class tab, later phase). **Mobile note:** the workspace bottom nav coexists with the existing mosque section nav strips at the top — acceptable per brief; revisit if it feels heavy.
+
 ## Session BE — Student profile gaps: Photos tab · avatar upload · mobile tab bar (2 July 2026)
 
 Three targeted gaps in `MadrasaStudentProfile.jsx`, no architectural changes. **Migration 110** (student photo). Verified 10/10 by `smoke-madrasa-student-photo.mjs` against real dev RLS + storage. Build clean. **Not browser-verified** (no driver/creds — node smoke is the correctness gate). Next migration 111.

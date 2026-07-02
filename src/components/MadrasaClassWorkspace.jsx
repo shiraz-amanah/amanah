@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
   ChevronRight, Megaphone, Video, GraduationCap, Award, Image, CalendarClock, ShieldAlert, BarChart3, ScrollText, Hourglass,
+  ClipboardList, Layers, Settings, Radio,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -35,24 +36,28 @@ const MS_30D = 30 * 24 * 60 * 60 * 1000;
 const fmtDate = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
 const ayahText = (h) => h?.ayah_from ? ` · ayah ${h.ayah_from}${h.ayah_to && h.ayah_to !== h.ayah_from ? `–${h.ayah_to}` : ""}` : "";
 
-// The class tabs — single source of truth for the workspace's own tab bar.
+// The 5-tab intelligent teaching workspace (Session BF). Each tab groups what a
+// teacher reaches for together; every underlying component is unchanged, just
+// remounted here. Today = register + live lesson; Work = homework + reports +
+// attendance trends; Class = all management/housekeeping in one scroll.
 const TABS = [
-  ["register", "Register", CalendarCheck],
+  ["today", "Today", ClipboardList],
   ["students", "Students", Users],
-  ["hifz", "Hifz", GraduationCap],
-  ["homework", "Homework", BookOpen],
-  ["reports", "Reports", FileText],
-  ["attendance", "Attendance", BarChart3],
-  ["behaviour", "Behaviour", ShieldAlert],
-  ["timetable", "Timetable", CalendarClock],
-  // Previously grouped under "More" — now each is a first-class sidebar item.
-  ["announcements", "Announcements", Megaphone],
-  ["rewards", "Rewards", Award],
-  ["photos", "Photos", Image],
-  ["certificates", "Certificates", ScrollText],
-  ["waitlist", "Waiting list", Hourglass],
-  ["livelesson", "Live lesson", Video],
+  ["hifz", "Hifz", BookOpen],
+  ["work", "Work", Layers],
+  ["class", "Class", Settings],
 ];
+const todayStr = () => new Date().toISOString().slice(0, 10);
+// madrasa_classes.schedule is [{ day, start, end }] — render a compact summary.
+const DAY_ABBR = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+const fmtSchedule = (schedule) => {
+  const arr = Array.isArray(schedule) ? schedule : [];
+  if (arr.length === 0) return null;
+  return arr.map((s) => {
+    const day = DAY_ABBR[String(s.day || "").toLowerCase()] || s.day;
+    return [day, [s.start, s.end].filter(Boolean).join("–")].filter(Boolean).join(" ");
+  }).filter(Boolean).join(" · ");
+};
 
 const Section = ({ icon: Icon, title, subtitle, accent = "text-emerald-700", children }) => (
   <section className="scroll-mt-4">
@@ -67,12 +72,6 @@ const Section = ({ icon: Icon, title, subtitle, accent = "text-emerald-700", chi
   </section>
 );
 
-const StatCard = ({ label, value }) => (
-  <div className="bg-white border border-stone-200 rounded-xl px-4 py-3">
-    <p className="text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-0.5">{label}</p>
-    <p className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
-  </div>
-);
 const HifzBar = ({ memorized }) => (
   <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden mt-1.5" title={`${memorized}/114 surahs`}>
     <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, Math.round((memorized / 114) * 100))}%` }} />
@@ -88,8 +87,10 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [loading, setLoading] = useState(true);
   const [hifzLoading, setHifzLoading] = useState(true);
   const [showBulk, setShowBulk] = useState(false);
-  const [tab, setTab] = useState("register");
+  const [tab, setTab] = useState("today");
   const [profileEnrollment, setProfileEnrollment] = useState(null); // Layer 3 student profile
+  const [liveSession, setLiveSession] = useState(null); // header LIVE badge
+  const [todayAtt, setTodayAtt] = useState(null);        // today's saved marks → header stat
 
   const reload = () => {
     setLoading(true); setHifzLoading(true);
@@ -103,6 +104,18 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       .finally(() => setHifzLoading(false));
   };
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [classObj.id]);
+
+  // Live-session badge for the header — poll lightly (promotes MadrasaLiveLesson's
+  // existing state to the workspace header). Today's saved marks power the Today
+  // contextual stat.
+  useEffect(() => {
+    let alive = true;
+    const check = () => getActiveMadrasaSession(classObj.id).then((s) => { if (alive) setLiveSession(s); }).catch(() => {});
+    check();
+    const t = setInterval(check, 30000);
+    getMadrasaAttendance(classObj.id, todayStr()).then((a) => { if (alive) setTodayAtt(a || []); }).catch(() => { if (alive) setTodayAtt([]); });
+    return () => { alive = false; clearInterval(t); };
+  }, [classObj.id]);
 
   // Open the full student profile (Layer 3). Always return to the Students tab.
   const openProfile = (e) => { setTab("students"); setProfileEnrollment(e); };
@@ -144,30 +157,60 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
 
   const studentsTitle = `${activeRoster.length} ${activeRoster.length === 1 ? "Student" : "Students"}`;
 
+  // ---- Smart header: meta line + per-tab contextual stat (workspace data only) ----
+  const memorizedTotal = useMemo(() => {
+    let sum = 0;
+    for (const sid in hifzByStudent) sum += hifzByStudent[sid].memorized.size;
+    return sum;
+  }, [hifzByStudent]);
+  const classAvgPct = activeRoster.length ? Math.round((memorizedTotal / (activeRoster.length * 114)) * 100) : 0;
+  const todayPresent = (todayAtt || []).filter((a) => a.status === "present" || a.status === "late").length;
+  const headerStat = () => {
+    if (tab === "today") {
+      if (todayAtt == null) return "…";
+      if (todayAtt.length === 0) return "Register not taken yet";
+      return `${todayPresent}/${activeRoster.length} present today · ${activeRoster.length ? Math.round((todayPresent / activeRoster.length) * 100) : 0}%`;
+    }
+    if (tab === "students") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"}${classObj.capacity != null ? ` · ${activeRoster.length}/${classObj.capacity} capacity` : ""}${withdrawn > 0 ? ` · ${withdrawn} withdrawn` : ""}`;
+    if (tab === "hifz") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"} · ${classAvgPct}% class average`;
+    if (tab === "work") return "Homework · Reports · Attendance trends";
+    return "Announcements · Behaviour · Photos · Timetable";
+  };
+  const metaBits = [(classObj.subject || "").replace(/_/g, " "), classObj.teacher?.name, classObj.room, fmtSchedule(classObj.schedule)].filter(Boolean);
+
   return (
-    <div className="space-y-6">
-      {/* Quick stats (header) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Students" value={loading ? "—" : activeRoster.length} />
-        {classObj.capacity != null && <StatCard label="Capacity" value={loading ? "—" : `${activeRoster.length}/${classObj.capacity}`} />}
-        {withdrawn > 0 && <StatCard label="Withdrawn" value={withdrawn} />}
-        <StatCard label="Subject" value={(classObj.subject || "—").replace(/_/g, " ")} />
-      </div>
-
-      {/* Tab bar + optional bulk-message action (right-aligned). */}
-      <div className="border-b border-stone-200 flex items-end justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 overflow-x-auto scrollbar-hide -mb-px min-w-0 flex-1">
-          {TABS.map(([v, l, Icon]) => (
-            <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
-          ))}
+    <div className="pb-20 md:pb-0">
+      {/* Smart header (replaces the stat tiles) */}
+      <div className="mb-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{classObj.name || "Class"}</h2>
+              {liveSession && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700">
+                  <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600" /></span> LIVE
+                </span>
+              )}
+            </div>
+            {metaBits.length > 0 && <p className="text-sm text-stone-500 mt-1 capitalize">{metaBits.join(" · ")}</p>}
+            <p className="text-sm font-medium text-emerald-800 mt-1.5">{headerStat()}</p>
+          </div>
+          {onMessageParent && (
+            <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 shrink-0"><MessageCircle size={14} /> Message all parents</button>
+          )}
         </div>
-        {onMessageParent && (
-          <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="mb-2 text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
-        )}
       </div>
 
-      {/* REGISTER — today's attendance (default) + live-lesson entry point (Session AV) */}
-      {tab === "register" && (
+      {/* Desktop tab bar (md+); mobile uses the fixed bottom nav below */}
+      <div className="hidden md:flex border-b border-stone-200 gap-1 mb-6">
+        {TABS.map(([v, l, Icon]) => (
+          <button key={v} onClick={() => setTab(v)} className={`px-4 py-2.5 text-sm font-medium border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
+        ))}
+      </div>
+
+      <div className="space-y-6">
+      {/* TODAY — register + live lesson */}
+      {tab === "today" && (
         <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
           <div className="space-y-4">
             <MadrasaLiveLesson classObj={classObj} compact />
@@ -245,60 +288,40 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         </Section>
       )}
 
-      {/* HOMEWORK */}
-      {tab === "homework" && (
-        <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted">
-          <MadrasaHomework classObj={classObj} />
-        </Section>
+      {/* WORK — homework · reports · attendance trends (one scroll) */}
+      {tab === "work" && (
+        <div className="space-y-8">
+          <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted"><MadrasaHomework classObj={classObj} /></Section>
+          <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish"><MadrasaReports classObj={classObj} mosqueName={mosqueName} /></Section>
+          <Section icon={BarChart3} title="Attendance trends" subtitle="Per-student attendance rates and session history — lowest first so gaps surface" accent="text-sky-700"><MadrasaAttendanceReport classObj={classObj} /></Section>
+        </div>
       )}
 
-      {/* REPORTS */}
-      {tab === "reports" && (
-        <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish">
-          <MadrasaReports classObj={classObj} mosqueName={mosqueName} />
-        </Section>
+      {/* CLASS — management & housekeeping (one scroll) */}
+      {tab === "class" && (
+        <div className="space-y-8">
+          <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
+          <div className="grid lg:grid-cols-2 gap-8">
+            <Section icon={ShieldAlert} title="Behaviour & conduct" subtitle="Log incidents, keep concerns internal until you escalate, and track follow-up" accent="text-rose-600"><MadrasaBehaviour classObj={classObj} /></Section>
+            <Section icon={Award} title="Rewards" subtitle="Award a star, merit or note — parents are emailed on positive rewards" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
+          </div>
+          <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
+          <Section icon={ScrollText} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
+          <Section icon={Hourglass} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
+          <Section icon={CalendarClock} title="Timetable" subtitle="This class's weekly sessions"><MadrasaTimetable classes={[classObj]} /></Section>
+        </div>
       )}
+      </div>
 
-      {/* ATTENDANCE — class-level summary: per-student rates + session history */}
-      {tab === "attendance" && (
-        <Section icon={BarChart3} title="Attendance report" subtitle="Per-student attendance rates and session history — lowest first so gaps surface" accent="text-sky-700">
-          <MadrasaAttendanceReport classObj={classObj} />
-        </Section>
-      )}
-
-      {/* BEHAVIOUR — incident logging + follow-up (098). Internal-by-default. */}
-      {tab === "behaviour" && (
-        <Section icon={ShieldAlert} title="Behaviour & conduct" subtitle="Log incidents, keep concerns internal until you escalate, and track follow-up" accent="text-rose-600">
-          <MadrasaBehaviour classObj={classObj} />
-        </Section>
-      )}
-
-      {/* TIMETABLE — this class's weekly sessions */}
-      {tab === "timetable" && (
-        <Section icon={CalendarClock} title="Timetable" subtitle="This class's weekly sessions">
-          <MadrasaTimetable classes={[classObj]} />
-        </Section>
-      )}
-
-      {/* Former "More" group — now individual tabs/sidebar items. */}
-      {tab === "announcements" && (
-        <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
-      )}
-      {tab === "rewards" && (
-        <Section icon={Award} title="Give reward" subtitle="Award a star, merit or note — parents are emailed on positive rewards" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
-      )}
-      {tab === "photos" && (
-        <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
-      )}
-      {tab === "certificates" && (
-        <Section icon={ScrollText} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
-      )}
-      {tab === "waitlist" && (
-        <Section icon={Hourglass} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
-      )}
-      {tab === "livelesson" && (
-        <Section icon={Video} title="Live lesson" subtitle="Remote learning over video"><MadrasaLiveLesson classObj={classObj} /></Section>
-      )}
+      {/* Mobile bottom navigation — fixed, native-app feel (< md) */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-stone-200 flex">
+        {TABS.map(([v, l, Icon]) => (
+          <button key={v} onClick={() => { setTab(v); window.scrollTo({ top: 0 }); }} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${tab === v ? "text-emerald-800" : "text-stone-500"}`}>
+            <Icon size={20} className={tab === v ? "text-emerald-700" : "text-stone-400"} />
+            <span className="text-[10px] font-medium">{l}</span>
+          </button>
+        ))}
+      </nav>
 
       {showBulk && <BulkParentMessageModal recipients={parentIds} audienceLabel={`all parents in ${classObj.name || "this class"}`} onClose={() => setShowBulk(false)} />}
     </div>

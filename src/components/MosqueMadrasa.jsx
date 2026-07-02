@@ -233,10 +233,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
           <button onClick={closeClass} className="inline-flex items-center gap-1 text-sm font-medium text-stone-500 hover:text-stone-800 mb-4">
             <ChevronLeft size={16} /> Back to classes
           </button>
-          <div className="mb-5">
-            <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{detailClass.name}</h2>
-            <p className="text-sm text-stone-600">{SUBJECT_LABEL[detailClass.subject] || detailClass.subject}{detailClass.teacher?.name ? ` · ${detailClass.teacher.name}` : ""}{detailClass.room ? ` · ${detailClass.room}` : ""}{detailClass.schedule ? ` · ${scheduleText(detailClass.schedule)}` : ""}</p>
-          </div>
+          {/* Class name + meta now live in the workspace's smart header (Session BF). */}
           <MadrasaClassWorkspace classObj={detailClass} mosqueName={mosque?.name} />
         </div>
       );

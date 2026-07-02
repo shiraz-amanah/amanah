@@ -199,10 +199,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
           selectedClass ? (
             <div>
               <button onClick={() => setSelectedClass(null)} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> Back to my classes</button>
-              <div className="mb-4">
-                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{selectedClass.name}</h2>
-                <p className="text-sm text-stone-600 capitalize">{selectedClass.subject}{selectedClass.room ? ` · ${selectedClass.room}` : ""}</p>
-              </div>
+              {/* Class name + meta now live in the workspace's smart header (Session BF). */}
               <MadrasaClassWorkspace classObj={selectedClass} onMessageParent={onMessageParent} mosqueName={mosque?.name} />
             </div>
           ) : (
