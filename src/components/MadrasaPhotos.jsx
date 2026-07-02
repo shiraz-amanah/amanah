@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, ImagePlus, Trash2, ShieldCheck, ShieldOff, AlertTriangle, Upload } from "lucide-react";
-import { getMadrasaRoster, getClassConsent, getClassPhotos, uploadClassPhoto, deleteMadrasaPhoto } from "../auth";
+import { Loader2, ImagePlus, Trash2, ShieldCheck, ShieldOff, AlertTriangle, Upload, Lock } from "lucide-react";
+import { getMadrasaRoster, getClassConsent, getClassPhotos, uploadClassPhoto, deleteMadrasaPhoto, canManageClassPhotos } from "../auth";
 import { sendMadrasaPhotoShared } from "../lib/email";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -21,6 +21,8 @@ const MadrasaPhotos = ({ classObj }) => {
   const [sessionDate, setSessionDate] = useState(todayStr());
   const [selected, setSelected] = useState(() => new Set()); // recipient student_ids
   const [uploading, setUploading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [canUpload, setCanUpload] = useState(null); // null = checking; gate the upload form (Fix 2)
   const [error, setError] = useState("");
   const fileRef = useRef(null);
 
@@ -32,6 +34,17 @@ const MadrasaPhotos = ({ classObj }) => {
       .finally(() => setLoading(false));
   };
   useEffect(() => { setSelected(new Set()); load(); /* eslint-disable-next-line */ }, [classObj.id]);
+
+  // Only the mosque owner or the class's assigned teacher may upload — fail fast
+  // in the UI rather than hitting the storage RLS 403 on submit (Fix 2).
+  useEffect(() => {
+    let alive = true;
+    setCanUpload(null);
+    canManageClassPhotos({ mosqueId: classObj.mosque_id || classObj.mosque?.id, teacherStaffId: classObj.teacher_staff_id })
+      .then((ok) => { if (alive) setCanUpload(ok); })
+      .catch(() => { if (alive) setCanUpload(false); });
+    return () => { alive = false; };
+  }, [classObj.id, classObj.mosque_id, classObj.teacher_staff_id]);
 
   const isConsented = (sid) => consent[sid] === true;
   const consentedIds = roster.map((e) => e.student?.id || e.student_id).filter(isConsented);
@@ -51,10 +64,11 @@ const MadrasaPhotos = ({ classObj }) => {
     const recipients = [...selected].filter(isConsented); // belt-and-braces: never send to a non-consented id
     if (recipients.length === 0) { setError("Select at least one student to share this photo with."); return; }
     const mosqueId = classObj.mosque_id || classObj.mosque?.id;
-    setUploading(true); setError("");
+    setUploading(true); setRetrying(false); setError("");
     try {
       const { data, error: err } = await uploadClassPhoto({
         classId: classObj.id, mosqueId, file, caption, sessionDate, visibleTo: recipients,
+        onRetry: () => setRetrying(true), // transient 504 → "Retrying upload…" (Fix 1)
       });
       if (err) {
         console.error("Class photo upload error:", err);
@@ -69,7 +83,7 @@ const MadrasaPhotos = ({ classObj }) => {
       console.error("Class photo upload threw:", ex);
       setError(ex?.message || "Upload failed unexpectedly.");
     } finally {
-      setUploading(false);
+      setUploading(false); setRetrying(false);
     }
   };
 
@@ -82,7 +96,13 @@ const MadrasaPhotos = ({ classObj }) => {
 
   return (
     <div className="space-y-5">
-      {/* Upload + per-photo recipient picker */}
+      {/* Upload + per-photo recipient picker — owner/assigned-teacher only (Fix 2) */}
+      {canUpload === false ? (
+        <div className="bg-white border border-stone-200 rounded-2xl p-4 flex items-start gap-2.5 text-sm text-stone-500">
+          <Lock size={15} className="text-stone-400 mt-0.5 shrink-0" />
+          <span>You can view this class's photos, but only the mosque owner or the class's assigned teacher can upload new ones.</span>
+        </div>
+      ) : canUpload === null ? null : (
       <form onSubmit={onUpload} className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
         <div className="flex gap-2 flex-wrap items-center">
           <input ref={fileRef} type="file" accept="image/*" className="text-sm text-stone-600 file:mr-3 file:text-sm file:font-medium file:border-0 file:rounded-lg file:bg-stone-100 file:px-3 file:py-1.5 file:text-stone-700" />
@@ -131,10 +151,11 @@ const MadrasaPhotos = ({ classObj }) => {
               : <><ShieldCheck size={13} className="text-emerald-600" /> Sharing with {selected.size} student{selected.size === 1 ? "" : "s"} — their parents will be notified.</>}
           </p>
           <button type="submit" disabled={uploading || selected.size === 0} className="inline-flex items-center gap-1.5 text-sm font-medium bg-emerald-900 text-white px-4 py-2 rounded-lg disabled:opacity-40 hover:bg-emerald-800">
-            {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Upload &amp; share
+            {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} {retrying ? "Retrying upload…" : "Upload & share"}
           </button>
         </div>
       </form>
+      )}
 
       {/* Gallery */}
       {loading ? null : photos.length === 0 ? (

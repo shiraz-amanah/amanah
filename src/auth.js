@@ -2250,17 +2250,51 @@ export async function setPhotoConsent({ studentId, mosqueId, consentGiven }) {
     .select().single()
   return { data, error }
 }
+// Can the current user upload/manage photos for this class? True if they own the
+// mosque OR their staff row at that mosque is the class's assigned teacher.
+// Mirrors the 080 storage RLS (madrasa_can_manage_photo_path) so the upload UI
+// can fail fast (hide the form) instead of letting an unauthorized teacher hit a
+// 403 on submit.
+export async function canManageClassPhotos({ mosqueId, teacherStaffId }) {
+  const user = await getUser()
+  if (!user || !mosqueId) return false
+  const { data: owned } = await supabase
+    .from('mosques').select('id').eq('id', mosqueId).eq('user_id', user.id).maybeSingle()
+  if (owned) return true
+  if (!teacherStaffId) return false
+  const { data: staff } = await supabase
+    .from('mosque_staff').select('id').eq('id', teacherStaffId).eq('profile_id', user.id).maybeSingle()
+  return !!staff
+}
+
 // Teacher/owner — upload a class photo. visibleTo = consented student_ids (the
 // caller computes from the roster + consent map). Bytes → private bucket; on a
 // failed row insert the object is rolled back so we never orphan storage.
-export async function uploadClassPhoto({ classId, mosqueId, file, caption, sessionDate, visibleTo }) {
+export async function uploadClassPhoto({ classId, mosqueId, file, caption, sessionDate, visibleTo, onRetry }) {
   if (!classId || !mosqueId || !file) return { error: { message: 'classId, mosqueId and file required' } }
   const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
   // Defensive UUID (crypto.randomUUID is only defined in secure contexts).
   const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const path = `${mosqueId}/${classId}/${uuid}.${ext}`
-  const { error: upErr } = await supabase.storage.from(MADRASA_PHOTO_BUCKET)
-    .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+  // Storage uploads intermittently hit a transient gateway timeout (HTTP 504).
+  // Retry those up to twice with a short backoff before surfacing the error —
+  // the retry uses upsert:true in case the timed-out attempt actually wrote the
+  // object. Non-timeout errors (e.g. 403 RLS) return immediately; a retry can't
+  // help and would only delay the user's feedback.
+  let upErr = null
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    if (attempt > 0) {
+      try { onRetry?.(attempt) } catch { /* UI hook only */ }
+      await new Promise((r) => setTimeout(r, 800 * attempt)) // 800ms, then 1600ms
+    }
+    const res = await supabase.storage.from(MADRASA_PHOTO_BUCKET)
+      .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: attempt > 0 })
+    upErr = res.error
+    if (!upErr) break
+    const status = String(upErr.statusCode ?? upErr.status ?? '')
+    const isTimeout = status === '504' || /\b504\b/.test(upErr.message || '')
+    if (!isTimeout) break // only transient timeouts are worth retrying
+  }
   if (upErr) {
     // Surface the exact storage error (bucket name, path, RLS/404/size) — Fix 4.
     console.error('Class photo storage upload failed:', { bucket: MADRASA_PHOTO_BUCKET, path, status: upErr.statusCode || upErr.status, message: upErr.message, error: upErr })

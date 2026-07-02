@@ -136,6 +136,26 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 
 ---
 
+## Session BD — Bug-fix pass (2 July 2026)
+
+Working through three known bugs, diagnosis-first (no code before the root cause is confirmed). HEAD at start `741f023`, tree clean, next migration 110.
+
+### Bug 1 — Scholar reviews UUID/integer mismatch → **REFUTED (already fixed Session H, 6 May 2026)**
+The reported "silent empty returns from a scholar_reviews UUID/integer mismatch" is the **historical Session-G bug**, not a live one. That bug was the client-side mock dict `SCHOLAR_REVIEWS_DB` (integer keys `101, 102…`) which never matched `scholars.id` UUIDs, so `SCHOLAR_REVIEWS_DB[scholar.id]` was always `undefined`. **Session H (migration 012) fixed it**: real `reviews` table keyed by `scholar_id uuid`, and both `SCHOLAR_REVIEWS_DB` + `src/data/mockReviews.js` were **deleted**.
+- Diagnosis (this session): grep of `src/` finds **no** surviving reference to the mock dict. The table is `reviews`, not `scholar_reviews`. Data layer `getReviewsForScholar(scholarId)` (`auth.js:3339`) queries `reviews` by `scholar_id` (uuid) filtered to `status='published'`. All three call sites (`App.jsx:1610/9131/12837`) pass `scholar.id` (a UUID); the public one also guards demo scholars. The only lingering integer `scholarId` (`101/105`) is in `mockUser.js` demo bookings — **not** on the reviews query path.
+- Not verifiable from this env: live **prod** review count (`.env` carries dev `pbej` keys only; dev is schema-only → 0 rows). Migration `013_reviews_seed.sql` seeded 9 reviews across 4 scholars in prod at Session H; could not re-confirm the number without a prod service key. Owner confirmed no prod creds needed.
+- **No code change.** The reviews path is correct; a speculative fix would risk regressing a working, load-bearing surface.
+
+### Bug 2 — Class photo uploads intermittent → **root-caused + both causes fixed** (this closes "Fix 4", open since Session AJ, 6 June 2026)
+Session AJ had already concluded "prod infra good (bucket+policies+helpers), so it's a client/runtime bug awaiting the browser network error." This session captured the errors by reproducing the **real byte upload** (the smoke only ever exercised the DB row insert, never storage bytes). Dev repro findings: bucket `mosque-madrasa-photos` has `file_size_limit: null` + `allowed_mime_types: null` (so NOT a size/type limit); valid owner + assigned-teacher uploads **succeed**; only two failures reproduce, both real:
+1. **Transient `504 HTTP error`** on the storage upload — happened once on a cold first request, didn't recur. Genuinely intermittent; the app had **no retry**, so a one-off gateway timeout surfaced as a hard "Upload failed."
+2. **`403 new row violates row-level security policy`** — a teacher uploading to a class whose `teacher_staff_id` ≠ their `mosque_staff.id` (unassigned class or a colleague's class). Deterministic per (teacher, class) → feels intermittent across a mosque.
+
+**Fixes (both client-side, no migration):**
+- **Fix 1 (504):** `uploadClassPhoto` (`auth.js`) now retries the storage upload up to **2×** on a 504 (detected via `statusCode`/`status`/message), backoff 800ms→1600ms, `upsert:true` on retries (covers a 504-after-write). Non-504 errors (e.g. 403) return immediately — no pointless delay. New optional `onRetry` callback drives a **"Retrying upload…"** button state in `MadrasaPhotos`.
+- **Fix 2 (403):** new data-layer `canManageClassPhotos({ mosqueId, teacherStaffId })` mirrors the 080 storage RLS (owner OR the class's assigned teacher). `MadrasaPhotos` checks it on mount and **hides the upload form** for unauthorized teachers, showing a lock notice instead — fail-fast in the UI, never hit the 403. Verified 6/6 against real dev RLS (owner any class ✓, assigned teacher own class ✓, other/unassigned teacher ✗, anon ✗).
+- Build clean. **Not browser-verified** (no driver/creds) — the retry toast + form-gate want an eyes-on pass on a deployed build.
+
 ## Session BC — Islamic Finance (ZISWAF) module ✅ (1 July 2026)
 
 The mosque's full charitable-finance suite (admin-only): Sadaqah, Waqf, Pledges (with a live Pledge Night), Qard Hasan, Reports, and three AI features. **8 commits** (`7fe9c6f..3358ad5`, incl. the belated `3358ad5` committing the P0 schema + smoke), every `npm run build` clean. **Migration 109 green dev+prod** (parity confirmed). **Vercel still 12/12** — every AI feature folds into `admin-brief`; no new functions. Built P0–P6, each build- + browser/handler-verified before commit. **Next migration 110.**
