@@ -1,13 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Loader2, ChevronLeft, Pencil, Check, X, AlertCircle, Mail, UserCheck, UserX, Trash2,
   User, BookOpen, CalendarCheck, ClipboardList, FileText, Award, GraduationCap,
   Star, Plus, ShieldAlert, MoreVertical, MessageCircle, Download, Paperclip, Radio,
+  Image as ImageIcon, ImagePlus, Camera,
 } from "lucide-react";
 import {
   getExportRoster, getStudentAttendance, getHifzProgress, getHomeworkForClasses,
   getStudentCompletions, getStudentReports, getStudentRewards, adminUpdateStudent,
   setEnrollmentStatus, removeEnrollment, awardReward, isPositiveReward, deleteReward, homeworkFileUrl,
+  getStudentPhotos, uploadStudentPhoto, studentPhotoUrl,
 } from "../auth";
 import { sendMadrasaParentWelcome, sendMadrasaRewardAwarded } from "../lib/email";
 import { surahName, juzOfSurah } from "../data/surahs";
@@ -89,6 +91,17 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
   const [rwNote, setRwNote] = useState("");
   const [rwBusy, setRwBusy] = useState(false);
 
+  // Fix 1 — photos this student has been shared in (lazy-loaded on first open).
+  const [photos, setPhotos] = useState([]);
+  const [photosLoaded, setPhotosLoaded] = useState(false);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  // Fix 2 — avatar upload (private bucket → object path in photo_url → signed URL).
+  const avatarRef = useRef(null);
+  const [avatarUrl, setAvatarUrl] = useState(null);   // signed URL for the stored path
+  const [avatarPreview, setAvatarPreview] = useState(null); // local object URL during upload
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarErr, setAvatarErr] = useState("");
+
   const reload = () => {
     setLoading(true);
     Promise.all([
@@ -106,6 +119,26 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
       .finally(() => setLoading(false));
   };
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [sid]);
+
+  // Fix 2 — mint a signed URL for the stored avatar path (private bucket).
+  useEffect(() => {
+    let alive = true;
+    if (!student.photo_url) { setAvatarUrl(null); return; }
+    studentPhotoUrl(student.photo_url).then((u) => { if (alive) setAvatarUrl(u); }).catch(() => {});
+    return () => { alive = false; };
+  }, [student.photo_url]);
+
+  // Fix 1 — lazy-load the student's shared photos the first time the tab opens.
+  useEffect(() => {
+    if (tab !== "photos" || photosLoaded) return;
+    setPhotosLoading(true);
+    getStudentPhotos(sid)
+      .then((p) => { setPhotos(p || []); setPhotosLoaded(true); })
+      .catch((e) => console.error("student photos load failed:", e))
+      .finally(() => setPhotosLoading(false));
+  }, [tab, photosLoaded, sid]);
+  // Reset the photos cache when switching students.
+  useEffect(() => { setPhotosLoaded(false); setPhotos([]); }, [sid]);
 
   // ---- derived ----
   const attTotal = attendance.length;
@@ -154,6 +187,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
     ["homework", "Homework", ClipboardList],
     ["reports", "Reports", FileText],
     ["rewards", "Rewards", Award],
+    ["photos", "Photos", ImageIcon],
   ];
 
   // Recent activity feed — last 5 events across categories.
@@ -179,6 +213,32 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
     setStudent((s) => ({ ...s, ...(data || { name, dob: form.dob || null, gender: form.gender || null, relation: form.relation || null, emergency_contact_name: form.emergencyName || null, emergency_contact_phone: form.emergencyPhone || null }) }));
     setEditing(false); setActMsg("Student details updated."); onChanged?.();
   };
+  // Fix 2 — click avatar → pick file → upload to private bucket → save path.
+  const onPickAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = ""; // allow re-picking the same file
+    if (!file || avatarBusy) return;
+    setAvatarErr("");
+    const preview = URL.createObjectURL(file);
+    setAvatarPreview(preview);
+    setAvatarBusy(true);
+    try {
+      const { path, error: upErr } = await uploadStudentPhoto({ mosqueId, classId: classObj?.id, studentId: sid, file });
+      if (upErr) { setAvatarErr(upErr.message || "Couldn't upload the photo."); return; }
+      const { data, error } = await adminUpdateStudent({ studentId: sid, mosqueId, name: student.name, photoUrl: path });
+      if (error) { setAvatarErr(error.message || "Couldn't save the photo."); return; }
+      setStudent((s) => ({ ...s, ...(data || {}), photo_url: path })); // effect re-mints the signed URL
+      onChanged?.();
+    } catch (ex) {
+      console.error("student avatar upload threw:", ex);
+      setAvatarErr(ex?.message || "Upload failed unexpectedly.");
+    } finally {
+      setAvatarBusy(false);
+      URL.revokeObjectURL(preview);
+      setAvatarPreview(null);
+    }
+  };
+
   const resetLogin = async () => {
     setMenuOpen(false);
     if (!parentEmail) { setActErr("No parent email on file to send a login link to."); return; }
@@ -234,7 +294,17 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
       <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5 mb-4"><ChevronLeft size={15} /> Back</button>
 
       <div className="bg-white border border-stone-200 rounded-2xl shadow-sm p-5 flex items-start gap-4 flex-wrap">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-xl font-semibold shrink-0 shadow-sm">{initials(student.name)}</div>
+        {/* Fix 2 — clickable avatar (admin upload to private bucket) */}
+        <button type="button" onClick={() => !avatarBusy && avatarRef.current?.click()} title="Change photo"
+          className="group relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-xl font-semibold shrink-0 shadow-sm overflow-hidden">
+          {(avatarPreview || avatarUrl)
+            ? <img src={avatarPreview || avatarUrl} alt={student.name || "Student"} className="w-full h-full object-cover" />
+            : initials(student.name)}
+          <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            {avatarBusy ? <Loader2 size={16} className="animate-spin text-white" /> : <Camera size={16} className="text-white" />}
+          </span>
+        </button>
+        <input ref={avatarRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onPickAvatar} className="hidden" />
         <div className="min-w-0 flex-1">
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{student.name || "Student"}</h2>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -264,7 +334,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
         </div>
       </div>
 
-      {(actMsg || actErr) && <p className={`text-sm mt-3 inline-flex items-center gap-1.5 ${actErr ? "text-rose-700" : "text-emerald-700"}`}>{actErr ? <AlertCircle size={14} /> : <Check size={14} />} {actErr || actMsg}</p>}
+      {(actMsg || actErr || avatarErr) && <p className={`text-sm mt-3 inline-flex items-center gap-1.5 ${(actErr || avatarErr) ? "text-rose-700" : "text-emerald-700"}`}>{(actErr || avatarErr) ? <AlertCircle size={14} /> : <Check size={14} />} {avatarErr || actErr || actMsg}</p>}
 
       {/* Edit form (from the actions menu) */}
       {editing && (
@@ -286,8 +356,8 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="border-b border-stone-200 flex gap-1 overflow-x-auto mt-5">
+      {/* Tab bar — horizontal scroll, hidden scrollbar so it never overflows on mobile (Fix 3) */}
+      <div className="border-b border-stone-200 flex gap-1 overflow-x-auto scrollbar-hide -mb-px mt-5">
         {TABS.map(([v, l, Icon]) => (
           <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
         ))}
@@ -517,6 +587,30 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
             <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-2 inline-flex items-center gap-1.5"><GraduationCap size={12} /> Certificates</p>
             <MadrasaCertificates classObj={classObj} mosqueName={mosqueName} onlyStudentId={sid} />
           </div>
+        </div>
+      )}
+
+      {/* ---------- PHOTOS ---------- */}
+      {tab === "photos" && (
+        <div className="mt-5">
+          {photosLoading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
+            : photos.length === 0 ? <Empty icon={ImagePlus} text="No photos have been shared with this student yet." />
+            : (
+              <>
+                <p className="text-[11px] text-stone-400 mb-3">Class photos this student has been shared in ({photos.length}). Read-only.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {photos.map((p) => (
+                    <div key={p.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+                      {p.signedUrl ? <img src={p.signedUrl} alt={p.caption || "Class photo"} className="w-full h-32 object-cover" /> : <div className="w-full h-32 bg-stone-100 flex items-center justify-center text-stone-300"><ImagePlus size={24} /></div>}
+                      <div className="p-2">
+                        <p className="text-xs text-stone-700 truncate">{p.caption || "—"}</p>
+                        <p className="text-[10px] text-stone-400">{p.class?.name ? `${p.class.name} · ` : ""}{p.session_date ? fmtShort(p.session_date) : ""}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
         </div>
       )}
 

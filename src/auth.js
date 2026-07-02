@@ -129,12 +129,15 @@ export async function updateStudent(id, updates) {
 
 // Mosque admin edits an enrolled student's details (091 SECURITY DEFINER RPC —
 // students are parent-owned, so the admin can't UPDATE the row directly).
-export async function adminUpdateStudent({ studentId, mosqueId, name, dob, gender, relation, emergencyName, emergencyPhone }) {
+export async function adminUpdateStudent({ studentId, mosqueId, name, dob, gender, relation, emergencyName, emergencyPhone, photoUrl }) {
   if (!studentId || !mosqueId) return { error: { message: 'studentId and mosqueId required' } }
   const { data, error } = await supabase.rpc('madrasa_admin_update_student', {
     p_student: studentId, p_mosque: mosqueId, p_name: name,
     p_dob: dob || null, p_gender: gender || null, p_relation: relation || null,
     p_emergency_name: emergencyName || null, p_emergency_phone: emergencyPhone || null,
+    // null = leave the stored avatar path unchanged (110 RPC coalesces); only an
+    // explicit upload passes a value, so a plain details-edit never wipes it.
+    p_photo_url: photoUrl === undefined ? null : photoUrl,
   })
   if (error) { console.error('Error updating student (admin):', error); return { error } }
   return { data }
@@ -1546,7 +1549,7 @@ export async function getMadrasaRoster(classId) {
     .from('madrasa_enrollments')
     // profile_id (the parent's user id) powers the teacher's "Message" button (2a-ii);
     // dob/gender/pending_parent_email/emergency_* power the student profile page (Layer 3).
-    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email, emergency_contact_name, emergency_contact_phone)')
+    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email, emergency_contact_name, emergency_contact_phone, photo_url)')
     .eq('class_id', classId)
     .order('enrolled_at', { ascending: true })
   if (error) { console.error('Error fetching roster:', error); return [] }
@@ -1570,7 +1573,7 @@ export async function getMosqueEnrollments(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email, emergency_contact_name, emergency_contact_phone), class:madrasa_classes(id, name, subject)')
+    .select('*, student:students(id, name, age, dob, gender, relation, profile_id, pending_parent_email, emergency_contact_name, emergency_contact_phone, photo_url), class:madrasa_classes(id, name, subject)')
     .eq('mosque_id', mosqueId).order('enrolled_at', { ascending: false })
   if (error) { console.error('Error fetching mosque enrollments:', error); return [] }
   return data || []
@@ -2250,6 +2253,36 @@ export async function setPhotoConsent({ studentId, mosqueId, consentGiven }) {
     .select().single()
   return { data, error }
 }
+// Student avatar — uploaded to the PRIVATE, consent-gated mosque-madrasa-photos
+// bucket (NOT the public staff bucket): child face photos must never be publicly
+// reachable. Path uses the bucket's native {mosque_id}/{class_id}/… shape so the
+// existing 080 storage RLS (owner + class teacher) covers it with no new policy.
+// Returns { path, error } — persist `path` in students.photo_url and render via
+// studentPhotoUrl(). Owner/class-teacher only (RLS); parents can't mint the URL,
+// so the avatar shows in the admin student profile only (by design).
+export async function uploadStudentPhoto({ mosqueId, classId, studentId, file }) {
+  if (!mosqueId || !classId || !file) return { path: null, error: { message: 'mosqueId, classId and file required' } }
+  const ALLOWED = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+  const ext = ALLOWED[file.type]
+  if (!ext) return { path: null, error: { message: 'Use a JPG, PNG or WebP image.' } }
+  if (file.size > 5 * 1024 * 1024) return { path: null, error: { message: 'Image must be under 5MB.' } }
+  const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const path = `${mosqueId}/${classId}/avatar-${studentId || 'x'}-${uuid}.${ext}`
+  const { error } = await supabase.storage.from(MADRASA_PHOTO_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false })
+  if (error) {
+    console.error('Student photo upload failed:', { bucket: MADRASA_PHOTO_BUCKET, path, status: error.statusCode || error.status, message: error.message, error })
+    return { path: null, error }
+  }
+  return { path, error: null }
+}
+// Mint a 1-hour signed URL for a stored student avatar path (private bucket).
+export async function studentPhotoUrl(path) {
+  if (!path) return null
+  const { data } = await supabase.storage.from(MADRASA_PHOTO_BUCKET).createSignedUrl(path, 3600)
+  return data?.signedUrl || null
+}
+
 // Can the current user upload/manage photos for this class? True if they own the
 // mosque OR their staff row at that mosque is the class's assigned teacher.
 // Mirrors the 080 storage RLS (madrasa_can_manage_photo_path) so the upload UI

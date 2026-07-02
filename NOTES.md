@@ -136,6 +136,23 @@ Without `.catch`, errors are invisible. Without `.finally`, loading flags hang f
 
 ---
 
+## Session BE — Student profile gaps: Photos tab · avatar upload · mobile tab bar (2 July 2026)
+
+Three targeted gaps in `MadrasaStudentProfile.jsx`, no architectural changes. **Migration 110** (student photo). Verified 10/10 by `smoke-madrasa-student-photo.mjs` against real dev RLS + storage. Build clean. **Not browser-verified** (no driver/creds — node smoke is the correctness gate). Next migration 111.
+
+### Fix 1 — Photos tab (no migration)
+New read-only **Photos** tab showing the class photos this student has been shared in (rows where `visible_to @> [studentId]`), via existing `getStudentPhotos(sid)` + signed URLs. Lazy-loaded on first open; cache resets on student switch. RLS: owner reads their mosque's photos + mints signed URLs (verified: owner sees 1 shared row + signed URL).
+
+### Fix 2 — Avatar upload (migration 110)
+Clickable header avatar → hidden file input → upload → shows the photo instead of initials. **Safeguarding decision (owner-approved): child face photos go to the PRIVATE `mosque-madrasa-photos` bucket, NOT the public staff bucket** — `photo_url` stores the OBJECT PATH, rendered via a 1-hour signed URL minted at load. Path `{mosque_id}/{class_id}/avatar-…` reuses the 080 storage RLS (owner + class-teacher) with **no new storage policy**.
+- **Migration 110:** `students.photo_url text` + `madrasa_admin_update_student` extended 8→9 args (`p_photo_url`, `coalesce(p_photo_url, s.photo_url)` so a details-edit never wipes the avatar). Owner can't direct-UPDATE students (parent-owned RLS), hence the RPC. Green dev; **prod apply pending**.
+- Data layer: `uploadStudentPhoto` + `studentPhotoUrl` (private bucket) in `auth.js`; `adminUpdateStudent` gains `photoUrl`; `photo_url` added to the two roster selects (`getMadrasaRoster`, `getMosqueEnrollments`) so an existing avatar renders on load.
+- **Smoke proved:** RPC writes `photo_url` ✓; owner signed URL resolves ✓; **anon public fetch → HTTP 400 (private, not publicly reachable)** ✓; details-edit preserves the avatar ✓.
+- **Scope boundary:** avatar renders in the admin student profile only. A parent view can't mint the signed URL (080 read RLS = owner/class-teacher/photo-consent), so the avatar is admin-facing by design.
+
+### Fix 3 — Mobile-safe tab bar (no migration)
+The tab bar had `overflow-x-auto` but no `scrollbar-hide` → visible scrollbar / overflow on mobile. Added `scrollbar-hide -mb-px` to match `MadrasaClassWorkspace`. No sidebar conversion (out of scope).
+
 ## Session BD — Bug-fix pass (2 July 2026)
 
 Working through three known bugs, diagnosis-first (no code before the root cause is confirmed). HEAD at start `741f023`, tree clean, next migration 110.
