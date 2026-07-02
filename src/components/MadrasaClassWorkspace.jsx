@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
   ChevronRight, Megaphone, Video, GraduationCap, Award, Image, CalendarClock, ShieldAlert, BarChart3, ScrollText, Hourglass,
-  ClipboardList, Layers, Settings, Radio,
+  ClipboardList, Layers, Settings, Radio, Star, AlertTriangle,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -78,6 +78,54 @@ const HifzBar = ({ memorized }) => (
   </div>
 );
 
+const initials = (name) => (name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+const fmtLastSeen = (d) => {
+  if (!d) return "Never seen";
+  const days = Math.floor((Date.now() - new Date(d + "T00:00:00").getTime()) / 864e5);
+  if (days <= 0) return "Seen today";
+  if (days === 1) return "Seen yesterday";
+  if (days < 7) return `Seen ${days}d ago`;
+  if (days < 28) return `Seen ${Math.floor(days / 7)}w ago`;
+  return `Seen ${fmtDate(d)}`;
+};
+// Attendance ring: colour-coded SVG stroke around the avatar. green ≥90, amber ≥75, red <75.
+const ringTone = (r) => r == null ? "#d6d3d1" : r >= 90 ? "#059669" : r >= 75 ? "#f59e0b" : "#e11d48";
+const StudentAvatar = ({ student, rate }) => {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (student.photo_url) studentPhotoUrl(student.photo_url).then((u) => { if (alive) setUrl(u); }).catch(() => {});
+    else setUrl(null);
+    return () => { alive = false; };
+  }, [student.photo_url]);
+  const R = 26, C = 2 * Math.PI * R, pct = rate == null ? 0 : rate / 100;
+  return (
+    <div className="relative w-16 h-16 shrink-0">
+      <svg className="absolute inset-0 -rotate-90" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r={R} fill="none" stroke="#f5f5f4" strokeWidth="4" />
+        <circle cx="32" cy="32" r={R} fill="none" stroke={ringTone(rate)} strokeWidth="4" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct)} />
+      </svg>
+      <div className="absolute inset-[6px] rounded-full overflow-hidden bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-sm font-semibold">
+        {url ? <img src={url} alt={student.name || "Student"} className="w-full h-full object-cover" /> : initials(student.name)}
+      </div>
+    </div>
+  );
+};
+// Subtle octagram watermark (reused from the parent Hifz hero) — stone strokes for white cards.
+const CardWatermark = ({ id }) => (
+  <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <pattern id={id} width="56" height="56" patternUnits="userSpaceOnUse">
+        <g fill="none" stroke="#0f766e" strokeOpacity="0.05" strokeWidth="1">
+          <polygon points="28,2 54,28 28,54 2,28" />
+          <rect x="10" y="10" width="36" height="36" />
+        </g>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill={`url(#${id})`} />
+  </svg>
+);
+
 // Self-contained class detail — owns its own tab state and tab bar. Both callers
 // render it the same way: the mosque owner's Madrasah content pane and the teacher
 // staff portal each drill into a class and let the workspace run standalone.
@@ -91,6 +139,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [profileEnrollment, setProfileEnrollment] = useState(null); // Layer 3 student profile
   const [liveSession, setLiveSession] = useState(null); // header LIVE badge
   const [todayAtt, setTodayAtt] = useState(null);        // today's saved marks → header stat
+  const [classAtt, setClassAtt] = useState([]);          // all attendance rows → card rings + last-seen
+  const [classRewards, setClassRewards] = useState([]);  // all rewards → card star counts
+  const [studentFilter, setStudentFilter] = useState("all"); // Students tab filter
 
   const reload = () => {
     setLoading(true); setHifzLoading(true);
@@ -102,6 +153,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       .then((h) => setClassHifz(h || []))
       .catch((e) => console.error("class hifz load failed:", e))
       .finally(() => setHifzLoading(false));
+    getClassAttendance(classObj.id).then((a) => setClassAtt(a || [])).catch((e) => console.error("class attendance load failed:", e));
+    getClassRewards(classObj.id).then((r) => setClassRewards(r || [])).catch((e) => console.error("class rewards load failed:", e));
   };
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [classObj.id]);
 
@@ -141,6 +194,32 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     return map;
   }, [classHifz]);
 
+  // Per-student attendance rate + last-seen + star count for the Students cards.
+  const statsByStudent = useMemo(() => {
+    const m = {};
+    const ensure = (sid) => (m[sid] || (m[sid] = { present: 0, late: 0, absent: 0, excused: 0, lastSeen: null, stars: 0 }));
+    for (const a of classAtt) {
+      const s = ensure(a.student_id);
+      if (a.status in s) s[a.status] += 1;
+      if ((a.status === "present" || a.status === "late") && (!s.lastSeen || a.session_date > s.lastSeen)) s.lastSeen = a.session_date;
+    }
+    for (const r of classRewards) if (r.type === "star") ensure(r.student_id).stars += 1;
+    return m;
+  }, [classAtt, classRewards]);
+  const attRateOf = (sid) => {
+    const s = statsByStudent[sid];
+    if (!s) return null;
+    const counted = s.present + s.late + s.absent; // excused excluded from denominator
+    return counted > 0 ? Math.round(((s.present + s.late) / counted) * 100) : null;
+  };
+  const absentTodaySet = useMemo(() => new Set((todayAtt || []).filter((a) => a.status === "absent").map((a) => a.student_id)), [todayAtt]);
+  // Kept above the early return below so hook order is stable when a profile opens.
+  const memorizedTotal = useMemo(() => {
+    let sum = 0;
+    for (const sid in hifzByStudent) sum += hifzByStudent[sid].memorized.size;
+    return sum;
+  }, [hifzByStudent]);
+
   // ---- Layer 3: full student profile page ----
   if (profileEnrollment) {
     return (
@@ -158,11 +237,6 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const studentsTitle = `${activeRoster.length} ${activeRoster.length === 1 ? "Student" : "Students"}`;
 
   // ---- Smart header: meta line + per-tab contextual stat (workspace data only) ----
-  const memorizedTotal = useMemo(() => {
-    let sum = 0;
-    for (const sid in hifzByStudent) sum += hifzByStudent[sid].memorized.size;
-    return sum;
-  }, [hifzByStudent]);
   const classAvgPct = activeRoster.length ? Math.round((memorizedTotal / (activeRoster.length * 114)) * 100) : 0;
   const todayPresent = (todayAtt || []).filter((a) => a.status === "present" || a.status === "late").length;
   const headerStat = () => {
@@ -219,36 +293,82 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         </Section>
       )}
 
-      {/* STUDENTS — roster → full student profile */}
+      {/* STUDENTS — card grid → full student profile (P2) */}
       {tab === "students" && (
         <Section icon={Users} title={studentsTitle} subtitle="Tap a student to open their full profile">
           {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
-            : roster.length === 0 ? (
+            : activeRoster.length === 0 ? (
               <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
                 <Users className="mx-auto text-stone-300 mb-3" size={36} />
                 <p className="text-stone-600 text-sm max-w-md mx-auto">No students enrolled yet. Add a child from the Madrasah Students directory, or parents enrol their own.</p>
               </div>
-            ) : (
-              <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
-                {roster.map((e) => {
-                  const st = e.student || {};
-                  return (
-                    <li key={e.id}>
-                      <button onClick={() => openProfile(e)} className="w-full text-left px-4 py-3 hover:bg-stone-50 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-stone-900 truncate">{st.name || "Student"}</p>
-                          <p className="text-xs text-stone-500">{[st.age ? `age ${st.age}` : null, st.relation].filter(Boolean).join(" · ") || "—"}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${e.status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{e.status}</span>
-                          <ChevronRight size={15} className="text-stone-400" />
-                        </div>
+            ) : (() => {
+              const FILTERS = [
+                ["all", "All", activeRoster.length],
+                ["atrisk", "At risk", activeRoster.filter((e) => { const r = attRateOf(e.student?.id || e.student_id); return r != null && r < 75; }).length],
+                ["starred", "Starred", activeRoster.filter((e) => (statsByStudent[e.student?.id || e.student_id]?.stars || 0) > 0).length],
+                ["absent", "Absent today", activeRoster.filter((e) => absentTodaySet.has(e.student?.id || e.student_id)).length],
+              ];
+              const shown = activeRoster.filter((e) => {
+                const sid = e.student?.id || e.student_id;
+                if (studentFilter === "atrisk") { const r = attRateOf(sid); return r != null && r < 75; }
+                if (studentFilter === "starred") return (statsByStudent[sid]?.stars || 0) > 0;
+                if (studentFilter === "absent") return absentTodaySet.has(sid);
+                return true;
+              });
+              return (
+                <>
+                  <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-4">
+                    {FILTERS.map(([v, l, n]) => (
+                      <button key={v} onClick={() => setStudentFilter(v)} className={`text-[12px] font-medium px-3 py-1.5 rounded-full border whitespace-nowrap inline-flex items-center gap-1.5 ${studentFilter === v ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>
+                        {v === "atrisk" && <AlertTriangle size={12} className={studentFilter === v ? "text-amber-500" : "text-stone-400"} />}
+                        {v === "starred" && <Star size={12} className={studentFilter === v ? "text-amber-500" : "text-stone-400"} />}
+                        {l} <span className="text-stone-400">{n}</span>
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                    ))}
+                  </div>
+                  {shown.length === 0 ? (
+                    <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-sm text-stone-500">No students match this filter.</div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {shown.map((e) => {
+                        const st = e.student || {};
+                        const sid = st.id || e.student_id;
+                        const rate = attRateOf(sid);
+                        const s = statsByStudent[sid] || { stars: 0, lastSeen: null };
+                        const mem = (hifzByStudent[sid]?.memorized.size) || 0;
+                        const atRisk = rate != null && rate < 75;
+                        return (
+                          <button key={e.id} onClick={() => openProfile(e)} className="relative overflow-hidden text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                            <CardWatermark id={`wm-${sid}`} />
+                            <div className="relative flex items-start gap-3">
+                              <StudentAvatar student={st} rate={rate} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-semibold text-stone-900 truncate">{st.name || "Student"}</p>
+                                  {atRisk && <AlertTriangle size={13} className="text-amber-500 shrink-0" title="Attendance below 75%" />}
+                                </div>
+                                <p className="text-[11px] text-stone-500 truncate">{[st.age ? `age ${st.age}` : null, st.relation].filter(Boolean).join(" · ") || "—"}</p>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <span className={`text-[11px] font-semibold ${rate == null ? "text-stone-400" : rate >= 90 ? "text-emerald-700" : rate >= 75 ? "text-amber-600" : "text-rose-600"}`}>{rate == null ? "— " : `${rate}%`} att.</span>
+                                  {s.stars > 0 && <span className="text-[11px] text-amber-600 inline-flex items-center gap-0.5"><Star size={11} /> {s.stars}</span>}
+                                  {absentTodaySet.has(sid) && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700">Absent today</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="relative mt-3">
+                              <div className="flex items-center justify-between text-[11px] text-stone-400"><span>Hifz</span><span>{mem}/114</span></div>
+                              <HifzBar memorized={mem} />
+                              <p className="text-[10px] text-stone-400 mt-1.5">{fmtLastSeen(s.lastSeen)}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
         </Section>
       )}
 
