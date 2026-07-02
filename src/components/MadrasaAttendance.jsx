@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Check, Users, AlertCircle } from "lucide-react";
+import { Loader2, Check, Users, AlertCircle, AlertTriangle } from "lucide-react";
 import { getMadrasaRoster, getMadrasaAttendance, upsertMadrasaAttendance } from "../auth";
 import { sendMadrasaAbsenceNotifications } from "../lib/email";
 
@@ -15,7 +15,7 @@ const STATUSES = [
 ];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const MadrasaAttendance = ({ classObj }) => {
+const MadrasaAttendance = ({ classObj, welfareFlags }) => {
   const classId = classObj?.id;
   const mosqueId = classObj?.mosque_id;
   const [sessionDate, setSessionDate] = useState(todayStr());
@@ -98,7 +98,10 @@ const MadrasaAttendance = ({ classObj }) => {
               return (
                 <li key={e.id} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <p className="text-sm font-medium text-stone-900 min-w-[120px]">{e.student?.name || "Student"}</p>
+                    <p className="text-sm font-medium text-stone-900 min-w-[120px] inline-flex items-center gap-1.5">
+                      {e.student?.name || "Student"}
+                      {welfareFlags?.has(sid) && <AlertTriangle size={13} className="text-amber-500 shrink-0" title="Missed 3+ of last 4 sessions — consider a welfare check" />}
+                    </p>
                     <div className="flex gap-1.5 flex-wrap">
                       {STATUSES.map(([v, l, onCls, offCls]) => (
                         <button key={v} onClick={() => setMark(sid, "status", v)} className={`text-[11px] px-2.5 py-1 rounded-full border ${m.status === v ? onCls : `bg-white ${offCls} hover:border-stone-400`}`}>{l}</button>

@@ -377,6 +377,108 @@ async function handleReportSummary(req, res, body, env) {
   } catch (err) { console.error('[report-summary] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
 }
 
+// Session BF P5 — mode:'class_ops'. Per-CLASS teaching assistant. Teacher OR
+// owner authed (mirrors report_summary — a teacher runs their own class). No
+// question → a single proactive one-liner for the workspace header; with a
+// question → a chat answer. Student names are fine: the caller already sees this
+// class's roster. Data is gathered with the service key but scoped by class_id.
+async function buildClassContext(env, classId) {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const since = new Date(now.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+  const [enr, att, hifz, hw, comps, rewards] = await Promise.all([
+    mhGet(env, `madrasa_enrollments?class_id=eq.${classId}&status=eq.active&select=student_id,student:students(id,name)`),
+    mhGet(env, `madrasa_attendance?class_id=eq.${classId}&session_date=gte.${since}&select=student_id,status,session_date&order=session_date.desc`),
+    mhGet(env, `madrasa_hifz_progress?class_id=eq.${classId}&select=student_id,surah_number,status,session_date&order=session_date.desc`),
+    mhGet(env, `madrasa_homework?class_id=eq.${classId}&select=id,due_date`),
+    mhGet(env, `madrasa_homework_completions?class_id=eq.${classId}&select=homework_id,student_id`),
+    mhGet(env, `madrasa_rewards?class_id=eq.${classId}&select=student_id,type`),
+  ]);
+  const students = (Array.isArray(enr) ? enr : []).map((e) => ({ id: e.student_id, name: e.student?.name || 'Student' }));
+  const attArr = Array.isArray(att) ? att : [];
+  const hifzArr = Array.isArray(hifz) ? hifz : [];
+  const hwArr = Array.isArray(hw) ? hw : [];
+  const compArr = Array.isArray(comps) ? comps : [];
+  const rewardArr = Array.isArray(rewards) ? rewards : [];
+  const hwTotal = hwArr.length;
+  const overdueHw = hwArr.filter((h) => h.due_date && h.due_date < today).length;
+
+  const per = students.map((s) => {
+    const rows = attArr.filter((a) => a.student_id === s.id); // desc by date
+    const present = rows.filter((a) => a.status === 'present' || a.status === 'late').length;
+    const counted = rows.filter((a) => ['present', 'late', 'absent'].includes(a.status)).length;
+    const missedLast4 = rows.slice(0, 4).filter((a) => a.status === 'absent').length;
+    const hz = hifzArr.filter((h) => h.student_id === s.id);
+    const memorised = new Set(hz.filter((h) => h.status === 'memorized').map((h) => h.surah_number)).size;
+    const hwDone = new Set(compArr.filter((c) => c.student_id === s.id).map((c) => c.homework_id)).size;
+    const stars = rewardArr.filter((r) => r.student_id === s.id && r.type === 'star').length;
+    return { name: s.name, attendance_pct: counted ? Math.round((present / counted) * 100) : null, missed_last_4: missedLast4, surahs_memorised: memorised, ready_for_next: hz[0]?.status === 'memorized', homework_done: hwDone, homework_total: hwTotal, stars };
+  });
+  const rated = per.filter((p) => p.attendance_pct != null);
+  return {
+    today,
+    students_count: students.length,
+    class_attendance_pct: rated.length ? Math.round(rated.reduce((s, p) => s + p.attendance_pct, 0) / rated.length) : null,
+    homework_total: hwTotal,
+    homework_overdue: overdueHw,
+    welfare_flags: per.filter((p) => p.missed_last_4 >= 3).map((p) => p.name),
+    ready_for_next: per.filter((p) => p.ready_for_next).map((p) => p.name),
+    at_risk: per.filter((p) => p.attendance_pct != null && p.attendance_pct < 75).map((p) => p.name),
+    students: per,
+  };
+}
+
+async function handleClassOps(req, res, body, env) {
+  if (!body.classId) return res.status(400).json({ ok: false, error: 'invalid_classId' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  let caller;
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!r.ok) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    caller = await r.json();
+  } catch { return res.status(401).json({ ok: false, error: 'unauthorized' }); }
+
+  const crows = await mhGet(env, `madrasa_classes?id=eq.${body.classId}&select=name,mosque_id,teacher_staff_id`);
+  const cls = Array.isArray(crows) ? crows[0] : null;
+  if (!cls) return res.status(404).json({ ok: false, error: 'class_not_found' });
+  const mrows = await mhGet(env, `mosques?id=eq.${cls.mosque_id}&select=user_id`);
+  const ownsMosque = Array.isArray(mrows) && mrows[0]?.user_id === caller.id;
+  let isTeacher = false;
+  if (!ownsMosque && cls.teacher_staff_id) {
+    const srows = await mhGet(env, `mosque_staff?id=eq.${cls.teacher_staff_id}&select=profile_id`);
+    isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
+  }
+  if (!ownsMosque && !isTeacher) return res.status(403).json({ ok: false, error: 'forbidden' });
+
+  const ctx = await buildClassContext(env, body.classId);
+  const q = (body.question || '').trim();
+  const clsName = (cls.name || 'this class').toString().slice(0, 80);
+  let system, userMsg, maxTokens;
+  if (q) {
+    system = `You are a teaching assistant for the madrasah class "${clsName}". Answer ONLY from the JSON, concisely, in UK English. Today is ${ctx.today}. The data includes each student's attendance %, absences in their last 4 sessions, surahs memorised, whether they are ready for the next surah, homework done/total, and stars. You MAY name students. Do not invent students or numbers.`;
+    userMsg = `Data (JSON): ${JSON.stringify(ctx)}\n\nQuestion: ${q}`;
+    maxTokens = 500;
+  } else {
+    system = `You are a teaching assistant for the madrasah class "${clsName}". Given this class's real data as JSON, write ONE short line (max ~30 words; no preamble, numbering or markdown; UK English) flagging the 1-3 most important things for the teacher right now. Prioritise: students who missed 3+ of their last 4 sessions (welfare_flags — name them), overdue homework (homework_overdue), then students ready for the next surah (ready_for_next — name them). If all is well, say so warmly in one line. Today is ${ctx.today}.`;
+    userMsg = `Data (JSON): ${JSON.stringify(ctx)}`;
+    maxTokens = 150;
+  }
+  try {
+    const aiRes = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, output_config: { effort: 'low' }, system, messages: [{ role: 'user', content: userMsg }] }),
+    });
+    if (!aiRes.ok) { const t = await aiRes.text(); console.error('[class-ops] anthropic_failed', aiRes.status, t.slice(0, 300)); return res.status(502).json({ ok: false, error: `anthropic_failed:${aiRes.status}` }); }
+    const data = await aiRes.json();
+    const tb = Array.isArray(data?.content) ? data.content.find((b) => b.type === 'text') : null;
+    const out = tb?.text?.trim();
+    if (!out) return res.status(502).json({ ok: false, error: 'no_output' });
+    return res.status(200).json(q ? { ok: true, answer: out } : { ok: true, brief: out });
+  } catch (err) { console.error('[class-ops] anthropic_exception', err?.message); return res.status(502).json({ ok: false, error: 'anthropic_exception' }); }
+}
+
 // Session AZ — community attendance insights (mode:'community_ops'). Owner-JWT
 // authed like mosque_hr. Aggregates the mosque's community data (members, check-in
 // sessions, attendance) into welfare + trend signals. No member PII beyond names,
@@ -736,6 +838,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'report_summary') {
       return handleReportSummary(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'class_ops') {
+      return handleClassOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
     if (body?.mode === 'community_ops') {
       return handleCommunityOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });

@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
   ChevronRight, Megaphone, Video, GraduationCap, Award, Image, CalendarClock, ShieldAlert, BarChart3, ScrollText, Hourglass,
-  ClipboardList, Layers, Settings, Radio, Star, AlertTriangle,
+  ClipboardList, Layers, Settings, Radio, Star, AlertTriangle, Sparkles, Send, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
+import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
 import MadrasaTimetable from "./MadrasaTimetable";
 import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl } from "../auth";
 import { surahName } from "../data/surahs";
@@ -213,6 +214,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [classAtt, setClassAtt] = useState([]);          // all attendance rows → card rings + last-seen
   const [classRewards, setClassRewards] = useState([]);  // all rewards → card star counts
   const [studentFilter, setStudentFilter] = useState("all"); // Students tab filter
+  // AI class brief + Q&A (P5, class_ops mode)
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiQ, setAiQ] = useState("");
+  const [aiAnswer, setAiAnswer] = useState("");
+  const [aiAsking, setAiAsking] = useState(false);
 
   const reload = () => {
     setLoading(true); setHifzLoading(true);
@@ -239,6 +247,18 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     const t = setInterval(check, 30000);
     getMadrasaAttendance(classObj.id, todayStr()).then((a) => { if (alive) setTodayAtt(a || []); }).catch(() => { if (alive) setTodayAtt([]); });
     return () => { alive = false; clearInterval(t); };
+  }, [classObj.id]);
+
+  // AI class brief (class_ops). Best-effort — the one-liner is a bonus, so a
+  // failure just hides it (the Ask panel stays available).
+  useEffect(() => {
+    let alive = true;
+    setAiBrief(""); setAiLoading(true); setAiAnswer(""); setAiPanelOpen(false);
+    getClassBrief(classObj.id)
+      .then((r) => { if (alive && r.ok && r.brief) setAiBrief(r.brief); })
+      .catch(() => {})
+      .finally(() => { if (alive) setAiLoading(false); });
+    return () => { alive = false; };
   }, [classObj.id]);
 
   // Open the full student profile (Layer 3). Always return to the Students tab.
@@ -301,6 +321,18 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   };
   const absentTodaySet = useMemo(() => new Set((todayAtt || []).filter((a) => a.status === "absent").map((a) => a.student_id)), [todayAtt]);
 
+  // Welfare flag: students who missed 3+ of their last 4 recorded sessions.
+  const welfareSet = useMemo(() => {
+    const byStudent = {};
+    for (const a of classAtt) (byStudent[a.student_id] ||= []).push(a);
+    const set = new Set();
+    for (const sid in byStudent) {
+      const last4 = byStudent[sid].slice().sort((x, y) => (x.session_date < y.session_date ? 1 : -1)).slice(0, 4);
+      if (last4.filter((a) => a.status === "absent").length >= 3) set.add(sid);
+    }
+    return set;
+  }, [classAtt]);
+
   // 8-week weekly class attendance rate for the Work-tab trend chart. Monday-based
   // buckets; excused excluded from the denominator (same as the report). Oldest → newest.
   const weeklyTrend = useMemo(() => {
@@ -358,6 +390,15 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   };
   const metaBits = [(classObj.subject || "").replace(/_/g, " "), classObj.teacher?.name, classObj.room, fmtSchedule(classObj.schedule)].filter(Boolean);
 
+  const askAi = async () => {
+    const q = aiQ.trim();
+    if (!q || aiAsking) return;
+    setAiAsking(true); setAiAnswer("");
+    const r = await askClass(classObj.id, q);
+    setAiAsking(false);
+    setAiAnswer(r.ok && r.answer ? r.answer : `⚠️ ${assistantErrorMessage(r.error)}`);
+  };
+
   return (
     <div className="pb-20 md:pb-0">
       {/* Smart header (replaces the stat tiles) */}
@@ -374,11 +415,37 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
             </div>
             {metaBits.length > 0 && <p className="text-sm text-stone-500 mt-1 capitalize">{metaBits.join(" · ")}</p>}
             <p className="text-sm font-medium text-emerald-800 mt-1.5">{headerStat()}</p>
+            {/* AI class brief — one line, tap to open the Q&A panel (P5) */}
+            <div className="mt-2">
+              {aiLoading ? (
+                <span className="text-xs text-stone-400 inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Preparing class brief…</span>
+              ) : aiBrief ? (
+                <button onClick={() => setAiPanelOpen((o) => !o)} className="flex items-start gap-1.5 text-left group max-w-2xl">
+                  <Sparkles size={13} className="text-emerald-600 mt-0.5 shrink-0" />
+                  <span className="text-xs text-stone-600 group-hover:text-stone-900">{aiBrief}</span>
+                  {aiPanelOpen ? <ChevronUp size={13} className="text-stone-400 mt-0.5 shrink-0" /> : <ChevronDown size={13} className="text-stone-400 mt-0.5 shrink-0" />}
+                </button>
+              ) : (
+                <button onClick={() => setAiPanelOpen((o) => !o)} className="text-xs font-medium text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"><Sparkles size={13} /> Ask about this class</button>
+              )}
+            </div>
           </div>
           {onMessageParent && (
             <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 shrink-0"><MessageCircle size={14} /> Message all parents</button>
           )}
         </div>
+
+        {/* AI Q&A panel */}
+        {aiPanelOpen && (
+          <div className="mt-3 bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4">
+            <div className="flex gap-2">
+              <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askAi()} placeholder="Ask about attendance, hifz, homework, welfare…" className="flex-1 text-sm px-3 py-2 rounded-lg border border-stone-200 outline-none focus:border-emerald-500" />
+              <button onClick={askAi} disabled={aiAsking || !aiQ.trim()} className="bg-emerald-900 hover:bg-emerald-800 text-white px-3 py-2 rounded-lg disabled:opacity-40 inline-flex items-center gap-1.5">{aiAsking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
+            </div>
+            {aiAnswer && <p className="text-sm text-stone-700 mt-3 whitespace-pre-wrap">{aiAnswer}</p>}
+            <p className="text-[10px] text-stone-400 mt-2">AI can make mistakes — verify important details. Answers use this class's data only.</p>
+          </div>
+        )}
       </div>
 
       {/* Desktop tab bar (md+); mobile uses the fixed bottom nav below */}
@@ -394,7 +461,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
           <div className="space-y-4">
             <MadrasaLiveLesson classObj={classObj} compact />
-            <MadrasaAttendance classObj={classObj} />
+            <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} />
           </div>
         </Section>
       )}

@@ -120,6 +120,15 @@ export async function extractMinutes(mosqueId, notes) {
   return postBrief({ mode: "governance_minutes", mosqueId, notes }, { timeoutMs: 30000 });
 }
 
+// Per-class teaching assistant (mode:'class_ops', teacher/owner-authed). Empty
+// question → a one-line proactive brief ({ ok, brief }); with a question → a chat
+// answer ({ ok, answer }). Returns { ok:false, error } on failure.
+export async function askClass(classId, question = "") {
+  if (!classId) return { ok: false, error: "missing_classId" };
+  return postBrief({ mode: "class_ops", classId, question });
+}
+export const getClassBrief = (classId) => askClass(classId, "");
+
 // Parent-friendly AI summary from a report's structured sections
 // (mode:'report_summary', teacher/owner-authed). Returns { ok, summary }.
 export async function generateReportSummary({ classId, sections, overall, studentName, term }) {
