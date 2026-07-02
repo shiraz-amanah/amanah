@@ -31,7 +31,7 @@ export const MOSQUE_NAV = [
     ["announcements", "Announcements", Megaphone], ["donations", "Donations", HandCoins],
   ] },
   { tab: "madrasah", label: "Madrasah", icon: GraduationCap, items: [
-    ["classes", "Classes", GraduationCap], ["students", "Students", Users],
+    ["classes", "Classes", GraduationCap], ["students", "All students", Users],
     ["analytics", "Analytics", BarChart3], ["reports", "Reports", FileText],
   ] },
   { tab: "compliance", label: "Compliance", icon: ShieldAlert, items: [

@@ -66,6 +66,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
   const [status, setStatus] = useState(enrollment.status || "active");
   const [tab, setTab] = useState("overview");
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null); // 3-dot menu — close on outside click (no viewport backdrop, so the sidebar stays clickable)
 
   const sid = student.id || enrollment.student_id;
   const [loading, setLoading] = useState(true);
@@ -119,6 +120,15 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
       .finally(() => setLoading(false));
   };
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [sid]);
+
+  // Close the 3-dot menu on any outside click — via a document listener rather
+  // than a full-viewport backdrop, so the click still reaches the sidebar (Fix 4).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
 
   // Fix 2 — mint a signed URL for the stored avatar path (private bucket).
   useEffect(() => {
@@ -315,11 +325,10 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
           </div>
         </div>
         {/* 3-dot actions menu */}
-        <div className="relative shrink-0">
+        <div ref={menuRef} className="relative shrink-0">
           <button onClick={() => setMenuOpen((v) => !v)} className="text-stone-500 hover:text-stone-900 border border-stone-200 hover:border-stone-300 rounded-lg p-2"><MoreVertical size={18} /></button>
           {menuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 mt-1 w-56 bg-white border border-stone-200 rounded-xl shadow-lg z-20 py-1 text-sm">
                 <button onClick={openEdit} className="w-full text-left px-4 py-2 hover:bg-stone-50 inline-flex items-center gap-2"><Pencil size={14} /> Edit student details</button>
                 <button onClick={resetLogin} className="w-full text-left px-4 py-2 hover:bg-stone-50 inline-flex items-center gap-2"><Mail size={14} /> Reset parent login</button>

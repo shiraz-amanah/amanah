@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
   ChevronRight, Megaphone, Video, GraduationCap, Award, Image, CalendarClock, ShieldAlert, BarChart3, ScrollText, Hourglass,
-  ClipboardList, Layers, Settings, Radio, Star, AlertTriangle, Sparkles, Send, ChevronDown, ChevronUp,
+  ClipboardList, Settings, Radio, Star, AlertTriangle, Sparkles, Send, ChevronDown, ChevronUp, MoreHorizontal,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
 import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
@@ -45,9 +45,13 @@ const TABS = [
   ["today", "Today", ClipboardList],
   ["students", "Students", Users],
   ["hifz", "Hifz", BookOpen],
-  ["work", "Work", Layers],
+  ["homework", "Homework", BookOpen],
+  ["reports", "Reports", FileText],
+  ["attendance", "Attendance", BarChart3],
   ["class", "Class", Settings],
 ];
+// Mobile bottom bar shows 4 primary tabs + a "More" sheet for the rest.
+const MOBILE_PRIMARY = ["today", "students", "hifz", "class"];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 // madrasa_classes.schedule is [{ day, start, end }] — render a compact summary.
 const DAY_ABBR = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
@@ -214,6 +218,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [classAtt, setClassAtt] = useState([]);          // all attendance rows → card rings + last-seen
   const [classRewards, setClassRewards] = useState([]);  // all rewards → card star counts
   const [studentFilter, setStudentFilter] = useState("all"); // Students tab filter
+  const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
   // AI class brief + Q&A (P5, class_ops mode)
   const [aiBrief, setAiBrief] = useState("");
   const [aiLoading, setAiLoading] = useState(true);
@@ -376,6 +381,10 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
 
   // ---- Smart header: meta line + per-tab contextual stat (workspace data only) ----
   const classAvgPct = activeRoster.length ? Math.round((memorizedTotal / (activeRoster.length * 114)) * 100) : 0;
+  const classAttAvg = (() => {
+    const rs = activeRoster.map((e) => attRateOf(e.student?.id || e.student_id)).filter((r) => r != null);
+    return rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length) : null;
+  })();
   const todayPresent = (todayAtt || []).filter((a) => a.status === "present" || a.status === "late").length;
   const headerStat = () => {
     if (tab === "today") {
@@ -385,7 +394,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     }
     if (tab === "students") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"}${classObj.capacity != null ? ` · ${activeRoster.length}/${classObj.capacity} capacity` : ""}${withdrawn > 0 ? ` · ${withdrawn} withdrawn` : ""}`;
     if (tab === "hifz") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"} · ${classAvgPct}% class average`;
-    if (tab === "work") return "Homework · Reports · Attendance trends";
+    if (tab === "homework") return "Set tasks & track submissions";
+    if (tab === "reports") return "Termly progress reports";
+    if (tab === "attendance") return classAttAvg != null ? `${classAttAvg}% class attendance · 8-week trend` : "Attendance rates & 8-week trend";
     return "Announcements · Behaviour · Photos · Timetable";
   };
   const metaBits = [(classObj.subject || "").replace(/_/g, " "), classObj.teacher?.name, classObj.room, fmtSchedule(classObj.schedule)].filter(Boolean);
@@ -589,18 +600,24 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         </Section>
       )}
 
-      {/* WORK — homework · reports · attendance trends (one scroll) */}
-      {tab === "work" && (
-        <div className="space-y-8">
-          <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted"><MadrasaHomework classObj={classObj} /></Section>
-          <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish"><MadrasaReports classObj={classObj} mosqueName={mosqueName} /></Section>
-          <Section icon={BarChart3} title="Attendance trends" subtitle="Weekly class rate over the last 8 weeks, then per-student rates and session history" accent="text-sky-700">
-            <div className="space-y-4">
-              <AttendanceTrend data={weeklyTrend} />
-              <MadrasaAttendanceReport classObj={classObj} />
-            </div>
-          </Section>
-        </div>
+      {/* HOMEWORK */}
+      {tab === "homework" && (
+        <Section icon={BookOpen} title="Homework" subtitle="Set tasks and track who has submitted"><MadrasaHomework classObj={classObj} /></Section>
+      )}
+
+      {/* REPORTS */}
+      {tab === "reports" && (
+        <Section icon={FileText} title="Reports" subtitle="Termly progress reports — generate, draft, publish"><MadrasaReports classObj={classObj} mosqueName={mosqueName} /></Section>
+      )}
+
+      {/* ATTENDANCE — 8-week trend chart + per-student rates and session history */}
+      {tab === "attendance" && (
+        <Section icon={BarChart3} title="Attendance" subtitle="Weekly class rate over the last 8 weeks, then per-student rates and session history" accent="text-sky-700">
+          <div className="space-y-4">
+            <AttendanceTrend data={weeklyTrend} />
+            <MadrasaAttendanceReport classObj={classObj} />
+          </div>
+        </Section>
       )}
 
       {/* CLASS — management & housekeeping (one scroll) */}
@@ -619,15 +636,41 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       )}
       </div>
 
-      {/* Mobile bottom navigation — fixed, native-app feel (< md) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-stone-200 flex">
-        {TABS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => { setTab(v); window.scrollTo({ top: 0 }); }} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${tab === v ? "text-emerald-800" : "text-stone-500"}`}>
-            <Icon size={20} className={tab === v ? "text-emerald-700" : "text-stone-400"} />
-            <span className="text-[10px] font-medium">{l}</span>
-          </button>
-        ))}
-      </nav>
+      {/* Mobile bottom navigation — 4 primary tabs + a "More" sheet (< md) */}
+      {(() => {
+        const primary = TABS.filter(([v]) => MOBILE_PRIMARY.includes(v));
+        const more = TABS.filter(([v]) => !MOBILE_PRIMARY.includes(v));
+        const inMore = more.some(([v]) => v === tab);
+        return (
+          <>
+            {/* More sheet (mobile only) */}
+            {moreOpen && (
+              <div className="md:hidden fixed inset-0 z-40" onClick={() => setMoreOpen(false)}>
+                <div className="absolute bottom-[68px] inset-x-3 bg-white border border-stone-200 rounded-2xl shadow-lg p-2" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-[10px] uppercase tracking-wider text-stone-400 px-2 py-1">More</p>
+                  {more.map(([v, l, Icon]) => (
+                    <button key={v} onClick={() => { setTab(v); setMoreOpen(false); window.scrollTo({ top: 0 }); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm ${tab === v ? "bg-emerald-50 text-emerald-800 font-medium" : "text-stone-700 hover:bg-stone-50"}`}>
+                      <Icon size={16} className={tab === v ? "text-emerald-700" : "text-stone-400"} /> {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-stone-200 flex">
+              {primary.map(([v, l, Icon]) => (
+                <button key={v} onClick={() => { setTab(v); setMoreOpen(false); window.scrollTo({ top: 0 }); }} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${tab === v ? "text-emerald-800" : "text-stone-500"}`}>
+                  <Icon size={20} className={tab === v ? "text-emerald-700" : "text-stone-400"} />
+                  <span className="text-[10px] font-medium">{l}</span>
+                </button>
+              ))}
+              <button onClick={() => setMoreOpen((o) => !o)} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${inMore || moreOpen ? "text-emerald-800" : "text-stone-500"}`}>
+                <MoreHorizontal size={20} className={inMore || moreOpen ? "text-emerald-700" : "text-stone-400"} />
+                <span className="text-[10px] font-medium">More</span>
+              </button>
+            </nav>
+          </>
+        );
+      })()}
 
       {showBulk && <BulkParentMessageModal recipients={parentIds} audienceLabel={`all parents in ${classObj.name || "this class"}`} onClose={() => setShowBulk(false)} />}
     </div>
