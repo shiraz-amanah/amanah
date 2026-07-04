@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Video, ExternalLink, Square, Radio, AlertCircle } from "lucide-react";
 import { startMadrasaLiveLesson, endMadrasaLiveLesson, getActiveMadrasaSession } from "../auth";
 import { createMadrasaRoom } from "../lib/video";
+import MadrasaLiveRoom from "./MadrasaLiveRoom";
 
 // Live lesson control (Session AL, item 14) — teacher/admin side. Start creates a
 // madrasa_sessions row (RLS) then a Daily room via the extended create-daily-room
@@ -18,6 +19,7 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showRoom, setShowRoom] = useState(false); // pre-join + embedded call modal
 
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -38,8 +40,13 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
       s = { ...s, room_url: r.url, room_name: r.roomName };
     }
     setBusy(false); setSession(s);
-    window.open(s.room_url, "_blank", "noopener,noreferrer");
+    setShowRoom(true); // open the pre-join screen instead of a new tab
   };
+
+  // Shared modal (pre-join camera/mic check → embedded Daily call).
+  const roomModal = showRoom && session?.room_url ? (
+    <MadrasaLiveRoom roomUrl={session.room_url} title={`${classObj.name || "Class"} — Live lesson`} onClose={() => setShowRoom(false)} />
+  ) : null;
 
   const end = async () => {
     setBusy(true); setError("");
@@ -59,10 +66,11 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
     if (session) {
       return (
         <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+          {roomModal}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-700"><Radio size={14} className="animate-pulse" /> Live lesson in progress</span>
             <div className="flex items-center gap-2">
-              {session.room_url && <a href={session.room_url} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</a>}
+              {session.room_url && <button onClick={() => setShowRoom(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</button>}
               <button onClick={end} disabled={busy} className="border border-rose-300 text-rose-700 hover:bg-rose-100 disabled:opacity-40 text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} End</button>
             </div>
           </div>
@@ -88,12 +96,13 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
   if (session) {
     return (
       <div className="bg-white border border-emerald-200 rounded-2xl p-5">
+        {roomModal}
         <div className="flex items-center gap-2 mb-2">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-700"><Radio size={13} className="animate-pulse" /> Live now</span>
         </div>
         <p className="text-sm text-stone-600 mb-3">Remote students can join from their parent dashboard and are auto-marked present.</p>
         <div className="flex flex-wrap gap-2">
-          {session.room_url && <a href={session.room_url} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</a>}
+          {session.room_url && <button onClick={() => setShowRoom(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</button>}
           <button onClick={end} disabled={busy} className="border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-40 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} End lesson</button>
         </div>
         {error && <p className="text-sm text-amber-700 flex items-center gap-1.5 mt-3"><AlertCircle size={14} /> {error}</p>}
