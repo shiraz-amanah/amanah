@@ -41,11 +41,8 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
   }, []);
   const destroyFrame = useCallback(() => {
-    if (frameRef.current) { console.log("[MadrasaLiveRoom] destroyFrame() called"); try { frameRef.current.destroy(); } catch { /* already gone */ } frameRef.current = null; }
+    if (frameRef.current) { try { frameRef.current.destroy(); } catch { /* already gone */ } frameRef.current = null; }
   }, []);
-
-  // Mount/unmount tracer — catches a remount that would destroy the frame mid-join.
-  useEffect(() => { console.log("[MadrasaLiveRoom] MOUNTED"); return () => console.log("[MadrasaLiveRoom] UNMOUNTED"); }, []);
 
   // Request devices on open → live preview + status.
   useEffect(() => {
@@ -124,9 +121,10 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
     try { await onRetry(); } finally { setRetrying(false); }
   };
 
-  // Mount + join the Daily prebuilt frame once the container is in the DOM.
+  // Mount + join the Daily prebuilt frame once the container is in the DOM. The UI
+  // transitions off the canonical 'joined-meeting' event (into `joined`), not the
+  // await, so the overlay lifts as soon as Daily reports we're in.
   useEffect(() => {
-    console.log("[join] effect started, phase:", phase, "roomUrl:", roomUrl);
     if (phase !== "joining" || !containerRef.current || frameRef.current) return;
     let cancelled = false;
     (async () => {
@@ -137,29 +135,18 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           showLeaveButton: true,
           iframeStyle: { width: "100%", height: "100%", border: "0" },
         });
-        frameRef.current = frame; // assign synchronously, before anything else
-        // All listeners registered BEFORE join(). Extra Daily lifecycle events are
-        // logged so we can see exactly which one fires (joined vs left vs error).
-        frame.on("loading", () => console.log("[Daily] loading"));
-        frame.on("loaded", () => console.log("[Daily] loaded"));
-        frame.on("joining-meeting", () => console.log("[Daily] joining-meeting"));
-        frame.on("joined-meeting", () => { console.log("[Daily] joined-meeting ✓"); setJoined(true); setPhase("incall"); });
-        frame.on("left-meeting", (e) => { console.log("[Daily] left-meeting", e?.action || ""); destroyFrame(); onCloseRef.current?.(); });
-        frame.on("error", (ev) => { console.error("[Daily] error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
-        console.log("[MadrasaLiveRoom] joining Daily room:", roomUrl);
+        frameRef.current = frame;
+        frame.on("joined-meeting", () => { setJoined(true); setPhase("incall"); });
+        frame.on("left-meeting", () => { destroyFrame(); onCloseRef.current?.(); });
+        frame.on("error", (ev) => { console.error("Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
         await frame.join({ url: roomUrl, startVideoOff: videoOffRef.current, startAudioOff: audioOffRef.current });
-        console.log("[join] frame.join() resolved, cancelled?", cancelled);
         if (cancelled) { destroyFrame(); return; }
-        console.log("[join] setting incall + joined");
         setJoined(true);
         setPhase("incall");
-      } catch (err) { console.error("[MadrasaLiveRoom] join failed:", err?.message || err); if (!cancelled) { setJoinError(true); destroyFrame(); setPhase("prejoin"); } }
+      } catch (err) { console.error("Daily join failed:", err?.message || err); if (!cancelled) { setJoinError(true); destroyFrame(); setPhase("prejoin"); } }
     })();
-    return () => { console.log("[join] effect cleanup — cancelled set true"); cancelled = true; };
+    return () => { cancelled = true; };
   }, [phase, roomUrl, destroyFrame]);
-
-  // Definitive phase/joined tracker — confirms state actually propagates to render.
-  useEffect(() => { console.log("[MadrasaLiveRoom] render state → phase:", phase, "joined:", joined); }, [phase, joined]);
 
   const StatusPill = ({ ok, blocked, icon: Icon, blockedIcon: BIcon, label }) => (
     <div className="flex items-center gap-2 text-sm">
@@ -248,6 +235,13 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
             </button>
             {!denied && permState !== "pending" && !camReady && !micReady && (
               <p className="text-xs text-stone-400 mt-2 text-center">No camera or microphone found. Connect a device and reopen.</p>
+            )}
+            {/* Escape hatch (teacher only): force a brand-new session + room if the
+                current room ever misbehaves. The noRoom case has its own button above. */}
+            {onRetry && !noRoom && (
+              <button onClick={doRetry} disabled={retrying} className="w-full mt-2 text-xs text-stone-500 hover:text-stone-800 inline-flex items-center justify-center gap-1.5 disabled:opacity-50">
+                {retrying ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />} Trouble connecting? Restart with a fresh room
+              </button>
             )}
           </div>
         )}
