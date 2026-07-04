@@ -292,7 +292,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
     if (!isOwner) return;
     let alive = true;
     setClsOverrides({}); setSettingsMsg(""); setFeeMsg("");
-    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "" });
+    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "", has_hifz: classObj.has_hifz ?? false });
     setFeeForm({ feeType: "per_term", amount: "", termLabel: classObj.term || "", dueDate: "", gracePeriodDays: 7 });
     getMosqueStaff(classObj.mosque_id).then((s) => { if (alive) setStaff((s || []).filter((x) => !x.archived)); }).catch(() => {});
     getClassFeeSummary(classObj.id).then((f) => { if (alive) setFeeSummary(f); }).catch(() => {});
@@ -307,13 +307,14 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
       name: settingsForm.name.trim() || classObj.name,
       capacity: settingsForm.capacity === "" ? null : Number(settingsForm.capacity),
       teacher_staff_id: settingsForm.teacher_staff_id || null,
+      has_hifz: !!settingsForm.has_hifz,
     };
     const { error } = await updateMadrasaClass(classObj.id, payload);
     setSavingSettings(false);
     if (error) { setSettingsMsg("Couldn't save — " + (error.message || "please try again.")); return; }
     // Optimistically reflect in the header without a full parent reload.
     const teacherName = staff.find((s) => s.id === payload.teacher_staff_id)?.name || null;
-    setClsOverrides({ name: payload.name, capacity: payload.capacity, teacher_staff_id: payload.teacher_staff_id, teacher: teacherName ? { name: teacherName } : null });
+    setClsOverrides({ name: payload.name, capacity: payload.capacity, teacher_staff_id: payload.teacher_staff_id, teacher: teacherName ? { name: teacherName } : null, has_hifz: payload.has_hifz });
     setSettingsMsg("Saved.");
   };
 
@@ -339,6 +340,12 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
   // Open the full student profile (Layer 3). Always return to the Students tab.
   const openProfile = (e) => { setTab("students"); setProfileEnrollment(e); };
   useOverlay(!!profileEnrollment, () => setProfileEnrollment(null));
+
+  // Hifz opt-in (114). Reflects an optimistic settings toggle. When off, the Hifz
+  // tab is hidden — and if we're sitting on it (e.g. carried over from another
+  // class), bounce back to Today.
+  const hasHifz = clsOverrides.has_hifz ?? classObj.has_hifz ?? false;
+  useEffect(() => { if (!hasHifz && tab === "hifz") setTab("today"); }, [hasHifz, tab]);
 
   const activeRoster = roster.filter((e) => e.status === "active");
   const withdrawn = roster.length - activeRoster.length;
@@ -450,6 +457,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
   // Merge optimistic settings edits over the prop for header display (id/effects
   // still key off classObj so nothing remounts).
   const cls = { ...classObj, ...clsOverrides };
+  const visibleTabs = TABS.filter(([v]) => v !== "hifz" || hasHifz); // Hifz tab hidden when the class opts out
   const studentsTitle = `${activeRoster.length} ${activeRoster.length === 1 ? "Student" : "Students"}`;
 
   // ---- Smart header: meta line + per-tab contextual stat (workspace data only) ----
@@ -535,7 +543,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
 
       {/* Desktop tab bar (md+); mobile uses the fixed bottom nav below */}
       <div className="hidden md:flex border-b border-stone-200 gap-1 mb-6">
-        {TABS.map(([v, l, Icon]) => (
+        {visibleTabs.map(([v, l, Icon]) => (
           <button key={v} onClick={() => setTab(v)} className={`px-4 py-2.5 text-sm font-medium border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
         ))}
       </div>
@@ -615,9 +623,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                               </div>
                             </div>
                             <div className="relative mt-3">
-                              <div className="flex items-center justify-between text-[11px] text-stone-400"><span>Hifz</span><span>{mem}/114</span></div>
-                              <HifzBar memorized={mem} />
-                              <p className="text-[10px] text-stone-400 mt-1.5">{fmtLastSeen(s.lastSeen)}</p>
+                              {hasHifz && (
+                                <>
+                                  <div className="flex items-center justify-between text-[11px] text-stone-400"><span>Hifz</span><span>{mem}/114</span></div>
+                                  <HifzBar memorized={mem} />
+                                </>
+                              )}
+                              <p className={`text-[10px] text-stone-400 ${hasHifz ? "mt-1.5" : ""}`}>{fmtLastSeen(s.lastSeen)}</p>
                             </div>
                           </button>
                         );
@@ -771,6 +783,10 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                         </select>
                       </div>
                     </div>
+                    <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
+                      <input type="checkbox" checked={!!settingsForm.has_hifz} onChange={(e) => setSettingsForm((f) => ({ ...f, has_hifz: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />
+                      <span className="text-sm text-stone-700">This class includes Hifz (Qur'an memorisation)<span className="block text-[11px] text-stone-400">Shows the Hifz tab and per-student memorisation progress. Turn off for non-memorisation classes.</span></span>
+                    </label>
                     <div className="flex items-center gap-3">
                       <button onClick={saveSettings} disabled={savingSettings} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
                       {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-emerald-700" : "text-rose-600"}`}>{settingsMsg}</span>}
@@ -829,8 +845,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
 
       {/* Mobile bottom navigation — 4 primary tabs + a "More" sheet (< md) */}
       {(() => {
-        const primary = TABS.filter(([v]) => MOBILE_PRIMARY.includes(v));
-        const more = TABS.filter(([v]) => !MOBILE_PRIMARY.includes(v));
+        const primary = visibleTabs.filter(([v]) => MOBILE_PRIMARY.includes(v));
+        const more = visibleTabs.filter(([v]) => !MOBILE_PRIMARY.includes(v));
         const inMore = more.some(([v]) => v === tab);
         return (
           <>

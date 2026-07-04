@@ -34,7 +34,7 @@ const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-mediu
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
 
-const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "" };
+const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "", has_hifz: false };
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
 const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) => {
@@ -77,7 +77,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
 
   const openAdd = () => { setForm(blank); setEditingId(null); setError(null); setShowForm(true); };
   const openEdit = (c) => {
-    setForm({ name: c.name || "", subject: c.subject || "quran", teacher_staff_id: c.teacher_staff_id || "", schedule: Array.isArray(c.schedule) ? c.schedule : [], term: c.term || "", capacity: c.capacity ?? "", room: c.room || "" });
+    setForm({ name: c.name || "", subject: c.subject || "quran", teacher_staff_id: c.teacher_staff_id || "", schedule: Array.isArray(c.schedule) ? c.schedule : [], term: c.term || "", capacity: c.capacity ?? "", room: c.room || "", has_hifz: c.has_hifz ?? false });
     setEditingId(c.id); setError(null); setShowForm(true);
   };
 
@@ -91,6 +91,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
       term: form.term.trim() || null,
       capacity: form.capacity === "" ? null : Number(form.capacity),
       room: form.room.trim() || null,
+      has_hifz: !!form.has_hifz,
     };
     const r = editingId ? await updateMadrasaClass(editingId, payload) : await createMadrasaClass({ mosqueId, ...payload });
     setBusy(false);
@@ -169,6 +170,10 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
             )}
             <button onClick={addSlot} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">+ Add a day/time</button>
           </div>
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            <input type="checkbox" checked={!!form.has_hifz} onChange={(e) => set("has_hifz", e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />
+            <span className="text-sm text-stone-700">This class includes Hifz (Qur'an memorisation)<span className="block text-[11px] text-stone-400">Adds a Hifz tab for tracking surah progress. Leave off for non-memorisation classes.</span></span>
+          </label>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowForm(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
             <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {editingId ? "Save" : "Create class"}</button>
