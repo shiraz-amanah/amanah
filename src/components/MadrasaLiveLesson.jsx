@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Video, ExternalLink, Square, Radio, AlertCircle } from "lucide-react";
 import { startMadrasaLiveLesson, endMadrasaLiveLesson, getActiveMadrasaSession } from "../auth";
 import { createMadrasaRoom } from "../lib/video";
+import { sendMadrasaLessonStarted } from "../lib/email";
 import MadrasaLiveRoom from "./MadrasaLiveRoom";
 
 // Live lesson control (Session AL, item 14) — teacher/admin side. Start creates a
@@ -41,6 +42,8 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
     }
     setBusy(false); setSession(s);
     setShowRoom(true); // open the pre-join screen instead of a new tab
+    // Fire-and-forget: notify remote students' parents (bell + email). No-ops if none.
+    sendMadrasaLessonStarted(s.id).catch(() => {});
   };
 
   // Shared modal (pre-join camera/mic check → embedded Daily call).

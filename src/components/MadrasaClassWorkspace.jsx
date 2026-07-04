@@ -9,7 +9,7 @@ import { useOverlay } from "../lib/useOverlay";
 import { money } from "../lib/format";
 import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee, setEnrollmentAttendsRemotely } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -292,7 +292,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
     if (!isOwner) return;
     let alive = true;
     setClsOverrides({}); setSettingsMsg(""); setFeeMsg("");
-    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "", has_hifz: classObj.has_hifz ?? false });
+    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "", has_hifz: classObj.has_hifz ?? false, delivery_mode: classObj.delivery_mode || "in_person" });
     setFeeForm({ feeType: "per_term", amount: "", termLabel: classObj.term || "", dueDate: "", gracePeriodDays: 7 });
     getMosqueStaff(classObj.mosque_id).then((s) => { if (alive) setStaff((s || []).filter((x) => !x.archived)); }).catch(() => {});
     getClassFeeSummary(classObj.id).then((f) => { if (alive) setFeeSummary(f); }).catch(() => {});
@@ -308,13 +308,14 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
       capacity: settingsForm.capacity === "" ? null : Number(settingsForm.capacity),
       teacher_staff_id: settingsForm.teacher_staff_id || null,
       has_hifz: !!settingsForm.has_hifz,
+      delivery_mode: settingsForm.delivery_mode || "in_person",
     };
     const { error } = await updateMadrasaClass(classObj.id, payload);
     setSavingSettings(false);
     if (error) { setSettingsMsg("Couldn't save — " + (error.message || "please try again.")); return; }
     // Optimistically reflect in the header without a full parent reload.
     const teacherName = staff.find((s) => s.id === payload.teacher_staff_id)?.name || null;
-    setClsOverrides({ name: payload.name, capacity: payload.capacity, teacher_staff_id: payload.teacher_staff_id, teacher: teacherName ? { name: teacherName } : null, has_hifz: payload.has_hifz });
+    setClsOverrides({ name: payload.name, capacity: payload.capacity, teacher_staff_id: payload.teacher_staff_id, teacher: teacherName ? { name: teacherName } : null, has_hifz: payload.has_hifz, delivery_mode: payload.delivery_mode });
     setSettingsMsg("Saved.");
   };
 
@@ -337,6 +338,14 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
     getClassFeeSummary(classObj.id).then((f) => setFeeSummary(f)).catch(() => {});
   };
 
+  // Toggle a student's remote-attendance flag (optimistic + rollback on error).
+  const toggleRemote = async (e) => {
+    const next = !e.attends_remotely;
+    setRoster((rs) => rs.map((x) => (x.id === e.id ? { ...x, attends_remotely: next } : x)));
+    const { error } = await setEnrollmentAttendsRemotely(e.id, next);
+    if (error) setRoster((rs) => rs.map((x) => (x.id === e.id ? { ...x, attends_remotely: !next } : x)));
+  };
+
   // Open the full student profile (Layer 3). Always return to the Students tab.
   const openProfile = (e) => { setTab("students"); setProfileEnrollment(e); };
   useOverlay(!!profileEnrollment, () => setProfileEnrollment(null));
@@ -346,6 +355,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
   // class), bounce back to Today.
   const hasHifz = clsOverrides.has_hifz ?? classObj.has_hifz ?? false;
   useEffect(() => { if (!hasHifz && tab === "hifz") setTab("today"); }, [hasHifz, tab]);
+  const deliveryMode = clsOverrides.delivery_mode ?? classObj.delivery_mode ?? "in_person"; // 115
 
   const activeRoster = roster.filter((e) => e.status === "active");
   const withdrawn = roster.length - activeRoster.length;
@@ -553,8 +563,11 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
       {tab === "today" && (
         <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
           <div className="space-y-4">
-            <MadrasaLiveLesson classObj={classObj} compact />
-            <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} />
+            {/* Live lesson visibility by delivery mode: hidden in-person, prominent
+                (full card) for remote, optional (compact bar) for hybrid. */}
+            {deliveryMode === "remote" && <MadrasaLiveLesson classObj={classObj} />}
+            {deliveryMode === "hybrid" && <MadrasaLiveLesson classObj={classObj} compact />}
+            <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} deliveryMode={deliveryMode} />
           </div>
         </Section>
       )}
@@ -605,8 +618,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                         const mem = (hifzByStudent[sid]?.memorized.size) || 0;
                         const atRisk = rate != null && rate < 75;
                         return (
-                          <button key={e.id} onClick={() => openProfile(e)} className="relative overflow-hidden text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                          <div key={e.id} className="relative overflow-hidden bg-white border border-stone-200 rounded-2xl hover:border-emerald-300 hover:shadow-sm transition-all">
                             <CardWatermark id={`wm-${sid}`} />
+                            <button onClick={() => openProfile(e)} className="relative block w-full text-left p-4">
                             <div className="relative flex items-start gap-3">
                               <StudentAvatar student={st} rate={rate} />
                               <div className="min-w-0 flex-1">
@@ -631,7 +645,16 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                               )}
                               <p className={`text-[10px] text-stone-400 ${hasHifz ? "mt-1.5" : ""}`}>{fmtLastSeen(s.lastSeen)}</p>
                             </div>
-                          </button>
+                            </button>
+                            {deliveryMode !== "in_person" && (
+                              <div className="relative border-t border-stone-100 px-4 py-2.5 flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-stone-600 inline-flex items-center gap-1.5"><Video size={12} className="text-stone-400" /> Attends remotely</span>
+                                <button role="switch" aria-checked={!!e.attends_remotely} onClick={() => toggleRemote(e)} className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${e.attends_remotely ? "bg-emerald-600" : "bg-stone-300"}`}>
+                                  <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${e.attends_remotely ? "translate-x-4" : ""}`} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -782,6 +805,15 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                           {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Delivery mode</label>
+                      <select value={settingsForm.delivery_mode} onChange={(e) => setSettingsForm((f) => ({ ...f, delivery_mode: e.target.value }))} className="w-full sm:w-72 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm">
+                        <option value="in_person">In-person only</option>
+                        <option value="remote">Remote only</option>
+                        <option value="hybrid">Hybrid</option>
+                      </select>
+                      <p className="text-[11px] text-stone-400 mt-1">{settingsForm.delivery_mode === "in_person" ? "No live lesson button." : settingsForm.delivery_mode === "remote" ? "Live lesson is the primary interface." : "Live lesson available as an option."}</p>
                     </div>
                     <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
                       <input type="checkbox" checked={!!settingsForm.has_hifz} onChange={(e) => setSettingsForm((f) => ({ ...f, has_hifz: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />

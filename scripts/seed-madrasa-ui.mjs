@@ -50,12 +50,18 @@ async function teardown() {
   const userIds = [];
   for (const email of Object.values(EM)) { const u = await findUserByEmail(email); if (u) userIds.push(u.id); }
   if (m) {
+    // Enrolled students have no profile_id, so the profile_id sweep below misses
+    // them — collect their ids up front and delete them explicitly (else reseeds
+    // accumulate duplicate "Bilal Ahmed" etc. rows).
+    const { data: enrs } = await svc.from('madrasa_enrollments').select('student_id').eq('mosque_id', m.id);
+    const enrolledStudentIds = [...new Set((enrs || []).map((e) => e.student_id))];
     await svc.from('madrasa_fee_records').delete().eq('mosque_id', m.id);
     await svc.from('madrasa_fees').delete().eq('mosque_id', m.id);
     await svc.from('madrasa_waitlist').delete().eq('mosque_id', m.id);
     await svc.from('madrasa_enrollments').delete().eq('mosque_id', m.id);
     await svc.from('madrasa_classes').delete().eq('mosque_id', m.id);
     await svc.from('mosque_staff').delete().eq('mosque_id', m.id);
+    if (enrolledStudentIds.length) await svc.from('students').delete().in('id', enrolledStudentIds);
   }
   for (const uid of userIds) await svc.from('students').delete().eq('profile_id', uid);
   if (m) await svc.from('mosques').delete().eq('id', m.id);

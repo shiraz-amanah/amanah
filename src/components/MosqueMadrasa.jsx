@@ -34,7 +34,12 @@ const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-mediu
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
 
-const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "", has_hifz: false };
+const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "", has_hifz: false, delivery_mode: "in_person" };
+const DELIVERY_MODES = [
+  ["in_person", "In-person only", "No live lesson — register is marked in person."],
+  ["remote", "Remote only", "Live video lesson is the primary way this class runs."],
+  ["hybrid", "Hybrid", "Both — in-person register plus an optional live lesson."],
+];
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
 const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) => {
@@ -77,7 +82,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
 
   const openAdd = () => { setForm(blank); setEditingId(null); setError(null); setShowForm(true); };
   const openEdit = (c) => {
-    setForm({ name: c.name || "", subject: c.subject || "quran", teacher_staff_id: c.teacher_staff_id || "", schedule: Array.isArray(c.schedule) ? c.schedule : [], term: c.term || "", capacity: c.capacity ?? "", room: c.room || "", has_hifz: c.has_hifz ?? false });
+    setForm({ name: c.name || "", subject: c.subject || "quran", teacher_staff_id: c.teacher_staff_id || "", schedule: Array.isArray(c.schedule) ? c.schedule : [], term: c.term || "", capacity: c.capacity ?? "", room: c.room || "", has_hifz: c.has_hifz ?? false, delivery_mode: c.delivery_mode || "in_person" });
     setEditingId(c.id); setError(null); setShowForm(true);
   };
 
@@ -92,6 +97,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
       capacity: form.capacity === "" ? null : Number(form.capacity),
       room: form.room.trim() || null,
       has_hifz: !!form.has_hifz,
+      delivery_mode: form.delivery_mode || "in_person",
     };
     const r = editingId ? await updateMadrasaClass(editingId, payload) : await createMadrasaClass({ mosqueId, ...payload });
     setBusy(false);
@@ -169,6 +175,13 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
               ))}</div>
             )}
             <button onClick={addSlot} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">+ Add a day/time</button>
+          </div>
+          <div>
+            <label className={labelCls}>Delivery mode</label>
+            <select className={inputCls} value={form.delivery_mode} onChange={(e) => set("delivery_mode", e.target.value)}>
+              {DELIVERY_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <p className="text-[11px] text-stone-400 mt-1">{DELIVERY_MODES.find(([v]) => v === form.delivery_mode)?.[2]}</p>
           </div>
           <label className="flex items-start gap-2.5 cursor-pointer select-none">
             <input type="checkbox" checked={!!form.has_hifz} onChange={(e) => set("has_hifz", e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />

@@ -15,7 +15,7 @@ const STATUSES = [
 ];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const MadrasaAttendance = ({ classObj, welfareFlags }) => {
+const MadrasaAttendance = ({ classObj, welfareFlags, deliveryMode = "in_person" }) => {
   const classId = classObj?.id;
   const mosqueId = classObj?.mosque_id;
   const [sessionDate, setSessionDate] = useState(todayStr());
@@ -36,7 +36,7 @@ const MadrasaAttendance = ({ classObj, welfareFlags }) => {
         const active = (r || []).filter((e) => e.status === "active");
         setRoster(active);
         const byStudent = {};
-        for (const a of (att || [])) byStudent[a.student_id] = { status: a.status, notes: a.notes || "" };
+        for (const a of (att || [])) byStudent[a.student_id] = { status: a.status, notes: a.notes || "", remote: !!a.remote };
         // default unmarked students to "present"
         const next = {};
         for (const e of active) {
@@ -69,6 +69,39 @@ const MadrasaAttendance = ({ classObj, welfareFlags }) => {
     }
   };
 
+  // Split register for remote/hybrid classes: remote joiners are auto-marked
+  // present when they enter the video room (088), shown here as a live badge.
+  const remoteRoster = roster.filter((e) => e.attends_remotely);
+  const inPersonRoster = roster.filter((e) => !e.attends_remotely);
+
+  const renderRow = (e) => {
+    const sid = e.student?.id || e.student_id;
+    const m = marks[sid] || { status: "present", notes: "" };
+    const joined = e.attends_remotely && m.remote && (m.status === "present" || m.status === "late");
+    return (
+      <li key={e.id} className="px-4 py-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm font-medium text-stone-900 min-w-[120px] inline-flex items-center gap-1.5">
+            {e.student?.name || "Student"}
+            {welfareFlags?.has(sid) && <AlertTriangle size={13} className="text-amber-500 shrink-0" title="Missed 3+ of last 4 sessions — consider a welfare check" />}
+          </p>
+          {joined ? (
+            <span className="text-[11px] font-medium text-emerald-700 inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Joined — auto-marked present</span>
+          ) : (
+            <div className="flex gap-1.5 flex-wrap">
+              {STATUSES.map(([v, l, onCls, offCls]) => (
+                <button key={v} onClick={() => setMark(sid, "status", v)} className={`text-[11px] px-2.5 py-1 rounded-full border ${m.status === v ? onCls : `bg-white ${offCls} hover:border-stone-400`}`}>{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        {!joined && (m.status === "absent" || m.status === "excused" || m.notes) && (
+          <input value={m.notes} onChange={(e2) => setMark(sid, "notes", e2.target.value)} placeholder="Note (optional)" className="mt-2 w-full text-xs px-3 py-1.5 rounded-lg border border-stone-200 outline-none focus:border-emerald-600" />
+        )}
+      </li>
+    );
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
@@ -90,31 +123,25 @@ const MadrasaAttendance = ({ classObj, welfareFlags }) => {
             <Users className="mx-auto text-stone-300 mb-3" size={36} />
             <p className="text-stone-600 text-sm">No students enrolled in this class yet.</p>
           </div>
-        ) : (
+        ) : deliveryMode === "in_person" ? (
           <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
-            {roster.map((e) => {
-              const sid = e.student?.id || e.student_id;
-              const m = marks[sid] || { status: "present", notes: "" };
-              return (
-                <li key={e.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <p className="text-sm font-medium text-stone-900 min-w-[120px] inline-flex items-center gap-1.5">
-                      {e.student?.name || "Student"}
-                      {welfareFlags?.has(sid) && <AlertTriangle size={13} className="text-amber-500 shrink-0" title="Missed 3+ of last 4 sessions — consider a welfare check" />}
-                    </p>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {STATUSES.map(([v, l, onCls, offCls]) => (
-                        <button key={v} onClick={() => setMark(sid, "status", v)} className={`text-[11px] px-2.5 py-1 rounded-full border ${m.status === v ? onCls : `bg-white ${offCls} hover:border-stone-400`}`}>{l}</button>
-                      ))}
-                    </div>
-                  </div>
-                  {(m.status === "absent" || m.status === "excused" || m.notes) && (
-                    <input value={m.notes} onChange={(e2) => setMark(sid, "notes", e2.target.value)} placeholder="Note (optional)" className="mt-2 w-full text-xs px-3 py-1.5 rounded-lg border border-stone-200 outline-none focus:border-emerald-600" />
-                  )}
-                </li>
-              );
-            })}
+            {roster.map(renderRow)}
           </ul>
+        ) : (
+          <div className="space-y-5">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-2">In-person</p>
+              {inPersonRoster.length === 0
+                ? <p className="text-xs text-stone-400">No in-person students in this class.</p>
+                : <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{inPersonRoster.map(renderRow)}</ul>}
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Remote <span className="normal-case font-normal text-stone-400">(joining via live lesson)</span></p>
+              {remoteRoster.length === 0
+                ? <p className="text-xs text-stone-400">No remote students. Turn on “Attends remotely” on a student's card in the Students tab.</p>
+                : <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{remoteRoster.map(renderRow)}</ul>}
+            </div>
+          </div>
         )}
     </div>
   );

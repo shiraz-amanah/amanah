@@ -1541,6 +1541,13 @@ export async function updateMadrasaClass(id, updates) {
     .from('madrasa_classes').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
   return { data, error }
 }
+// Per-student remote flag (115) — owner-manage RLS. Drives the Today split register.
+export async function setEnrollmentAttendsRemotely(enrollmentId, attendsRemotely) {
+  if (!enrollmentId) return { error: { message: 'enrollmentId required' } }
+  const { data, error } = await supabase
+    .from('madrasa_enrollments').update({ attends_remotely: !!attendsRemotely }).eq('id', enrollmentId).select().single()
+  return { data, error }
+}
 // --- Madrasa fees (migration 111) ---
 // Collected vs outstanding for ONE class — powers the Class-tab fee summary tile
 // (owner context only; owner-RLS on both fees tables). fee_records has no class_id,

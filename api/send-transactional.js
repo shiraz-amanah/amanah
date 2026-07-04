@@ -481,6 +481,21 @@ async function sbGet(env, path) {
   return res.json().catch(() => []);
 }
 
+// Service-role bulk insert (e.g. bell notifications, which are otherwise only
+// written by definer triggers). No-op on an empty array.
+async function sbInsert(env, table, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json', Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) console.error('[send-transactional] sbInsert failed', table, res.status);
+}
+
 // Resolve a recipient profile (email/name/role) by user id. profiles.email
 // mirrors auth.users, so this avoids needing an auth-schema RPC.
 async function getProfile(env, userId) {
@@ -1110,6 +1125,52 @@ async function handleStaffWizardSubmitted(env, email) {
 // date via SECURITY DEFINER RPCs (075), emails each parent (respecting their
 // email pref), and at 3 consecutive absences also alerts the mosque admin. The
 // claim RPC makes a double-save a no-op (claim-before-send).
+// A live lesson started → bell + email to parents of REMOTE-attending students
+// ("tap to join"). intent-does-both (no trigger): service-role inserts the bell
+// rows (type 'live_lesson') and sends the emails. Owner/teacher/admin authorised.
+async function handleMadrasaLessonStarted(env, caller, sessionId) {
+  const srows = await sbGet(env, `madrasa_sessions?id=eq.${sessionId}&select=id,class_id,mosque_id,class:madrasa_classes(name)`);
+  const sess = Array.isArray(srows) ? srows[0] : null;
+  if (!sess) return { status: 404, body: { ok: false, error: 'session_not_found' } };
+
+  const authz = await authorizeClassAction(env, caller, sess.class_id);
+  if (authz.err) return authz.err;
+
+  const enr = await sbGet(env, `madrasa_enrollments?class_id=eq.${sess.class_id}&status=eq.active&attends_remotely=eq.true&select=student:students(name,profile_id)`);
+  const list = (Array.isArray(enr) ? enr : []).filter((e) => e.student?.profile_id);
+  if (list.length === 0) return { status: 200, body: { ok: true, bells: 0, sent: 0, note: 'no_remote_parents' } };
+
+  const parentIds = [...new Set(list.map((e) => e.student.profile_id))];
+  const profiles = await sbGet(env, `profiles?id=in.(${parentIds.join(',')})&select=id,email,name,notifications`);
+  const byId = {};
+  for (const p of (Array.isArray(profiles) ? profiles : [])) byId[p.id] = p;
+  const className = sess.class?.name || 'the class';
+  const mrows = await sbGet(env, `mosques?id=eq.${sess.mosque_id}&select=name`);
+  const mosqueName = (Array.isArray(mrows) && mrows[0]?.name) || 'the madrasah';
+
+  // Bell — one per remote student (routes to the parent Madrasah tab).
+  const bells = list.map((e) => ({
+    user_id: e.student.profile_id, type: 'live_lesson',
+    title: `${className} is starting now`,
+    body: `Tap to join the live lesson${e.student?.name ? ` for ${e.student.name}` : ''}.`,
+    data: { kind: 'started', session_id: sess.id, class_id: sess.class_id, mosque_id: sess.mosque_id },
+  }));
+  await sbInsert(env, 'notifications', bells);
+
+  // Email — one per parent, deduped, opt-in respected.
+  let sent = 0;
+  for (const pid of parentIds) {
+    const p = byId[pid];
+    if (!p?.email || (p.notifications?.email ?? true) === false) continue;
+    const inner = `${eGreeting(p.name || 'there')}${eHeading('Live lesson starting')}
+${ePara(`<strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)} is starting now. Tap to join the live video lesson.`)}
+${ctaButton('Join the live lesson', env.PUBLIC_APP_URL)}${eSignoff}`;
+    await sendEmail(env, { to: p.email, subject: `${className} is starting now — join the live lesson`, html: wrapEmail('Live lesson starting', inner) });
+    sent++;
+  }
+  return { status: 200, body: { ok: true, bells: bells.length, sent } };
+}
+
 async function handleMadrasaAbsence(env, caller, classId, sessionDate) {
   // Authorize: caller must own the mosque, teach the class, or be an admin.
   const crows = await sbGet(env, `madrasa_classes?id=eq.${classId}&select=mosque_id,teacher_staff_id,name`);
@@ -1613,6 +1674,11 @@ export default async function handler(req, res) {
       if (!isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_classId' });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(body.sessionDate || '')) return res.status(400).json({ ok: false, error: 'invalid_sessionDate' });
       const out = await handleMadrasaAbsence(env, caller, body.classId, body.sessionDate);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_live_lesson_started') {
+      if (!isUuid(body.sessionId)) return res.status(400).json({ ok: false, error: 'invalid_sessionId' });
+      const out = await handleMadrasaLessonStarted(env, caller, body.sessionId);
       return res.status(out.status).json(out.body);
     }
     if (body.intent === 'madrasa_report_published') {

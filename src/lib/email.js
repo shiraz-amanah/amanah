@@ -228,6 +228,14 @@ export function sendMadrasaFeeReminder(recordId) {
   return postTransactional({ intent: 'madrasa_fee_reminder', recordId });
 }
 
+// A live lesson started — bell + email to the parents of remote-attending students
+// ("tap to join"). Fire-and-forget from the teacher's Start flow; the server
+// resolves the remote roster + parents and no-ops if there are none.
+export function sendMadrasaLessonStarted(sessionId) {
+  if (!sessionId) return Promise.resolve({ ok: false, error: 'missing_sessionId' });
+  return postTransactional({ intent: 'madrasa_live_lesson_started', sessionId });
+}
+
 // Session AL — Path A enrolment: a mosque admin enrolled a child on a parent's
 // behalf. The server resolves the recipient (linked account or pending email)
 // and sends a sign-in / create-account link. Fire-and-forget after the enrol RPC.
