@@ -220,6 +220,14 @@ export function sendMadrasaWaitlistOfferSpecific(waitlistId) {
   return postTransactional({ intent: 'madrasa_waitlist_offer_specific', waitlistId });
 }
 
+// Warm fee reminder to a student's parent. The server authorizes the caller
+// (owns the mosque), resolves the parent + fee details, and sends a gentle
+// (never debt-chasing) reminder. Returns { ok, sent }.
+export function sendMadrasaFeeReminder(recordId) {
+  if (!recordId) return Promise.resolve({ ok: false, error: 'missing_recordId' });
+  return postTransactional({ intent: 'madrasa_fee_reminder', recordId });
+}
+
 // Session AL — Path A enrolment: a mosque admin enrolled a child on a parent's
 // behalf. The server resolves the recipient (linked account or pending email)
 // and sends a sign-in / create-account link. Fire-and-forget after the enrol RPC.

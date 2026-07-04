@@ -1563,6 +1563,78 @@ export async function getClassFeeSummary(classId) {
   return { due, collected, outstanding: Math.max(0, due - collected), records: (data || []).length, hasFees: (data || []).length > 0 }
 }
 
+// All fee definitions for a mosque (setup view + term list). Joined to class.
+export async function getMosqueFees(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_fees')
+    .select('*, class:madrasa_classes(id, name)')
+    .eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching mosque fees:', error); return [] }
+  return data || []
+}
+
+// All per-student fee records across the mosque, joined to student + fee (term,
+// due date, class). Powers the Fees module list. Owner-RLS.
+export async function getFeeRecords(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_fee_records')
+    .select('*, student:students(id, name), fee:madrasa_fees(id, class_id, term_label, due_date, grace_period_days, amount, currency, class:madrasa_classes(id, name))')
+    .eq('mosque_id', mosqueId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching fee records:', error); return [] }
+  return data || []
+}
+
+// Create a fee AND auto-generate a record per active enrolment, via the definer
+// RPC (the per-record insert bypasses RLS atomically). feeType: free|per_term|
+// per_month|per_session. Returns { data: <fee row>, error }.
+export async function createMadrasaFee({ classId, feeType = 'per_term', amount = 0, currency = 'GBP', termLabel, dueDate, gracePeriodDays = 7 }) {
+  if (!classId) return { error: { message: 'classId required' } }
+  const { data, error } = await supabase.rpc('madrasa_fee_create_with_records', {
+    p_class: classId, p_fee_type: feeType, p_amount: Number(amount) || 0, p_currency: currency,
+    p_term_label: termLabel || null, p_due_date: dueDate || null, p_grace: gracePeriodDays == null ? 7 : Number(gracePeriodDays),
+  })
+  return { data, error }
+}
+
+// Record a payment on a fee record: set amount_paid + recompute status
+// (paid/partial/outstanding). 'overdue' is derived in the UI, never stored here;
+// 'waived' is only set via waiveFee. Owner-RLS UPDATE.
+export async function recordFeePayment(recordId, { amountPaid, amountDue, paidAt, notes } = {}) {
+  if (!recordId) return { error: { message: 'recordId required' } }
+  const paid = Number(amountPaid) || 0
+  const due = Number(amountDue) || 0
+  const status = due === 0 ? 'paid' : paid >= due ? 'paid' : paid > 0 ? 'partial' : 'outstanding'
+  const patch = { amount_paid: paid, status, paid_at: paid > 0 ? (paidAt || new Date().toISOString()) : null }
+  if (notes !== undefined) patch.notes = notes || null
+  const { data, error } = await supabase
+    .from('madrasa_fee_records').update(patch).eq('id', recordId).select().single()
+  return { data, error }
+}
+
+// Waive a fee record (with a note). Owner-RLS UPDATE.
+export async function waiveFee(recordId, note) {
+  if (!recordId) return { error: { message: 'recordId required' } }
+  const { data, error } = await supabase
+    .from('madrasa_fee_records').update({ status: 'waived', notes: note || null }).eq('id', recordId).select().single()
+  return { data, error }
+}
+
+// One student's fee history across all terms — the student-profile Fees section.
+export async function getStudentFeeRecords(studentId) {
+  if (!studentId) return []
+  const { data, error } = await supabase
+    .from('madrasa_fee_records')
+    .select('*, fee:madrasa_fees(term_label, due_date, grace_period_days, amount, currency, class:madrasa_classes(name))')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching student fee records:', error); return [] }
+  return data || []
+}
+
 // Roster for a class — owner reads enrolled students via the relaxed students
 // SELECT policy (068). Returns enrollments joined to the student.
 export async function getMadrasaRoster(classId) {

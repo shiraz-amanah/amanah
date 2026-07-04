@@ -101,6 +101,14 @@ export async function getFinanceBrief(mosqueId) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
   return postBrief({ mode: "finance_ops", mosqueId });
 }
+// Madrasah fees assistant (mode:'madrasa_fees', owner-authed). Empty question →
+// proactive fee brief. Returns { ok, answer }.
+export async function askMadrasaFees(mosqueId, question = "") {
+  if (!mosqueId) return { ok: false, error: "missing_mosque" };
+  return postBrief({ mode: "madrasa_fees", mosqueId, question });
+}
+export const getMadrasaFeeBrief = (mosqueId) => askMadrasaFees(mosqueId, "");
+
 export async function askFinance(mosqueId, question = "") {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
   return postBrief({ mode: "finance_ops", mosqueId, question });

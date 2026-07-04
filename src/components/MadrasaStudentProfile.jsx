@@ -9,8 +9,9 @@ import {
   getExportRoster, getStudentAttendance, getHifzProgress, getHomeworkForClasses,
   getStudentCompletions, getStudentReports, getStudentRewards, adminUpdateStudent,
   setEnrollmentStatus, removeEnrollment, awardReward, isPositiveReward, deleteReward, homeworkFileUrl,
-  getStudentPhotos, uploadStudentPhoto, studentPhotoUrl,
+  getStudentPhotos, uploadStudentPhoto, studentPhotoUrl, getStudentFeeRecords,
 } from "../auth";
+import { money } from "../lib/format";
 import { sendMadrasaParentWelcome, sendMadrasaRewardAwarded } from "../lib/email";
 import { surahName, juzOfSurah } from "../data/surahs";
 import { downloadCSV } from "../lib/csv";
@@ -61,6 +62,23 @@ const StatTile = ({ icon: Icon, tone, label, value, sub }) => (
   </div>
 );
 
+// Fee record display status — 'overdue' derived (unpaid + past due + grace), never
+// stored. Mirrors the Fees module so the student card and the module agree.
+const feeStatus = (r) => {
+  if (r.status === "paid") return "paid";
+  if (r.status === "waived") return "waived";
+  const dd = r.fee?.due_date;
+  if (dd && Date.now() - (new Date(dd + "T00:00:00").getTime() + (Number(r.fee?.grace_period_days) || 0) * 864e5) > 0) return "overdue";
+  return r.status; // outstanding | partial
+};
+const FEE_BADGE = {
+  paid: ["Paid", "bg-emerald-50 border-emerald-200 text-emerald-700"],
+  partial: ["Partial", "bg-amber-50 border-amber-200 text-amber-700"],
+  outstanding: ["Outstanding", "bg-rose-50 border-rose-200 text-rose-700"],
+  overdue: ["Overdue", "bg-rose-100 border-rose-300 text-rose-800"],
+  waived: ["Waived", "bg-stone-100 border-stone-200 text-stone-500"],
+};
+
 const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onBack, onChanged }) => {
   const [student, setStudent] = useState(enrollment.student || {});
   const [status, setStatus] = useState(enrollment.status || "active");
@@ -79,6 +97,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
   const [subAt, setSubAt] = useState({});
   const [reports, setReports] = useState([]);
   const [rewards, setRewards] = useState([]);
+  const [feeRecords, setFeeRecords] = useState([]);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", dob: "", gender: "", relation: "", emergencyName: "", emergencyPhone: "" });
@@ -108,14 +127,14 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
     Promise.all([
       getExportRoster(mosqueId), getStudentAttendance(sid), getHifzProgress(sid),
       getHomeworkForClasses([classObj?.id].filter(Boolean)), getStudentCompletions(sid),
-      getStudentReports(sid), getStudentRewards(sid),
-    ]).then(([roster, att, hz, hw, comps, reps, rew]) => {
+      getStudentReports(sid), getStudentRewards(sid), getStudentFeeRecords(sid),
+    ]).then(([roster, att, hz, hw, comps, reps, rew, fees]) => {
       setContact((roster || []).find((r) => r.student_id === sid) || null);
       setAttendance(att || []); setHifz(hz || []); setHomework(hw || []);
       setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
       setSubFiles(Object.fromEntries((comps || []).map((c) => [c.homework_id, c.files || []])));
       setSubAt(Object.fromEntries((comps || []).map((c) => [c.homework_id, c.completed_at])));
-      setReports(reps || []); setRewards(rew || []);
+      setReports(reps || []); setRewards(rew || []); setFeeRecords(fees || []);
     }).catch((e) => console.error("student profile load failed:", e))
       .finally(() => setLoading(false));
   };
@@ -400,6 +419,25 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
                 <button onClick={() => setShowMessage(true)} disabled={!parentUserId} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message parent</button>
                 <button onClick={resetLogin} disabled={busyAct === "reset"} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50 px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busyAct === "reset" ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send login link</button>
               </div>
+            </div>
+            {/* Fees — this student's fee history across all terms (record-keeping) */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-3">Fees</p>
+              {loading ? <div className="flex py-2 text-stone-400"><Loader2 size={16} className="animate-spin" /></div>
+                : feeRecords.length === 0 ? <p className="text-sm text-stone-400">No fees recorded for this student.</p>
+                : <ul className="space-y-2.5">{feeRecords.map((r) => {
+                    const out = Math.max(0, (Number(r.amount_due) || 0) - (Number(r.amount_paid) || 0));
+                    const [label, cls] = FEE_BADGE[feeStatus(r)] || FEE_BADGE.outstanding;
+                    return (
+                      <li key={r.id} className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-stone-800 truncate">{r.fee?.term_label || "—"}{r.fee?.class?.name ? <span className="text-stone-400"> · {r.fee.class.name}</span> : null}</p>
+                          <p className="text-[11px] text-stone-500">{money(Number(r.amount_paid) || 0, r.fee?.currency)} / {money(Number(r.amount_due) || 0, r.fee?.currency)}{out > 0 && r.status !== "waived" ? ` · ${money(out, r.fee?.currency)} outstanding` : ""}</p>
+                        </div>
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border shrink-0 ${cls}`}>{label}</span>
+                      </li>
+                    );
+                  })}</ul>}
             </div>
           </div>
 

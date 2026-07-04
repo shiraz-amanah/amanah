@@ -9,7 +9,7 @@ import { useOverlay } from "../lib/useOverlay";
 import { money } from "../lib/format";
 import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -242,6 +242,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
   const [settingsForm, setSettingsForm] = useState(null); // { name, capacity, teacher_staff_id }
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState("");
+  const [feeForm, setFeeForm] = useState({ feeType: "per_term", amount: "", termLabel: "", dueDate: "", gracePeriodDays: 7 });
+  const [creatingFee, setCreatingFee] = useState(false);
+  const [feeMsg, setFeeMsg] = useState("");
 
   const reload = () => {
     setLoading(true); setHifzLoading(true);
@@ -288,8 +291,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
   useEffect(() => {
     if (!isOwner) return;
     let alive = true;
-    setClsOverrides({}); setSettingsMsg("");
+    setClsOverrides({}); setSettingsMsg(""); setFeeMsg("");
     setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "" });
+    setFeeForm({ feeType: "per_term", amount: "", termLabel: classObj.term || "", dueDate: "", gracePeriodDays: 7 });
     getMosqueStaff(classObj.mosque_id).then((s) => { if (alive) setStaff((s || []).filter((x) => !x.archived)); }).catch(() => {});
     getClassFeeSummary(classObj.id).then((f) => { if (alive) setFeeSummary(f); }).catch(() => {});
     getClassWaitlist(classObj.id).then((w) => { if (alive) setWaitingCount((w || []).filter((r) => r.status === "waiting").length); }).catch(() => {});
@@ -311,6 +315,25 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
     const teacherName = staff.find((s) => s.id === payload.teacher_staff_id)?.name || null;
     setClsOverrides({ name: payload.name, capacity: payload.capacity, teacher_staff_id: payload.teacher_staff_id, teacher: teacherName ? { name: teacherName } : null });
     setSettingsMsg("Saved.");
+  };
+
+  const createFee = async () => {
+    if (creatingFee) return;
+    setCreatingFee(true); setFeeMsg("");
+    const free = feeForm.feeType === "free";
+    const { error } = await createMadrasaFee({
+      classId: classObj.id,
+      feeType: feeForm.feeType,
+      amount: free ? 0 : (Number(feeForm.amount) || 0),
+      termLabel: feeForm.termLabel.trim() || null,
+      dueDate: feeForm.dueDate || null,
+      gracePeriodDays: feeForm.gracePeriodDays === "" ? 7 : Number(feeForm.gracePeriodDays),
+    });
+    setCreatingFee(false);
+    if (error) { setFeeMsg("Couldn't create the fee — " + (error.message || "please try again.")); return; }
+    setFeeMsg(`Fee created — records generated for all ${activeRoster.length} enrolled student${activeRoster.length === 1 ? "" : "s"}.`);
+    setFeeForm((f) => ({ ...f, amount: "", dueDate: "" }));
+    getClassFeeSummary(classObj.id).then((f) => setFeeSummary(f)).catch(() => {});
   };
 
   // Open the full student profile (Layer 3). Always return to the Students tab.
@@ -755,6 +778,48 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                     <p className="text-[11px] text-stone-400">Subject, room and schedule are edited from the class list.</p>
                   </div>
                 )}
+              </Section>
+
+              {/* Fee structure — creating a fee auto-generates records for every
+                  enrolled student (madrasa_fee_create_with_records). Manage records
+                  themselves on the universal Fees page. */}
+              <Section icon={Wallet} title="Fee structure" subtitle="Set this class's fee for a term — records are created for every enrolled student">
+                <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 space-y-3">
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Fee type</label>
+                      <select value={feeForm.feeType} onChange={(e) => setFeeForm((f) => ({ ...f, feeType: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm">
+                        <option value="free">Free</option>
+                        <option value="per_term">Per term</option>
+                        <option value="per_month">Per month</option>
+                        <option value="per_session">Per session</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Amount (£)</label>
+                      <input type="number" min="0" step="0.01" value={feeForm.feeType === "free" ? "" : feeForm.amount} disabled={feeForm.feeType === "free"} onChange={(e) => setFeeForm((f) => ({ ...f, amount: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm disabled:bg-stone-50 disabled:text-stone-400" placeholder={feeForm.feeType === "free" ? "£0" : "e.g. 40"} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Term label</label>
+                      <input value={feeForm.termLabel} onChange={(e) => setFeeForm((f) => ({ ...f, termLabel: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm" placeholder="e.g. Autumn 2026" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Due date</label>
+                        <input type="date" value={feeForm.dueDate} onChange={(e) => setFeeForm((f) => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Grace (days)</label>
+                        <input type="number" min="0" value={feeForm.gracePeriodDays} onChange={(e) => setFeeForm((f) => ({ ...f, gracePeriodDays: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={createFee} disabled={creatingFee || activeRoster.length === 0} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{creatingFee ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />} Create fee &amp; bill students</button>
+                    {feeMsg && <span className={`text-xs ${feeMsg.startsWith("Fee created") ? "text-emerald-700" : "text-rose-600"}`}>{feeMsg}</span>}
+                  </div>
+                  <p className="text-[11px] text-stone-400">{activeRoster.length === 0 ? "Enrol students first — a fee bills the enrolled roster." : `Creating a fee bills all ${activeRoster.length} enrolled student${activeRoster.length === 1 ? "" : "s"}. Manage payments on the Fees page.`}</p>
+                </div>
               </Section>
             </>
           )}

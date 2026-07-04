@@ -1254,6 +1254,51 @@ async function handleMadrasaWaitlistOfferSpecific(env, caller, waitlistId) {
   return { status: 200, body: { ok: true, sent: 1, offered: 1, ids: [id] } };
 }
 
+// Madrasah fee reminder — owner-only (fees are admin-only). Resolves the record's
+// parent + fee details server-side and sends a gentle, wellbeing-framed reminder
+// (never debt-chasing). Skips already-paid/waived records and opted-out parents.
+async function handleMadrasaFeeReminder(env, caller, recordId) {
+  const rows = await sbGet(env, `madrasa_fee_records?id=eq.${recordId}&select=amount_due,amount_paid,status,mosque_id,student:students(name,profile_id),fee:madrasa_fees(term_label,currency,due_date,class:madrasa_classes(name))`);
+  const rec = Array.isArray(rows) ? rows[0] : null;
+  if (!rec) return { status: 404, body: { ok: false, error: 'record_not_found' } };
+
+  const mrows = await sbGet(env, `mosques?id=eq.${rec.mosque_id}&select=user_id,name`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (mosque.user_id !== caller.id && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  if (rec.status === 'paid' || rec.status === 'waived') {
+    return { status: 200, body: { ok: true, sent: 0, skipped: 'nothing_due' } };
+  }
+
+  const parentId = rec.student?.profile_id;
+  if (!parentId) return { status: 200, body: { ok: true, sent: 0, skipped: 'no_parent_account' } };
+  const prows = await sbGet(env, `profiles?id=eq.${parentId}&select=email,name,notifications`);
+  const parent = Array.isArray(prows) ? prows[0] : null;
+  const optIn = parent?.notifications?.email ?? true;
+  if (!parent?.email || optIn === false) {
+    return { status: 200, body: { ok: true, sent: 0, skipped: 'opted_out' } };
+  }
+
+  const child = rec.student?.name || 'your child';
+  const term = rec.fee?.term_label || 'this term';
+  const ccy = rec.fee?.currency || 'GBP';
+  const outstanding = Math.max(0, (Number(rec.amount_due) || 0) - (Number(rec.amount_paid) || 0));
+  const amountStr = new Intl.NumberFormat('en-GB', { style: 'currency', currency: ccy }).format(outstanding);
+  const className = rec.fee?.class?.name || 'the madrasah';
+  const mosqueName = mosque.name || 'the madrasah';
+  const dueStr = rec.fee?.due_date ? formatDate(rec.fee.due_date) : null;
+
+  const inner = `${eGreeting(parent.name || 'there')}${eHeading('A gentle fee reminder')}
+${ePara(`Assalamu Alaikum. This is a friendly reminder that <strong>${escapeHtml(child)}</strong>'s ${escapeHtml(term)} fee for <strong>${escapeHtml(className)}</strong> has an outstanding balance of <strong>${escapeHtml(amountStr)}</strong>${dueStr ? ` (due ${escapeHtml(dueStr)})` : ''}.`)}
+${ePara(`If you've already paid, please ignore this message with our thanks. If now isn't a good time, or you'd like to arrange a payment plan, simply reply — we're always happy to help, and a child's place is never at risk over fees.`)}
+${eSignoff}`;
+  const id = await sendEmail(env, { to: parent.email, subject: `A gentle reminder about ${child}'s ${term} fee — ${mosqueName}`, html: wrapEmail('A gentle fee reminder', inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 // Madrasa Phase 3B — a positive reward was awarded. Authorizes the caller
 // (manages the class), then the service-role RPC resolves the parent + returns a
 // payload ONLY for positive types (star/merit/achievement) — warning/concern
@@ -1548,6 +1593,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_waitlist_offer_specific') {
       if (!isUuid(body.waitlistId)) return res.status(400).json({ ok: false, error: 'invalid_waitlistId' });
       const out = await handleMadrasaWaitlistOfferSpecific(env, caller, body.waitlistId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_fee_reminder') {
+      if (!isUuid(body.recordId)) return res.status(400).json({ ok: false, error: 'invalid_recordId' });
+      const out = await handleMadrasaFeeReminder(env, caller, body.recordId);
       return res.status(out.status).json(out.body);
     }
     if (body.intent === 'madrasa_reward_awarded') {

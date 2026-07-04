@@ -32,7 +32,7 @@ export const MOSQUE_NAV = [
   ] },
   { tab: "madrasah", label: "Madrasah", icon: GraduationCap, items: [
     ["classes", "Classes", GraduationCap], ["students", "All students", Users],
-    ["waitinglist", "Waiting list", Hourglass],
+    ["waitinglist", "Waiting list", Hourglass], ["fees", "Fees", Wallet],
     ["analytics", "Analytics", BarChart3], ["reports", "Reports", FileText],
   ] },
   { tab: "compliance", label: "Compliance", icon: ShieldAlert, items: [

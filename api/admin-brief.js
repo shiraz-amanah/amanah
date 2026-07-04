@@ -778,6 +778,64 @@ async function callAnthropic(env, tag, { system, userMsg, maxTokens = 500 }) {
   return answer ? { answer } : { error: 'no_output' };
 }
 
+// mode:'madrasa_fees' — owner-JWT madrasah fees assistant. Aggregates every fee
+// record for the mosque (totals, per-term, overdue students past due+grace), then
+// a proactive brief or Q&A. Supportive financial-wellbeing tone — never chasing.
+async function buildMadrasaFeeContext(env, mosqueId) {
+  const round2 = (n) => Math.round(n * 100) / 100;
+  const recs = await mhGet(env, `madrasa_fee_records?mosque_id=eq.${mosqueId}&select=amount_due,amount_paid,status,student:students(name),fee:madrasa_fees(term_label,due_date,grace_period_days,class:madrasa_classes(name))`);
+  const rows = Array.isArray(recs) ? recs : [];
+  let due = 0, collected = 0;
+  const outstandingStudents = new Set();
+  const overdue = [];
+  const byTerm = {};
+  const nowMs = Date.now();
+  for (const r of rows) {
+    if (r.status === 'waived') continue;
+    const d = Number(r.amount_due) || 0, p = Number(r.amount_paid) || 0;
+    due += d; collected += p;
+    const bal = Math.max(0, d - p);
+    const term = r.fee?.term_label || 'Unlabelled term';
+    byTerm[term] = byTerm[term] || { due: 0, collected: 0, outstanding: 0 };
+    byTerm[term].due = round2(byTerm[term].due + d);
+    byTerm[term].collected = round2(byTerm[term].collected + p);
+    byTerm[term].outstanding = round2(byTerm[term].outstanding + bal);
+    if (bal > 0) {
+      outstandingStudents.add(r.student?.name || 'a student');
+      const dd = r.fee?.due_date;
+      if (dd) {
+        const graceMs = (Number(r.fee?.grace_period_days) || 0) * 864e5;
+        const overdueMs = nowMs - (new Date(dd + 'T00:00:00').getTime() + graceMs);
+        if (overdueMs > 0) overdue.push({ student: r.student?.name || 'a student', class: r.fee?.class?.name, term, outstanding: bal, daysOverdue: Math.floor(overdueMs / 864e5) });
+      }
+    }
+  }
+  overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  return {
+    today: new Date().toISOString().slice(0, 10),
+    totals: { due: round2(due), collected: round2(collected), outstanding: round2(Math.max(0, due - collected)) },
+    outstandingStudentCount: outstandingStudents.size,
+    overdueCount: overdue.length,
+    overdue30PlusCount: overdue.filter((o) => o.daysOverdue > 30).length,
+    overdue,
+    byTerm,
+  };
+}
+
+async function handleMadrasaFees(req, res, body, env) {
+  const mosque = await authOwner(req, res, env, body.mosqueId);
+  if (!mosque) return;
+  const context = { mosque: mosque.name, ...(await buildMadrasaFeeContext(env, body.mosqueId)) };
+  const q = (body.question || '').trim();
+  const system = `You are a madrasah fees assistant for "${mosque.name}", a UK mosque madrasah. You are given real fee data as JSON: totals (due, collected, outstanding in GBP £), a per-term breakdown, and a list of overdue students (name, class, £ outstanding, days overdue past the due date + grace period). Answer ONLY from this data, concisely, in UK English, with specific £ figures. Today is ${context.today}. The tone is supportive financial-wellbeing — support families, never chase debt. Do not invent data or names.`;
+  const userMsg = q
+    ? `Data (JSON): ${JSON.stringify(context)}\n\nQuestion: ${q}`
+    : `Data (JSON): ${JSON.stringify(context)}\n\nGive a 2-3 line fee brief (no preamble, numbering or markdown). Lead with total outstanding (£ + student count), then the count overdue by more than 30 days, then ONE suggested action (e.g. send gentle reminders to the N overdue families). Use £ figures.`;
+  const r = await callAnthropic(env, 'madrasa-fees', { system, userMsg });
+  if (r.error) return res.status(502).json({ ok: false, error: r.error });
+  return res.status(200).json({ ok: true, answer: r.answer });
+}
+
 async function handleFinanceOps(req, res, body, env) {
   const mosque = await authOwner(req, res, env, body.mosqueId);
   if (!mosque) return;
@@ -853,6 +911,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'finance_ops') {
       return handleFinanceOps(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'madrasa_fees') {
+      return handleMadrasaFees(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
     if (body?.mode === 'pledge_reminder') {
       return handlePledgeReminder(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
