@@ -113,6 +113,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin }) => {
   );
 
   const denied = permState === "denied";
+  const noRoom = !roomUrl; // session exists but the Daily room isn't ready yet
   const inCall = phase === "joining" || phase === "incall";
 
   return (
@@ -153,14 +154,16 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin }) => {
                 <p className="font-medium inline-flex items-center gap-1.5"><AlertCircle size={14} /> Camera & microphone are blocked</p>
                 <p className="text-[13px] mt-1 text-rose-700">Allow access from your browser's site settings (tap the camera/lock icon in the address bar), then reopen this window. You can still join with audio if you allow the microphone.</p>
               </div>
+            ) : noRoom ? (
+              <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> The video room isn't ready yet — close this and try starting the lesson again in a moment.</p>
             ) : joinError ? (
               <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> Couldn't connect to the room. <a href={roomUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-800 hover:underline inline-flex items-center gap-1"><ExternalLink size={13} /> Open in a new tab</a></p>
             ) : null}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-2">
-              <button onClick={() => join(false)} disabled={!camReady} className="flex-1 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5"><Video size={15} /> Join lesson</button>
-              <button onClick={() => join(true)} disabled={!micReady} className="flex-1 border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5"><Mic size={15} /> Join audio only</button>
+              <button onClick={() => join(false)} disabled={!camReady || noRoom} className="flex-1 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5"><Video size={15} /> Join lesson</button>
+              <button onClick={() => join(true)} disabled={!micReady || noRoom} className="flex-1 border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5"><Mic size={15} /> Join audio only</button>
             </div>
             {!denied && permState !== "pending" && !camReady && !micReady && (
               <p className="text-xs text-stone-400 mt-2 text-center">No camera or microphone found. Connect a device and reopen.</p>
