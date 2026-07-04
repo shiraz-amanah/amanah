@@ -41,8 +41,11 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
   }, []);
   const destroyFrame = useCallback(() => {
-    if (frameRef.current) { try { frameRef.current.destroy(); } catch { /* already gone */ } frameRef.current = null; }
+    if (frameRef.current) { console.log("[MadrasaLiveRoom] destroyFrame() called"); try { frameRef.current.destroy(); } catch { /* already gone */ } frameRef.current = null; }
   }, []);
+
+  // Mount/unmount tracer — catches a remount that would destroy the frame mid-join.
+  useEffect(() => { console.log("[MadrasaLiveRoom] MOUNTED"); return () => console.log("[MadrasaLiveRoom] UNMOUNTED"); }, []);
 
   // Request devices on open → live preview + status.
   useEffect(() => {
@@ -135,11 +138,14 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           iframeStyle: { width: "100%", height: "100%", border: "0" },
         });
         frameRef.current = frame; // assign synchronously, before anything else
-        // 'joined-meeting' is the canonical "we're in" signal — drive the UI off it
-        // (fires on this live instance via postMessage, independent of the await).
-        frame.on("joined-meeting", () => { console.log("[join] joined-meeting event"); setJoined(true); setPhase("incall"); });
-        frame.on("left-meeting", () => { destroyFrame(); onCloseRef.current?.(); });
-        frame.on("error", (ev) => { console.error("[MadrasaLiveRoom] Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
+        // All listeners registered BEFORE join(). Extra Daily lifecycle events are
+        // logged so we can see exactly which one fires (joined vs left vs error).
+        frame.on("loading", () => console.log("[Daily] loading"));
+        frame.on("loaded", () => console.log("[Daily] loaded"));
+        frame.on("joining-meeting", () => console.log("[Daily] joining-meeting"));
+        frame.on("joined-meeting", () => { console.log("[Daily] joined-meeting ✓"); setJoined(true); setPhase("incall"); });
+        frame.on("left-meeting", (e) => { console.log("[Daily] left-meeting", e?.action || ""); destroyFrame(); onCloseRef.current?.(); });
+        frame.on("error", (ev) => { console.error("[Daily] error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
         console.log("[MadrasaLiveRoom] joining Daily room:", roomUrl);
         await frame.join({ url: roomUrl, startVideoOff: videoOffRef.current, startAudioOff: audioOffRef.current });
         console.log("[join] frame.join() resolved, cancelled?", cancelled);
