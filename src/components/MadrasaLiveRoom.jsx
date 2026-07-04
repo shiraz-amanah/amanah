@@ -6,8 +6,8 @@ import { Loader2, Video, VideoOff, Mic, MicOff, X, AlertCircle, ExternalLink, Ch
 // window.open(room_url) for BOTH the teacher control and the parent Join button.
 //
 // Flow: on open we request camera+mic via getUserMedia and show a live self-view
-// + device status, so the user checks themselves before entering. "Join lesson"
-// enters with video+audio, "Join audio only" with the camera off. On join we stop
+// + device status + camera/mic toggle controls, so the user sets themselves up
+// before entering. Join honours the toggles (startVideoOff/startAudioOff). On join we stop
 // the preview stream (releasing the camera) and mount the Daily PREBUILT call
 // (DailyIframe.createFrame) into the modal — Daily owns the in-call UI (tiles,
 // leave, device switching, mobile front/rear camera). The madrasa room is public,
@@ -19,6 +19,8 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const [permState, setPermState] = useState("pending"); // pending|granted|granted-audio|denied|no-device|unsupported|error
   const [camReady, setCamReady] = useState(false);
   const [micReady, setMicReady] = useState(false);
+  const [camOn, setCamOn] = useState(false); // pre-join camera toggle (intent)
+  const [micOn, setMicOn] = useState(false); // pre-join mic toggle (intent)
   const [joinError, setJoinError] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
@@ -26,7 +28,8 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const streamRef = useRef(null);
   const containerRef = useRef(null);
   const frameRef = useRef(null);
-  const audioOnlyRef = useRef(false);
+  const videoOffRef = useRef(false); // passed to Daily as startVideoOff
+  const audioOffRef = useRef(false); // passed to Daily as startAudioOff
   // Keep the latest onClose without putting it in the join effect's deps — it's an
   // inline arrow from the parent, so depending on it re-runs the effect on every
   // parent render and cancels the in-flight join (stuck on "Connecting").
@@ -49,8 +52,9 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
         const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = s;
-        setCamReady(s.getVideoTracks().length > 0);
-        setMicReady(s.getAudioTracks().length > 0);
+        const hasVid = s.getVideoTracks().length > 0, hasAud = s.getAudioTracks().length > 0;
+        setCamReady(hasVid); setMicReady(hasAud);
+        setCamOn(hasVid); setMicOn(hasAud); // both on by default
         setPermState("granted");
       } catch (err) {
         if (cancelled) return;
@@ -60,7 +64,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           const s = await navigator.mediaDevices.getUserMedia({ audio: true });
           if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
           streamRef.current = s;
-          setMicReady(true); setCamReady(false); setPermState("granted-audio");
+          setMicReady(true); setCamReady(false); setMicOn(true); setCamOn(false); setPermState("granted-audio");
         } catch (e2) {
           if (!cancelled) setPermState(e2?.name === "NotAllowedError" ? "denied" : "no-device");
         }
@@ -83,8 +87,24 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   // Tear everything down on unmount.
   useEffect(() => () => { stopPreview(); destroyFrame(); }, [stopPreview, destroyFrame]);
 
-  const join = (audioOnly) => {
-    audioOnlyRef.current = audioOnly;
+  // Pre-join toggles — enable/disable the live preview track and remember the
+  // intent, which is passed to Daily as startVideoOff / startAudioOff on join.
+  const toggleCam = () => {
+    const t = streamRef.current?.getVideoTracks?.()[0];
+    if (!t) return;
+    t.enabled = !t.enabled;
+    setCamOn(t.enabled);
+  };
+  const toggleMic = () => {
+    const t = streamRef.current?.getAudioTracks?.()[0];
+    if (!t) return;
+    t.enabled = !t.enabled;
+    setMicOn(t.enabled);
+  };
+
+  const join = () => {
+    videoOffRef.current = !camOn; // join with the camera/mic state chosen in pre-join
+    audioOffRef.current = !micOn;
     stopPreview();          // release the camera before Daily grabs it
     onJoin?.();             // parent auto-mark present+remote fires here
     setJoinError(false);
@@ -101,6 +121,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
 
   // Mount + join the Daily prebuilt frame once the container is in the DOM.
   useEffect(() => {
+    console.log("[join] effect started, phase:", phase, "roomUrl:", roomUrl);
     if (phase !== "joining" || !containerRef.current || frameRef.current) return;
     let cancelled = false;
     (async () => {
@@ -115,12 +136,15 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
         frame.on("error", (ev) => { console.error("[MadrasaLiveRoom] Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); destroyFrame(); setPhase("prejoin"); });
         frameRef.current = frame;
         console.log("[MadrasaLiveRoom] joining Daily room:", roomUrl);
-        await frame.join({ url: roomUrl, startVideoOff: audioOnlyRef.current, startAudioOff: false });
+        await frame.join({ url: roomUrl, startVideoOff: videoOffRef.current, startAudioOff: audioOffRef.current });
+        console.log("[join] frame.join() resolved");
+        console.log("[join] cancelled?", cancelled);
         if (cancelled) { destroyFrame(); return; }
+        console.log("[join] setting incall");
         setPhase("incall");
       } catch (err) { console.error("[MadrasaLiveRoom] join failed:", err?.message || err); if (!cancelled) { setJoinError(true); destroyFrame(); setPhase("prejoin"); } }
     })();
-    return () => { cancelled = true; };
+    return () => { console.log("[join] effect cleanup — cancelled set true"); cancelled = true; };
   }, [phase, roomUrl, destroyFrame]);
 
   const StatusPill = ({ ok, blocked, icon: Icon, blockedIcon: BIcon, label }) => (
@@ -156,12 +180,26 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           </div>
         ) : (
           <div className="p-5">
-            {/* Camera preview */}
+            {/* Camera preview + toggle controls */}
             <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-stone-900 mb-4">
               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover [transform:scaleX(-1)]" />
               {permState === "pending" && <div className="absolute inset-0 flex items-center justify-center text-stone-300 text-sm gap-2"><Loader2 size={16} className="animate-spin" /> Checking your camera & mic…</div>}
               {(denied || permState === "no-device") && <div className="absolute inset-0 flex items-center justify-center text-stone-400"><VideoOff size={28} /></div>}
               {permState === "granted-audio" && <div className="absolute inset-0 flex items-center justify-center text-stone-300 text-sm gap-2"><VideoOff size={18} /> No camera — audio only</div>}
+              {(permState === "granted" || permState === "granted-audio") && camReady && !camOn && (
+                <div className="absolute inset-0 flex items-center justify-center gap-2 text-stone-300 text-sm bg-stone-900"><VideoOff size={20} /> Camera off</div>
+              )}
+              {/* Toggle bar */}
+              {(permState === "granted" || permState === "granted-audio") && (camReady || micReady) && (
+                <div className="absolute bottom-2 inset-x-0 flex items-center justify-center gap-2">
+                  {camReady && (
+                    <button onClick={toggleCam} aria-pressed={camOn} aria-label={camOn ? "Turn camera off" : "Turn camera on"} title={camOn ? "Turn camera off" : "Turn camera on"} className={`h-9 w-9 rounded-full flex items-center justify-center shadow ${camOn ? "bg-white/90 text-stone-800 hover:bg-white" : "bg-stone-600 text-stone-300"}`}>{camOn ? <Video size={17} /> : <VideoOff size={17} />}</button>
+                  )}
+                  {micReady && (
+                    <button onClick={toggleMic} aria-pressed={micOn} aria-label={micOn ? "Mute microphone" : "Unmute microphone"} title={micOn ? "Mute microphone" : "Unmute microphone"} className={`h-9 w-9 rounded-full flex items-center justify-center shadow ${micOn ? "bg-white/90 text-stone-800 hover:bg-white" : "bg-stone-600 text-stone-300"}`}>{micOn ? <Mic size={17} /> : <MicOff size={17} />}</button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Device status */}
@@ -188,11 +226,10 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
               <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> Couldn't connect to the room. <a href={roomUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-800 hover:underline inline-flex items-center gap-1"><ExternalLink size={13} /> Open in a new tab</a></p>
             ) : null}
 
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <button onClick={() => join(false)} disabled={!camReady || noRoom} className="flex-1 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5"><Video size={15} /> Join lesson</button>
-              <button onClick={() => join(true)} disabled={!micReady || noRoom} className="flex-1 border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5"><Mic size={15} /> Join audio only</button>
-            </div>
+            {/* Action — a single Join that honours the camera/mic toggles above */}
+            <button onClick={join} disabled={noRoom || denied || (!camReady && !micReady)} className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5">
+              <Video size={15} /> Join lesson{camReady || micReady ? ` (${camOn ? "camera on" : "camera off"}, ${micOn ? "mic on" : "mic off"})` : ""}
+            </button>
             {!denied && permState !== "pending" && !camReady && !micReady && (
               <p className="text-xs text-stone-400 mt-2 text-center">No camera or microphone found. Connect a device and reopen.</p>
             )}
