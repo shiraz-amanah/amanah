@@ -138,7 +138,7 @@ const MadrasaAttendance = ({ classObj, welfareFlags, deliveryMode = "in_person" 
             <div>
               <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Remote <span className="normal-case font-normal text-stone-400">(joining via live lesson)</span></p>
               {remoteRoster.length === 0
-                ? <p className="text-xs text-stone-400">No remote students. Turn on “Attends remotely” on a student's card in the Students tab.</p>
+                ? <p className="text-xs text-stone-400">No remote students. Set a student's Attendance mode to Remote or Hybrid on their card in the Students tab.</p>
                 : <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{remoteRoster.map(renderRow)}</ul>}
             </div>
           </div>

@@ -9,7 +9,7 @@ import { useOverlay } from "../lib/useOverlay";
 import { money } from "../lib/format";
 import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee, setEnrollmentAttendsRemotely } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee, setEnrollmentAttendanceMode } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -339,12 +339,14 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
     getClassFeeSummary(classObj.id).then((f) => setFeeSummary(f)).catch(() => {});
   };
 
-  // Toggle a student's remote-attendance flag (optimistic + rollback on error).
-  const toggleRemote = async (e) => {
-    const next = !e.attends_remotely;
-    setRoster((rs) => rs.map((x) => (x.id === e.id ? { ...x, attends_remotely: next } : x)));
-    const { error } = await setEnrollmentAttendsRemotely(e.id, next);
-    if (error) setRoster((rs) => rs.map((x) => (x.id === e.id ? { ...x, attends_remotely: !next } : x)));
+  // Set a student's 3-way attendance mode (optimistic + rollback). attends_remotely
+  // is derived by the DB trigger; we mirror it locally so the register split updates.
+  const setMode = async (e, mode) => {
+    const prev = e.attendance_mode || "in_person";
+    if (mode === prev) return;
+    setRoster((rs) => rs.map((x) => (x.id === e.id ? { ...x, attendance_mode: mode, attends_remotely: mode !== "in_person" } : x)));
+    const { error } = await setEnrollmentAttendanceMode(e.id, mode);
+    if (error) setRoster((rs) => rs.map((x) => (x.id === e.id ? { ...x, attendance_mode: prev, attends_remotely: prev !== "in_person" } : x)));
   };
 
   // Open the full student profile (Layer 3). Always return to the Students tab.
@@ -649,11 +651,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                             </div>
                             </button>
                             {deliveryMode !== "in_person" && (
-                              <div className="relative border-t border-stone-100 px-4 py-2.5 flex items-center justify-between gap-2">
-                                <span className="text-[11px] text-stone-600 inline-flex items-center gap-1.5"><Video size={12} className="text-stone-400" /> Attends remotely</span>
-                                <button role="switch" aria-checked={!!e.attends_remotely} onClick={() => toggleRemote(e)} className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${e.attends_remotely ? "bg-emerald-600" : "bg-stone-300"}`}>
-                                  <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${e.attends_remotely ? "translate-x-4" : ""}`} />
-                                </button>
+                              <div className="relative border-t border-stone-100 px-4 py-2.5">
+                                <span className="text-[11px] text-stone-600 inline-flex items-center gap-1.5 mb-1.5"><Video size={12} className="text-stone-400" /> Attendance mode</span>
+                                <div className="flex items-center gap-0.5 bg-stone-100 rounded-lg p-0.5">
+                                  {[["in_person", "In-person"], ["remote", "Remote"], ["hybrid", "Hybrid"]].map(([v, l]) => (
+                                    <button key={v} onClick={() => setMode(e, v)} className={`flex-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${(e.attendance_mode || "in_person") === v ? "bg-white text-emerald-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{l}</button>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>

@@ -19,7 +19,7 @@ const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
 const MadrasaEnrolWizard = ({ mosqueId, classes = [], onClose, onDone }) => {
   const [mode, setMode] = useState(null); // null=chooser | "inhouse" | "invite"
   const [step, setStep] = useState(1);    // in-house: 1 child/class, 2 parent
-  const [form, setForm] = useState({ name: "", dob: "", gender: "", relation: "", classId: "", parentName: "", parentEmail: "" });
+  const [form, setForm] = useState({ name: "", dob: "", gender: "", relation: "", classId: "", parentName: "", parentEmail: "", attendanceMode: "in_person" });
   const [inv, setInv] = useState({ childName: "", parentEmail: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -38,6 +38,7 @@ const MadrasaEnrolWizard = ({ mosqueId, classes = [], onClose, onDone }) => {
       mosqueId, classId: form.classId || null, name: form.name.trim(),
       dob: form.dob || null, gender: form.gender || null, relation: form.relation.trim() || null,
       parentEmail: form.parentEmail.trim(), parentName: form.parentName.trim() || null,
+      attendanceMode: form.attendanceMode,
     });
     if (r.error) { setBusy(false); setError(r.error.message || "Couldn't add the student."); return; }
     if (r.data?.student_id) sendMadrasaParentWelcome(r.data.student_id).catch(() => {});
@@ -102,6 +103,15 @@ const MadrasaEnrolWizard = ({ mosqueId, classes = [], onClose, onDone }) => {
                     <Field label="Gender"><select className={inputCls} value={form.gender} onChange={(e) => set("gender", e.target.value)}><option value="">—</option><option value="male">Male</option><option value="female">Female</option></select></Field>
                   </div>
                   <Field label="Class"><select className={inputCls} value={form.classId} onChange={(e) => set("classId", e.target.value)}><option value="">Unassigned (enrol later)</option>{activeClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+                  {form.classId && (
+                    <Field label="Attendance mode">
+                      <select className={inputCls} value={form.attendanceMode} onChange={(e) => set("attendanceMode", e.target.value)}>
+                        <option value="in_person">In-person</option>
+                        <option value="remote">Remote — always joins via video</option>
+                        <option value="hybrid">Hybrid — sometimes in-person, sometimes remote</option>
+                      </select>
+                    </Field>
+                  )}
                 </>
               ) : (
                 <>

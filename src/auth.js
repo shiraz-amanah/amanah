@@ -1582,6 +1582,16 @@ export async function setEnrollmentAttendsRemotely(enrollmentId, attendsRemotely
     .from('madrasa_enrollments').update({ attends_remotely: !!attendsRemotely }).eq('id', enrollmentId).select().single()
   return { data, error }
 }
+
+// Three-way attendance mode (117). attends_remotely is kept in sync by the DB
+// trigger (Remote + Hybrid → remote register section), so we only write the mode.
+export async function setEnrollmentAttendanceMode(enrollmentId, mode) {
+  if (!enrollmentId) return { error: { message: 'enrollmentId required' } }
+  if (!['in_person', 'remote', 'hybrid'].includes(mode)) return { error: { message: 'invalid attendance mode' } }
+  const { data, error } = await supabase
+    .from('madrasa_enrollments').update({ attendance_mode: mode }).eq('id', enrollmentId).select().single()
+  return { data, error }
+}
 // --- Madrasa fees (migration 111) ---
 // Collected vs outstanding for ONE class — powers the Class-tab fee summary tile
 // (owner context only; owner-RLS on both fees tables). fee_records has no class_id,
@@ -1828,13 +1838,21 @@ export async function enrolChild({ classId, studentId, mosqueId }) {
 // Path A enrolment (089): admin creates a child for a parent + enrols in one go.
 // SECURITY DEFINER RPC (owner-gated inside). Returns { student_id, parent_exists,
 // parent_email } on success. Pair with sendMadrasaParentWelcome(student_id).
-export async function adminEnrolStudent({ mosqueId, classId, name, dob, gender, relation, parentEmail, parentName }) {
+export async function adminEnrolStudent({ mosqueId, classId, name, dob, gender, relation, parentEmail, parentName, attendanceMode }) {
   const { data, error } = await supabase.rpc('madrasa_admin_enrol_student', {
     p_mosque: mosqueId, p_class: classId || null, p_name: name,
     p_dob: dob || null, p_gender: gender || null, p_relation: relation || null,
     p_parent_email: parentEmail || null, p_parent_name: parentName || null,
   })
   if (error) { console.error('Error enrolling student:', error); return { error } }
+  // The RPC creates the enrolment as in_person; apply a non-default mode to the
+  // just-created enrolment (owner RLS allows it — no RPC signature change).
+  if (data?.student_id && classId && attendanceMode && attendanceMode !== 'in_person') {
+    const { error: mErr } = await supabase
+      .from('madrasa_enrollments').update({ attendance_mode: attendanceMode })
+      .eq('class_id', classId).eq('student_id', data.student_id)
+    if (mErr) console.error('Error setting attendance mode on enrol:', mErr)
+  }
   return { data }
 }
 
