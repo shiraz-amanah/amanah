@@ -134,12 +134,12 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           showLeaveButton: true,
           iframeStyle: { width: "100%", height: "100%", border: "0" },
         });
+        frameRef.current = frame; // assign synchronously, before anything else
         // 'joined-meeting' is the canonical "we're in" signal — drive the UI off it
         // (fires on this live instance via postMessage, independent of the await).
         frame.on("joined-meeting", () => { console.log("[join] joined-meeting event"); setJoined(true); setPhase("incall"); });
         frame.on("left-meeting", () => { destroyFrame(); onCloseRef.current?.(); });
         frame.on("error", (ev) => { console.error("[MadrasaLiveRoom] Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
-        frameRef.current = frame;
         console.log("[MadrasaLiveRoom] joining Daily room:", roomUrl);
         await frame.join({ url: roomUrl, startVideoOff: videoOffRef.current, startAudioOff: audioOffRef.current });
         console.log("[join] frame.join() resolved, cancelled?", cancelled);
