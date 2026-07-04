@@ -27,6 +27,11 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const containerRef = useRef(null);
   const frameRef = useRef(null);
   const audioOnlyRef = useRef(false);
+  // Keep the latest onClose without putting it in the join effect's deps — it's an
+  // inline arrow from the parent, so depending on it re-runs the effect on every
+  // parent render and cancels the in-flight join (stuck on "Connecting").
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const stopPreview = useCallback(() => {
     if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
@@ -106,16 +111,17 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           showLeaveButton: true,
           iframeStyle: { width: "100%", height: "100%", border: "0" },
         });
-        frame.on("left-meeting", () => { destroyFrame(); onClose?.(); });
-        frame.on("error", () => { setJoinError(true); destroyFrame(); setPhase("prejoin"); });
+        frame.on("left-meeting", () => { destroyFrame(); onCloseRef.current?.(); });
+        frame.on("error", (ev) => { console.error("[MadrasaLiveRoom] Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); destroyFrame(); setPhase("prejoin"); });
         frameRef.current = frame;
+        console.log("[MadrasaLiveRoom] joining Daily room:", roomUrl);
         await frame.join({ url: roomUrl, startVideoOff: audioOnlyRef.current, startAudioOff: false });
         if (cancelled) { destroyFrame(); return; }
         setPhase("incall");
-      } catch { if (!cancelled) { setJoinError(true); destroyFrame(); setPhase("prejoin"); } }
+      } catch (err) { console.error("[MadrasaLiveRoom] join failed:", err?.message || err); if (!cancelled) { setJoinError(true); destroyFrame(); setPhase("prejoin"); } }
     })();
     return () => { cancelled = true; };
-  }, [phase, roomUrl, destroyFrame, onClose]);
+  }, [phase, roomUrl, destroyFrame]);
 
   const StatusPill = ({ ok, blocked, icon: Icon, blockedIcon: BIcon, label }) => (
     <div className="flex items-center gap-2 text-sm">
