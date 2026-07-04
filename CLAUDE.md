@@ -8,6 +8,16 @@ Amanah is a trusted Muslim scholar platform — a marketplace connecting users w
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Current state (as of Session BJ — 4 July 2026)
+
+- **Next migration: 118.** Migrations **110–117** all applied dev + prod: 110 student photos (private bucket), 111+112 madrasah fees + waitlist offer-specific/accept-fee, 113 waiting-list notification triggers, 114 `has_hifz`, 115 class `delivery_mode` + enrolment `attends_remotely`, 116 lesson transcripts (notes→AI summary), 117 enrolment `attendance_mode` (3-way, with a trigger keeping `attends_remotely` in sync).
+- **Vercel functions: 12/12 — the cap is reached.** No new `api/*.js` can be added. New AI features fold into `admin-brief.js` (a new `mode`); new emails fold into `send-transactional.js` (a new `intent`).
+- **Live video lessons (Daily.co) now work end-to-end on prod (Session BJ) — they had NEVER worked before.** Non-obvious invariants that must stay true:
+  - **`api/create-daily-room.js` must query `mosque_staff.profile_id`, NOT `mosque_staff.user_id`** — that column does not exist. The mismatch made the session lookup return 400 → a false 404, which blocked every madrasah live lesson silently. (`callerCanManageSession` compares `profile_id` for the same reason.)
+  - **Every new Daily room must set `enable_prejoin_ui: false`** (already done for both madrasah *and* booking rooms in `create-daily-room.js`). The Daily domain default is `true`, which renders Daily's own hair-check screen *inside the iframe, behind* our custom "Connecting" overlay → the join parks on a button the user can never reach → stuck on "Connecting" forever. Our own pre-join (`MadrasaLiveRoom` / `VideoCallEmbed`) replaces it. Existing rooms were patched via the Daily API (`POST /v1/rooms/{name}`, not PATCH).
+  - **`DAILY_API_KEY` is now set in the Vercel Production env** (it was missing — the 2nd of four stacked blockers). It's a raw 64-char lowercase hex string: no quotes, whitespace, `Bearer ` prefix, or URL.
+  - The in-call transition is driven off Daily's **`joined-meeting` event**, not the `await frame.join()` resolution.
+
 ## Commands
 
 ```bash
@@ -26,10 +36,10 @@ There is no test suite, no lint script, and no typechecker — `npm run build` i
 
 **File layout:**
 
-- `src/App.jsx` — ~7,750 lines. Every component (Avatar, PublicHome, MosqueDashboard, UserDashboard, AdminPanel, …), all routing, and the App root state. Components are top-level `const Foo = (...) => {...}` declarations separated by `// ====` banner comments — grep for those when navigating.
+- `src/App.jsx` — ~8,200 lines (closed for new feature code — see the last section). Root state, routing, and the older big components (Avatar, PublicHome, MosqueDashboard, UserDashboard, AdminPanel, …). Components are top-level `const Foo = (...) => {...}` declarations separated by `// ====` banner comments — grep for those when navigating. New feature code lives in `src/components/`, `src/pages/`, `src/lib/`, `src/data/`.
 - `src/auth.js` — the entire Supabase data layer. Every DB call goes through a named export here (`getScholars`, `createBooking`, `getConversations`, `sendMessage`, `subscribeToMessages`, …). App.jsx imports functions but never touches the Supabase client directly. Snake_case DB rows are transformed to camelCase here via shaper helpers (`shapeProfile`, `shapeMessage`, `shapeConversation`).
 - `src/supabaseClient.js` — singleton client from `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
-- `src/data/` — mock arrays (`MOCK_MOSQUES`, `MOCK_CAMPAIGNS`, `MOCK_JOBS`, `MOCK_USER`, `ADMIN_*`, `IMAM_REGISTRY`, `CATEGORIES`, `NEARBY_MOSQUES`, `DEFAULT_AVAILABILITY`/`BOOKINGS`/`DAYS_OF_WEEK`). Several surfaces are mid-migration to Supabase; mock files are deletable per-feature once the surface goes real. Scholars + messaging + bookings + saves + donations + profiles + students + reviews + mosques are already on Supabase; campaigns are next in the queue.
+- `src/data/` — mock arrays (`MOCK_MOSQUES`, `MOCK_CAMPAIGNS`, `MOCK_JOBS`, `MOCK_USER`, `ADMIN_*`, `IMAM_REGISTRY`, `CATEGORIES`, `NEARBY_MOSQUES`, `DEFAULT_AVAILABILITY`/`BOOKINGS`/`DAYS_OF_WEEK`). Several surfaces are mid-migration to Supabase; mock files are deletable per-feature once the surface goes real. Scholars, messaging, bookings, saves, donations, profiles, students, reviews, mosques, and the whole mosque-ops stack (madrasah, community, governance, finance, facility bookings) are on Supabase; **campaigns remain mock** (not yet migrated).
 - `src/lib/` — pure helpers (`fmt` currency, `haversineDistance` + `useGeolocation`, `transformScholar` snake→camel, `schedule` time-slot helpers, `prayer` time + qibla helpers).
 - `migrations/` — source of truth for the Supabase schema. Numbered SQL files in canonical apply order. See `migrations/README.md` for status (verbatim / reconstructed / TODO) and naming convention. Files document what's already in prod — they are NOT auto-applied, and several are TODO placeholders awaiting `pg_dump --schema-only` output. New schema changes go here as the next numbered file before being applied to Supabase.
 
@@ -57,7 +67,7 @@ There is no test suite, no lint script, and no typechecker — `npm run build` i
 
 ## NOTES.md is the project journal
 
-Session log of every shipped change (Sessions A–F so far, plus the App.jsx Phase 1 refactor), architectural decisions with rationale, and a roadmap of upcoming sessions. Read the relevant session block before working on related code — it documents non-obvious decisions (e.g. why "Saved" tab kept value `"saved"` after rename, why `savedMosqueIds` is asymmetric with `savedScholars`, why DonateFlow needed three-change-pattern fixes, why mosque scholar affiliations are empty until Supabase migration). The "Parked items" section at the bottom tracks pre-launch risks and TBDs.
+Session log of every shipped change (Sessions A–F, then the BA–BJ mosque-ops arc — latest is **Session BJ**), architectural decisions with rationale, and a roadmap of upcoming sessions. The "Last action" header at the top is the fastest way to catch up. Read the relevant session block before working on related code — it documents non-obvious decisions (e.g. why "Saved" tab kept value `"saved"` after rename, why `savedMosqueIds` is asymmetric with `savedScholars`, why DonateFlow needed three-change-pattern fixes, why mosque scholar affiliations are empty until Supabase migration). The "Parked items" section at the bottom tracks pre-launch risks and TBDs.
 
 ## Working agreements
 
