@@ -10,6 +10,7 @@ import MadrasaAnalytics from "./MadrasaAnalytics";
 import MadrasaEnrolWizard from "./MadrasaEnrolWizard";
 import MadrasaAssistant from "./MadrasaAssistant";
 import MadrasaReportsCenter from "./MadrasaReportsCenter";
+import MadrasaWaitingList from "./MadrasaWaitingList";
 import MadrasaStudentProfile from "./MadrasaStudentProfile";
 import MadrasaTimetable from "./MadrasaTimetable";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
@@ -247,6 +248,11 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
 
     if (section === "reports") {
       return <MadrasaReportsCenter classes={classes} mosqueId={mosqueId} mosqueName={mosque?.name} onBack={() => onSubChange?.("classes")} />;
+    }
+
+    // Universal waiting-list console (cross-class) — no assistant, admin-only.
+    if (section === "waitinglist") {
+      return <MadrasaWaitingList mosqueId={mosqueId} />;
     }
 
     // Remaining section views show the assistant above their content (as before).

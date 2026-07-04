@@ -26,6 +26,7 @@ const EM = {
   teacher: 'madrasa-ui-teacher@example.com',
   parentW1: 'madrasa-ui-waitp1@example.com',
   parentW2: 'madrasa-ui-waitp2@example.com',
+  parentW3: 'madrasa-ui-waitp3@example.com',
 };
 
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -73,6 +74,7 @@ try {
   const teacher = await ensureUser(EM.teacher, 'Ustadha Khadija');
   const pW1 = await ensureUser(EM.parentW1, 'Yusuf Patel');
   const pW2 = await ensureUser(EM.parentW2, 'Aisha Rahman');
+  const pW3 = await ensureUser(EM.parentW3, 'Omar Sheikh');
 
   const { data: mosque } = await svc.from('mosques').insert({
     slug: SLUG, name: 'Al-Falah Community Mosque', address: '12 Test St', city: 'Bradford',
@@ -115,14 +117,24 @@ try {
     });
   }
 
-  // 2 waiting-list requests with parent contact (profile_id + emergency phone).
+  // A 2nd class (so the universal waiting list is genuinely cross-class + the
+  // class filter is exercisable).
+  const { data: cls2 } = await svc.from('madrasa_classes').insert({
+    mosque_id: mosque.id, name: 'Advanced Hifz', subject: 'hifz', teacher_staff_id: staff.id,
+    status: 'active', capacity: 8, term: 'Autumn 2026', room: 'Room 2',
+    schedule: [{ day: 'Sunday', start: '10:00', end: '12:00' }],
+  }).select().single();
+
+  // Waiting-list requests with parent contact (profile_id + emergency phone),
+  // across both classes.
   const waitDefs = [
-    { profile_id: pW1, name: 'Zayd Patel', phone: '07700 900111' },
-    { profile_id: pW2, name: 'Maryam Rahman', phone: '07700 900222' },
+    { profile_id: pW1, name: 'Zayd Patel', phone: '07700 900111', classId: cls.id },
+    { profile_id: pW2, name: 'Maryam Rahman', phone: '07700 900222', classId: cls.id },
+    { profile_id: pW3, name: 'Ibrahim Sheikh', phone: '07700 900333', classId: cls2.id },
   ];
   for (const w of waitDefs) {
     const { data: s } = await svc.from('students').insert({ profile_id: w.profile_id, name: w.name, age: 7, emergency_contact_phone: w.phone }).select().single();
-    await svc.from('madrasa_waitlist').insert({ class_id: cls.id, student_id: s.id, mosque_id: mosque.id, status: 'waiting' });
+    await svc.from('madrasa_waitlist').insert({ class_id: w.classId, student_id: s.id, mosque_id: mosque.id, status: 'waiting' });
   }
 
   console.log('---');

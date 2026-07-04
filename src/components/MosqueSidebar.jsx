@@ -4,7 +4,7 @@ import {
   Building2, Calendar, Megaphone, HandCoins, GraduationCap,
   ShieldAlert, ClipboardCheck, FileText, ChevronDown, LogOut, BarChart3, Moon, Globe,
   MessageCircle, User, HeartHandshake, QrCode, UsersRound, CalendarCheck,
-  Landmark, ListChecks, Sparkles, Wallet, HandHeart, Gem, PiggyBank,
+  Landmark, ListChecks, Sparkles, Wallet, HandHeart, Gem, PiggyBank, Hourglass,
 } from "lucide-react";
 
 // Phase 1 of the platform-wide sidebar (Session AX). The unified persistent left
@@ -32,6 +32,7 @@ export const MOSQUE_NAV = [
   ] },
   { tab: "madrasah", label: "Madrasah", icon: GraduationCap, items: [
     ["classes", "Classes", GraduationCap], ["students", "All students", Users],
+    ["waitinglist", "Waiting list", Hourglass],
     ["analytics", "Analytics", BarChart3], ["reports", "Reports", FileText],
   ] },
   { tab: "compliance", label: "Compliance", icon: ShieldAlert, items: [

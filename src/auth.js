@@ -1869,6 +1869,20 @@ export async function getClassWaitlist(classId) {
   return data || []
 }
 
+// Universal (cross-class) waiting list for a mosque — the owner console. Uses the
+// get_mosque_waitlist definer RPC because owners can't read parent profiles via
+// RLS, so parent name/email are resolved server-side (phone is the student's
+// emergency contact). NB the RPC output column is `queue_position` ('position' is
+// a reserved word). Rows: waitlist_id, class_id, class_name, student_id,
+// student_name, queue_position, status, created_at, offer_expires_at,
+// parent_name, parent_email, parent_phone.
+export async function getMosqueWaitlist(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.rpc('get_mosque_waitlist', { p_mosque: mosqueId })
+  if (error) { console.error('Error fetching mosque waitlist:', error); return [] }
+  return data || []
+}
+
 // Admin reorder — set a waitlist row's position (RLS: owner/admin only).
 export async function reorderWaitlist(id, position) {
   if (!id || position == null) return { error: { message: 'id and position required' } }

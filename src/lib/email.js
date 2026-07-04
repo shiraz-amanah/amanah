@@ -210,6 +210,16 @@ export function sendMadrasaWaitlistOffer(classId) {
   return postTransactional({ intent: 'madrasa_waitlist_offer', classId });
 }
 
+// Offer a freed seat to a SPECIFIC waiting child (universal waiting-list console —
+// admins may skip the queue). The server authorizes on the row's class, then
+// madrasa_waitlist_offer_specific reaps + seat-gates + makes the 48h offer for
+// that exact row and emails the parent. Returns { ok, sent, offered } — offered:0
+// means no free seat or the row was no longer waiting.
+export function sendMadrasaWaitlistOfferSpecific(waitlistId) {
+  if (!waitlistId) return Promise.resolve({ ok: false, error: 'missing_waitlistId' });
+  return postTransactional({ intent: 'madrasa_waitlist_offer_specific', waitlistId });
+}
+
 // Session AL — Path A enrolment: a mosque admin enrolled a child on a parent's
 // behalf. The server resolves the recipient (linked account or pending email)
 // and sends a sign-in / create-account link. Fire-and-forget after the enrol RPC.

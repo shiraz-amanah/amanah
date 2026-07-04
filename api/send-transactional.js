@@ -1181,12 +1181,12 @@ ${ctaButton('View the report', env.PUBLIC_APP_URL)}${eSignoff}`;
 // makes the next 48h offer — returning the resolved parent payload (or nothing if
 // there's no free seat / empty queue). We then email the parent (email pref
 // respected). The offer row is already 'offered' regardless of the email.
-async function handleMadrasaWaitlistOffer(env, caller, classId) {
-  // Authorize BEFORE making any offer: caller owns the mosque, teaches the class, or is admin.
+// Shared owner/teacher/admin authz for a class (returns null if allowed, or a
+// {status, body} error). Used by both waitlist-offer handlers.
+async function authorizeClassAction(env, caller, classId) {
   const crows = await sbGet(env, `madrasa_classes?id=eq.${classId}&select=mosque_id,teacher_staff_id`);
   const cls = Array.isArray(crows) ? crows[0] : null;
-  if (!cls) return { status: 404, body: { ok: false, error: 'class_not_found' } };
-
+  if (!cls) return { err: { status: 404, body: { ok: false, error: 'class_not_found' } } };
   const mrows = await sbGet(env, `mosques?id=eq.${cls.mosque_id}&select=user_id`);
   const ownsMosque = Array.isArray(mrows) && mrows[0]?.user_id === caller.id;
   let isTeacher = false;
@@ -1195,27 +1195,62 @@ async function handleMadrasaWaitlistOffer(env, caller, classId) {
     isTeacher = Array.isArray(srows) && srows[0]?.profile_id === caller.id;
   }
   if (!ownsMosque && !isTeacher && !(await isAdmin(env, caller.id))) {
-    return { status: 403, body: { ok: false, error: 'forbidden' } };
+    return { err: { status: 403, body: { ok: false, error: 'forbidden' } } };
   }
+  return { cls };
+}
 
-  // Reap stale offers + make the next offer (capacity-gated) in one atomic RPC.
-  const rows = await callRpc(env, 'madrasa_waitlist_make_next_offer', { p_class: classId });
-  const r = Array.isArray(rows) ? rows[0] : null;
-  if (!r) return { status: 200, body: { ok: true, sent: 0, offered: 0 } }; // no free seat / empty queue
-
-  // Offer made; email the parent unless they have no address or opted out.
-  if (!r.parent_email || r.parent_email_opt_in === false) {
-    return { status: 200, body: { ok: true, sent: 0, offered: 1, skipped: 'opted_out' } };
-  }
+// Build the "a place has opened up" email from an offer RPC row (shared by the
+// next-in-queue and offer-specific handlers). Returns null when there's nothing
+// to send (no row, no address, or the parent opted out).
+function buildWaitlistOfferEmail(env, r) {
+  if (!r) return null;
+  if (!r.parent_email || r.parent_email_opt_in === false) return { skipped: 'opted_out' };
   const child = r.student_name || 'your child';
   const className = r.class_name || 'the class';
   const mosqueName = r.mosque_name || 'the madrasah';
   const by = formatDate(r.offer_expires_at);
   const inner = `${eGreeting(r.parent_name || 'there')}${eHeading('A place has opened up')}
 ${ePara(`A place has become available for <strong>${escapeHtml(child)}</strong> in <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)}.`)}
-${ePara(`To take it up, please accept the offer by <strong>${escapeHtml(by)}</strong>. After that the place will be offered to the next child on the waiting list.`)}
+${ePara(`To take it up, please accept the offer by <strong>${escapeHtml(by)}</strong>. After that the place may be offered to another child on the waiting list.`)}
 ${ctaButton('Respond to the offer', env.PUBLIC_APP_URL)}${eSignoff}`;
-  const id = await sendEmail(env, { to: r.parent_email, subject: `A place has opened up for ${child} — ${mosqueName}`, html: wrapEmail('A place has opened up', inner) });
+  return { to: r.parent_email, subject: `A place has opened up for ${child} — ${mosqueName}`, html: wrapEmail('A place has opened up', inner) };
+}
+
+async function handleMadrasaWaitlistOffer(env, caller, classId) {
+  const authz = await authorizeClassAction(env, caller, classId);
+  if (authz.err) return authz.err;
+
+  // Reap stale offers + make the next offer (capacity-gated) in one atomic RPC.
+  const rows = await callRpc(env, 'madrasa_waitlist_make_next_offer', { p_class: classId });
+  const r = Array.isArray(rows) ? rows[0] : null;
+  if (!r) return { status: 200, body: { ok: true, sent: 0, offered: 0 } }; // no free seat / empty queue
+
+  const email = buildWaitlistOfferEmail(env, r);
+  if (email.skipped) return { status: 200, body: { ok: true, sent: 0, offered: 1, skipped: email.skipped } };
+  const id = await sendEmail(env, email);
+  return { status: 200, body: { ok: true, sent: 1, offered: 1, ids: [id] } };
+}
+
+// Offer-specific — the admin picks ANY waiting row (may skip the queue). Resolves
+// the row's class for authz, then the service-role RPC applies the same reap +
+// seat-gate + 48h offer to that exact row and returns the email payload.
+async function handleMadrasaWaitlistOfferSpecific(env, caller, waitlistId) {
+  const wrows = await sbGet(env, `madrasa_waitlist?id=eq.${waitlistId}&select=class_id,status`);
+  const wl = Array.isArray(wrows) ? wrows[0] : null;
+  if (!wl) return { status: 404, body: { ok: false, error: 'waitlist_not_found' } };
+
+  const authz = await authorizeClassAction(env, caller, wl.class_id);
+  if (authz.err) return authz.err;
+
+  const rows = await callRpc(env, 'madrasa_waitlist_offer_specific', { p_waitlist_id: waitlistId });
+  const r = Array.isArray(rows) ? rows[0] : null;
+  // No row → no free seat, row not 'waiting', or lost the row lock to a concurrent caller.
+  if (!r) return { status: 200, body: { ok: true, sent: 0, offered: 0 } };
+
+  const email = buildWaitlistOfferEmail(env, r);
+  if (email.skipped) return { status: 200, body: { ok: true, sent: 0, offered: 1, skipped: email.skipped } };
+  const id = await sendEmail(env, email);
   return { status: 200, body: { ok: true, sent: 1, offered: 1, ids: [id] } };
 }
 
@@ -1508,6 +1543,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_waitlist_offer') {
       if (!isUuid(body.classId)) return res.status(400).json({ ok: false, error: 'invalid_classId' });
       const out = await handleMadrasaWaitlistOffer(env, caller, body.classId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_waitlist_offer_specific') {
+      if (!isUuid(body.waitlistId)) return res.status(400).json({ ok: false, error: 'invalid_waitlistId' });
+      const out = await handleMadrasaWaitlistOfferSpecific(env, caller, body.waitlistId);
       return res.status(out.status).json(out.body);
     }
     if (body.intent === 'madrasa_reward_awarded') {
