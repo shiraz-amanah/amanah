@@ -1541,6 +1541,28 @@ export async function updateMadrasaClass(id, updates) {
     .from('madrasa_classes').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
   return { data, error }
 }
+// --- Madrasa fees (migration 111) ---
+// Collected vs outstanding for ONE class — powers the Class-tab fee summary tile
+// (owner context only; owner-RLS on both fees tables). fee_records has no class_id,
+// so we inner-join madrasa_fees and filter on its class_id. Waived rows excluded
+// from both totals.
+export async function getClassFeeSummary(classId) {
+  const empty = { due: 0, collected: 0, outstanding: 0, records: 0, hasFees: false }
+  if (!classId) return empty
+  const { data, error } = await supabase
+    .from('madrasa_fee_records')
+    .select('amount_due, amount_paid, status, madrasa_fees!inner(class_id)')
+    .eq('madrasa_fees.class_id', classId)
+  if (error) { console.error('Error fetching class fee summary:', error); return empty }
+  let due = 0, collected = 0
+  for (const r of (data || [])) {
+    if (r.status === 'waived') continue
+    due += Number(r.amount_due) || 0
+    collected += Number(r.amount_paid) || 0
+  }
+  return { due, collected, outstanding: Math.max(0, due - collected), records: (data || []).length, hasFees: (data || []).length > 0 }
+}
+
 // Roster for a class — owner reads enrolled students via the relaxed students
 // SELECT policy (068). Returns enrollments joined to the student.
 export async function getMadrasaRoster(classId) {

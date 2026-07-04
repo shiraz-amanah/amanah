@@ -3,11 +3,13 @@ import {
   Loader2, Users, MessageCircle, BookOpen, CalendarCheck, FileText,
   ChevronRight, Megaphone, Video, GraduationCap, Award, Image, CalendarClock, ShieldAlert, BarChart3, ScrollText, Hourglass,
   ClipboardList, Settings, Radio, Star, AlertTriangle, Sparkles, Send, ChevronDown, ChevronUp, MoreHorizontal,
+  HeartHandshake, Wallet, ExternalLink, Check,
 } from "lucide-react";
 import { useOverlay } from "../lib/useOverlay";
+import { money } from "../lib/format";
 import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -15,7 +17,6 @@ import MadrasaHomework from "./MadrasaHomework";
 import MadrasaReports from "./MadrasaReports";
 import MadrasaAttendanceReport from "./MadrasaAttendanceReport";
 import MadrasaPhotos from "./MadrasaPhotos";
-import MadrasaWaitlist from "./MadrasaWaitlist";
 import MadrasaRewards from "./MadrasaRewards";
 import MadrasaBehaviour from "./MadrasaBehaviour";
 import MadrasaCertificates from "./MadrasaCertificates";
@@ -37,10 +38,12 @@ const MS_30D = 30 * 24 * 60 * 60 * 1000;
 const fmtDate = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
 const ayahText = (h) => h?.ayah_from ? ` · ayah ${h.ayah_from}${h.ayah_to && h.ayah_to !== h.ayah_from ? `–${h.ayah_to}` : ""}` : "";
 
-// The 5-tab intelligent teaching workspace (Session BF). Each tab groups what a
-// teacher reaches for together; every underlying component is unchanged, just
-// remounted here. Today = register + live lesson; Work = homework + reports +
-// attendance trends; Class = all management/housekeeping in one scroll.
+// The intelligent teaching workspace (Session BF; Pastoral split later). Each tab
+// groups what a teacher reaches for together; every underlying component is
+// unchanged, just remounted here. Today = register + live lesson; Pastoral =
+// behaviour + rewards + photos + certificates (the child-welfare surfaces); Class
+// = admin/housekeeping only (announcements, timetable, settings, fee summary,
+// waiting-list badge). Waiting list itself moved to a universal Madrasah page.
 const TABS = [
   ["today", "Today", ClipboardList],
   ["students", "Students", Users],
@@ -48,6 +51,7 @@ const TABS = [
   ["homework", "Homework", BookOpen],
   ["reports", "Reports", FileText],
   ["attendance", "Attendance", BarChart3],
+  ["pastoral", "Pastoral", HeartHandshake],
   ["class", "Class", Settings],
 ];
 // Mobile bottom bar shows 4 primary tabs + a "More" sheet for the rest.
@@ -205,7 +209,7 @@ const CardWatermark = ({ id }) => (
 // Self-contained class detail — owns its own tab state and tab bar. Both callers
 // render it the same way: the mosque owner's Madrasah content pane and the teacher
 // staff portal each drill into a class and let the workspace run standalone.
-const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
+const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNavigateSection }) => {
   const [roster, setRoster] = useState([]);
   const [classHifz, setClassHifz] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -226,6 +230,18 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
   const [aiQ, setAiQ] = useState("");
   const [aiAnswer, setAiAnswer] = useState("");
   const [aiAsking, setAiAsking] = useState(false);
+  // Class-tab management — OWNER CONTEXT ONLY. onNavigateSection is passed by the
+  // mosque owner dashboard (MosqueMadrasa), never the teacher staff portal, so its
+  // presence is the owner signal. Settings edits the class; the fee summary and
+  // waiting-count tiles are read-only and deep-link to the universal Madrasah pages.
+  const isOwner = !!onNavigateSection;
+  const [clsOverrides, setClsOverrides] = useState({}); // optimistic settings edits, merged over classObj
+  const [staff, setStaff] = useState([]);
+  const [feeSummary, setFeeSummary] = useState(null);
+  const [waitingCount, setWaitingCount] = useState(null);
+  const [settingsForm, setSettingsForm] = useState(null); // { name, capacity, teacher_staff_id }
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState("");
 
   const reload = () => {
     setLoading(true); setHifzLoading(true);
@@ -265,6 +281,37 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       .finally(() => { if (alive) setAiLoading(false); });
     return () => { alive = false; };
   }, [classObj.id]);
+
+  // Owner-context Class-tab data: staff (for the teacher select), fee summary and
+  // waiting count (read-only tiles). Reseed the settings form + clear overrides on
+  // class change. Skipped entirely in the teacher portal (isOwner false).
+  useEffect(() => {
+    if (!isOwner) return;
+    let alive = true;
+    setClsOverrides({}); setSettingsMsg("");
+    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "" });
+    getMosqueStaff(classObj.mosque_id).then((s) => { if (alive) setStaff((s || []).filter((x) => !x.archived)); }).catch(() => {});
+    getClassFeeSummary(classObj.id).then((f) => { if (alive) setFeeSummary(f); }).catch(() => {});
+    getClassWaitlist(classObj.id).then((w) => { if (alive) setWaitingCount((w || []).filter((r) => r.status === "waiting").length); }).catch(() => {});
+    return () => { alive = false; };
+  }, [classObj.id, classObj.mosque_id, isOwner]);
+
+  const saveSettings = async () => {
+    if (!settingsForm || savingSettings) return;
+    setSavingSettings(true); setSettingsMsg("");
+    const payload = {
+      name: settingsForm.name.trim() || classObj.name,
+      capacity: settingsForm.capacity === "" ? null : Number(settingsForm.capacity),
+      teacher_staff_id: settingsForm.teacher_staff_id || null,
+    };
+    const { error } = await updateMadrasaClass(classObj.id, payload);
+    setSavingSettings(false);
+    if (error) { setSettingsMsg("Couldn't save — " + (error.message || "please try again.")); return; }
+    // Optimistically reflect in the header without a full parent reload.
+    const teacherName = staff.find((s) => s.id === payload.teacher_staff_id)?.name || null;
+    setClsOverrides({ name: payload.name, capacity: payload.capacity, teacher_staff_id: payload.teacher_staff_id, teacher: teacherName ? { name: teacherName } : null });
+    setSettingsMsg("Saved.");
+  };
 
   // Open the full student profile (Layer 3). Always return to the Students tab.
   const openProfile = (e) => { setTab("students"); setProfileEnrollment(e); };
@@ -377,6 +424,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
     );
   }
 
+  // Merge optimistic settings edits over the prop for header display (id/effects
+  // still key off classObj so nothing remounts).
+  const cls = { ...classObj, ...clsOverrides };
   const studentsTitle = `${activeRoster.length} ${activeRoster.length === 1 ? "Student" : "Students"}`;
 
   // ---- Smart header: meta line + per-tab contextual stat (workspace data only) ----
@@ -392,14 +442,15 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
       if (todayAtt.length === 0) return "Register not taken yet";
       return `${todayPresent}/${activeRoster.length} present today · ${activeRoster.length ? Math.round((todayPresent / activeRoster.length) * 100) : 0}%`;
     }
-    if (tab === "students") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"}${classObj.capacity != null ? ` · ${activeRoster.length}/${classObj.capacity} capacity` : ""}${withdrawn > 0 ? ` · ${withdrawn} withdrawn` : ""}`;
+    if (tab === "students") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"}${cls.capacity != null ? ` · ${activeRoster.length}/${cls.capacity} capacity` : ""}${withdrawn > 0 ? ` · ${withdrawn} withdrawn` : ""}`;
     if (tab === "hifz") return `${activeRoster.length} student${activeRoster.length === 1 ? "" : "s"} · ${classAvgPct}% class average`;
     if (tab === "homework") return "Set tasks & track submissions";
     if (tab === "reports") return "Termly progress reports";
     if (tab === "attendance") return classAttAvg != null ? `${classAttAvg}% class attendance · 8-week trend` : "Attendance rates & 8-week trend";
-    return "Announcements · Behaviour · Photos · Timetable";
+    if (tab === "pastoral") return "Behaviour · Rewards · Photos · Certificates";
+    return "Announcements · Timetable · Settings";
   };
-  const metaBits = [(classObj.subject || "").replace(/_/g, " "), classObj.teacher?.name, classObj.room, fmtSchedule(classObj.schedule)].filter(Boolean);
+  const metaBits = [(cls.subject || "").replace(/_/g, " "), cls.teacher?.name, cls.room, fmtSchedule(cls.schedule)].filter(Boolean);
 
   const askAi = async () => {
     const q = aiQ.trim();
@@ -417,7 +468,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{classObj.name || "Class"}</h2>
+              <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{cls.name || "Class"}</h2>
               {liveSession && (
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700">
                   <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600" /></span> LIVE
@@ -620,18 +671,93 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName }) => {
         </Section>
       )}
 
-      {/* CLASS — management & housekeeping (one scroll) */}
-      {tab === "class" && (
+      {/* PASTORAL — child-welfare surfaces (behaviour, rewards, photos, certificates) */}
+      {tab === "pastoral" && (
         <div className="space-y-8">
-          <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
           <div className="grid lg:grid-cols-2 gap-8">
             <Section icon={ShieldAlert} title="Behaviour & conduct" subtitle="Log incidents, keep concerns internal until you escalate, and track follow-up" accent="text-rose-600"><MadrasaBehaviour classObj={classObj} /></Section>
             <Section icon={Award} title="Rewards" subtitle="Award a star, merit or note — parents are emailed on positive rewards" accent="text-amber-500"><MadrasaRewards classObj={classObj} /></Section>
           </div>
           <Section icon={Image} title="Photos" subtitle="Consent-gated class photos" accent="text-stone-500"><MadrasaPhotos classObj={classObj} /></Section>
           <Section icon={ScrollText} title="Certificates" subtitle="Completion and achievement certificates"><MadrasaCertificates classObj={classObj} mosqueName={mosqueName} /></Section>
-          <Section icon={Hourglass} title="Waiting list" subtitle="Pending requests for this class" accent="text-stone-500"><MadrasaWaitlist classObj={classObj} /></Section>
-          <Section icon={CalendarClock} title="Timetable" subtitle="This class's weekly sessions"><MadrasaTimetable classes={[classObj]} /></Section>
+        </div>
+      )}
+
+      {/* CLASS — admin & housekeeping only (announcements, timetable, settings, fee + waiting summaries) */}
+      {tab === "class" && (
+        <div className="space-y-8">
+          <Section icon={Megaphone} title="Announcements" subtitle="Class-level messages to all parents"><MadrasaAnnouncements classObj={classObj} /></Section>
+          <Section icon={CalendarClock} title="Timetable" subtitle="This class's weekly sessions"><MadrasaTimetable classes={[cls]} /></Section>
+          {/* Owner-only: fee summary tile, waiting-list badge, and class settings. The
+              teacher portal (no onNavigateSection) sees announcements + timetable only. */}
+          {isOwner && (
+            <>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* Fee summary — read-only; links to the universal Fees page */}
+                <button onClick={() => onNavigateSection("fees")} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Wallet size={15} className="text-emerald-700" /> Fees</span>
+                    <ExternalLink size={13} className="text-stone-400" />
+                  </div>
+                  {feeSummary == null ? (
+                    <p className="text-xs text-stone-400 inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>
+                  ) : !feeSummary.hasFees ? (
+                    <p className="text-xs text-stone-500">No fees set for this class yet. Open Fees to add a fee structure.</p>
+                  ) : (
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="text-lg font-semibold text-emerald-800">{money(feeSummary.collected)}</span>
+                      <span className="text-xs text-stone-500">collected of {money(feeSummary.due)}</span>
+                      {feeSummary.outstanding > 0 && <span className="text-xs font-medium text-rose-600">{money(feeSummary.outstanding)} outstanding</span>}
+                    </div>
+                  )}
+                </button>
+                {/* Waiting-list count — links to the universal Waiting list page */}
+                <button onClick={() => onNavigateSection("waitinglist")} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Hourglass size={15} className="text-stone-500" /> Waiting list</span>
+                    <ExternalLink size={13} className="text-stone-400" />
+                  </div>
+                  {waitingCount == null ? (
+                    <p className="text-xs text-stone-400 inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>
+                  ) : waitingCount === 0 ? (
+                    <p className="text-xs text-stone-500">No one is waiting for this class.</p>
+                  ) : (
+                    <p className="text-lg font-semibold text-stone-900">{waitingCount} <span className="text-xs font-normal text-stone-500">waiting</span></p>
+                  )}
+                </button>
+              </div>
+
+              {/* Class settings — rename, capacity, teacher */}
+              <Section icon={Settings} title="Class settings" subtitle="Rename the class, set capacity, and assign a teacher">
+                {settingsForm && (
+                  <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 space-y-3">
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Class name</label>
+                        <input value={settingsForm.name} onChange={(e) => setSettingsForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Capacity</label>
+                        <input type="number" min="0" value={settingsForm.capacity} onChange={(e) => setSettingsForm((f) => ({ ...f, capacity: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" placeholder="No cap" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Teacher</label>
+                        <select value={settingsForm.teacher_staff_id} onChange={(e) => setSettingsForm((f) => ({ ...f, teacher_staff_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+                          <option value="">Unassigned</option>
+                          {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button onClick={saveSettings} disabled={savingSettings} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
+                      {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-emerald-700" : "text-rose-600"}`}>{settingsMsg}</span>}
+                    </div>
+                    <p className="text-[11px] text-stone-400">Subject, room and schedule are edited from the class list.</p>
+                  </div>
+                )}
+              </Section>
+            </>
+          )}
         </div>
       )}
       </div>

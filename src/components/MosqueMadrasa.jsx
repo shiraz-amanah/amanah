@@ -237,8 +237,10 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
           <button onClick={closeClass} className="inline-flex items-center gap-1 text-sm font-medium text-stone-500 hover:text-stone-800 mb-4">
             <ChevronLeft size={16} /> Back to classes
           </button>
-          {/* Class name + meta now live in the workspace's smart header (Session BF). */}
-          <MadrasaClassWorkspace classObj={detailClass} mosqueName={mosque?.name} />
+          {/* Class name + meta now live in the workspace's smart header (Session BF).
+              onNavigateSection lets the Class-tab fee + waiting tiles deep-link to the
+              universal Madrasah sections (and marks this as the owner context). */}
+          <MadrasaClassWorkspace classObj={detailClass} mosqueName={mosque?.name} onNavigateSection={(s) => onSubChange?.(s)} />
         </div>
       );
     }
