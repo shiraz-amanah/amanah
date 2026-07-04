@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText } from "lucide-react";
-import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries } from "../auth";
+import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText, Video } from "lucide-react";
+import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries, getActiveMadrasaSession, joinMadrasaSession } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
+import MadrasaLiveRoom from "./MadrasaLiveRoom";
 
 // Madrasa family-dashboard view (Fix 6 redesign): a clean, parent-friendly shell —
 // account-wide announcements + waiting list, then one rich card per enrolled child
@@ -25,6 +26,8 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [annOpen, setAnnOpen] = useState(false);
   const [acting, setActing] = useState(null);
   const [wlMsg, setWlMsg] = useState("");
+  const [liveSessions, setLiveSessions] = useState([]); // active sessions for enrolled classes → JOIN NOW banner
+  const [roomFor, setRoomFor] = useState(null);         // { session, student, className } for the live-room modal
 
   const reload = () => {
     setLoading(true);
@@ -34,6 +37,20 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
       .finally(() => setLoading(false));
   };
   useEffect(() => { reload(); }, []);
+
+  // Poll active live sessions for the child's enrolled classes → the JOIN NOW
+  // banner appears when a lesson starts and clears within 30s of it ending.
+  useEffect(() => {
+    const classIds = [...new Set(enrollments.filter((e) => e.status === "active").map((e) => e.class_id).filter(Boolean))];
+    if (classIds.length === 0) { setLiveSessions([]); return; }
+    let alive = true;
+    const fetchLive = () => Promise.all(classIds.map((cid) =>
+      getActiveMadrasaSession(cid).then((s) => (s && s.status === "live" ? { classId: cid, session: s } : null)).catch(() => null)
+    )).then((arr) => { if (alive) setLiveSessions(arr.filter(Boolean)); }).catch(() => {});
+    fetchLive();
+    const t = setInterval(fetchLive, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, [enrollments]);
 
   const withdraw = async (id) => {
     const { error } = await withdrawEnrollment(id);
@@ -58,6 +75,14 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const offered = waitlist.filter((r) => r.status === "offered");
   const waiting = waitlist.filter((r) => r.status === "waiting");
 
+  // One JOIN NOW banner per (live session × enrolled child in that class).
+  const liveBanners = [];
+  for (const { classId, session } of liveSessions) {
+    for (const e of enrollments) {
+      if (e.status === "active" && e.class_id === classId) liveBanners.push({ session, enrollment: e });
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
@@ -67,6 +92,29 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
         </div>
         <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Search size={14} /> Browse classes</button>
       </div>
+
+      {/* JOIN NOW — prominent live-lesson banner, top of everything */}
+      {liveBanners.length > 0 && (
+        <div className="space-y-3 mb-5">
+          {liveBanners.map(({ session, enrollment }) => (
+            <div key={`${session.id}-${enrollment.id}`} className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 shadow-sm ring-2 ring-emerald-300/50 p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm sm:text-base font-bold text-emerald-900 inline-flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" /></span>
+                    LIVE — {enrollment.class?.name || "your class"} is happening now
+                  </p>
+                  <p className="text-sm text-stone-700 mt-1">{enrollment.student?.name || "Your child"}{enrollment.class?.mosque?.name ? ` · ${enrollment.class.mosque.name}` : ""}</p>
+                </div>
+                <button onClick={() => setRoomFor({ session, student: enrollment.student, className: enrollment.class?.name })} disabled={!session.room_url}
+                  className="bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2 shrink-0">
+                  <Video size={17} /> Join lesson now
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Announcements — collapsible, closed by default */}
       {!loading && announcements.length > 0 && (
@@ -164,6 +212,16 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
             ))}
           </div>
         )}
+
+      {/* Live-lesson pre-join + embedded call (from the JOIN NOW banner). */}
+      {roomFor && roomFor.session?.room_url && (
+        <MadrasaLiveRoom
+          roomUrl={roomFor.session.room_url}
+          title={`${roomFor.className || "Class"} — Live lesson`}
+          onJoin={() => joinMadrasaSession(roomFor.session.id, roomFor.student?.id).catch(() => {})}
+          onClose={() => setRoomFor(null)}
+        />
+      )}
     </div>
   );
 };
