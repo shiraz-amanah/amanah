@@ -948,6 +948,40 @@ ${ctaButton('Open Amanah', env.PUBLIC_APP_URL)}${eSignoff}`;
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Touchpoint 7 — monthly waiting-list position email (Vercel Cron, 0 9 1 * *).
+// A gentle "you're still #N" note to every waiting parent. Fires once a month, so
+// no dedupe column is needed. Uses the admin-assigned `position` (same number the
+// parent sees on their dashboard card). Opted-out / account-less parents skipped.
+async function handleWaitlistPositionSweep(env) {
+  const rows = await sbGet(env, `madrasa_waitlist?status=eq.waiting&select=id,position,student:students(name,profile_id),class:madrasa_classes(name,mosque:mosques(name))`);
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) return { status: 200, body: { ok: true, waiting: 0, sent: 0 } };
+
+  const parentIds = [...new Set(list.map((r) => r.student?.profile_id).filter(Boolean))];
+  const profiles = parentIds.length
+    ? await sbGet(env, `profiles?id=in.(${parentIds.join(',')})&select=id,email,name,notifications`)
+    : [];
+  const byId = {};
+  for (const p of (Array.isArray(profiles) ? profiles : [])) byId[p.id] = p;
+
+  let sent = 0;
+  for (const r of list) {
+    const parent = byId[r.student?.profile_id];
+    const optIn = parent?.notifications?.email ?? true;
+    if (!parent?.email || optIn === false) continue;
+    const child = r.student?.name || 'your child';
+    const className = r.class?.name || 'the class';
+    const mosqueName = r.class?.mosque?.name || 'the madrasah';
+    const inner = `${eGreeting(parent.name || 'there')}${eHeading('Waiting list update')}
+${ePara(`Assalamu Alaikum. ${escapeHtml(child)} is still <strong>#${r.position}</strong> on the waiting list for <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)}.`)}
+${ePara(`We'll be in touch as soon as a place becomes available. JazakAllah khair for your patience.`)}
+${eSignoff}`;
+    await sendEmail(env, { to: parent.email, subject: `Waiting list update for ${child} — ${mosqueName}`, html: wrapEmail('Waiting list update', inner) });
+    sent += 1;
+  }
+  return { status: 200, body: { ok: true, waiting: list.length, sent } };
+}
+
 async function handleReminderSweep(env) {
   const due = await callRpc(env, 'get_due_reminders', {});
   const list = Array.isArray(due) ? due : [];
@@ -1456,17 +1490,18 @@ export default async function handler(req, res) {
   // Reminder sweep via Vercel Cron: a GET to ?intent=reminder_sweep. Vercel
   // auto-injects `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is set.
   if (req.method === 'GET') {
-    if (req.query?.intent !== 'reminder_sweep') {
+    const sweep = req.query?.intent;
+    if (sweep !== 'reminder_sweep' && sweep !== 'waitlist_position_sweep') {
       return res.status(400).json({ ok: false, error: 'unknown_intent' });
     }
     if ((req.headers.authorization || '') !== `Bearer ${env.CRON_SECRET}`) {
       return res.status(401).json({ ok: false, error: 'unauthorized' });
     }
     try {
-      const out = await handleReminderSweep(env);
+      const out = sweep === 'reminder_sweep' ? await handleReminderSweep(env) : await handleWaitlistPositionSweep(env);
       return res.status(out.status).json(out.body);
     } catch (err) {
-      console.error('[send-transactional] reminder_sweep', err?.message);
+      console.error('[send-transactional]', sweep, err?.message);
       return res.status(502).json({ ok: false, error: err?.message || 'send_failed' });
     }
   }

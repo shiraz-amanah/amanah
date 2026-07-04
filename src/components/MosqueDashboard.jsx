@@ -133,6 +133,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             <NotificationBell userId={authedUser?.id} onNavigate={(n) => {
               if (n.type === "message") setTab("messages");
               else if (n.type === "cover_request") setTab("people", "rotas");
+              else if (n.type === "waitlist") setTab("madrasah", "waitinglist");
               else if (["homework", "report", "attendance", "reward", "photo"].includes(n.type)) setTab("madrasah");
               else setTab("dashboard");
             }} />

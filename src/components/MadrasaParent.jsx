@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock } from "lucide-react";
+import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle } from "lucide-react";
 import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 
@@ -12,6 +12,7 @@ const offerCountdown = (iso) => {
   const h = Math.floor(ms / 3_600_000); const m = Math.floor((ms % 3_600_000) / 60_000);
   return h >= 1 ? `respond within ${h}h ${m}m` : `respond within ${m}m`;
 };
+const offerExpiryAbs = (iso) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [students, setStudents] = useState([]);
@@ -90,22 +91,36 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
           <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-3 flex items-center gap-1.5"><ListOrdered size={12} /> Waiting list</p>
           {wlMsg && <p className="text-xs text-stone-600 mb-2">{wlMsg}</p>}
           <ul className="space-y-2">
+            {/* Live offer — prominent, time-boxed Accept card */}
             {offered.map((r) => (
-              <li key={r.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <p className="text-sm text-stone-900"><strong>A place has opened up</strong> for {r.student?.name || "your child"} in {r.class?.name || "a class"}{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}.</p>
-                <p className="text-[11px] text-amber-700 mt-0.5 inline-flex items-center gap-1"><Clock size={11} /> {r.offer_expires_at ? offerCountdown(r.offer_expires_at) : "offered"}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <button onClick={() => accept(r.id)} disabled={acting === r.id} className="text-xs font-medium bg-emerald-900 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1 disabled:opacity-50">{acting === r.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Accept place</button>
-                  <button onClick={() => decline(r.id)} disabled={acting === r.id} className="text-xs font-medium border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 px-3 py-1.5 rounded-lg disabled:opacity-50">Decline</button>
+              <li key={r.id} className="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4">
+                <p className="text-sm font-semibold text-emerald-900 inline-flex items-center gap-1.5"><PartyPopper size={15} className="text-emerald-700" /> A place has been offered!</p>
+                <p className="text-sm text-stone-800 mt-1">A place is available for <strong>{r.student?.name || "your child"}</strong> in <strong>{r.class?.name || "a class"}</strong>{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}.</p>
+                {r.offer_expires_at && (
+                  <p className="text-[12px] font-medium text-amber-700 mt-1.5 inline-flex items-center gap-1"><Clock size={12} /> Accept before {offerExpiryAbs(r.offer_expires_at)} — {offerCountdown(r.offer_expires_at)}</p>
+                )}
+                <div className="flex items-center gap-2 mt-3">
+                  <button onClick={() => accept(r.id)} disabled={acting === r.id} className="text-sm font-medium bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{acting === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Accept place</button>
+                  <button onClick={() => decline(r.id)} disabled={acting === r.id} className="text-sm font-medium border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 px-3 py-2 rounded-lg disabled:opacity-50">Decline</button>
                 </div>
               </li>
             ))}
-            {waiting.map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-3 text-sm border border-stone-100 rounded-xl px-3 py-2.5">
-                <div className="min-w-0"><p className="text-stone-800 truncate"><span className="font-medium">{r.student?.name || "Child"}</span> · {r.class?.name || "Class"}{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}</p><p className="text-[11px] text-stone-500">Position {r.position} on the waiting list</p></div>
-                <button onClick={() => leave(r.id)} disabled={acting === r.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 inline-flex items-center gap-1 disabled:opacity-50 shrink-0">{acting === r.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Leave</button>
-              </li>
-            ))}
+            {/* Waiting — position card; #1 gets the "you're next" treatment */}
+            {waiting.map((r) => {
+              const next = r.position === 1;
+              return (
+                <li key={r.id} className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 border ${next ? "bg-emerald-50 border-emerald-200" : "border-stone-100"}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm text-stone-900">
+                      <span className="font-semibold">You're #{r.position}</span> on the waiting list for {r.class?.name || "a class"}{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}
+                    </p>
+                    <p className="text-[11px] text-stone-500 mt-0.5">{r.student?.name || "Child"}</p>
+                    {next && <p className="text-[11px] font-medium text-emerald-700 mt-1 inline-flex items-center gap-1"><ArrowUpCircle size={12} /> You're next in line — a place could be offered soon.</p>}
+                  </div>
+                  <button onClick={() => leave(r.id)} disabled={acting === r.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 inline-flex items-center gap-1 disabled:opacity-50 shrink-0">{acting === r.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Leave waiting list</button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
