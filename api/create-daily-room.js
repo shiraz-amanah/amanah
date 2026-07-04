@@ -174,15 +174,16 @@ const MADRASA_ROOM_HOURS = 3;
 async function getMadrasaSession(env, sessionId) {
   const rows = await sbGet(
     env,
-    `madrasa_sessions?id=eq.${sessionId}&select=id,class_id,mosque_id,room_url,status,class:madrasa_classes(teacher:mosque_staff(user_id)),mosque:mosques(user_id)`
+    `madrasa_sessions?id=eq.${sessionId}&select=id,class_id,mosque_id,room_url,status,class:madrasa_classes(teacher:mosque_staff(profile_id)),mosque:mosques(user_id)`
   );
   return Array.isArray(rows) ? rows[0] : null;
 }
 
 // Caller must be the mosque owner or the class's assigned teacher.
+// mosque_staff identifies the teacher by profile_id (= auth user id), not user_id.
 function callerCanManageSession(session, callerId) {
   if (!session || !callerId) return false;
-  return session.mosque?.user_id === callerId || session.class?.teacher?.user_id === callerId;
+  return session.mosque?.user_id === callerId || session.class?.teacher?.profile_id === callerId;
 }
 
 async function createMadrasaRoom(env) {
