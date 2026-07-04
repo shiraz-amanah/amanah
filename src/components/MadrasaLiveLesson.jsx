@@ -50,11 +50,21 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
     sendMadrasaLessonStarted(s.id).catch(() => {});
   };
 
+  // End a stale (room-less) session and start a fresh one — recovers a session
+  // created before DAILY_API_KEY was set, without the teacher having to close,
+  // find End, and Start again. Reuses start() so a new room is created.
+  const retry = async () => {
+    if (session) await endMadrasaLiveLesson(session.id).catch(() => {});
+    setSession(null);
+    await start();
+  };
+
   // Shared modal (pre-join camera/mic check → embedded Daily call). Gated on the
   // SESSION, not the room URL — the pre-join always shows when a lesson is active,
   // even if a stale session has no room yet (the modal handles a missing room).
+  // onRetry is teacher-only (this component); the parent join path doesn't pass it.
   const roomModal = showRoom && session ? (
-    <MadrasaLiveRoom roomUrl={session.room_url} title={`${classObj.name || "Class"} — Live lesson`} onClose={() => setShowRoom(false)} />
+    <MadrasaLiveRoom roomUrl={session.room_url} title={`${classObj.name || "Class"} — Live lesson`} onClose={() => setShowRoom(false)} onRetry={retry} />
   ) : null;
 
   const end = async () => {

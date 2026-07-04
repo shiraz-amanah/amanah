@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import DailyIframe from "@daily-co/daily-js";
-import { Loader2, Video, VideoOff, Mic, MicOff, X, AlertCircle, ExternalLink, Check } from "lucide-react";
+import { Loader2, Video, VideoOff, Mic, MicOff, X, AlertCircle, ExternalLink, Check, RotateCw } from "lucide-react";
 
 // Pre-join + embedded live lesson (Improvement 1). Replaces the old
 // window.open(room_url) for BOTH the teacher control and the parent Join button.
@@ -14,12 +14,13 @@ import { Loader2, Video, VideoOff, Mic, MicOff, X, AlertCircle, ExternalLink, Ch
 // so no meeting token is needed. onJoin fires at the moment of joining (the parent
 // uses it to auto-mark their child present+remote).
 
-const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin }) => {
+const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const [phase, setPhase] = useState("prejoin"); // prejoin | joining | incall
   const [permState, setPermState] = useState("pending"); // pending|granted|granted-audio|denied|no-device|unsupported|error
   const [camReady, setCamReady] = useState(false);
   const [micReady, setMicReady] = useState(false);
   const [joinError, setJoinError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -64,8 +65,14 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin }) => {
   }, []);
 
   // Attach the preview stream to the <video> whenever it's available in prejoin.
+  // Setting srcObject alone can leave a black frame — an explicit play() is needed
+  // on real browsers (autoplay doesn't retrigger when the source is set post-mount).
   useEffect(() => {
-    if (phase === "prejoin" && videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current;
+    const v = videoRef.current;
+    if (phase === "prejoin" && v && streamRef.current) {
+      if (v.srcObject !== streamRef.current) v.srcObject = streamRef.current;
+      v.play?.().catch(() => {});
+    }
   }, [phase, permState]);
 
   // Tear everything down on unmount.
@@ -77,6 +84,14 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin }) => {
     onJoin?.();             // parent auto-mark present+remote fires here
     setJoinError(false);
     setPhase("joining");
+  };
+
+  // End the stale session + start a fresh one (teacher only). onRetry updates the
+  // parent's session with a new room_url → this modal re-renders room-ready.
+  const doRetry = async () => {
+    if (retrying || !onRetry) return;
+    setRetrying(true);
+    try { await onRetry(); } finally { setRetrying(false); }
   };
 
   // Mount + join the Daily prebuilt frame once the container is in the DOM.
@@ -155,7 +170,14 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin }) => {
                 <p className="text-[13px] mt-1 text-rose-700">Allow access from your browser's site settings (tap the camera/lock icon in the address bar), then reopen this window. You can still join with audio if you allow the microphone.</p>
               </div>
             ) : noRoom ? (
-              <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> The video room isn't ready yet — close this and try starting the lesson again in a moment.</p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                <p className="text-sm text-amber-800 inline-flex items-center gap-1.5"><AlertCircle size={14} /> The video room isn't ready yet{onRetry ? " — this session started without one." : "."}</p>
+                {onRetry && (
+                  <button onClick={doRetry} disabled={retrying} className="mt-2 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3.5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                    {retrying ? <Loader2 size={14} className="animate-spin" /> : <RotateCw size={14} />} End session and retry
+                  </button>
+                )}
+              </div>
             ) : joinError ? (
               <p className="text-sm text-amber-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> Couldn't connect to the room. <a href={roomUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-800 hover:underline inline-flex items-center gap-1"><ExternalLink size={13} /> Open in a new tab</a></p>
             ) : null}
