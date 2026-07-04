@@ -236,6 +236,13 @@ export function sendMadrasaLessonStarted(sessionId) {
   return postTransactional({ intent: 'madrasa_live_lesson_started', sessionId });
 }
 
+// A lesson summary was shared → bell + email to enrolled parents. The server
+// checks the row is shared and resolves recipients. Returns { ok, sent, bells }.
+export function sendMadrasaLessonSummary(transcriptId) {
+  if (!transcriptId) return Promise.resolve({ ok: false, error: 'missing_transcriptId' });
+  return postTransactional({ intent: 'madrasa_lesson_summary', transcriptId });
+}
+
 // Session AL — Path A enrolment: a mosque admin enrolled a child on a parent's
 // behalf. The server resolves the recipient (linked account or pending email)
 // and sends a sign-in / create-account link. Fire-and-forget after the enrol RPC.

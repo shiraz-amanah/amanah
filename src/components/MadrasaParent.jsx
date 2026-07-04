@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle } from "lucide-react";
-import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer } from "../auth";
+import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText } from "lucide-react";
+import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 
 // Madrasa family-dashboard view (Fix 6 redesign): a clean, parent-friendly shell —
@@ -19,6 +19,8 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [enrollments, setEnrollments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
+  const [summaries, setSummaries] = useState([]);
+  const [openSummary, setOpenSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [annOpen, setAnnOpen] = useState(false);
   const [acting, setActing] = useState(null);
@@ -26,8 +28,8 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
 
   const reload = () => {
     setLoading(true);
-    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist()])
-      .then(([s, e, a, w]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); })
+    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist(), getMyLessonSummaries()])
+      .then(([s, e, a, w, ls]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); setSummaries(ls || []); })
       .catch((err) => console.error("madrasa parent load failed:", err))
       .finally(() => setLoading(false));
   };
@@ -121,6 +123,29 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
                 </li>
               );
             })}
+          </ul>
+        </div>
+      )}
+
+      {/* Lesson summaries — shared by teachers (get_my_lesson_summaries RPC) */}
+      {!loading && summaries.length > 0 && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
+          <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-3 flex items-center gap-1.5"><FileText size={12} /> Lesson summaries</p>
+          <ul className="space-y-2">
+            {summaries.map((r) => (
+              <li key={r.id} className="border border-stone-100 rounded-xl p-3">
+                <button onClick={() => setOpenSummary(openSummary === r.id ? null : r.id)} className="w-full flex items-center justify-between gap-2 text-left">
+                  <span className="text-sm font-medium text-stone-900 truncate">{r.class_name || "Class"}<span className="text-[11px] font-normal text-stone-400 ml-1.5">{new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span></span>
+                  {openSummary === r.id ? <ChevronUp size={16} className="text-stone-500 shrink-0" /> : <ChevronDown size={16} className="text-stone-500 shrink-0" />}
+                </button>
+                {openSummary === r.id && (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm text-stone-700 whitespace-pre-wrap">{r.ai_summary}</p>
+                    {r.notes && <p className="text-[12px] text-stone-500 whitespace-pre-wrap border-t border-stone-100 pt-2"><span className="font-medium">Teacher's notes:</span> {r.notes}</p>}
+                  </div>
+                )}
+              </li>
+            ))}
           </ul>
         </div>
       )}

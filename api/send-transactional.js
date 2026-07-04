@@ -1171,6 +1171,52 @@ ${ctaButton('Join the live lesson', env.PUBLIC_APP_URL)}${eSignoff}`;
   return { status: 200, body: { ok: true, bells: bells.length, sent } };
 }
 
+// A lesson summary was shared with parents → bell + email to the class's active
+// enrolled parents. Owner/teacher/admin authorised; no-ops if the row isn't shared.
+async function handleMadrasaLessonSummary(env, caller, transcriptId) {
+  const trows = await sbGet(env, `madrasa_lesson_transcripts?id=eq.${transcriptId}&select=id,class_id,mosque_id,ai_summary,shared_with_parents,share_level,class:madrasa_classes(name)`);
+  const t = Array.isArray(trows) ? trows[0] : null;
+  if (!t) return { status: 404, body: { ok: false, error: 'summary_not_found' } };
+
+  const authz = await authorizeClassAction(env, caller, t.class_id);
+  if (authz.err) return authz.err;
+  if (!t.shared_with_parents || t.share_level === 'none') {
+    return { status: 200, body: { ok: true, sent: 0, bells: 0, skipped: 'not_shared' } };
+  }
+
+  const enr = await sbGet(env, `madrasa_enrollments?class_id=eq.${t.class_id}&status=eq.active&select=student:students(profile_id)`);
+  const parentIds = [...new Set((Array.isArray(enr) ? enr : []).map((e) => e.student?.profile_id).filter(Boolean))];
+  if (parentIds.length === 0) return { status: 200, body: { ok: true, sent: 0, bells: 0, note: 'no_parents' } };
+
+  const profiles = await sbGet(env, `profiles?id=in.(${parentIds.join(',')})&select=id,email,name,notifications`);
+  const byId = {};
+  for (const p of (Array.isArray(profiles) ? profiles : [])) byId[p.id] = p;
+  const className = t.class?.name || 'the class';
+
+  // Bell — one per parent (a lesson summary is class-level).
+  await sbInsert(env, 'notifications', parentIds.map((pid) => ({
+    user_id: pid, type: 'lesson_summary',
+    title: `Lesson summary — ${className}`,
+    body: "A summary of today's lesson is ready to read.",
+    data: { kind: 'summary', transcript_id: t.id, class_id: t.class_id, mosque_id: t.mosque_id },
+  })));
+
+  // Email — the summary text, opt-in respected.
+  let sent = 0;
+  const summary = (t.ai_summary || '').toString();
+  for (const pid of parentIds) {
+    const p = byId[pid];
+    if (!p?.email || (p.notifications?.email ?? true) === false) continue;
+    const inner = `${eGreeting(p.name || 'there')}${eHeading('Today\'s lesson')}
+${ePara(`Here's a summary of today's lesson in <strong>${escapeHtml(className)}</strong>:`)}
+${ePara(escapeHtml(summary))}
+${ctaButton('Open your dashboard', env.PUBLIC_APP_URL)}${eSignoff}`;
+    await sendEmail(env, { to: p.email, subject: `Lesson summary — ${className}`, html: wrapEmail("Today's lesson", inner) });
+    sent++;
+  }
+  return { status: 200, body: { ok: true, bells: parentIds.length, sent } };
+}
+
 async function handleMadrasaAbsence(env, caller, classId, sessionDate) {
   // Authorize: caller must own the mosque, teach the class, or be an admin.
   const crows = await sbGet(env, `madrasa_classes?id=eq.${classId}&select=mosque_id,teacher_staff_id,name`);
@@ -1679,6 +1725,11 @@ export default async function handler(req, res) {
     if (body.intent === 'madrasa_live_lesson_started') {
       if (!isUuid(body.sessionId)) return res.status(400).json({ ok: false, error: 'invalid_sessionId' });
       const out = await handleMadrasaLessonStarted(env, caller, body.sessionId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'madrasa_lesson_summary') {
+      if (!isUuid(body.transcriptId)) return res.status(400).json({ ok: false, error: 'invalid_transcriptId' });
+      const out = await handleMadrasaLessonSummary(env, caller, body.transcriptId);
       return res.status(out.status).json(out.body);
     }
     if (body.intent === 'madrasa_report_published') {

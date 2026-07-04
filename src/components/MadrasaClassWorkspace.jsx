@@ -22,6 +22,7 @@ import MadrasaBehaviour from "./MadrasaBehaviour";
 import MadrasaCertificates from "./MadrasaCertificates";
 import BulkParentMessageModal from "./BulkParentMessageModal";
 import MadrasaLiveLesson from "./MadrasaLiveLesson";
+import MadrasaLessonSummary from "./MadrasaLessonSummary";
 import MadrasaStudentProfile from "./MadrasaStudentProfile";
 
 // Layer 2 — class detail (Session AN). BrightHR-style tabbed profile: a pinned
@@ -568,6 +569,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
             {deliveryMode === "remote" && <MadrasaLiveLesson classObj={classObj} />}
             {deliveryMode === "hybrid" && <MadrasaLiveLesson classObj={classObj} compact />}
             <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} deliveryMode={deliveryMode} />
+            <MadrasaLessonSummary classObj={classObj} />
           </div>
         </Section>
       )}

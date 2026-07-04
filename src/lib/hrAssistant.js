@@ -143,3 +143,10 @@ export async function generateReportSummary({ classId, sections, overall, studen
   if (!classId) return { ok: false, error: "missing_classId" };
   return postBrief({ mode: "report_summary", classId, sections, overall, studentName, term });
 }
+
+// Lesson summary (mode:'transcript_summary', teacher/owner-authed). Teacher's
+// notes → warm parent-facing summary. Returns { ok, summary }.
+export async function generateLessonSummary({ classId, notes }) {
+  if (!classId) return { ok: false, error: "missing_classId" };
+  return postBrief({ mode: "transcript_summary", classId, notes });
+}

@@ -1541,6 +1541,40 @@ export async function updateMadrasaClass(id, updates) {
     .from('madrasa_classes').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
   return { data, error }
 }
+// --- Madrasa lesson summaries (migration 116) ---
+// Save a lesson summary (teacher's notes + AI summary). Owner/teacher RLS.
+export async function saveLessonSummary({ classId, mosqueId, sessionId = null, notes, aiSummary }) {
+  if (!classId || !mosqueId) return { error: { message: 'classId + mosqueId required' } }
+  const { data, error } = await supabase.from('madrasa_lesson_transcripts')
+    .insert({ class_id: classId, mosque_id: mosqueId, session_id: sessionId, transcript_text: notes || null, ai_summary: aiSummary || null })
+    .select().single()
+  return { data, error }
+}
+// A class's saved lesson summaries (owner/teacher), newest first.
+export async function getClassLessonSummaries(classId) {
+  if (!classId) return []
+  const { data, error } = await supabase.from('madrasa_lesson_transcripts')
+    .select('*').eq('class_id', classId).order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching lesson summaries:', error); return [] }
+  return data || []
+}
+// Set a summary's share level ('summary' | 'full' | 'none'); shared_with_parents
+// mirrors it. 'none' un-shares. Owner/teacher RLS.
+export async function shareLessonSummary(id, shareLevel) {
+  if (!id) return { error: { message: 'id required' } }
+  const { data, error } = await supabase.from('madrasa_lesson_transcripts')
+    .update({ share_level: shareLevel, shared_with_parents: shareLevel !== 'none' }).eq('id', id).select().single()
+  return { data, error }
+}
+// Parent view — shared summaries for the caller's enrolled children (definer RPC;
+// notes only when share_level='full'). Rows: id, class_id, class_name, session_at,
+// ai_summary, notes, share_level, created_at.
+export async function getMyLessonSummaries() {
+  const { data, error } = await supabase.rpc('get_my_lesson_summaries')
+  if (error) { console.error('Error fetching my lesson summaries:', error); return [] }
+  return data || []
+}
+
 // Per-student remote flag (115) — owner-manage RLS. Drives the Today split register.
 export async function setEnrollmentAttendsRemotely(enrollmentId, attendsRemotely) {
   if (!enrollmentId) return { error: { message: 'enrollmentId required' } }
