@@ -30,11 +30,12 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
     return () => { alive = false; };
   }, [classObj.id]);
 
-  const start = async () => {
+  const start = async ({ forceNew = false } = {}) => {
     setBusy(true); setError("");
     // Reuse an active session if one exists (e.g. a stale one from a previous run),
-    // otherwise start a new one — startMadrasaLiveLesson handles the reuse.
-    const { data, error: e } = await startMadrasaLiveLesson({ classId: classObj.id, mosqueId: classObj.mosque_id });
+    // otherwise start a new one. forceNew (retry path) skips reuse so a brand-new
+    // session id — one that definitely exists — reaches room creation.
+    const { data, error: e } = await startMadrasaLiveLesson({ classId: classObj.id, mosqueId: classObj.mosque_id, forceNew });
     if (e || !data) { setBusy(false); setError(e?.message || "Couldn't start the lesson."); return; }
     let s = data;
     // Ensure the session has a Daily room; create one if it doesn't yet. A room
@@ -56,7 +57,7 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
   const retry = async () => {
     if (session) await endMadrasaLiveLesson(session.id).catch(() => {});
     setSession(null);
-    await start();
+    await start({ forceNew: true }); // never reuse a stale/deleted session id
   };
 
   // Shared modal (pre-join camera/mic check → embedded Daily call). Gated on the

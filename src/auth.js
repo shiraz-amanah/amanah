@@ -1883,13 +1883,17 @@ export async function submitEnrollmentInvite({ token, name, dob, gender, relatio
 // Start a live session for a class (reusing one already running). The session
 // row is created under RLS (owner/teacher); the Daily room_url is filled by the
 // extended /api/create-daily-room. Then end it when the lesson finishes.
-export async function startMadrasaLiveLesson({ classId, mosqueId }) {
+// forceNew skips the reuse-existing-live-session step — used by the retry flow so a
+// brand-new session id is created (and passed to room creation), never a stale one.
+export async function startMadrasaLiveLesson({ classId, mosqueId, forceNew = false }) {
   if (!classId || !mosqueId) return { error: { message: 'classId and mosqueId required' } }
   const user = await getUser()
   if (!user) return { error: { message: 'Not signed in' } }
-  const { data: existing } = await supabase.from('madrasa_sessions')
-    .select('*').eq('class_id', classId).eq('status', 'live').order('started_at', { ascending: false }).limit(1).maybeSingle()
-  if (existing) return { data: existing }
+  if (!forceNew) {
+    const { data: existing } = await supabase.from('madrasa_sessions')
+      .select('*').eq('class_id', classId).eq('status', 'live').order('started_at', { ascending: false }).limit(1).maybeSingle()
+    if (existing) return { data: existing }
+  }
   const { data, error } = await supabase.from('madrasa_sessions')
     .insert({ class_id: classId, mosque_id: mosqueId, status: 'live', started_by: user.id }).select().single()
   return { data, error }
