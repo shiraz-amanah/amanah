@@ -204,6 +204,12 @@ async function createMadrasaRoom(env) {
         enable_screenshare: true,
         start_video_off: false,
         start_audio_off: false,
+        // We run our OWN pre-join (camera/mic check). The DOMAIN default is
+        // enable_prejoin_ui:true, which makes Daily show its own hair-check inside
+        // the iframe and wait for a click we can't reach — join() reaches
+        // 'joining-meeting' but never 'joined-meeting'. Disable it per-room so the
+        // embed joins straight through after our pre-join.
+        enable_prejoin_ui: false,
       },
     }),
   });
