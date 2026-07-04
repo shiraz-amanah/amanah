@@ -206,11 +206,18 @@ async function createMadrasaRoom(env) {
       },
     }),
   });
-  const json = await res.json().catch(() => ({}));
+  const raw = await res.text();
   if (!res.ok) {
-    console.error('[create-daily-room] madrasa daily_create_failed', res.status, json?.info || json?.error);
+    // Exact Daily.co response (invalid key / wrong domain / plan restriction, etc.)
+    console.error('[create-daily-room] Daily.co error:', res.status, raw);
+    // Key-format diagnostics WITHOUT leaking the secret — spots quotes/whitespace/
+    // a Bearer prefix / a URL accidentally pasted into the Vercel env var.
+    const k = env.DAILY_API_KEY || '';
+    console.error('[create-daily-room] DAILY_API_KEY diag:',
+      JSON.stringify({ len: k.length, prefix: k.slice(0, 4), hasQuotes: /["']/.test(k), hasWhitespace: /\s/.test(k), looksBearer: /^bearer/i.test(k), looksUrl: /^https?:/i.test(k) }));
     throw new Error('daily_create_failed');
   }
+  const json = JSON.parse(raw || '{}');
   return { url: json.url, roomName: json.name };
 }
 
