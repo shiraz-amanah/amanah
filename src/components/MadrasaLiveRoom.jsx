@@ -23,6 +23,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const [micOn, setMicOn] = useState(false); // pre-join mic toggle (intent)
   const [joinError, setJoinError] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [joined, setJoined] = useState(false); // Daily 'joined-meeting' fired → hide the overlay
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -108,6 +109,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
     stopPreview();          // release the camera before Daily grabs it
     onJoin?.();             // parent auto-mark present+remote fires here
     setJoinError(false);
+    setJoined(false);
     setPhase("joining");
   };
 
@@ -132,20 +134,26 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
           showLeaveButton: true,
           iframeStyle: { width: "100%", height: "100%", border: "0" },
         });
+        // 'joined-meeting' is the canonical "we're in" signal — drive the UI off it
+        // (fires on this live instance via postMessage, independent of the await).
+        frame.on("joined-meeting", () => { console.log("[join] joined-meeting event"); setJoined(true); setPhase("incall"); });
         frame.on("left-meeting", () => { destroyFrame(); onCloseRef.current?.(); });
-        frame.on("error", (ev) => { console.error("[MadrasaLiveRoom] Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); destroyFrame(); setPhase("prejoin"); });
+        frame.on("error", (ev) => { console.error("[MadrasaLiveRoom] Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
         frameRef.current = frame;
         console.log("[MadrasaLiveRoom] joining Daily room:", roomUrl);
         await frame.join({ url: roomUrl, startVideoOff: videoOffRef.current, startAudioOff: audioOffRef.current });
-        console.log("[join] frame.join() resolved");
-        console.log("[join] cancelled?", cancelled);
+        console.log("[join] frame.join() resolved, cancelled?", cancelled);
         if (cancelled) { destroyFrame(); return; }
-        console.log("[join] setting incall");
+        console.log("[join] setting incall + joined");
+        setJoined(true);
         setPhase("incall");
       } catch (err) { console.error("[MadrasaLiveRoom] join failed:", err?.message || err); if (!cancelled) { setJoinError(true); destroyFrame(); setPhase("prejoin"); } }
     })();
     return () => { console.log("[join] effect cleanup — cancelled set true"); cancelled = true; };
   }, [phase, roomUrl, destroyFrame]);
+
+  // Definitive phase/joined tracker — confirms state actually propagates to render.
+  useEffect(() => { console.log("[MadrasaLiveRoom] render state → phase:", phase, "joined:", joined); }, [phase, joined]);
 
   const StatusPill = ({ ok, blocked, icon: Icon, blockedIcon: BIcon, label }) => (
     <div className="flex items-center gap-2 text-sm">
@@ -173,9 +181,11 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
         </div>
 
         {inCall ? (
-          <div ref={containerRef} style={{ height: "min(70vh, 560px)" }} className="w-full bg-stone-900">
-            {phase === "joining" && (
-              <div className="h-full flex items-center justify-center text-stone-300 text-sm gap-2"><Loader2 size={16} className="animate-spin" /> Connecting to the lesson…</div>
+          <div ref={containerRef} style={{ height: "min(70vh, 560px)" }} className="relative w-full bg-stone-900">
+            {/* Overlay (absolute) so the Daily iframe underneath is always full-size;
+                hidden the moment Daily reports 'joined-meeting' — not tied to phase. */}
+            {!joined && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center text-stone-300 text-sm gap-2 bg-stone-900"><Loader2 size={16} className="animate-spin" /> Connecting to the lesson…</div>
             )}
           </div>
         ) : (
