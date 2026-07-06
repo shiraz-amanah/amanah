@@ -1,4 +1,4 @@
-import { Calendar, GraduationCap, HeartHandshake, HandCoins, Heart, Building2, MessageCircle, Settings, LogOut } from "lucide-react";
+import { Calendar, GraduationCap, HeartHandshake, HandCoins, Heart, Building2, MessageCircle, Settings, LogOut, Wallet } from "lucide-react";
 
 // Parent/user dashboard persistent left sidebar (platform-wide nav Phase 4) —
 // light/emerald, flat list, modeled on ScholarSidebar. `active` is the URL-backed
@@ -12,6 +12,7 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
   const items = [
     ["bookings", "Bookings", Calendar],
     ...(hasMadrasa ? [["madrasa", "Madrasah", GraduationCap]] : []),
+    ...(hasMadrasa ? [["fees", "Fees", Wallet]] : []),
     ...(hasCommunity ? [["community", "Community", HeartHandshake]] : []),
     ["donations", "My giving", HandCoins],
     ["saved", "My scholars", Heart],
