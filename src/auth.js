@@ -1709,6 +1709,15 @@ export async function getStudentFeeRecords(studentId) {
   return data || []
 }
 
+// Parent-facing read of the caller's OWN children's fee records (migration 121
+// definer RPC — madrasa_fee_records has no parent policy, and this excludes the
+// internal `notes` column). Powers the parent Pay flow. Newest first.
+export async function getMyChildrenFeeRecords() {
+  const { data, error } = await supabase.rpc('get_my_children_fee_records')
+  if (error) { console.error('Error fetching my children fee records:', error); return [] }
+  return data || []
+}
+
 // Roster for a class — owner reads enrolled students via the relaxed students
 // SELECT policy (068). Returns enrollments joined to the student.
 export async function getMadrasaRoster(classId) {

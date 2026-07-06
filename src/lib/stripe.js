@@ -27,6 +27,22 @@ export async function stripeCreateAccount(mosqueId) {
   }
 }
 
+// Parent pays a madrasah fee record (Session BO). The server derives the amount,
+// verifies the parent owns the student, and creates a Stripe Checkout session on
+// the mosque's connected account; returns a hosted checkout_url to redirect to.
+export async function stripeCreateCheckout(feeRecordId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=create-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ feeRecordId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+
 // After the owner returns from Stripe, re-read the account and sync our flags.
 export async function stripeOnboardingComplete(mosqueId) {
   try {

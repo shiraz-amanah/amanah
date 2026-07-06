@@ -12798,6 +12798,20 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [view, routeQuery.stripe, routeQuery.tab]);
 
+// Stripe one-off payment return (Session BO): a parent comes back to
+// /dashboard?tab=madrasa&payment=success|cancel after Checkout. Toast the outcome
+// and strip the param (the dashboard's own reload flips the fee to Paid on success;
+// the webhook is the source of truth). No status is trusted from the URL itself.
+useEffect(() => {
+  const p = routeQuery.payment;
+  if (p !== "success" && p !== "cancel") return;
+  showToast(p === "success"
+    ? "Payment successful — thank you. Your receipt is on its way."
+    : "Payment cancelled — you haven't been charged.");
+  navigate(view, {}, { ...routeQuery, payment: undefined }, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [routeQuery.payment]);
+
 // Mirror a scholar's uploaded photo onto authedProfile.avatar_url. The photo
 // lives on the scholars row (myScholar), but every shared header (PublicHeader,
 // the public home top-bar, the user-dashboard + Messages chrome) reads the

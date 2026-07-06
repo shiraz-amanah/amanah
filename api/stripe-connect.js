@@ -30,8 +30,12 @@ export const config = { api: { bodyParser: false } };
 const {
   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
-  PUBLIC_APP_URL,
+  PUBLIC_APP_URL, RESEND_API_KEY, RESEND_FROM,
 } = process.env;
+
+// Amanah's platform fee: 2.5% of the total, in pence.
+const platformFeePence = (amountPence) => Math.round(amountPence * 0.025);
+const gbp = (pence) => `£${(pence / 100).toFixed(2)}`;
 
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const APP_URL = (PUBLIC_APP_URL || 'https://youramanah.co.uk').replace(/\/$/, '');
@@ -97,6 +101,77 @@ async function patchStripeRowByAccount(accountId, patch) {
     { method: 'PATCH', headers: { ...svcHeaders, Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
 }
 
+// ---- One-off payments (Session BO) ----
+// Fee record + joins (service role bypasses RLS): the student's parent, the
+// mosque, and labels for the payment description.
+async function getFeeRecordFull(feeRecordId) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/madrasa_fee_records?id=eq.${feeRecordId}&select=id,student_id,mosque_id,fee_record_status:status,amount_due,amount_paid,students(profile_id,name),madrasa_fees(term_label,madrasa_classes(name))&limit=1`,
+    { headers: svcHeaders });
+  const rows = await res.json().catch(() => null);
+  const r = Array.isArray(rows) ? rows[0] : null;
+  if (!r) return null;
+  return {
+    id: r.id, student_id: r.student_id, mosque_id: r.mosque_id,
+    status: r.fee_record_status, amount_due: r.amount_due, amount_paid: r.amount_paid,
+    student_profile_id: r.students?.profile_id, student_name: r.students?.name,
+    term_label: r.madrasa_fees?.term_label, class_name: r.madrasa_fees?.madrasa_classes?.name,
+  };
+}
+async function insertPayment(row) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/mosque_payments`,
+    { method: 'POST', headers: { ...svcHeaders, Prefer: 'return=representation' }, body: JSON.stringify(row) });
+  const rows = await res.json().catch(() => null);
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+async function patchPaymentById(id, patch) {
+  await fetch(`${SUPABASE_URL}/rest/v1/mosque_payments?id=eq.${id}`,
+    { method: 'PATCH', headers: { ...svcHeaders, Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
+}
+async function getPaymentById(id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/mosque_payments?id=eq.${id}&select=*&limit=1`, { headers: svcHeaders });
+  const rows = await res.json().catch(() => null);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+// Mark the linked fee record fully paid. We charge the full outstanding, so on
+// success amount_paid = amount_due and status = 'paid'.
+async function markFeeRecordPaid(feeRecordId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/madrasa_fee_records?id=eq.${feeRecordId}&select=amount_due`, { headers: svcHeaders });
+  const rows = await res.json().catch(() => null);
+  const due = Array.isArray(rows) ? rows[0]?.amount_due : null;
+  await fetch(`${SUPABASE_URL}/rest/v1/madrasa_fee_records?id=eq.${feeRecordId}`,
+    { method: 'PATCH', headers: { ...svcHeaders, Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'paid', amount_paid: due, paid_at: new Date().toISOString() }) });
+}
+// Receipt email via Resend directly (the webhook has no caller JWT, so we don't
+// route through send-transactional). Resolves the parent's email service-role.
+async function sendReceipt(pay) {
+  if (!RESEND_API_KEY || !RESEND_FROM || !pay?.student_id) return;
+  const sres = await fetch(`${SUPABASE_URL}/rest/v1/students?id=eq.${pay.student_id}&select=name,profiles(email,name)`, { headers: svcHeaders });
+  const student = (await sres.json().catch(() => null))?.[0];
+  const email = student?.profiles?.email;
+  if (!email) return;
+  const mres = await fetch(`${SUPABASE_URL}/rest/v1/mosques?id=eq.${pay.mosque_id}&select=name`, { headers: svcHeaders });
+  const mosqueName = (await mres.json().catch(() => null))?.[0]?.name || 'the mosque';
+  const amount = gbp(pay.amount_pence);
+  const html = `<div style="font-family:Inter,Arial,sans-serif;color:#1c1917;max-width:520px;margin:0 auto">
+    <h2 style="font-family:Georgia,serif;color:#064e3b">Payment received</h2>
+    <p>Assalamu alaikum${student?.profiles?.name ? ' ' + student.profiles.name : ''},</p>
+    <p>Thank you — your payment of <strong>${amount}</strong> to <strong>${mosqueName}</strong> has been received.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+      <tr><td style="padding:6px 0;color:#78716c">Description</td><td style="padding:6px 0;text-align:right">${pay.description || 'Madrasah fee'}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c">Student</td><td style="padding:6px 0;text-align:right">${student?.name || '—'}</td></tr>
+      <tr><td style="padding:6px 0;color:#78716c">Amount</td><td style="padding:6px 0;text-align:right;font-weight:600">${amount}</td></tr>
+    </table>
+    <p style="font-size:12px;color:#9ca3af">This is your receipt. Payments are processed securely by Stripe on behalf of the mosque.</p>
+  </div>`;
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+    body: JSON.stringify({ from: RESEND_FROM, to: email, subject: `Payment receipt — ${amount} to ${mosqueName}`, html }),
+  }).catch(() => {});
+}
+
 // Derive our flags from a Stripe account object. "Complete" = Stripe has what it
 // needs to enable charges (details submitted AND charges enabled).
 function statusFromAccount(acct) {
@@ -124,6 +199,20 @@ export default async function handler(req, res) {
       if (event.type === 'account.updated') {
         const acct = event.data.object;
         await patchStripeRowByAccount(acct.id, { ...statusFromAccount(acct), updated_at: new Date().toISOString() });
+      } else if (event.type === 'payment_intent.succeeded') {
+        // Direct-charge PIs carry our row id in metadata (set at create-checkout).
+        const pi = event.data.object;
+        const payId = pi.metadata?.mosque_payment_id;
+        if (payId) {
+          await patchPaymentById(payId, { stripe_payment_intent_id: pi.id, status: 'succeeded', updated_at: new Date().toISOString() });
+          const pay = await getPaymentById(payId);
+          if (pay?.fee_record_id) await markFeeRecordPaid(pay.fee_record_id);
+          await sendReceipt(pay);
+        }
+      } else if (event.type === 'payment_intent.payment_failed') {
+        const pi = event.data.object;
+        const payId = pi.metadata?.mosque_payment_id;
+        if (payId) await patchPaymentById(payId, { stripe_payment_intent_id: pi.id, status: 'failed', updated_at: new Date().toISOString() });
       }
     } catch (err) {
       console.error('[stripe-connect] webhook', event?.type, err?.message);
@@ -142,12 +231,55 @@ export default async function handler(req, res) {
   try { const raw = await readRawBody(req); body = raw.length ? JSON.parse(raw.toString('utf8')) : {}; }
   catch { return res.status(400).json({ ok: false, error: 'invalid_body' }); }
 
+  const action = req.query?.action;
+
+  // ---- Parent action: pay a fee record. Authorised by parent-owns-student, NOT
+  // by mosque ownership, so it runs BEFORE the owner gate below. ----
+  if (action === 'create-checkout') {
+    try {
+      const feeRecordId = body.feeRecordId;
+      if (!isUuid(feeRecordId)) return res.status(400).json({ ok: false, error: 'invalid_feeRecordId' });
+      const fr = await getFeeRecordFull(feeRecordId);
+      if (!fr) return res.status(404).json({ ok: false, error: 'fee_record_not_found' });
+      if (fr.student_profile_id !== caller.id) return res.status(403).json({ ok: false, error: 'not_your_child' });
+      if (fr.status === 'paid' || fr.status === 'waived') return res.status(400).json({ ok: false, error: 'already_paid' });
+      const outstanding = Math.round((Number(fr.amount_due) - Number(fr.amount_paid)) * 100); // pence
+      if (outstanding <= 0) return res.status(400).json({ ok: false, error: 'nothing_to_pay' });
+      // The mosque must have finished Stripe onboarding (direct charges need charges_enabled).
+      const acct = await getStripeRow(fr.mosque_id);
+      if (!acct?.stripe_account_id || !acct.charges_enabled) return res.status(400).json({ ok: false, error: 'mosque_not_ready' });
+      const feePence = platformFeePence(outstanding);
+      const description = `${fr.class_name || 'Madrasah'}${fr.term_label ? ' — ' + fr.term_label : ''} fee`;
+      // Insert the pending row FIRST so its id can travel on the payment intent
+      // metadata — that's how the webhook matches the event back to this row.
+      const payRow = await insertPayment({
+        mosque_id: fr.mosque_id, student_id: fr.student_id, fee_record_id: feeRecordId,
+        amount_pence: outstanding, fee_pence: feePence, currency: 'gbp', status: 'pending', description,
+      });
+      if (!payRow?.id) return res.status(500).json({ ok: false, error: 'insert_failed' });
+      // DIRECT charge ON the connected account (Stripe-Account header) + our fee.
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{ price_data: { currency: 'gbp', product_data: { name: description }, unit_amount: outstanding }, quantity: 1 }],
+        payment_intent_data: { application_fee_amount: feePence, metadata: { mosque_payment_id: payRow.id } },
+        metadata: { mosque_payment_id: payRow.id },
+        success_url: `${APP_URL}/dashboard?tab=madrasa&payment=success`,
+        cancel_url: `${APP_URL}/dashboard?tab=madrasa&payment=cancel`,
+      }, { stripeAccount: acct.stripe_account_id });
+      await patchPaymentById(payRow.id, { stripe_checkout_session_id: session.id, updated_at: new Date().toISOString() });
+      return res.status(200).json({ ok: true, checkout_url: session.url });
+    } catch (err) {
+      console.error('[stripe-connect] create-checkout', err?.message);
+      return res.status(502).json({ ok: false, error: err?.message || 'stripe_failed' });
+    }
+  }
+
+  // ---- Owner actions below: require the caller to own the mosque. ----
   const mosqueId = body.mosqueId;
   if (!isUuid(mosqueId)) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
   const mosque = await getOwnedMosque(mosqueId, caller.id);
   if (!mosque) return res.status(403).json({ ok: false, error: 'not_mosque_owner' });
 
-  const action = req.query?.action;
   try {
     if (action === 'create-account') {
       let row = await getStripeRow(mosqueId);
