@@ -20,7 +20,7 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [showRoom, setShowRoom] = useState(false); // pre-join + embedded call modal
+  const [expanded, setExpanded] = useState(false); // hybrid only: inline room shown (camera requested on tap, not on mount)
 
   useEffect(() => {
     let alive = true; setLoading(true);
@@ -46,7 +46,9 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
       else setError("The video room couldn't be created — check the Daily.co setup.");
     }
     setBusy(false); setSession(s);
-    setShowRoom(true); // always open the pre-join when the teacher starts
+    // Remote shows the inline room automatically while a session is active; hybrid
+    // stays a compact bar until the teacher taps Join — starting counts as that tap.
+    if (compact) setExpanded(true);
     // Fire-and-forget: notify remote students' parents (bell + email). No-ops if none.
     sendMadrasaLessonStarted(s.id).catch(() => {});
   };
@@ -60,12 +62,15 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
     await start({ forceNew: true }); // never reuse a stale/deleted session id
   };
 
-  // Shared modal (pre-join camera/mic check → embedded Daily call). Gated on the
-  // SESSION, not the room URL — the pre-join always shows when a lesson is active,
-  // even if a stale session has no room yet (the modal handles a missing room).
-  // onRetry is teacher-only (this component); the parent join path doesn't pass it.
-  const roomModal = showRoom && session ? (
-    <MadrasaLiveRoom roomUrl={session.room_url} title={`${classObj.name || "Class"} — Live lesson`} onClose={() => setShowRoom(false)} onRetry={retry} />
+  // Inline embedded room (2a) — no modal on the register screen. Remote shows it
+  // whenever a session is active (video-first); hybrid shows it only once the
+  // teacher taps Join/Start (`expanded`), so the camera isn't grabbed just for
+  // opening the register. Gated on the SESSION, not the room URL, so a stale
+  // room-less session still opens the pre-join (which handles the missing room +
+  // retry). onRetry is teacher-only; onClose collapses hybrid back to the compact
+  // bar — remote has no collapse (End lesson is the control).
+  const inlineRoom = session && (!compact || expanded) ? (
+    <MadrasaLiveRoom embedded roomUrl={session.room_url} title={`${classObj.name || "Class"} — Live lesson`} onRetry={retry} onClose={compact ? () => setExpanded(false) : undefined} />
   ) : null;
 
   const end = async () => {
@@ -73,7 +78,7 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
     const { error: e } = await endMadrasaLiveLesson(session.id);
     setBusy(false);
     if (e) { setError(e.message || "Couldn't end the lesson."); return; }
-    setSession(null);
+    setSession(null); setExpanded(false);
   };
 
   if (loading) {
@@ -85,17 +90,20 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
   if (compact) {
     if (session) {
       return (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-          {roomModal}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-700"><Radio size={14} className="animate-pulse" /> Live lesson in progress</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowRoom(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</button>
-              <button onClick={end} disabled={busy} className="border border-rose-300 text-rose-700 hover:bg-rose-100 disabled:opacity-40 text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} End</button>
+        <div className="space-y-3">
+          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-700"><Radio size={14} className="animate-pulse" /> Live lesson in progress</span>
+              <div className="flex items-center gap-2">
+                {!expanded && <button onClick={() => setExpanded(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</button>}
+                <button onClick={end} disabled={busy} className="border border-rose-300 text-rose-700 hover:bg-rose-100 disabled:opacity-40 text-sm font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} End</button>
+              </div>
             </div>
+            <p className="text-xs text-rose-700/80 mt-1.5">Remote students join from their parent dashboard and are auto-marked present.</p>
+            {error && <p className="text-sm text-amber-700 flex items-center gap-1.5 mt-2"><AlertCircle size={14} /> {error}</p>}
           </div>
-          <p className="text-xs text-rose-700/80 mt-1.5">Remote students join from their parent dashboard and are auto-marked present.</p>
-          {error && <p className="text-sm text-amber-700 flex items-center gap-1.5 mt-2"><AlertCircle size={14} /> {error}</p>}
+          {/* Inline room appears above the split register once the teacher taps Join */}
+          {inlineRoom}
         </div>
       );
     }
@@ -115,17 +123,17 @@ const MadrasaLiveLesson = ({ classObj, compact = false }) => {
 
   if (session) {
     return (
-      <div className="bg-white border border-emerald-200 rounded-2xl p-5">
-        {roomModal}
-        <div className="flex items-center gap-2 mb-2">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-700"><Radio size={13} className="animate-pulse" /> Live now</span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-rose-700"><Radio size={13} className="animate-pulse" /> Live now</span>
+            <p className="text-xs text-stone-500 mt-1">Remote students join from their parent dashboard and are auto-marked present.</p>
+          </div>
+          <button onClick={end} disabled={busy} className="border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-40 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5 shrink-0">{busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} End lesson</button>
         </div>
-        <p className="text-sm text-stone-600 mb-3">Remote students can join from their parent dashboard and are auto-marked present.</p>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setShowRoom(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join</button>
-          <button onClick={end} disabled={busy} className="border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-40 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} End lesson</button>
-        </div>
-        {error && <p className="text-sm text-amber-700 flex items-center gap-1.5 mt-3"><AlertCircle size={14} /> {error}</p>}
+        {/* Room embedded inline below the selector — no modal, no "open" button */}
+        {inlineRoom}
+        {error && <p className="text-sm text-amber-700 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
       </div>
     );
   }

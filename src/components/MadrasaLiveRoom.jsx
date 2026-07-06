@@ -9,12 +9,19 @@ import { Loader2, Video, VideoOff, Mic, MicOff, X, AlertCircle, ExternalLink, Ch
 // + device status + camera/mic toggle controls, so the user sets themselves up
 // before entering. Join honours the toggles (startVideoOff/startAudioOff). On join we stop
 // the preview stream (releasing the camera) and mount the Daily PREBUILT call
-// (DailyIframe.createFrame) into the modal — Daily owns the in-call UI (tiles,
-// leave, device switching, mobile front/rear camera). The madrasa room is public,
-// so no meeting token is needed. onJoin fires at the moment of joining (the parent
-// uses it to auto-mark their child present+remote).
+// (DailyIframe.createFrame) — Daily owns the in-call UI (tiles, leave, device
+// switching, mobile front/rear camera). The madrasa room is public, so no meeting
+// token is needed. onJoin fires at the moment of joining (the parent uses it to
+// auto-mark their child present+remote).
+//
+// `embedded` (Session 2a) swaps the fixed modal chrome for an inline card so the
+// teacher's register screen can show the room in-page — the parent surfaces
+// (MadrasaChildProgress / MadrasaParent) keep the DEFAULT modal untouched. In
+// embedded mode, leaving the Daily call (`left-meeting`) drops back to the inline
+// pre-join ("Rejoin") rather than closing — the session is ended elsewhere (the
+// teacher's explicit End lesson button), never by leaving the call.
 
-const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
+const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry, embedded = false }) => {
   const [phase, setPhase] = useState("prejoin"); // prejoin | joining | incall
   const [permState, setPermState] = useState("pending"); // pending|granted|granted-audio|denied|no-device|unsupported|error
   const [camReady, setCamReady] = useState(false);
@@ -24,6 +31,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const [joinError, setJoinError] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [joined, setJoined] = useState(false); // Daily 'joined-meeting' fired → hide the overlay
+  const [resetKey, setResetKey] = useState(0); // embedded: bump to re-acquire the preview after leaving a call
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -72,7 +80,7 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [resetKey]); // re-acquires when embedded returns to pre-join after a left-meeting
 
   // Attach the preview stream to the <video> whenever it's available in prejoin.
   // Setting srcObject alone can leave a black frame — an explicit play() is needed
@@ -137,7 +145,13 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
         });
         frameRef.current = frame;
         frame.on("joined-meeting", () => { setJoined(true); setPhase("incall"); });
-        frame.on("left-meeting", () => { destroyFrame(); onCloseRef.current?.(); });
+        frame.on("left-meeting", () => {
+          destroyFrame();
+          // Embedded (teacher register): leaving the call ≠ ending the lesson —
+          // drop back to the inline pre-join so they can Rejoin. Modal: close.
+          if (embedded) { setJoined(false); setJoinError(false); setPermState("pending"); setPhase("prejoin"); setResetKey((k) => k + 1); }
+          else onCloseRef.current?.();
+        });
         frame.on("error", (ev) => { console.error("Daily error:", ev?.errorMsg || ev?.error || ev); setJoinError(true); setJoined(false); destroyFrame(); setPhase("prejoin"); });
         await frame.join({ url: roomUrl, startVideoOff: videoOffRef.current, startAudioOff: audioOffRef.current });
         if (cancelled) { destroyFrame(); return; }
@@ -162,15 +176,27 @@ const MadrasaLiveRoom = ({ roomUrl, title, onClose, onJoin, onRetry }) => {
   const noRoom = !roomUrl; // session exists but the Daily room isn't ready yet
   const inCall = phase === "joining" || phase === "incall";
 
+  // Inline (embedded) swaps the fixed backdrop + centred card for a plain in-page
+  // card; the modal path is byte-for-byte unchanged. The header close (X) shows
+  // only when onClose is provided — modal callers always pass it; embedded remote
+  // omits it (no collapse; End lesson is the control), embedded hybrid passes a
+  // collapse handler.
+  const outerCls = embedded
+    ? "relative w-full"
+    : "fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-3 sm:p-6";
+  const cardCls = embedded
+    ? "bg-white rounded-2xl border border-stone-200 w-full overflow-hidden"
+    : `bg-white rounded-2xl shadow-2xl w-full ${inCall ? "max-w-4xl" : "max-w-lg"} overflow-hidden`;
+
   return (
-    <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true">
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${inCall ? "max-w-4xl" : "max-w-lg"} overflow-hidden`}>
+    <div className={outerCls} {...(embedded ? {} : { role: "dialog", "aria-modal": "true" })}>
+      <div className={cardCls}>
         {/* Header */}
         <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-stone-200">
           <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-2 min-w-0">
             <Video size={16} className="text-emerald-700 shrink-0" /> <span className="truncate">{title || "Live lesson"}</span>
           </p>
-          <button onClick={() => { stopPreview(); destroyFrame(); onClose?.(); }} className="text-stone-400 hover:text-stone-700 shrink-0" aria-label="Close"><X size={18} /></button>
+          {onClose && <button onClick={() => { stopPreview(); destroyFrame(); onClose?.(); }} className="text-stone-400 hover:text-stone-700 shrink-0" aria-label={embedded ? "Collapse" : "Close"}><X size={18} /></button>}
         </div>
 
         {inCall ? (
