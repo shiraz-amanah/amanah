@@ -32,6 +32,17 @@
 // Returns 200 {ok:true, ...} on success, 4xx/5xx {ok:false, error} otherwise.
 // Never echoes secrets or full email bodies.
 
+import * as Sentry from '@sentry/node';
+
+// Errors-only Sentry on this representative function — the pattern to roll out to
+// the other api/* handlers later (not this session). No-ops when SENTRY_DSN is
+// unset. Guarded on getClient() so warm invocations don't re-init. IMPORTANT:
+// serverless freezes the process the moment the handler returns, so every capture
+// must be followed by `await Sentry.flush()` or the event is dropped.
+if (process.env.SENTRY_DSN && !Sentry.getClient()) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.VERCEL_ENV || 'development' });
+}
+
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const SESSION_TZ = 'Europe/London';
 // No `format` column on bookings yet — see Session Q pre-flight. Swap this for a
@@ -1609,6 +1620,8 @@ export default async function handler(req, res) {
       return res.status(out.status).json(out.body);
     } catch (err) {
       console.error('[send-transactional]', sweep, err?.message);
+      Sentry.captureException(err, { tags: { intent: sweep } });
+      await Sentry.flush(2000);
       return res.status(502).json({ ok: false, error: err?.message || 'send_failed' });
     }
   }
@@ -1800,6 +1813,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
   } catch (err) {
     console.error('[send-transactional]', body.intent, err?.message);
+    Sentry.captureException(err, { tags: { intent: body?.intent } });
+    await Sentry.flush(2000);
     return res.status(502).json({ ok: false, error: err?.message || 'send_failed' });
   }
 }
