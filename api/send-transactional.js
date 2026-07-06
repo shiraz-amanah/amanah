@@ -39,8 +39,11 @@ import * as Sentry from '@sentry/node';
 // unset. Guarded on getClient() so warm invocations don't re-init. IMPORTANT:
 // serverless freezes the process the moment the handler returns, so every capture
 // must be followed by `await Sentry.flush()` or the event is dropped.
-if (process.env.SENTRY_DSN && !Sentry.getClient()) {
-  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.VERCEL_ENV || 'development' });
+// Sanitize like the client (main.jsx): strip quotes/whitespace a Vercel paste may
+// have added, so a slightly-off SENTRY_DSN doesn't silently disable capture.
+const SENTRY_DSN = process.env.SENTRY_DSN?.trim().replace(/^['"]+|['"]+$/g, '').trim();
+if (SENTRY_DSN && /^https:\/\/[^@/]+@[^/]+\/\d+$/.test(SENTRY_DSN) && !Sentry.getClient()) {
+  Sentry.init({ dsn: SENTRY_DSN, environment: process.env.VERCEL_ENV || 'development' });
 }
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
