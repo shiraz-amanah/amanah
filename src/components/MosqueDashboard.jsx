@@ -37,6 +37,7 @@ import FinanceReports from "./FinanceReports";
 import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
+import MosquePayments from "./MosquePayments";
 
 // Mosque dashboard shell. Session AX (Phase 1 of the platform-wide sidebar) turned
 // the old top tab bar + per-tab sub-tab bars into one persistent MosqueSidebar
@@ -288,6 +289,11 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           )}
           {activeTab === "finance" && activeSub === "reports" && (
             <FinanceReports mosqueId={mosque.id} mosqueName={mosque.name} />
+          )}
+
+          {/* ---- Payments: Stripe Connect onboarding (Session BN) ---- */}
+          {activeTab === "payments" && (
+            <MosquePayments mosque={mosque} />
           )}
 
           {/* ---- Header-only: Messages ---- */}

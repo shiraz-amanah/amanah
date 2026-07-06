@@ -12784,6 +12784,20 @@ useEffect(() => {
   })();
 }, []);
 
+// Stripe Connect onboarding return (Session BN): Stripe sends the owner back to
+// /mosque-dashboard?stripe=return|refresh. Open the Payments tab in BOTH cases
+// (return = finished/left onboarding; refresh = the onboarding link expired
+// mid-flow) — the return URL deliberately omits ?tab so this is the single place
+// that decides it. MosquePayments then reads ?stripe to sync/prompt and clears it.
+useEffect(() => {
+  if (view !== "mosqueDashboard") return;
+  const s = routeQuery.stripe;
+  if ((s === "return" || s === "refresh") && routeQuery.tab !== "payments") {
+    navigate("mosqueDashboard", {}, { tab: "payments", stripe: s, mosque: routeQuery.mosque || "" }, { replace: true });
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [view, routeQuery.stripe, routeQuery.tab]);
+
 // Mirror a scholar's uploaded photo onto authedProfile.avatar_url. The photo
 // lives on the scholars row (myScholar), but every shared header (PublicHeader,
 // the public home top-bar, the user-dashboard + Messages chrome) reads the

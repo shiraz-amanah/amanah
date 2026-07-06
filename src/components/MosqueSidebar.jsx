@@ -5,6 +5,7 @@ import {
   ShieldAlert, ClipboardCheck, FileText, ChevronDown, LogOut, BarChart3, Moon, Globe,
   MessageCircle, User, HeartHandshake, QrCode, UsersRound, CalendarCheck,
   Landmark, ListChecks, Sparkles, Wallet, HandHeart, Gem, PiggyBank, Hourglass,
+  CreditCard,
 } from "lucide-react";
 
 // Phase 1 of the platform-wide sidebar (Session AX). The unified persistent left
@@ -53,6 +54,9 @@ export const MOSQUE_NAV = [
     ["pledges", "Pledges", HandCoins], ["qard", "Qard Hasan", PiggyBank],
     ["reports", "Reports", BarChart3],
   ] },
+  // First-class Payments entry (Session BN) — Stripe Connect onboarding. Leaf-less;
+  // top-level because it's a foundational money surface, not a Finance sub-report.
+  { tab: "payments", label: "Payments", icon: CreditCard, items: [] },
   // Personal/utility top-level entries (leaf-less, like Dashboard). Messages
   // carries the unread badge that used to live on the header icon.
   { tab: "messages", label: "Messages", icon: MessageCircle, items: [] },

@@ -276,6 +276,18 @@ export async function getMosqueByUserId(userId) {
   return data
 }
 
+// Stripe Connect status for a mosque (migration 119). RLS-gated owner read — the
+// "Mosque owner reads own stripe account" policy scopes this to the caller's own
+// mosque, so it returns null for anyone else. null = never connected. Writes are
+// service-role-only via api/stripe-connect.js.
+export async function getMosqueStripeAccount(mosqueId) {
+  if (!mosqueId) return null
+  const { data, error } = await supabase
+    .from('mosque_stripe_accounts').select('*').eq('mosque_id', mosqueId).maybeSingle()
+  if (error) { console.error('Error fetching mosque stripe account:', error); return null }
+  return data
+}
+
 // Mosque owner self-service profile update (Session U Day 1). Direct RLS-gated
 // UPDATE — the "Mosque owners update own listing" policy (migration 024) scopes
 // writes to auth.uid() = user_id, so an owner can only ever patch their own row.
