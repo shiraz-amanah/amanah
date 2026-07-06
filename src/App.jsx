@@ -13232,11 +13232,15 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
       <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
     </div>
   );
-  // Auth still resolving on the dashboard route — show a loader rather than
-  // briefly flashing demo (MOCK_USER / MOCK_USER_BOOKINGS) data for a user who
-  // is actually signed in. Once authLoading clears, isDemo={!authedProfile}
-  // correctly distinguishes a real user from a genuinely-anonymous demo view.
-  if (authLoading && view === "userDashboard") {
+  // Auth still resolving on any authed dashboard route — show a loader rather than
+  // rendering the dashboard's empty-state before the session restores. For
+  // userDashboard that avoids flashing demo (MOCK_USER) data; for mosque/scholar
+  // it avoids the "No mosque linked" / pending-claim fallback flashing on a COLD
+  // load (e.g. returning from Stripe onboarding to /mosque-dashboard?stripe=return
+  // — the user isn't unauthenticated, myMosque just hasn't loaded yet). The
+  // bootstrap sets myMosque/myScholar BEFORE authLoading clears, so once the
+  // loader lifts the dashboard has its data.
+  if (authLoading && (view === "userDashboard" || view === "mosqueDashboard" || view === "scholarDashboard")) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <Loader2 className="animate-spin text-emerald-700" size={28} />
