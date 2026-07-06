@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, X, MessageCircle, ChevronDown, ChevronUp, Video, Radio, Star, CheckCircle2, AlertCircle, GraduationCap, Pencil, Wallet, CreditCard } from "lucide-react";
+import { Loader2, BookOpen, ClipboardList, CalendarClock, Check, FileText, Download, Image as ImageIcon, ShieldCheck, Award, Paperclip, X, MessageCircle, ChevronDown, ChevronUp, Video, Radio, Star, CheckCircle2, AlertCircle, GraduationCap, Pencil } from "lucide-react";
 import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, isPositiveReward, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession, updateStudent } from "../auth";
-import { stripeCreateCheckout } from "../lib/stripe";
-import { money } from "../lib/format";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
 import { surahName, surahNameAr } from "../data/surahs";
 import MadrasaReportView from "./MadrasaReportView";
@@ -51,21 +49,8 @@ const ageFromDob = (dob) => {
   return a >= 0 && a < 130 ? a : null;
 };
 
-const MadrasaChildProgress = ({ student, enrollments = [], feeRecords = [], onMessageTeacher, onWithdraw, onStudentUpdate }) => {
+const MadrasaChildProgress = ({ student, enrollments = [], onMessageTeacher, onWithdraw, onStudentUpdate }) => {
   const classIds = enrollments.map((e) => e.class_id);
-  const [payingId, setPayingId] = useState(null);
-  const [payError, setPayError] = useState("");
-  // Pay a fee → server creates a Stripe Checkout session on the mosque's connected
-  // account; we redirect to the hosted page. On return the dashboard reloads fees.
-  const payFee = async (feeRecordId) => {
-    setPayError(""); setPayingId(feeRecordId);
-    const r = await stripeCreateCheckout(feeRecordId);
-    if (r?.ok && r.checkout_url) { window.location.href = r.checkout_url; return; }
-    setPayingId(null);
-    setPayError(r?.error === "mosque_not_ready"
-      ? "This mosque hasn't finished setting up online payments yet."
-      : "Couldn't start the payment. Please try again.");
-  };
   const mosques = Object.values(enrollments.reduce((acc, e) => { const m = e.class?.mosque; if (m?.id) acc[m.id] = { id: m.id, name: m.name }; return acc; }, {}));
 
   const [attendance, setAttendance] = useState([]);
@@ -389,37 +374,6 @@ const MadrasaChildProgress = ({ student, enrollments = [], feeRecords = [], onMe
                 </div>
               </div>
             ))}</div>
-          </div>
-        )}
-
-        {/* FEES — outstanding fees with a Pay button; paid ones show a Paid pill (Session BO) */}
-        {feeRecords.length > 0 && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-2 flex items-center gap-1.5"><Wallet size={12} /> Fees</p>
-            <div className="space-y-2">
-              {feeRecords.map((f) => {
-                const outstanding = Math.max(0, Number(f.amount_due || 0) - Number(f.amount_paid || 0));
-                const paid = f.status === "paid" || f.status === "waived" || outstanding <= 0;
-                return (
-                  <div key={f.id} className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 ${paid ? "bg-white border-stone-200" : "bg-amber-50 border-amber-200"}`}>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-stone-900 truncate">{f.class_name || "Madrasah"}{f.term_label ? ` · ${f.term_label}` : ""}</p>
-                      <p className="text-[12px] text-stone-500">
-                        {paid
-                          ? <span className="text-emerald-700 font-medium inline-flex items-center gap-1"><CheckCircle2 size={12} /> {f.status === "waived" ? "Waived" : "Paid"}</span>
-                          : <>{money(outstanding, f.currency || "GBP")} due{f.due_date ? ` · by ${new Date(f.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</>}
-                      </p>
-                    </div>
-                    {!paid && (
-                      <button onClick={() => payFee(f.id)} disabled={payingId === f.id} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
-                        {payingId === f.id ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />} Pay {money(outstanding, f.currency || "GBP")}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {payError && <p className="text-xs text-rose-700 flex items-center gap-1.5 mt-2"><AlertCircle size={13} /> {payError}</p>}
           </div>
         )}
 

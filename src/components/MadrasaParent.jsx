@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText, Video } from "lucide-react";
-import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries, getActiveMadrasaSession, joinMadrasaSession, getMyChildrenFeeRecords } from "../auth";
+import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries, getActiveMadrasaSession, joinMadrasaSession } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 import MadrasaLiveRoom from "./MadrasaLiveRoom";
 
@@ -15,13 +15,12 @@ const offerCountdown = (iso) => {
 };
 const offerExpiryAbs = (iso) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-const MadrasaParent = ({ onBrowse, onMessageTeacher, syncTick = 0 }) => {
+const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const [students, setStudents] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
   const [summaries, setSummaries] = useState([]);
-  const [feeRecords, setFeeRecords] = useState([]);
   const [openSummary, setOpenSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [annOpen, setAnnOpen] = useState(false);
@@ -32,14 +31,12 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher, syncTick = 0 }) => {
 
   const reload = () => {
     setLoading(true);
-    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist(), getMyLessonSummaries(), getMyChildrenFeeRecords()])
-      .then(([s, e, a, w, ls, fr]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); setSummaries(ls || []); setFeeRecords(fr || []); })
+    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist(), getMyLessonSummaries()])
+      .then(([s, e, a, w, ls]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); setSummaries(ls || []); })
       .catch((err) => console.error("madrasa parent load failed:", err))
       .finally(() => setLoading(false));
   };
-  // Reload on mount and whenever syncTick bumps (a Stripe payment just confirmed →
-  // refetch so the fee flips to Paid without a manual refresh).
-  useEffect(() => { reload(); }, [syncTick]);
+  useEffect(() => { reload(); }, []);
 
   // Poll active live sessions for the child's enrolled classes → the JOIN NOW
   // banner appears when a lesson starts and clears within 30s of it ending.
@@ -75,9 +72,6 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher, syncTick = 0 }) => {
   const activeByStudent = {};
   for (const e of enrollments) { if (e.status !== "active") continue; const sid = e.student?.id || e.student_id; (activeByStudent[sid] = activeByStudent[sid] || []).push(e); }
   const enrolledChildren = students.filter((s) => (activeByStudent[s.id] || []).length > 0);
-  // Fee records grouped by student → each child card shows its own fees.
-  const feesByStudent = {};
-  for (const f of feeRecords) (feesByStudent[f.student_id] = feesByStudent[f.student_id] || []).push(f);
   const offered = waitlist.filter((r) => r.status === "offered");
   const waiting = waitlist.filter((r) => r.status === "waiting");
 
@@ -214,7 +208,7 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher, syncTick = 0 }) => {
         ) : (
           <div className="space-y-4">
             {enrolledChildren.map((child) => (
-              <MadrasaChildProgress key={child.id} student={child} enrollments={activeByStudent[child.id] || []} feeRecords={feesByStudent[child.id] || []} onMessageTeacher={onMessageTeacher} onWithdraw={withdraw} onStudentUpdate={updateChild} />
+              <MadrasaChildProgress key={child.id} student={child} enrollments={activeByStudent[child.id] || []} onMessageTeacher={onMessageTeacher} onWithdraw={withdraw} onStudentUpdate={updateChild} />
             ))}
           </div>
         )}
