@@ -193,11 +193,17 @@ async function finalizePayment(pay, piId) {
     `${SUPABASE_URL}/rest/v1/mosque_payments?id=eq.${pay.id}&status=eq.pending`,
     { method: 'PATCH', headers: { ...svcHeaders, Prefer: 'return=representation' },
       body: JSON.stringify({ status: 'succeeded', stripe_payment_intent_id: piId || pay.stripe_payment_intent_id || null, updated_at: new Date().toISOString() }) });
+  if (!res.ok) {
+    console.error('[stripe-connect] finalizePayment PATCH failed', pay.id, res.status, await res.text().catch(() => ''));
+    return false;
+  }
   const rows = await res.json().catch(() => null);
   const transitioned = Array.isArray(rows) && rows.length > 0;
   if (transitioned) {
     if (pay.fee_record_id) await markFeeRecordPaid(pay.fee_record_id);
     await sendReceipt(pay);
+  } else {
+    console.log('[stripe-connect] finalizePayment no-op — already finalized', pay.id);
   }
   return transitioned;
 }
@@ -316,11 +322,16 @@ export default async function handler(req, res) {
       if (pay.status === 'succeeded') return res.status(200).json({ ok: true, status: 'succeeded' }); // already done (webhook won)
       const acct = await getStripeRow(pay.mosque_id);
       if (!acct?.stripe_account_id) return res.status(400).json({ ok: false, error: 'no_account' });
-      // The session lives on the connected account (direct charge), so retrieve with the header.
-      const session = await stripe.checkout.sessions.retrieve(sessionId, { stripeAccount: acct.stripe_account_id });
+      // The session lives on the connected account (direct charge). retrieve's
+      // signature is (id, params, options) — the Stripe-Account option MUST go in
+      // the 3rd (options) slot; passing it as the 2nd arg sends it as a query param
+      // and Stripe 400s with "Received unknown parameter: stripeAccount".
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {}, { stripeAccount: acct.stripe_account_id });
+      console.log('[stripe-connect] confirm-payment', sessionId, 'on', acct.stripe_account_id, 'payment_status=', session.payment_status);
       if (session.payment_status !== 'paid') return res.status(200).json({ ok: true, status: pay.status, paid: false });
       const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
-      await finalizePayment(pay, piId);
+      const finalized = await finalizePayment(pay, piId);
+      console.log('[stripe-connect] confirm-payment finalized=', finalized, 'payment=', pay.id);
       return res.status(200).json({ ok: true, status: 'succeeded', paid: true });
     } catch (err) {
       console.error('[stripe-connect] confirm-payment', err?.message);
