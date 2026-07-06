@@ -282,21 +282,29 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'create-account') {
+      // DIRECT charges (BO) require the connected account to have `card_payments`;
+      // Stripe requires `transfers` to be requested alongside it. The Express hosted
+      // onboarding (the account link below) collects whatever extra info these
+      // capabilities need. NOTE: BN originally requested transfers-only, which is
+      // why direct charges failed with "no card_payments capability".
+      const CAPS = { card_payments: { requested: true }, transfers: { requested: true } };
       let row = await getStripeRow(mosqueId);
       let accountId = row?.stripe_account_id;
       if (!accountId) {
-        // Express account for a UK mosque. `transfers` is the capability the
-        // platform needs to route funds to the mosque (destination-charge model,
-        // 2.5% application fee) — Session 2 confirms the final charge model.
         const account = await stripe.accounts.create({
           type: 'express',
           country: 'GB',
-          capabilities: { transfers: { requested: true } },
+          capabilities: CAPS,
           business_type: 'non_profit',
           metadata: { mosque_id: mosqueId, mosque_name: mosque.name || '' },
         });
         accountId = account.id;
         await upsertStripeRow({ mosque_id: mosqueId, stripe_account_id: accountId, onboarding_complete: false, updated_at: new Date().toISOString() });
+      } else {
+        // Self-heal an existing account that predates this fix (transfers-only):
+        // request card_payments too. Idempotent; fires account.updated and adds any
+        // new requirements the account link below then collects.
+        await stripe.accounts.update(accountId, { capabilities: CAPS });
       }
       const link = await stripe.accountLinks.create({
         account: accountId,
