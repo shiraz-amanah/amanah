@@ -16,8 +16,11 @@
 //
 // Payment COLLECTION + the 2.5% platform fee are Session 2 — this only onboards.
 //
-// Env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET (added after first deploy),
-//      SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, PUBLIC_APP_URL.
+// Env: STRIPE_SECRET_KEY; STRIPE_CONNECT_WEBHOOK_SECRET (Connect endpoint — signs
+//      connected-account events: payment_intent.*, account.updated) + STRIPE_WEBHOOK_SECRET
+//      (platform "Your account" endpoint) — verification tries the Connect secret then
+//      falls back; SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, PUBLIC_APP_URL,
+//      RESEND_API_KEY, RESEND_FROM.
 //
 // Raw body: Stripe signature verification needs the exact bytes, so Vercel's auto
 // JSON parser is DISABLED for this function (config below) and we read the stream
@@ -28,7 +31,7 @@ import Stripe from 'stripe';
 export const config = { api: { bodyParser: false } };
 
 const {
-  STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+  STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_CONNECT_WEBHOOK_SECRET,
   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
   PUBLIC_APP_URL, RESEND_API_KEY, RESEND_FROM,
 } = process.env;
@@ -223,13 +226,21 @@ export default async function handler(req, res) {
   // ---- Stripe webhook (signed; no caller auth). Detected by the header. ----
   const sig = req.headers['stripe-signature'];
   if (sig) {
-    if (!STRIPE_WEBHOOK_SECRET) return res.status(500).json({ ok: false, error: 'webhook_secret_missing' });
+    if (!STRIPE_CONNECT_WEBHOOK_SECRET && !STRIPE_WEBHOOK_SECRET) return res.status(500).json({ ok: false, error: 'webhook_secret_missing' });
+    // Read the raw body ONCE (the stream can't be re-read), then verify against the
+    // Connect endpoint secret first — connected-account events (payment_intent.*,
+    // account.updated on acct_…) are signed with it — falling back to the platform
+    // "Your account" secret. Either endpoint's events are accepted.
     let event;
+    const raw = await readRawBody(req);
     try {
-      const raw = await readRawBody(req);
-      event = stripe.webhooks.constructEvent(raw, sig, STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-      return res.status(400).json({ ok: false, error: `invalid_signature: ${err.message}` });
+      event = stripe.webhooks.constructEvent(raw, sig, STRIPE_CONNECT_WEBHOOK_SECRET);
+    } catch {
+      try {
+        event = stripe.webhooks.constructEvent(raw, sig, STRIPE_WEBHOOK_SECRET);
+      } catch (err) {
+        return res.status(400).json({ ok: false, error: `invalid_signature: ${err.message}` });
+      }
     }
     try {
       if (event.type === 'account.updated') {
