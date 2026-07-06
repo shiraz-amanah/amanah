@@ -43,6 +43,23 @@ export async function stripeCreateCheckout(feeRecordId) {
   }
 }
 
+// Belt-and-braces confirmation on the return from Checkout (?payment=success&cs=).
+// The server retrieves the Checkout session and, if paid, records the payment +
+// flips the fee to paid + emails the receipt — so the happy path doesn't depend on
+// the webhook. Race-safe with the webhook (whichever finalizes first wins).
+export async function stripeConfirmPayment(sessionId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=confirm-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ sessionId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+
 // After the owner returns from Stripe, re-read the account and sync our flags.
 export async function stripeOnboardingComplete(mosqueId) {
   try {

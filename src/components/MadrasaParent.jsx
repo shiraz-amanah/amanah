@@ -15,7 +15,7 @@ const offerCountdown = (iso) => {
 };
 const offerExpiryAbs = (iso) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
+const MadrasaParent = ({ onBrowse, onMessageTeacher, syncTick = 0 }) => {
   const [students, setStudents] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
@@ -37,7 +37,9 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
       .catch((err) => console.error("madrasa parent load failed:", err))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { reload(); }, []);
+  // Reload on mount and whenever syncTick bumps (a Stripe payment just confirmed →
+  // refetch so the fee flips to Paid without a manual refresh).
+  useEffect(() => { reload(); }, [syncTick]);
 
   // Poll active live sessions for the child's enrolled classes → the JOIN NOW
   // banner appears when a lesson starts and clears within 30s of it ending.

@@ -6,6 +6,7 @@ import { NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
 import { transformMosque } from "./lib/mosqueTransform";
+import { stripeConfirmPayment } from "./lib/stripe";
 import AiSearchBar from "./components/AiSearchBar";
 import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
@@ -7583,7 +7584,7 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, on
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onViewMosque, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onViewMosque, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate, madrasaSyncTick = 0 }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange PUSHES a history entry
   // per tab switch (Session AN) so the parent's browser Back steps back through
   // tabs / sub-views in reverse order instead of jumping to the homepage. setTab
@@ -8167,7 +8168,7 @@ setBookings(transformed);
           </div>
         )}
 
-        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} />}
+        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} syncTick={madrasaSyncTick} />}
         {tab === "community" && <CommunityMember onBrowse={onPublic} onViewMosque={onViewMosque} />}
 
         {tab === "donations" && (
@@ -12559,6 +12560,7 @@ export default function App() {
     setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, hasUnread: false } : c));
   }, []);
   const [authLoading, setAuthLoading] = useState(true);
+  const [paymentSyncTick, setPaymentSyncTick] = useState(0); // bumped after a Stripe payment confirms → parent fees refetch
   const [returnView, setReturnView] = useState("publicHome");
 
   // Saved items - lifted up so all views can access
@@ -12799,18 +12801,31 @@ useEffect(() => {
 }, [view, routeQuery.stripe, routeQuery.tab]);
 
 // Stripe one-off payment return (Session BO): a parent comes back to
-// /dashboard?tab=madrasa&payment=success|cancel after Checkout. Toast the outcome
-// and strip the param (the dashboard's own reload flips the fee to Paid on success;
-// the webhook is the source of truth). No status is trusted from the URL itself.
+// /dashboard?tab=madrasa&payment=success|cancel&cs=<checkout-session>. On success we
+// call confirm-payment (belt-and-braces vs the async webhook) — it records the
+// payment + flips the fee to paid + emails the receipt server-side — then toast and
+// strip the params. We WAIT for authedUser first: the return is a cold load and the
+// confirm call needs the caller's token. paymentSyncTick nudges the parent fees UI
+// to refetch once the server confirms. No status is ever trusted from the URL.
 useEffect(() => {
   const p = routeQuery.payment;
   if (p !== "success" && p !== "cancel") return;
-  showToast(p === "success"
-    ? "Payment successful — thank you. Your receipt is on its way."
-    : "Payment cancelled — you haven't been charged.");
-  navigate(view, {}, { ...routeQuery, payment: undefined }, { replace: true });
+  if (p === "success" && routeQuery.cs && !authedUser) return; // wait for the session to restore
+  let alive = true;
+  (async () => {
+    if (p === "success" && routeQuery.cs) {
+      const r = await stripeConfirmPayment(routeQuery.cs).catch(() => null);
+      if (alive && r?.status === "succeeded") setPaymentSyncTick((t) => t + 1);
+    }
+    if (!alive) return;
+    showToast(p === "success"
+      ? "Payment successful — thank you. Your receipt is on its way."
+      : "Payment cancelled — you haven't been charged.");
+    navigate(view, {}, { ...routeQuery, payment: undefined, cs: undefined }, { replace: true });
+  })();
+  return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [routeQuery.payment]);
+}, [routeQuery.payment, authedUser]);
 
 // Mirror a scholar's uploaded photo onto authedProfile.avatar_url. The photo
 // lives on the scholars row (myScholar), but every shared header (PublicHeader,
@@ -13250,6 +13265,7 @@ if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} 
   if (view === "userDashboard") return <UserDashboard
     profile={authedProfile}
     isDemo={!authedProfile}
+    madrasaSyncTick={paymentSyncTick}
     staffMembership={myStaffMembership}
     onStaffPortal={() => setView("mosqueStaffPortal")}
     onMadrasaBrowse={() => setView("madrasaBrowse")}

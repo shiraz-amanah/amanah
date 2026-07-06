@@ -133,6 +133,18 @@ async function getPaymentById(id) {
   const rows = await res.json().catch(() => null);
   return Array.isArray(rows) ? rows[0] : null;
 }
+async function getPaymentBySession(sessionId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/mosque_payments?stripe_checkout_session_id=eq.${encodeURIComponent(sessionId)}&select=*&limit=1`, { headers: svcHeaders });
+  const rows = await res.json().catch(() => null);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+// Service-role check that the payment's student belongs to the caller (parent).
+async function studentBelongsToCaller(studentId, callerId) {
+  if (!studentId) return false;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/students?id=eq.${studentId}&select=profile_id&limit=1`, { headers: svcHeaders });
+  const rows = await res.json().catch(() => null);
+  return (Array.isArray(rows) ? rows[0]?.profile_id : null) === callerId;
+}
 // Mark the linked fee record fully paid. We charge the full outstanding, so on
 // success amount_paid = amount_due and status = 'paid'.
 async function markFeeRecordPaid(feeRecordId) {
@@ -172,6 +184,24 @@ async function sendReceipt(pay) {
   }).catch(() => {});
 }
 
+// Mark a payment succeeded exactly once, whichever path gets there first (the
+// webhook OR the return-URL confirm-payment sync). The PATCH is filtered on
+// `status=eq.pending`, so only the transition winner gets rows back → only it
+// flips the fee record + sends the receipt. Idempotent + race-safe.
+async function finalizePayment(pay, piId) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/mosque_payments?id=eq.${pay.id}&status=eq.pending`,
+    { method: 'PATCH', headers: { ...svcHeaders, Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'succeeded', stripe_payment_intent_id: piId || pay.stripe_payment_intent_id || null, updated_at: new Date().toISOString() }) });
+  const rows = await res.json().catch(() => null);
+  const transitioned = Array.isArray(rows) && rows.length > 0;
+  if (transitioned) {
+    if (pay.fee_record_id) await markFeeRecordPaid(pay.fee_record_id);
+    await sendReceipt(pay);
+  }
+  return transitioned;
+}
+
 // Derive our flags from a Stripe account object. "Complete" = Stripe has what it
 // needs to enable charges (details submitted AND charges enabled).
 function statusFromAccount(acct) {
@@ -201,13 +231,12 @@ export default async function handler(req, res) {
         await patchStripeRowByAccount(acct.id, { ...statusFromAccount(acct), updated_at: new Date().toISOString() });
       } else if (event.type === 'payment_intent.succeeded') {
         // Direct-charge PIs carry our row id in metadata (set at create-checkout).
+        // finalizePayment is race-safe vs the return-URL confirm-payment sync.
         const pi = event.data.object;
         const payId = pi.metadata?.mosque_payment_id;
         if (payId) {
-          await patchPaymentById(payId, { stripe_payment_intent_id: pi.id, status: 'succeeded', updated_at: new Date().toISOString() });
           const pay = await getPaymentById(payId);
-          if (pay?.fee_record_id) await markFeeRecordPaid(pay.fee_record_id);
-          await sendReceipt(pay);
+          if (pay) await finalizePayment(pay, pi.id);
         }
       } else if (event.type === 'payment_intent.payment_failed') {
         const pi = event.data.object;
@@ -263,13 +292,38 @@ export default async function handler(req, res) {
         line_items: [{ price_data: { currency: 'gbp', product_data: { name: description }, unit_amount: outstanding }, quantity: 1 }],
         payment_intent_data: { application_fee_amount: feePence, metadata: { mosque_payment_id: payRow.id } },
         metadata: { mosque_payment_id: payRow.id },
-        success_url: `${APP_URL}/dashboard?tab=madrasa&payment=success`,
+        success_url: `${APP_URL}/dashboard?tab=madrasa&payment=success&cs={CHECKOUT_SESSION_ID}`,
         cancel_url: `${APP_URL}/dashboard?tab=madrasa&payment=cancel`,
       }, { stripeAccount: acct.stripe_account_id });
       await patchPaymentById(payRow.id, { stripe_checkout_session_id: session.id, updated_at: new Date().toISOString() });
       return res.status(200).json({ ok: true, checkout_url: session.url });
     } catch (err) {
       console.error('[stripe-connect] create-checkout', err?.message);
+      return res.status(502).json({ ok: false, error: err?.message || 'stripe_failed' });
+    }
+  }
+
+  // ---- Parent action: confirm a payment on the return from Checkout (belt-and-
+  // braces vs the async webhook). Retrieves the Checkout session on the connected
+  // account, and if it's paid, finalizes the row (race-safe with the webhook). ----
+  if (action === 'confirm-payment') {
+    try {
+      const sessionId = body.sessionId;
+      if (typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) return res.status(400).json({ ok: false, error: 'invalid_session' });
+      const pay = await getPaymentBySession(sessionId);
+      if (!pay) return res.status(404).json({ ok: false, error: 'payment_not_found' });
+      if (!(await studentBelongsToCaller(pay.student_id, caller.id))) return res.status(403).json({ ok: false, error: 'not_your_payment' });
+      if (pay.status === 'succeeded') return res.status(200).json({ ok: true, status: 'succeeded' }); // already done (webhook won)
+      const acct = await getStripeRow(pay.mosque_id);
+      if (!acct?.stripe_account_id) return res.status(400).json({ ok: false, error: 'no_account' });
+      // The session lives on the connected account (direct charge), so retrieve with the header.
+      const session = await stripe.checkout.sessions.retrieve(sessionId, { stripeAccount: acct.stripe_account_id });
+      if (session.payment_status !== 'paid') return res.status(200).json({ ok: true, status: pay.status, paid: false });
+      const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+      await finalizePayment(pay, piId);
+      return res.status(200).json({ ok: true, status: 'succeeded', paid: true });
+    } catch (err) {
+      console.error('[stripe-connect] confirm-payment', err?.message);
       return res.status(502).json({ ok: false, error: err?.message || 'stripe_failed' });
     }
   }
