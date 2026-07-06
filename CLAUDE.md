@@ -8,9 +8,10 @@ Amanah is a trusted Muslim scholar platform — a marketplace connecting users w
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current state (as of Session BJ — 4 July 2026)
+## Current state (as of Session BK — 6 July 2026)
 
-- **Next migration: 118.** Migrations **110–117** all applied dev + prod: 110 student photos (private bucket), 111+112 madrasah fees + waitlist offer-specific/accept-fee, 113 waiting-list notification triggers, 114 `has_hifz`, 115 class `delivery_mode` + enrolment `attends_remotely`, 116 lesson transcripts (notes→AI summary), 117 enrolment `attendance_mode` (3-way, with a trigger keeping `attends_remotely` in sync).
+- **Next migration: 119.** Migrations **110–118** all applied dev + prod: 110 student photos (private bucket), 111+112 madrasah fees + waitlist offer-specific/accept-fee, 113 waiting-list notification triggers, 114 `has_hifz`, 115 class `delivery_mode` + enrolment `attends_remotely`, 116 lesson transcripts (notes→AI summary), 117 enrolment `attendance_mode` (3-way, with a trigger keeping `attends_remotely` in sync), 118 `madrasa_set_delivery_mode` RPC (SECURITY DEFINER — lets a class TEACHER change `delivery_mode` only; `madrasa_classes` UPDATE stays owner/admin-only per 068).
+- **Delivery mode drives the class register screen (Session BK).** The Today/register tab in `MadrasaClassWorkspace` has a top In-person/Remote/Hybrid selector: in_person → standard register; remote → prominent live-lesson card + manual register suppressed; hybrid → split register + compact live bar. Persists via `setClassDeliveryMode` (the 118 RPC) for teacher and owner. **Inline video embed on the register screen is NOT done — deferred to a Session 2** (remote still opens the BJ modal room).
 - **Vercel functions: 12/12 — the cap is reached.** No new `api/*.js` can be added. New AI features fold into `admin-brief.js` (a new `mode`); new emails fold into `send-transactional.js` (a new `intent`).
 - **Live video lessons (Daily.co) now work end-to-end on prod (Session BJ) — they had NEVER worked before.** Non-obvious invariants that must stay true:
   - **`api/create-daily-room.js` must query `mosque_staff.profile_id`, NOT `mosque_staff.user_id`** — that column does not exist. The mismatch made the session lookup return 400 → a false 404, which blocked every madrasah live lesson silently. (`callerCanManageSession` compares `profile_id` for the same reason.)
