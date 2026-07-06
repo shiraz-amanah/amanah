@@ -1541,6 +1541,17 @@ export async function updateMadrasaClass(id, updates) {
     .from('madrasa_classes').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
   return { data, error }
 }
+// Change a class's delivery_mode via the 118 SECURITY DEFINER RPC. Unlike
+// updateMadrasaClass (madrasa_classes UPDATE is owner/admin-only, 068), this
+// works for the class's assigned TEACHER too, and writes ONLY delivery_mode.
+// Returns the updated row (or an error the caller rolls back its optimistic UI on).
+export async function setClassDeliveryMode(classId, mode) {
+  if (!classId) return { error: { message: 'classId required' } }
+  if (!['in_person', 'remote', 'hybrid'].includes(mode)) return { error: { message: 'invalid delivery mode' } }
+  const { data, error } = await supabase.rpc('madrasa_set_delivery_mode', { p_class: classId, p_mode: mode })
+  return { data, error }
+}
+
 // --- Madrasa lesson summaries (migration 116) ---
 // Save a lesson summary (teacher's notes + AI summary). Owner/teacher RLS.
 export async function saveLessonSummary({ classId, mosqueId, sessionId = null, notes, aiSummary }) {

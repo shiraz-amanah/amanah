@@ -9,7 +9,7 @@ import { useOverlay } from "../lib/useOverlay";
 import { money } from "../lib/format";
 import { getClassBrief, askClass, assistantErrorMessage } from "../lib/hrAssistant";
 import MadrasaTimetable from "./MadrasaTimetable";
-import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee, setEnrollmentAttendanceMode } from "../auth";
+import { getMadrasaRoster, getClassHifz, getActiveMadrasaSession, getMadrasaAttendance, getClassAttendance, getClassRewards, studentPhotoUrl, getMosqueStaff, getClassWaitlist, getClassFeeSummary, updateMadrasaClass, createMadrasaFee, setEnrollmentAttendanceMode, setClassDeliveryMode } from "../auth";
 import { surahName } from "../data/surahs";
 import MadrasaAttendance from "./MadrasaAttendance";
 import MadrasaAnnouncements from "./MadrasaAnnouncements";
@@ -80,6 +80,39 @@ const Section = ({ icon: Icon, title, subtitle, accent = "text-emerald-700", chi
     </div>
     {children}
   </section>
+);
+
+// Delivery-mode selector — pinned to the top of the register screen so the mode
+// drives what renders directly below (no separate Settings trip). Persists per
+// class via the 118 RPC (works for the teacher too). Optimistic: the parent flips
+// the mode instantly and rolls back on error.
+const DELIVERY_MODES = [
+  ["in_person", "In-person", Users, "Standard register"],
+  ["remote", "Remote", Video, "Live video lesson"],
+  ["hybrid", "Hybrid", Radio, "Both — split register"],
+];
+const DeliveryModeSelector = ({ value, onChange, busy, error }) => (
+  <div>
+    <div className="flex items-center justify-between gap-2 mb-1.5">
+      <span className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Delivery mode</span>
+      {busy && <Loader2 size={12} className="animate-spin text-stone-400" />}
+    </div>
+    <div className="grid grid-cols-3 gap-1 bg-stone-100 rounded-xl p-1">
+      {DELIVERY_MODES.map(([v, l, Icon, hint]) => {
+        const on = value === v;
+        return (
+          <button key={v} onClick={() => onChange(v)} disabled={busy} aria-pressed={on}
+            className={`rounded-lg px-2 py-2 text-center transition-colors disabled:opacity-60 ${on ? "bg-white shadow-sm" : "hover:bg-white/50"}`}>
+            <span className={`flex items-center justify-center gap-1.5 text-[12px] sm:text-sm font-medium ${on ? "text-emerald-800" : "text-stone-600"}`}>
+              <Icon size={14} className={on ? "text-emerald-700" : "text-stone-400"} /> {l}
+            </span>
+            <span className="hidden sm:block text-[10px] text-stone-400 mt-0.5">{hint}</span>
+          </button>
+        );
+      })}
+    </div>
+    {error && <p className="text-xs text-rose-700 flex items-center gap-1.5 mt-2"><AlertTriangle size={13} /> {error}</p>}
+  </div>
 );
 
 const HifzBar = ({ memorized }) => (
@@ -360,6 +393,27 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
   useEffect(() => { if (!hasHifz && tab === "hifz") setTab("today"); }, [hasHifz, tab]);
   const deliveryMode = clsOverrides.delivery_mode ?? classObj.delivery_mode ?? "in_person"; // 115
 
+  // Delivery-mode selector on the register screen (118 RPC — teacher OR owner).
+  // Optimistic: flip clsOverrides.delivery_mode (which drives `deliveryMode` and
+  // the whole Today render) instantly, and keep the owner Settings dropdown in
+  // sync; roll both back if the write fails.
+  const [savingMode, setSavingMode] = useState(false);
+  const [modeError, setModeError] = useState("");
+  const changeDeliveryMode = async (mode) => {
+    if (mode === deliveryMode || savingMode) return;
+    const prev = deliveryMode;
+    setModeError(""); setSavingMode(true);
+    setClsOverrides((o) => ({ ...o, delivery_mode: mode }));
+    setSettingsForm((f) => (f ? { ...f, delivery_mode: mode } : f));
+    const { error } = await setClassDeliveryMode(classObj.id, mode);
+    setSavingMode(false);
+    if (error) {
+      setClsOverrides((o) => ({ ...o, delivery_mode: prev }));
+      setSettingsForm((f) => (f ? { ...f, delivery_mode: prev } : f));
+      setModeError(error.message || "Couldn't change delivery mode.");
+    }
+  };
+
   const activeRoster = roster.filter((e) => e.status === "active");
   const withdrawn = roster.length - activeRoster.length;
   const parentIds = activeRoster.map((e) => e.student?.profile_id).filter(Boolean);
@@ -566,11 +620,21 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
       {tab === "today" && (
         <Section icon={CalendarCheck} title="Today's register" subtitle="Mark attendance in one tap — parents are emailed on absences">
           <div className="space-y-4">
-            {/* Live lesson visibility by delivery mode: hidden in-person, prominent
-                (full card) for remote, optional (compact bar) for hybrid. */}
-            {deliveryMode === "remote" && <MadrasaLiveLesson classObj={classObj} />}
-            {deliveryMode === "hybrid" && <MadrasaLiveLesson classObj={classObj} compact />}
-            <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} deliveryMode={deliveryMode} />
+            {/* Delivery mode drives everything below it — no separate Settings step.
+                in_person → standard register, no video. remote → prominent live
+                lesson, manual register suppressed. hybrid → live lesson + split
+                register (in-person manual, remote auto-marked on join). */}
+            <DeliveryModeSelector value={deliveryMode} onChange={changeDeliveryMode} busy={savingMode} error={modeError} />
+            {deliveryMode === "remote" ? (
+              <MadrasaLiveLesson classObj={classObj} />
+            ) : deliveryMode === "hybrid" ? (
+              <>
+                <MadrasaLiveLesson classObj={classObj} compact />
+                <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} deliveryMode={deliveryMode} />
+              </>
+            ) : (
+              <MadrasaAttendance classObj={classObj} welfareFlags={welfareSet} deliveryMode={deliveryMode} />
+            )}
             <MadrasaLessonSummary classObj={classObj} />
           </div>
         </Section>
