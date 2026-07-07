@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarClock, ClipboardList, Check, X, MessageCircle, Video, Radio, Star, AlertCircle, AlertTriangle, ChevronRight, Pencil } from "lucide-react";
+import { Loader2, CalendarClock, ClipboardList, Check, X, MessageCircle, Star, AlertCircle, AlertTriangle, ChevronRight, Pencil } from "lucide-react";
 import { money } from "../lib/format";
-import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession, updateStudent } from "../auth";
+import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, updateStudent } from "../auth";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
 import MadrasaReportView from "./MadrasaReportView";
-import MadrasaLiveRoom from "./MadrasaLiveRoom";
 import MadrasaHifzHero from "./MadrasaHifzHero";
 import MadrasaProgressSection from "./MadrasaProgressSection";
 import MadrasaHomeworkSection from "./MadrasaHomeworkSection";
@@ -16,8 +15,9 @@ import MadrasaPhotosSection from "./MadrasaPhotosSection";
 // container — it fetches everything for one student (unchanged) and owns the
 // handlers — but now renders ONE section at a time (driven by the `section` prop
 // from MadrasaParent). The header (name, pills, Edit, Message teacher), inline
-// profile editor, live-lesson join and report modal are SHARED across all
-// sections; the detail blocks are extracted into MadrasaXxxSection components.
+// profile editor and report modal are SHARED across all sections; the detail
+// blocks are extracted into MadrasaXxxSection components. (The live-lesson join
+// is now a single inline surface owned by MadrasaParent — see FIX 1.)
 const StatTile = ({ icon: Icon, tone, label, value }) => (
   <div className="bg-white border border-stone-200 rounded-xl px-3 py-3 text-center">
     <Icon size={16} className={`mx-auto mb-1 ${tone}`} />
@@ -56,8 +56,6 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
   const [loading, setLoading] = useState(true);
   const [openReport, setOpenReport] = useState(null); // report row in the modal
   const [showDone, setShowDone] = useState(false);    // completed homework expander
-  const [liveSession, setLiveSession] = useState(null); // active live lesson for a class
-  const [showRoom, setShowRoom] = useState(false);      // pre-join + embedded call modal
   // Inline profile editing (parent edits their own child's details → students table)
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", dob: "", gender: "", relation: "" });
@@ -95,16 +93,14 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
       getStudentAttendance(student.id), getHifzProgress(student.id), getHomeworkForClasses(classIds),
       getStudentCompletions(student.id), getStudentReports(student.id), getStudentPhotos(student.id), getStudentRewards(student.id),
       Promise.all(mosques.map((m) => getMyChildConsent(student.id, m.id).then((c) => [m.id, !!c?.consent_given]))),
-      Promise.all(classIds.map((cid) => getActiveMadrasaSession(cid))).then((arr) => arr.find(Boolean) || null),
     ])
-      .then(([a, h, hw, comps, reps, pics, rw, consents, live]) => {
+      .then(([a, h, hw, comps, reps, pics, rw, consents]) => {
         if (!alive) return;
         setAttendance(a || []); setHifz(h || []); setHomework(hw || []);
         setDoneIds(new Set((comps || []).map((c) => c.homework_id)));
         setSubFiles(Object.fromEntries((comps || []).map((c) => [c.homework_id, c.files || []])));
         setReports(reps || []); setPhotos(pics || []); setRewards(rw || []);
         setConsentByMosque(Object.fromEntries(consents || []));
-        setLiveSession(live);
       })
       .catch((e) => console.error("child progress load failed:", e))
       .finally(() => { if (alive) setLoading(false); });
@@ -124,10 +120,6 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
     setBusy(null);
   };
   const openFile = async (path) => { const url = await homeworkFileUrl(path); if (url) window.open(url, "_blank", "noopener"); };
-  // Open the pre-join screen; the auto-mark (present+remote) fires from the modal's
-  // onJoin at the moment the parent actually enters the room.
-  const joinLive = () => { if (liveSession) setShowRoom(true); };
-  const onRoomJoin = () => { joinMadrasaSession(liveSession.id, student.id).catch(() => {}); };
   const uploadSubmission = async (h, file) => {
     if (!file || hwBusy) return;
     setHwBusy(h.id);
@@ -241,17 +233,6 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
             <button onClick={saveEdit} disabled={savingEdit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
           </div>
         </div>
-      )}
-
-      {/* Live lesson — Join (shared: shows on any section while a lesson is on) */}
-      {liveSession && liveSession.room_url && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
-          <span className="text-sm font-medium text-emerald-900 inline-flex items-center gap-1.5"><Radio size={14} className="text-rose-600 animate-pulse" /> A live lesson is on now</span>
-          <button onClick={joinLive} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Video size={14} /> Join live lesson</button>
-        </div>
-      )}
-      {showRoom && liveSession?.room_url && (
-        <MadrasaLiveRoom roomUrl={liveSession.room_url} title={`${liveSession.class?.name || "Class"} — Live lesson`} onJoin={onRoomJoin} onClose={() => setShowRoom(false)} />
       )}
 
       {loading ? <div className="flex justify-center py-8 text-stone-400"><Loader2 size={18} className="animate-spin" /></div> : (

@@ -134,26 +134,45 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
         <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
       ) : (
         <>
-          {/* JOIN NOW — prominent live-lesson banner, Overview only */}
-          {sub === "overview" && liveBanners.length > 0 && (
+          {/* Live lessons — banner + INLINE embedded room (no modal), rendered on
+              every sub-section so the room persists as the parent navigates. Tap
+              Join lesson now → the Daily room expands inline below this banner
+              (mirrors the mosque register's embedded pattern). */}
+          {liveBanners.length > 0 && (
             <div className="space-y-3 mb-5">
-              {liveBanners.map(({ session, enrollment }) => (
-                <div key={`${session.id}-${enrollment.id}`} className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 shadow-sm ring-2 ring-emerald-300/50 p-4 sm:p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm sm:text-base font-bold text-emerald-900 inline-flex items-center gap-2">
-                        <span className="relative flex h-2.5 w-2.5 shrink-0"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" /></span>
-                        LIVE — {enrollment.class?.name || "your class"} is happening now
-                      </p>
-                      <p className="text-sm text-stone-700 mt-1">{enrollment.student?.name || "Your child"}{enrollment.class?.mosque?.name ? ` · ${enrollment.class.mosque.name}` : ""}</p>
+              {liveBanners.map(({ session, enrollment }) => {
+                const active = roomFor?.session?.id === session.id && roomFor?.student?.id === enrollment.student?.id;
+                return (
+                  <div key={`${session.id}-${enrollment.id}`}>
+                    <div className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 shadow-sm ring-2 ring-emerald-300/50 p-4 sm:p-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm sm:text-base font-bold text-emerald-900 inline-flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5 shrink-0"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" /></span>
+                            LIVE — {enrollment.class?.name || "your class"} is happening now
+                          </p>
+                          <p className="text-sm text-stone-700 mt-1">{enrollment.student?.name || "Your child"}{enrollment.class?.mosque?.name ? ` · ${enrollment.class.mosque.name}` : ""}</p>
+                        </div>
+                        <button onClick={() => setRoomFor(active ? null : { session, student: enrollment.student, className: enrollment.class?.name })} disabled={!session.room_url}
+                          className="bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2 shrink-0">
+                          <Video size={17} /> {active ? "Hide lesson" : "Join lesson now"}
+                        </button>
+                      </div>
                     </div>
-                    <button onClick={() => setRoomFor({ session, student: enrollment.student, className: enrollment.class?.name })} disabled={!session.room_url}
-                      className="bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2 shrink-0">
-                      <Video size={17} /> Join lesson now
-                    </button>
+                    {active && session.room_url && (
+                      <div className="mt-3">
+                        <MadrasaLiveRoom
+                          embedded
+                          roomUrl={session.room_url}
+                          title={`${enrollment.class?.name || "Class"} — Live lesson`}
+                          onJoin={() => joinMadrasaSession(session.id, enrollment.student?.id).catch(() => {})}
+                          onClose={() => setRoomFor(null)}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -279,15 +298,6 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
         </>
       )}
 
-      {/* Live-lesson pre-join + embedded call (from the JOIN NOW banner). */}
-      {roomFor && roomFor.session?.room_url && (
-        <MadrasaLiveRoom
-          roomUrl={roomFor.session.room_url}
-          title={`${roomFor.className || "Class"} — Live lesson`}
-          onJoin={() => joinMadrasaSession(roomFor.session.id, roomFor.student?.id).catch(() => {})}
-          onClose={() => setRoomFor(null)}
-        />
-      )}
     </div>
   );
 };
