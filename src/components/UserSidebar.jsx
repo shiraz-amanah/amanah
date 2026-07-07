@@ -22,7 +22,7 @@ const MADRASA_SUBNAV = [
 ];
 const isMadrasaTab = (v) => typeof v === "string" && v.startsWith("madrasa");
 
-const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasCommunity, counts }) => {
+const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasCommunity, madrasaLive, counts }) => {
   // Items either side of the Madrasah group, in display order.
   const leadItems = [["bookings", "Bookings", Calendar]];
   const tailItems = [
@@ -73,8 +73,9 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
                 <div className="mt-0.5 ml-4 pl-3 border-l border-stone-200 space-y-0.5">
                   {MADRASA_SUBNAV.map(([v, label]) => (
                     <button key={v} onClick={() => onSelect(v)}
-                      className={`w-full text-left px-3 py-1.5 rounded-lg text-[13px] font-medium ${active === v ? "bg-emerald-50 text-emerald-800" : "text-stone-600 hover:bg-stone-100"}`}>
-                      {label}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium ${active === v ? "bg-emerald-50 text-emerald-800" : "text-stone-600 hover:bg-stone-100"}`}>
+                      <span className="flex-1 text-left">{label}</span>
+                      {v === "madrasa" && madrasaLive && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Live lesson now" />}
                     </button>
                   ))}
                 </div>
@@ -119,8 +120,9 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
           <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1 mt-1 border-t border-stone-100 pt-1.5">
             {MADRASA_SUBNAV.map(([v, label]) => (
               <button key={v} onClick={() => onSelect(v)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium ${active === v ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-600 hover:bg-stone-200"}`}>
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium ${active === v ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-600 hover:bg-stone-200"}`}>
                 {label}
+                {v === "madrasa" && madrasaLive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Live lesson now" />}
               </button>
             ))}
           </div>

@@ -7620,6 +7620,9 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, on
   // only when the user is a linked community member of some mosque.
   const [hasMadrasa, setHasMadrasa] = useState(isDemo);
   const [hasCommunity, setHasCommunity] = useState(false);
+  // Nav glue (like paymentSyncTick): MadrasaParent reports when a live lesson is
+  // on so UserSidebar can dot the Overview sub-item (FIX 3).
+  const [madrasaLive, setMadrasaLive] = useState(false);
   useEffect(() => {
     if (isDemo) { setHasMadrasa(true); return; }
     let alive = true;
@@ -7922,6 +7925,7 @@ setBookings(transformed);
           userName={user.name}
           hasMadrasa={hasMadrasa}
           hasCommunity={hasCommunity}
+          madrasaLive={madrasaLive}
           counts={{ bookings: upcomingBookings.length, saved: savedScholars.length, mosques: savedMosqueIds?.size || 0, messages: isDemo ? 2 : 0 }}
         />
         <main className="flex-1 min-w-0">
@@ -8168,7 +8172,7 @@ setBookings(transformed);
           </div>
         )}
 
-        {tab.startsWith("madrasa") && <MadrasaParent section={tab} onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onNavigate={setTab} syncTick={madrasaSyncTick} />}
+        {tab.startsWith("madrasa") && <MadrasaParent section={tab} onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onNavigate={setTab} onLiveChange={setMadrasaLive} syncTick={madrasaSyncTick} />}
         {tab === "community" && <CommunityMember onBrowse={onPublic} onViewMosque={onViewMosque} />}
 
         {tab === "donations" && (
