@@ -8169,7 +8169,7 @@ setBookings(transformed);
           </div>
         )}
 
-        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} />}
+        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onOpenFees={() => setTab("fees")} />}
         {tab === "fees" && <MadrasaFeesTab syncTick={madrasaSyncTick} />}
         {tab === "community" && <CommunityMember onBrowse={onPublic} onViewMosque={onViewMosque} />}
 

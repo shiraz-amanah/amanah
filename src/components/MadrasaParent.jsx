@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText, Video } from "lucide-react";
-import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries, getActiveMadrasaSession, joinMadrasaSession } from "../auth";
+import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText, Video, Wallet, CreditCard, CheckCircle2, ChevronRight } from "lucide-react";
+import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries, getActiveMadrasaSession, joinMadrasaSession, getMyChildrenFeeRecords } from "../auth";
+import { money } from "../lib/format";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 import MadrasaLiveRoom from "./MadrasaLiveRoom";
 
@@ -15,12 +16,13 @@ const offerCountdown = (iso) => {
 };
 const offerExpiryAbs = (iso) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
+const MadrasaParent = ({ onBrowse, onMessageTeacher, onOpenFees }) => {
   const [students, setStudents] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
   const [summaries, setSummaries] = useState([]);
+  const [fees, setFees] = useState([]);
   const [openSummary, setOpenSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [annOpen, setAnnOpen] = useState(false);
@@ -31,8 +33,8 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
 
   const reload = () => {
     setLoading(true);
-    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist(), getMyLessonSummaries()])
-      .then(([s, e, a, w, ls]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); setSummaries(ls || []); })
+    Promise.all([getStudents(), getMyMadrasaEnrollments(), getMyMadrasaAnnouncements(), getMyWaitlist(), getMyLessonSummaries(), getMyChildrenFeeRecords()])
+      .then(([s, e, a, w, ls, f]) => { setStudents(s || []); setEnrollments(e || []); setAnnouncements(a || []); setWaitlist(w || []); setSummaries(ls || []); setFees(f || []); })
       .catch((err) => console.error("madrasa parent load failed:", err))
       .finally(() => setLoading(false));
   };
@@ -75,6 +77,13 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
   const offered = waitlist.filter((r) => r.status === "offered");
   const waiting = waitlist.filter((r) => r.status === "waiting");
 
+  // Fees summary (account-wide) — mirrors MadrasaFeesTab's outstanding logic.
+  const feeOutstandingOf = (f) => Math.max(0, Number(f.amount_due || 0) - Number(f.amount_paid || 0));
+  const feeIsPaid = (f) => f.status === "paid" || f.status === "waived" || feeOutstandingOf(f) <= 0;
+  const feesOutstanding = fees.filter((f) => !feeIsPaid(f));
+  const feesTotalDue = feesOutstanding.reduce((s, f) => s + feeOutstandingOf(f), 0);
+  const feeCurrency = fees[0]?.currency || "GBP";
+
   // One JOIN NOW banner per (live session × enrolled child in that class).
   const liveBanners = [];
   for (const { classId, session } of liveSessions) {
@@ -90,7 +99,12 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
           <p className="text-sm text-stone-600">Your children's classes and progress.</p>
         </div>
-        <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Search size={14} /> Browse classes</button>
+        <div className="flex items-center gap-2">
+          {onOpenFees && (
+            <button onClick={onOpenFees} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-800 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Wallet size={14} /> Fees</button>
+          )}
+          <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Search size={14} /> Browse classes</button>
+        </div>
       </div>
 
       {/* JOIN NOW — prominent live-lesson banner, top of everything */}
@@ -212,6 +226,26 @@ const MadrasaParent = ({ onBrowse, onMessageTeacher }) => {
             ))}
           </div>
         )}
+
+      {/* Fees summary — one minimal card below the children (Hifz hero stays
+          dominant). Outstanding → Pay now; otherwise "up to date" → View history.
+          Both routes open the dedicated Fees tab. */}
+      {!loading && enrolledChildren.length > 0 && onOpenFees && (
+        <button onClick={onOpenFees} className={`mt-4 w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 text-left ${feesTotalDue > 0 ? "bg-amber-50 border-amber-200 hover:border-amber-300" : "bg-white border-stone-200 hover:border-emerald-200"}`}>
+          <span className="flex items-center gap-3 min-w-0">
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${feesTotalDue > 0 ? "bg-amber-100" : "bg-emerald-50"}`}>
+              {feesTotalDue > 0 ? <Wallet size={17} className="text-amber-700" /> : <CheckCircle2 size={17} className="text-emerald-700" />}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-stone-900">{feesTotalDue > 0 ? `${money(feesTotalDue, feeCurrency)} outstanding` : "All fees up to date"}</span>
+              <span className="block text-[12px] text-stone-500">{feesTotalDue > 0 ? "Tap to pay securely by card" : "View your payment history"}</span>
+            </span>
+          </span>
+          <span className={`shrink-0 text-sm font-medium inline-flex items-center gap-1 ${feesTotalDue > 0 ? "text-amber-800" : "text-emerald-800"}`}>
+            {feesTotalDue > 0 ? <><CreditCard size={14} /> Pay now</> : <>View history <ChevronRight size={14} /></>}
+          </span>
+        </button>
+      )}
 
       {/* Live-lesson pre-join + embedded call (from the JOIN NOW banner). */}
       {roomFor && roomFor.session?.room_url && (
