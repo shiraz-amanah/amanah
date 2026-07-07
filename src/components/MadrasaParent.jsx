@@ -47,6 +47,16 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
   };
   useEffect(() => { reload(); }, []);
 
+  // Refetch fees when a Stripe payment confirms — App bumps syncTick on the
+  // ?payment=success return, which lands on Overview, so the needs-attention
+  // banner reflects the new fee status immediately. Fees only (no full reload →
+  // no screen-wide spinner); the initial mount is skipped since reload() already
+  // fetched them (syncTick starts at 0).
+  useEffect(() => {
+    if (!syncTick) return;
+    getMyChildrenFeeRecords().then((f) => setFees(f || [])).catch((e) => console.error("fees refetch failed:", e));
+  }, [syncTick]);
+
   // Poll active live sessions for the child's enrolled classes → the JOIN NOW
   // banner appears when a lesson starts and clears within 30s of it ending.
   useEffect(() => {

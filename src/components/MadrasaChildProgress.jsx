@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, CalendarClock, ClipboardList, Check, X, MessageCircle, Video, Radio, Star, AlertCircle, Pencil } from "lucide-react";
+import { Loader2, CalendarClock, ClipboardList, Check, X, MessageCircle, Video, Radio, Star, AlertCircle, AlertTriangle, ChevronRight, Pencil } from "lucide-react";
+import { money } from "../lib/format";
 import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, getActiveMadrasaSession, joinMadrasaSession, updateStudent } from "../auth";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
 import MadrasaReportView from "./MadrasaReportView";
@@ -166,6 +167,14 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
   const hwTotal = homework.length;
   const hwPct = hwTotal ? Math.round(((hwTotal - pendingHw.length) / hwTotal) * 100) : null;
 
+  // Overview "needs attention" — fees outstanding and/or homework overdue; each
+  // row taps through to its sub-section. Empty → the banner doesn't render.
+  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+  const overdueHw = pendingHw.filter((h) => h.due_date && new Date(h.due_date).getTime() < startToday.getTime());
+  const attentionItems = [];
+  if (feesOutstanding > 0) attentionItems.push({ key: "fees", label: `${money(feesOutstanding, feeCurrency)} in fees outstanding`, cta: "Pay now", to: "madrasa-fees" });
+  if (overdueHw.length > 0) attentionItems.push({ key: "hw", label: `${overdueHw.length} homework task${overdueHw.length === 1 ? "" : "s"} overdue`, cta: "View", to: "madrasa-homework" });
+
   const primary = enrollments[0];
   const pill = "text-[11px] px-2 py-1 rounded-full inline-flex items-center gap-1";
 
@@ -258,6 +267,21 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
                 <StatTile icon={ClipboardList} tone="text-sky-600" label="Homework" value={hwPct != null ? `${hwPct}%` : "—"} />
                 <StatTile icon={Star} tone="text-amber-500" label={starCount === 1 ? "Star" : "Stars"} value={starCount} />
               </div>
+
+              {/* NEEDS ATTENTION — fees outstanding / homework overdue; taps through */}
+              {attentionItems.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800 inline-flex items-center gap-1.5 mb-2"><AlertTriangle size={13} /> Needs attention</p>
+                  <div className="space-y-2">
+                    {attentionItems.map((it) => (
+                      <button key={it.key} onClick={() => onNavigate?.(it.to)} className="w-full flex items-center justify-between gap-3 rounded-xl bg-white border border-amber-200 hover:border-amber-300 px-3.5 py-2.5 text-left">
+                        <span className="text-sm text-stone-800 min-w-0">{it.label}</span>
+                        <span className="shrink-0 text-sm font-medium text-amber-800 inline-flex items-center gap-1">{it.cta} <ChevronRight size={14} /></span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Withdraw — small grey text link, bottom of Overview */}
               {onWithdraw && enrollments.length > 0 && (
