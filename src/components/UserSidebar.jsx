@@ -1,18 +1,31 @@
-import { Calendar, GraduationCap, HeartHandshake, HandCoins, Heart, Building2, MessageCircle, Settings, LogOut, Wallet } from "lucide-react";
+import { Calendar, GraduationCap, HeartHandshake, HandCoins, Heart, Building2, MessageCircle, Settings, LogOut, ChevronDown } from "lucide-react";
 
 // Parent/user dashboard persistent left sidebar (platform-wide nav Phase 4) —
 // light/emerald, flat list, modeled on ScholarSidebar. `active` is the URL-backed
 // tab; clicking calls onSelect(v). Madrasah/Community items appear only when the
 // user actually has them (hasMadrasa/hasCommunity). Emerald count badges come
 // from `counts` (keyed by tab value). Desktop = vertical column; mobile = a
-// horizontal icon strip (same pattern as ScholarSidebar/MosqueSidebar). Messages
-// is a normal embedded tab here (not routed out), so it shows active like any other.
+// horizontal icon strip (same pattern as ScholarSidebar/MosqueSidebar).
+//
+// Madrasah is a COLLAPSIBLE GROUP (sub-nav refactor): its parent button opens
+// Overview; when any madrasa* tab is active the group expands to the per-section
+// sub-items. Fees now lives inside this group (no longer a top-level item).
+
+const MADRASA_SUBNAV = [
+  ["madrasa", "Overview"],
+  ["madrasa-progress", "Progress"],
+  ["madrasa-homework", "Homework"],
+  ["madrasa-attendance", "Attendance"],
+  ["madrasa-rewards", "Rewards"],
+  ["madrasa-photos", "Photos"],
+  ["madrasa-fees", "Fees"],
+];
+const isMadrasaTab = (v) => typeof v === "string" && v.startsWith("madrasa");
 
 const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasCommunity, counts }) => {
-  const items = [
-    ["bookings", "Bookings", Calendar],
-    ...(hasMadrasa ? [["madrasa", "Madrasah", GraduationCap]] : []),
-    ...(hasMadrasa ? [["fees", "Fees", Wallet]] : []),
+  // Items either side of the Madrasah group, in display order.
+  const leadItems = [["bookings", "Bookings", Calendar]];
+  const tailItems = [
     ...(hasCommunity ? [["community", "Community", HeartHandshake]] : []),
     ["donations", "My giving", HandCoins],
     ["saved", "My scholars", Heart],
@@ -21,6 +34,21 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
     ["account", "Account", Settings],
   ];
   const badgeFor = (v) => { const n = counts?.[v]; return n > 0 ? n : null; };
+  const madrasaActive = isMadrasaTab(active);
+
+  // Desktop nav button
+  const NavBtn = ({ v, label, Icon }) => {
+    const isActive = active === v;
+    const badge = badgeFor(v);
+    return (
+      <button key={v} onClick={() => onSelect(v)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium ${isActive ? "bg-emerald-50 text-emerald-800" : "text-stone-700 hover:bg-stone-100"}`}>
+        <Icon size={16} className="shrink-0" />
+        <span className="flex-1 text-left">{label}</span>
+        {badge && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{badge}</span>}
+      </button>
+    );
+  };
 
   return (
     <>
@@ -31,18 +59,33 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
             <p className="text-[10px] uppercase tracking-[0.15em] text-stone-400 font-semibold">Amanah</p>
             {userName && <p className="text-sm font-semibold text-stone-900 truncate mt-0.5" title={userName}>{userName}</p>}
           </div>
-          {items.map(([v, label, Icon]) => {
-            const isActive = active === v;
-            const badge = badgeFor(v);
-            return (
-              <button key={v} onClick={() => onSelect(v)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium ${isActive ? "bg-emerald-50 text-emerald-800" : "text-stone-700 hover:bg-stone-100"}`}>
-                <Icon size={16} className="shrink-0" />
-                <span className="flex-1 text-left">{label}</span>
-                {badge && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{badge}</span>}
+
+          {leadItems.map(([v, label, Icon]) => <NavBtn key={v} v={v} label={label} Icon={Icon} />)}
+
+          {/* Madrasah — collapsible group */}
+          {hasMadrasa && (
+            <div>
+              <button onClick={() => onSelect("madrasa")}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium ${madrasaActive ? "bg-emerald-50 text-emerald-800" : "text-stone-700 hover:bg-stone-100"}`}>
+                <GraduationCap size={16} className="shrink-0" />
+                <span className="flex-1 text-left">Madrasah</span>
+                <ChevronDown size={14} className={`shrink-0 text-stone-400 transition-transform ${madrasaActive ? "rotate-180" : ""}`} />
               </button>
-            );
-          })}
+              {madrasaActive && (
+                <div className="mt-0.5 ml-4 pl-3 border-l border-stone-200 space-y-0.5">
+                  {MADRASA_SUBNAV.map(([v, label]) => (
+                    <button key={v} onClick={() => onSelect(v)}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-[13px] font-medium ${active === v ? "bg-emerald-50 text-emerald-800" : "text-stone-600 hover:bg-stone-100"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tailItems.map(([v, label, Icon]) => <NavBtn key={v} v={v} label={label} Icon={Icon} />)}
+
           <div className="pt-2 mt-1 border-t border-stone-200">
             <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-stone-600 hover:bg-rose-50 hover:text-rose-700">
               <LogOut size={16} className="shrink-0" /> Sign out
@@ -51,11 +94,11 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
         </div>
       </aside>
 
-      {/* Mobile — horizontal icon strip */}
+      {/* Mobile — horizontal icon strip; madrasa sub-items get a second strip when active */}
       <div className="md:hidden">
         <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1">
-          {items.map(([v, label, Icon]) => {
-            const isActive = active === v;
+          {[...leadItems, ...(hasMadrasa ? [["madrasa", "Madrasah", GraduationCap]] : []), ...tailItems].map(([v, label, Icon]) => {
+            const isActive = v === "madrasa" ? madrasaActive : active === v;
             const badge = badgeFor(v);
             return (
               <button key={v} onClick={() => onSelect(v)} title={label}
@@ -71,6 +114,17 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
             <span className="text-[10px] font-medium">Sign out</span>
           </button>
         </div>
+        {/* Madrasah sub-sections — second strip, only when a madrasa tab is active */}
+        {madrasaActive && (
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1 mt-1 border-t border-stone-100 pt-1.5">
+            {MADRASA_SUBNAV.map(([v, label]) => (
+              <button key={v} onClick={() => onSelect(v)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium ${active === v ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-600 hover:bg-stone-200"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

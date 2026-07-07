@@ -53,7 +53,6 @@ import GlobalSearch, { GlobalSearchTrigger } from "./components/GlobalSearch";
 import ScholarCoverRequests from "./components/ScholarCoverRequests";
 import MadrasaBrowse from "./components/MadrasaBrowse";
 import MadrasaParent from "./components/MadrasaParent";
-import MadrasaFeesTab from "./components/MadrasaFeesTab";
 import CommunityMember from "./components/CommunityMember";
 import CommunityCheckIn from "./components/CommunityCheckIn";
 import FinancePledgePublic from "./components/FinancePledgePublic";
@@ -8169,8 +8168,7 @@ setBookings(transformed);
           </div>
         )}
 
-        {tab === "madrasa" && <MadrasaParent onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onOpenFees={() => setTab("fees")} />}
-        {tab === "fees" && <MadrasaFeesTab syncTick={madrasaSyncTick} />}
+        {tab.startsWith("madrasa") && <MadrasaParent section={tab} onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onNavigate={setTab} syncTick={madrasaSyncTick} />}
         {tab === "community" && <CommunityMember onBrowse={onPublic} onViewMosque={onViewMosque} />}
 
         {tab === "donations" && (
