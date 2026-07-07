@@ -60,9 +60,7 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
             {userName && <p className="text-sm font-semibold text-stone-900 truncate mt-0.5" title={userName}>{userName}</p>}
           </div>
 
-          {leadItems.map(([v, label, Icon]) => <NavBtn key={v} v={v} label={label} Icon={Icon} />)}
-
-          {/* Madrasah — collapsible group */}
+          {/* Madrasah — collapsible group; first item in the parent nav */}
           {hasMadrasa && (
             <div>
               <button onClick={() => onSelect("madrasa")}
@@ -84,6 +82,8 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
             </div>
           )}
 
+          {leadItems.map(([v, label, Icon]) => <NavBtn key={v} v={v} label={label} Icon={Icon} />)}
+
           {tailItems.map(([v, label, Icon]) => <NavBtn key={v} v={v} label={label} Icon={Icon} />)}
 
           <div className="pt-2 mt-1 border-t border-stone-200">
@@ -97,7 +97,7 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
       {/* Mobile — horizontal icon strip; madrasa sub-items get a second strip when active */}
       <div className="md:hidden">
         <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1">
-          {[...leadItems, ...(hasMadrasa ? [["madrasa", "Madrasah", GraduationCap]] : []), ...tailItems].map(([v, label, Icon]) => {
+          {[...(hasMadrasa ? [["madrasa", "Madrasah", GraduationCap]] : []), ...leadItems, ...tailItems].map(([v, label, Icon]) => {
             const isActive = v === "madrasa" ? madrasaActive : active === v;
             const badge = badgeFor(v);
             return (
