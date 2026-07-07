@@ -50,10 +50,15 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
             : <span className="text-emerald-700 font-medium inline-flex items-center gap-1"><CheckCircle2 size={12} /> {f.status === "waived" ? "Waived" : "Paid"}{f.paid_at ? ` · ${new Date(f.paid_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
         </p>
       </div>
-      {payable && (
+      {payable ? (
         <button onClick={() => payFee(f.id)} disabled={payingId === f.id} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
           {payingId === f.id ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />} Pay {money(outstandingOf(f), f.currency || "GBP")}
         </button>
+      ) : (
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-semibold text-stone-900">{money(Number(f.amount_paid || f.amount_due || 0), f.currency || "GBP")}</p>
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">{f.status === "waived" ? "Waived" : "Paid"}</span>
+        </div>
       )}
     </div>
   );
