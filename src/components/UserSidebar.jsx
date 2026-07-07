@@ -67,6 +67,7 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium ${madrasaActive ? "bg-emerald-50 text-emerald-800" : "text-stone-700 hover:bg-stone-100"}`}>
                 <GraduationCap size={16} className="shrink-0" />
                 <span className="flex-1 text-left">Madrasah</span>
+                {madrasaLive && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Live lesson now" />}
                 <ChevronDown size={14} className={`shrink-0 text-stone-400 transition-transform ${madrasaActive ? "rotate-180" : ""}`} />
               </button>
               {madrasaActive && (
@@ -107,6 +108,7 @@ const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasComm
                 <Icon size={18} />
                 <span className="text-[10px] font-medium">{label}</span>
                 {badge && <span className="absolute top-1 right-2 bg-emerald-600 text-white text-[9px] font-semibold min-w-[15px] h-[15px] px-1 rounded-full flex items-center justify-center">{badge}</span>}
+                {v === "madrasa" && madrasaLive && <span className="absolute top-1.5 right-3 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live lesson now" />}
               </button>
             );
           })}

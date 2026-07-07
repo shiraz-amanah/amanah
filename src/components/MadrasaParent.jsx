@@ -21,7 +21,7 @@ const offerCountdown = (iso) => {
 const offerExpiryAbs = (iso) => new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const SECTION_LABEL = { overview: "Your children's classes and progress.", progress: "Hifz journey, progress reports and lesson log.", homework: "Set work and what's been handed in.", attendance: "Attendance record.", rewards: "Stars and notes from the teacher.", photos: "Class photos and consent.", fees: "All your children's madrasah fees in one place." };
 
-const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavigate, onLiveChange, syncTick = 0 }) => {
+const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavigate, syncTick = 0 }) => {
   const sub = section === "madrasa" ? "overview" : section.replace("madrasa-", "");
   const [students, setStudents] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
@@ -111,12 +111,6 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
       if (e.status === "active" && e.class_id === classId) liveBanners.push({ session, enrollment: e });
     }
   }
-
-  // Tell the dashboard when a live lesson is on so the sidebar can dot the
-  // Overview sub-item (FIX 3). Clears on unmount (leaving the Madrasah section).
-  const hasLive = liveBanners.length > 0;
-  useEffect(() => { onLiveChange?.(hasLive); }, [hasLive]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => onLiveChange?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const emptyCard = (
     <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">

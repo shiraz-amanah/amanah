@@ -1964,6 +1964,16 @@ export async function getActiveMadrasaSession(classId) {
   if (error) { console.error('Error fetching active session:', error); return null }
   return data || null
 }
+// Lightweight: does ANY of these classes have a live session right now? One
+// query — powers the dashboard-level poll driving the Madrasah "live" dot, so it
+// works regardless of which tab is open (independent of MadrasaParent mounting).
+export async function hasLiveMadrasaSession(classIds) {
+  if (!classIds || classIds.length === 0) return false
+  const { data, error } = await supabase.from('madrasa_sessions')
+    .select('id').in('class_id', classIds).eq('status', 'live').limit(1)
+  if (error) { console.error('Error checking live sessions:', error); return false }
+  return (data?.length || 0) > 0
+}
 // Parent join → auto-mark their own child present+remote (harvest-guarded RPC).
 export async function joinMadrasaSession(sessionId, studentId) {
   if (!sessionId || !studentId) return { error: { message: 'sessionId and studentId required' } }

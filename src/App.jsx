@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships, linkMyCommunityMemberships } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships, linkMyCommunityMemberships, hasLiveMadrasaSession } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -7620,9 +7620,11 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, on
   // only when the user is a linked community member of some mosque.
   const [hasMadrasa, setHasMadrasa] = useState(isDemo);
   const [hasCommunity, setHasCommunity] = useState(false);
-  // Nav glue (like paymentSyncTick): MadrasaParent reports when a live lesson is
-  // on so UserSidebar can dot the Overview sub-item (FIX 3).
+  // Nav glue (like paymentSyncTick): a live-lesson dot on the Madrasah nav item.
+  // Driven by a dashboard-level poll (below) so it shows on ANY top-level tab, not
+  // just while inside the Madrasah section.
   const [madrasaLive, setMadrasaLive] = useState(false);
+  const [liveClassIds, setLiveClassIds] = useState([]); // active-enrolment class ids, for the live poll
   useEffect(() => {
     if (isDemo) { setHasMadrasa(true); return; }
     let alive = true;
@@ -7631,10 +7633,23 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, on
         if (!alive) return;
         setHasMadrasa((enr?.length || 0) + (wl?.length || 0) > 0);
         setHasCommunity((mem?.length || 0) > 0);
+        setLiveClassIds([...new Set((enr || []).filter((e) => e.status === "active").map((e) => e.class_id).filter(Boolean))]);
       })
       .catch((e) => console.error("dashboard visibility check failed:", e));
     return () => { alive = false; };
   }, [isDemo]);
+
+  // Poll for an active madrasa live session across the parent's enrolled classes
+  // (one query / 30s). Persists above MadrasaParent so the sidebar dot survives
+  // tab switches and clears within 30s of the lesson ending.
+  useEffect(() => {
+    if (isDemo || liveClassIds.length === 0) { setMadrasaLive(false); return; }
+    let alive = true;
+    const check = () => hasLiveMadrasaSession(liveClassIds).then((v) => { if (alive) setMadrasaLive(v); }).catch(() => {});
+    check();
+    const t = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, [isDemo, liveClassIds]);
 
   // Load students when dashboard mounts (for real users only)
 useEffect(() => {
@@ -8172,7 +8187,7 @@ setBookings(transformed);
           </div>
         )}
 
-        {tab.startsWith("madrasa") && <MadrasaParent section={tab} onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onNavigate={setTab} onLiveChange={setMadrasaLive} syncTick={madrasaSyncTick} />}
+        {tab.startsWith("madrasa") && <MadrasaParent section={tab} onBrowse={onMadrasaBrowse} onMessageTeacher={onMessageTeacher} onNavigate={setTab} syncTick={madrasaSyncTick} />}
         {tab === "community" && <CommunityMember onBrowse={onPublic} onViewMosque={onViewMosque} />}
 
         {tab === "donations" && (
