@@ -174,39 +174,103 @@ const PricingCard = ({ name, price, badge, desc, features, highlight }) => (
   </div>
 );
 
-// ---- Scholar marketplace (Part 2) ----
-const SCHOLAR_CATS = ["Qur'an for kids", "Arabic lessons", "Islamic studies", "Hifz programmes", "Nikah services", "Revert support", "Janazah & duas", "Islamic counselling"];
-const SCHOLARS = [
-  { initials: "IK", name: "Ustadh Ibrahim Khan", loc: "Bradford", rating: "5.0", reviews: 1, bio: "Structured hifz programme delivered online or in-person. Proven methodology.", tags: ["Hifz Programmes", "Qur'an for Kids"], from: "£0" },
-  { initials: "MS", name: "Ustadha Maryam Siddique", loc: "Sheffield", rating: "5.0", reviews: 1, bio: "Making Islamic studies fun and engaging for children ages 5–12.", tags: ["Islamic Studies", "Qur'an for Kids"], from: "£0" },
-  { initials: "AM", name: "Ustadha Aisha Malik", loc: "London", rating: "4.9", reviews: 89, bio: "Native Arabic speaker with a Master's in Classical Arabic from King Abdulaziz University.", tags: ["Arabic Lessons", "Islamic Studies"], from: "£18" },
-  { initials: "KO", name: "Ustadh Khalid Osman", loc: "Manchester", rating: "4.8", reviews: 64, bio: "Registered imam licensed to perform Islamic marriages across the UK. 15 years of community service.", tags: ["Nikah Services", "Janazah & Duas"], from: "£40" },
-  { initials: "YA", name: "Ustadh Yusuf Al-Rahman", loc: "Birmingham", rating: "4.7", reviews: 3, bio: "Certified Hafiz of the Qur'an with 10 years teaching experience. Specialising in 1-on-1 tajweed.", tags: ["Qur'an for Kids", "Hifz Programmes"], from: "£15" },
-  { initials: "FZ", name: "Ustadha Fatima Zahra", loc: "Bradford", rating: "0", reviews: 0, bio: "Dedicated Islamic educator based in Bradford with a passion for nurturing young minds.", tags: ["Qur'an for Kids"], from: "£90" },
+// ---- Hero right-column previews (parent + scholar tabs) ----
+const PARENT_SCHOLARS = [
+  { initials: "FZ", bg: "#1a3a25", fg: "#4ade80", name: "Ustadha Fatima Zahra", sub: "Bradford · Qur'an for Kids", rating: "4.9", from: "£90" },
+  { initials: "IK", bg: "#1a2a3a", fg: "#60a5fa", name: "Ustadh Ibrahim Khan", sub: "Bradford · Hifz Programmes", rating: "5.0", from: "£0" },
+  { initials: "AM", bg: "#2a1a2a", fg: "#c084fc", name: "Ustadha Aisha Malik", sub: "London · Arabic Lessons", rating: "4.9", from: "£18" },
+];
+const PARENT_STATS = [
+  { value: "1,010+", label: "students" },
+  { value: "All", label: "DBS checked" },
+  { value: "UK", label: "verified" },
 ];
 
-const ScholarCard = ({ s, onView }) => (
-  <div className="lp-scholar-card" style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 16, padding: 24, transition: "border-color 0.15s" }}>
-    <div className="flex items-start justify-between gap-2">
-      <div className="flex items-center gap-3 min-w-0">
-        <span style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(26,122,60,0.12)", color: "#1a7a3c", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.initials}</span>
+const ParentHeroPreview = () => (
+  <div style={{ ...glass, padding: 20 }}>
+    {/* Search bar inside the card */}
+    <div className="flex items-center gap-2" style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 14px" }}>
+      <Search size={15} style={{ color: mutedW(0.4), flexShrink: 0 }} />
+      <span className="flex-1 min-w-0 truncate" style={{ fontSize: 13, color: mutedW(0.6) }}>female Qur'an teacher for kids in Bradford</span>
+      <span style={{ fontSize: 11, fontWeight: 500, color: "#0a1a0f", background: "#4ade80", borderRadius: 6, padding: "3px 10px", flexShrink: 0 }}>Search</span>
+    </div>
+    <p style={{ fontSize: 11, color: mutedW(0.35), margin: "12px 0 10px" }}>3 scholars found · Bradford</p>
+    <div className="flex flex-col gap-2">
+      {PARENT_SCHOLARS.map((s) => (
+        <div key={s.initials} className="flex items-center gap-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 12 }}>
+          <span style={{ width: 32, height: 32, borderRadius: "50%", background: s.bg, color: s.fg, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.initials}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate" style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{s.name}</p>
+            <p className="truncate" style={{ fontSize: 11, color: mutedW(0.4) }}>{s.sub}</p>
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span style={{ fontSize: 11, color: "#fbbf24" }}>★ {s.rating}</span>
+            <span style={{ fontSize: 11, color: mutedW(0.5) }}>from {s.from}</span>
+            <span style={{ fontSize: 10, color: "#4ade80", background: "rgba(74,222,128,0.1)", borderRadius: 6, padding: "3px 8px" }}>Book →</span>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="grid grid-cols-3 gap-2" style={{ marginTop: 12 }}>
+      {PARENT_STATS.map((s) => (
+        <div key={s.label} className="text-center" style={{ background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 12px" }}>
+          <p style={{ fontSize: 13, color: mutedW(0.7) }}>{s.value}</p>
+          <p style={{ fontSize: 10, color: mutedW(0.4) }}>{s.label}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const SCHOLAR_STATS = [
+  { value: "4.9 ★", label: "Rating" },
+  { value: "12", label: "Students" },
+  { value: "£1,240", label: "earned" },
+];
+
+const ScholarHeroPreview = () => (
+  <div className="flex flex-col gap-3">
+    {/* Card 1 — profile */}
+    <div style={glass}>
+      <div className="flex items-center justify-between mb-3">
+        <span style={{ fontSize: 11, color: mutedW(0.5) }}>Your profile</span>
+        <span className="inline-flex items-center gap-1.5" style={{ fontSize: 10, color: "#4ade80", background: "rgba(74,222,128,0.08)", border: "0.5px solid rgba(74,222,128,0.25)", borderRadius: 20, padding: "3px 8px" }}><Dot size={5} /> Live</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <span style={{ width: 40, height: 40, borderRadius: "50%", background: "#1a3a25", color: "#4ade80", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>FZ</span>
         <div className="min-w-0">
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#1c1917" }}>{s.name}</p>
-          <p style={{ fontSize: 12, color: "#a8a29e" }}>{s.loc}</p>
+          <p style={{ fontSize: 14, color: "#fff", fontWeight: 500 }}>Ustadha Fatima Zahra</p>
+          <p style={{ fontSize: 11, color: mutedW(0.4) }}>Bradford · Qur'an for Kids · Hifz</p>
         </div>
       </div>
-      <span className="inline-flex items-center gap-1 shrink-0" style={{ fontSize: 11, color: "#1a7a3c" }}><ShieldCheck size={12} /> Verified</span>
+      <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "14px 0" }} />
+      <div className="grid grid-cols-3 gap-2">
+        {SCHOLAR_STATS.map((s) => (
+          <div key={s.label}>
+            <p style={{ fontSize: 14, color: "#fff", fontWeight: 500 }}>{s.value}</p>
+            <p style={{ fontSize: 11, color: mutedW(0.4), marginTop: 2 }}>{s.label}</p>
+          </div>
+        ))}
+      </div>
     </div>
-    <div className="flex items-center gap-1 mt-3" style={{ fontSize: 13, color: "#78716c" }}>
-      <Star size={13} style={{ color: "#f59e0b", fill: "#f59e0b" }} /> {s.rating} <span style={{ color: "#a8a29e" }}>({s.reviews})</span>
-    </div>
-    <p style={{ fontSize: 13, color: "#78716c", marginTop: 10, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.bio}</p>
-    <div className="flex flex-wrap gap-1.5 mt-3">
-      {s.tags.map((t) => <span key={t} style={{ fontSize: 10, background: "#EAF3DE", color: "#3B6D11", borderRadius: 8, padding: "3px 8px" }}>{t}</span>)}
-    </div>
-    <div className="flex items-center justify-between mt-4">
-      <span style={{ fontSize: 12, color: "#a8a29e" }}>Starting from <span style={{ color: "#1c1917", fontWeight: 600 }}>{s.from}</span></span>
-      <button onClick={onView} style={{ fontSize: 13, color: "#1a7a3c", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}>View profile →</button>
+
+    {/* Card 2 — booking request */}
+    <div style={glass}>
+      <div className="flex items-center justify-between mb-3">
+        <span style={{ fontSize: 11, color: mutedW(0.5) }}>New booking request</span>
+        <span style={{ fontSize: 10, color: "#fbbf24", background: "rgba(251,191,36,0.1)", border: "0.5px solid rgba(251,191,36,0.25)", borderRadius: 20, padding: "3px 8px" }}>Pending</span>
+      </div>
+      <div className="flex items-center gap-2.5">
+        <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#3a2e1a", color: "#fbbf24", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>EA</span>
+        <div className="min-w-0 flex-1">
+          <p style={{ fontSize: 13, color: "#fff" }}>Eesaa Ahmed</p>
+          <p style={{ fontSize: 11, color: mutedW(0.4) }}>Tajweed for kids · 1hr/week</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-3">
+        <button style={{ fontSize: 11, color: mutedW(0.7), border: "1px solid rgba(255,255,255,0.15)", background: "transparent", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>Decline</button>
+        <button style={{ fontSize: 11, color: "#fff", background: "#1a7a3c", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>Accept →</button>
+      </div>
     </div>
   </div>
 );
@@ -282,8 +346,6 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
         .lp-pattern-rotate { animation: lpSlowRotate 120s linear infinite; transform-origin: center; }
         .lp-dark em { color:#4ade80; font-style:italic; }
         .lp-light em { color:#1a7a3c; font-style:italic; }
-        .lp-scholar-card:hover { border-color: rgba(26,122,60,0.3); }
-        .lp-cat-pill:hover { border-color:#1a7a3c; color:#1a7a3c; }
       `}</style>
 
       {/* ===== SECTION 1 — NAV ===== */}
@@ -298,7 +360,7 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
           <div className="hidden md:flex items-center" style={{ gap: 32 }}>
             <a href="#mosque-pitch" style={navLink}>For mosques</a>
             <a href="#parents" style={navLink}>For parents</a>
-            <a href="#scholars" style={navLink}>Find a scholar</a>
+            <a href="#scholar" style={navLink}>Find a scholar</a>
             <a href="#pricing" style={navLink}>Pricing</a>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -388,8 +450,8 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
             )}
           </div>
 
-          {/* RIGHT */}
-          <HeroCards />
+          {/* RIGHT — tab-specific visual */}
+          {aud === "mosque" ? <HeroCards /> : aud === "parent" ? <ParentHeroPreview /> : <ScholarHeroPreview />}
         </div>
       </section>
 
@@ -474,43 +536,6 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
             <NotifCard icon={Video} color="#1a7a3c" title="Tajweed class is starting" body="Adam's class with Ustadha Fatima is live now. Tap to join." time="Just now" />
             <NotifCard icon={Star} color="#1a7a3c" title="Adam memorised Al-Fatiha" body="MashAllah! Surah 1 of 114 complete. Hifz log updated." time="Yesterday · 4:30 PM" />
             <NotifCard icon={Receipt} color="#d97706" title="Fee collected — £30.00" body="Monthly subscription · Masjid Nur tajweed. Next: 8 Aug." time="8 Jul · 12:10 PM" />
-          </div>
-        </div>
-      </section>
-
-      {/* ===== SECTION 5b — SCHOLAR MARKETPLACE ===== */}
-      <section id="scholars" className="lp-light" style={{ background: "#fafaf9" }}>
-        <div className="max-w-[1200px] mx-auto" style={{ padding: "72px 24px" }}>
-          {/* Header */}
-          <div className="text-center max-w-[520px] mx-auto">
-            <p style={{ fontSize: 11, color: "#1a7a3c", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Find a scholar</p>
-            <h2 style={{ ...serif, fontSize: 38, color: "#1c1917", marginTop: 10, lineHeight: 1.15 }}>Every scholar <em>DBS-checked</em> and verified.</h2>
-            <p style={{ fontSize: 16, color: "#78716c", marginTop: 14, lineHeight: 1.6 }}>Qur'an tutors for your kids. Arabic teachers for you. Imams for your nikah. All vetted, all one click away.</p>
-          </div>
-
-          {/* Search bar */}
-          <div className="flex items-center gap-3 mx-auto" style={{ maxWidth: 640, background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, padding: "14px 20px", marginTop: 32, marginBottom: 48 }}>
-            <Search size={18} style={{ color: "#a8a29e", flexShrink: 0 }} />
-            <input placeholder="Try 'female Qur'an teacher for kids in Bradford'" style={{ flex: 1, minWidth: 0, fontSize: 15, border: "none", outline: "none", background: "transparent", color: "#1c1917" }} />
-            <button onClick={() => go()} className="shrink-0" style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: "#1a7a3c", borderRadius: 8, padding: "8px 16px", border: "none", cursor: "pointer" }}>Search →</button>
-          </div>
-
-          {/* Category pills */}
-          <div className="flex flex-wrap justify-center gap-2" style={{ marginBottom: 48 }}>
-            {SCHOLAR_CATS.map((c) => (
-              <button key={c} className="lp-cat-pill" style={{ fontSize: 13, padding: "8px 16px", borderRadius: 20, border: "0.5px solid #e7e5e4", color: "#57534e", background: "#f5f5f4", cursor: "pointer", transition: "border-color 0.15s, color 0.15s" }}>{c}</button>
-            ))}
-          </div>
-
-          {/* Scholar cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 20 }}>
-            {SCHOLARS.map((s) => <ScholarCard key={s.name} s={s} onView={() => go()} />)}
-          </div>
-
-          {/* Footer links */}
-          <div className="text-center" style={{ marginTop: 40 }}>
-            <button onClick={() => go()} style={{ fontSize: 14, fontWeight: 500, color: "#1a7a3c", background: "none", border: "none", cursor: "pointer", padding: 0 }}>View all scholars →</button>
-            <p style={{ fontSize: 12, color: "#a8a29e", marginTop: 8 }}>+ 1,010 students · 3.5 average rating · All DBS checked</p>
           </div>
         </div>
       </section>
