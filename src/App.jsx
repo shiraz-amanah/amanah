@@ -7415,19 +7415,27 @@ const ResetPassword = ({ onDone }) => {
 };
 
 // ==================== USER SIGN UP / LOGIN ====================
-const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, onComplete, onSwitchMode, onForgotPassword }) => {
+const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToken = null, onBack, onComplete, onSwitchMode, onForgotPassword }) => {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ name: "", email: initialEmail || "", password: "", interest: "", interests: [] });
+  const [form, setForm] = useState({ name: "", email: initialEmail || "", password: "", confirmPassword: "", interest: "", interests: [] });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const isSignUp = mode === "signup";
   const isScholar = role === "scholar";
   const isMosque = role === "mosque";
+  // Employee-invite context: the user arrived from /accept-invite and must
+  // create (or sign into) a plain personal account before the invite RPC can
+  // link them to the mosque. This is NOT the "list your mosque" owner flow —
+  // suppress the mosque-listing copy/interest marker and show a confirm-password
+  // registration form instead.
+  const isInvite = !!inviteToken;
   // Both scholar + mosque bypass the parent-flavoured "interest"
   // step. They have their own dedicated post-auth surfaces (wizard
   // / dashboard) so the marketplace-fit interest picker is irrelevant.
-  const skipsInterest = isScholar || isMosque;
+  // Invited employees also skip it — they're a plain account, not a marketplace
+  // signup, and are routed by the acceptInvitePostAuth returnView.
+  const skipsInterest = isScholar || isMosque || isInvite;
 
   const handleSignUp = async () => {
     setError(null);
@@ -7439,7 +7447,10 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, on
     // Parents pick one or more interests (multi-select) → stored as an array;
     // the role checks below compare against "mosque"/"scholar" strings, which
     // an array never equals, so parent signups still route correctly.
-    const interest = isScholar ? "scholar" : isMosque ? "mosque" : form.interests;
+    // Invited employees get a neutral marker: they are NOT mosque owners, so
+    // tagging them "mosque" would misroute them into the owner path on later
+    // logins. The invite RPC handles their staff linkage separately.
+    const interest = isInvite ? [] : isScholar ? "scholar" : isMosque ? "mosque" : form.interests;
     const { data, error: authError } = await signUp(form.email, form.password, form.name, interest);
     if (authError) {
       setError(authError.message || "Something went wrong");
@@ -7474,19 +7485,34 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", onBack, on
           <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
 
+        {isInvite && (
+          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <ShieldCheck className="text-emerald-700 shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-emerald-900 leading-relaxed">
+              <span className="font-semibold">You've been invited to join a mosque on Amanah.</span>{" "}
+              Create an account or sign in to accept.
+            </p>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm">
           {isSignUp && step === 1 && (
             <>
-              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isScholar ? "Sign up as a scholar" : isMosque ? "List your mosque on Amanah" : "Create your account"}</h2>
-              <p className="text-sm text-stone-500 mb-6">{isScholar ? "Teach, get hired, build your profile on Amanah." : isMosque ? "Apply for verification and reach the Muslim community across the UK." : "Book scholars, track your giving, save favourites."}</p>
+              <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isInvite ? "Create your account" : isScholar ? "Sign up as a scholar" : isMosque ? "List your mosque on Amanah" : "Create your account"}</h2>
+              <p className="text-sm text-stone-500 mb-6">{isInvite ? "Set up your Amanah account to accept your invitation and join your mosque's workspace." : isScholar ? "Teach, get hired, build your profile on Amanah." : isMosque ? "Apply for verification and reach the Muslim community across the UK." : "Book scholars, track your giving, save favourites."}</p>
               <div className="space-y-3">
-                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={isMosque ? "Your name (the person applying)" : "Your name"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={isMosque && !isInvite ? "Your name (the person applying)" : "Your name"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                {isInvite && <input type="password" value={form.confirmPassword} onChange={e => setForm({...form, confirmPassword: e.target.value})} placeholder="Confirm password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />}
                 {skipsInterest && error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
                 <button
                   onClick={() => {
                     if (!form.name || !form.email || form.password.length < 6) return;
+                    if (isInvite && form.password !== form.confirmPassword) {
+                      setError("Passwords don't match.");
+                      return;
+                    }
                     if (skipsInterest) {
                       // Scholars + mosques skip the parent-flavored "interest"
                       // picker — submit directly. Post-auth, App routes them
@@ -13280,7 +13306,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
-  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} initialEmail={routeQuery.email || ""} onBack={() => goBack("publicHome")} onComplete={async () => {
+  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} initialEmail={routeQuery.email || ""} inviteToken={pendingInviteToken} onBack={() => goBack("publicHome")} onComplete={async () => {
     const user = await getUser();
     setAuthedUser(user);
     let profile = null;
