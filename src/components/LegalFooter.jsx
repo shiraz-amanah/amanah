@@ -13,6 +13,11 @@ const LegalFooter = ({ className = "" }) => (
       5 New Augustus Street, Bradford, West Yorkshire, BD1 5LL
     </p>
     <p className="mt-1">© 2026 Saveco Tech Ltd. All rights reserved.</p>
+    <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+      <a href="/privacy-policy" className="hover:underline">Privacy Policy</a>
+      <a href="/terms" className="hover:underline">Terms of Service</a>
+      <a href="/cookies" className="hover:underline">Cookie Policy</a>
+    </p>
   </div>
 );
 
