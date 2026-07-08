@@ -25,6 +25,10 @@ const ROUTES = [
   { view: 'communityCheckIn',            path: '/check-in' },
   // Public Pledge Night page (?mosque=&session=). No auth required.
   { view: 'pledgePublic',                path: '/pledge' },
+  // Legal policy pages (static). No auth required.
+  { view: 'privacyPolicy',               path: '/privacy-policy' },
+  { view: 'termsOfService',              path: '/terms' },
+  { view: 'cookiePolicy',                path: '/cookies' },
 
   // Auth
   { view: 'userAuth',                    path: '/auth' },

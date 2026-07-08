@@ -25,6 +25,9 @@ import MosqueProfileEditor from "./components/MosqueProfileEditor";
 import MosqueStaffPublic from "./components/MosqueStaffPublic";
 import MosqueEventsManager from "./components/MosqueEventsManager";
 import MosqueProfile from "./pages/MosqueProfile";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import CookiePolicy from "./pages/CookiePolicy";
 import AdminClaims from "./components/AdminClaims";
 import MosqueClaimAccept from "./components/MosqueClaimAccept";
 import HomepageEvents from "./components/HomepageEvents";
@@ -13182,6 +13185,9 @@ const handleSignIn = (r) => {
     toggleCampaignSave={toggleCampaignSave}
     />;
 if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} onSignIn={(r) => { setRole(r); navigate("login"); }} />;
+if (view === "privacyPolicy") return <PrivacyPolicy header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
+if (view === "termsOfService") return <TermsOfService header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
+if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
   // Scholar onboarding wizard — entry point for an authed user with no
   // scholar listing and no application. Submit posts to
   // scholar_applications and routes to the submitted status page.
