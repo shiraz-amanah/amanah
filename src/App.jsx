@@ -8,6 +8,7 @@ import { transformScholar } from "./lib/scholarTransform";
 import { transformMosque } from "./lib/mosqueTransform";
 import { stripeConfirmPayment, stripeConfirmSubscription } from "./lib/stripe";
 import AiSearchBar from "./components/AiSearchBar";
+import LegalFooter from "./components/LegalFooter";
 import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
 import ProfileQualityScorer from "./components/ProfileQualityScorer";
@@ -823,6 +824,9 @@ useEffect(() => {
             <a className="hover:text-white cursor-pointer">About</a>
             <button onClick={() => onSignIn("admin")} className="hover:text-white opacity-60">Admin</button>
           </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-6 pb-10 border-t border-stone-800 pt-6">
+          <LegalFooter className="text-stone-500" />
         </div>
       </footer>
 
@@ -8721,6 +8725,9 @@ setBookings(transformed);
         )}
       </main>
       </div>
+      <div className="max-w-6xl mx-auto px-5 md:px-6 pb-8 pt-6 border-t border-stone-200">
+        <LegalFooter />
+      </div>
     </div>
   );
 };
@@ -9496,6 +9503,9 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, conversatio
           </div>
         )}
         </main>
+      </div>
+      <div className="max-w-6xl mx-auto px-5 md:px-6 pb-8 pt-6 border-t border-stone-200">
+        <LegalFooter />
       </div>
     </div>
   );
@@ -12371,6 +12381,9 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
             </div>
           </div>
         )}
+        <div className="pt-8 mt-8 border-t border-stone-200">
+          <LegalFooter />
+        </div>
       </main>
 
       {/* Toast notification */}

@@ -2,6 +2,7 @@ import {
   Building2, HandCoins,
   ShieldCheck, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
+import LegalFooter from "./LegalFooter";
 import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosquePrayerEditor from "./MosquePrayerEditor";
 import MosqueRamadanMode from "./MosqueRamadanMode";
@@ -334,6 +335,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
             </div>
           )}
         </main>
+      </div>
+      <div className="max-w-7xl mx-auto px-4 md:px-6 pb-8 pt-6 border-t border-stone-200">
+        <LegalFooter />
       </div>
     </div>
   );
