@@ -1603,6 +1603,103 @@ ${captionLine}${ctaButton('View photos', env.PUBLIC_APP_URL)}${eSignoff}`;
   return { status: 200, body: { ok: true, sent: ids.length, ids } };
 }
 
+// Recurring subscription lifecycle + dunning emails (Session BP). Triggered by the
+// stripe-connect webhook/actions via the x-cron-secret internal path — the webhook
+// has no caller JWT, so recipients are resolved server-side from the subscription id.
+// _payment_failed_3 and _paused additionally notify the mosque owner.
+async function handleSubscriptionEmail(env, intent, subscriptionId) {
+  if (!isUuid(subscriptionId)) return { status: 400, body: { ok: false, error: 'invalid_subscriptionId' } };
+  const subs = await sbGet(env, `madrasa_subscriptions?id=eq.${subscriptionId}&select=id,parent_id,student_id,class_id,mosque_id,amount_pence,cadence,status,current_period_end,trial_end`);
+  const sub = Array.isArray(subs) ? subs[0] : null;
+  if (!sub) return { status: 404, body: { ok: false, error: 'subscription_not_found' } };
+
+  const parent = await getProfile(env, sub.parent_id);
+  if (!parent?.email) return { status: 200, body: { ok: true, sent: 0, skipped: 'no_parent_email' } };
+  const [cls] = await sbGet(env, `madrasa_classes?id=eq.${sub.class_id}&select=name`);
+  const [mosque] = await sbGet(env, `mosques?id=eq.${sub.mosque_id}&select=name,user_id`);
+  const [student] = sub.student_id ? await sbGet(env, `students?id=eq.${sub.student_id}&select=name`) : [];
+  const className = cls?.name || 'the class';
+  const mosqueName = mosque?.name || 'the madrasah';
+  const studentName = student?.name || 'your child';
+  const amount = `£${(Number(sub.amount_pence || 0) / 100).toFixed(2)}`;
+  const feesUrl = `${env.PUBLIC_APP_URL}/dashboard?tab=madrasa-fees`;
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: SESSION_TZ }); }
+    catch { return ''; }
+  };
+
+  let subject, heading, bodyParas;
+  switch (intent) {
+    case 'subscription_trial_ending': {
+      const when = fmtDate(sub.trial_end);
+      subject = `Your free trial ends soon — ${mosqueName}`;
+      heading = 'Your free trial is ending soon';
+      bodyParas = [
+        `The free trial for <strong>${escapeHtml(studentName)}</strong>'s place in <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)} ends${when ? ` on <strong>${when}</strong>` : ' soon'}.`,
+        `After the trial, you'll be charged <strong>${amount}</strong> per month. No action is needed to keep the place. To cancel, use your Fees tab any time before the trial ends.`,
+      ];
+      break;
+    }
+    case 'subscription_payment_failed_1':
+    case 'subscription_payment_failed_2':
+    case 'subscription_payment_failed_3': {
+      const final = intent.endsWith('_3');
+      subject = final ? `Final notice: payment failed — ${mosqueName}` : `Payment failed — ${mosqueName}`;
+      heading = final ? "We still couldn't take your payment" : "We couldn't take your payment";
+      bodyParas = [
+        `We tried to collect this month's <strong>${amount}</strong> payment for <strong>${escapeHtml(studentName)}</strong>'s place in <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)}, but it didn't go through.`,
+        final
+          ? `This was our final automatic attempt. Please update your payment details to keep the place — ${escapeHtml(mosqueName)} has been notified and may be in touch.`
+          : `We'll try again in a few days. Please check that your card details are up to date to avoid interruption.`,
+      ];
+      break;
+    }
+    case 'subscription_canceled': {
+      const when = fmtDate(sub.current_period_end);
+      subject = `Subscription cancelled — ${mosqueName}`;
+      heading = 'Your subscription has been cancelled';
+      bodyParas = [
+        `The tuition subscription for <strong>${escapeHtml(studentName)}</strong>'s place in <strong>${escapeHtml(className)}</strong> at ${escapeHtml(mosqueName)} has been cancelled.`,
+        when ? `It stays active until <strong>${when}</strong> — no further payments will be taken after that.` : 'No further payments will be taken.',
+      ];
+      break;
+    }
+    case 'subscription_paused': {
+      subject = `Billing paused — ${mosqueName}`;
+      heading = 'Your subscription has been paused';
+      bodyParas = [
+        `${escapeHtml(mosqueName)} has paused billing for <strong>${escapeHtml(studentName)}</strong>'s place in <strong>${escapeHtml(className)}</strong>.`,
+        "You won't be charged while it's paused. Billing resumes when the madrasah restarts it — we'll let you know.",
+      ];
+      break;
+    }
+    default:
+      return { status: 400, body: { ok: false, error: 'unknown_subscription_intent' } };
+  }
+
+  const inner = `${eGreeting(parent.name)}${eHeading(heading)}${bodyParas.map(ePara).join('')}${ctaButton('View your fees', feesUrl)}${eSignoff}`;
+  const ids = [];
+  try { ids.push(await sendEmail(env, { to: parent.email, subject, html: wrapEmail(heading, inner) })); }
+  catch (e) { console.error('[send-transactional] sub email failed', intent, e?.message); }
+
+  // Final dunning + pause also notify the mosque owner.
+  if ((intent === 'subscription_payment_failed_3' || intent === 'subscription_paused') && mosque?.user_id) {
+    const owner = await getProfile(env, mosque.user_id);
+    if (owner?.email) {
+      const ownerHeading = intent === 'subscription_paused' ? 'You paused a subscription' : 'A subscription payment has failed 3 times';
+      const ownerInner = `${eGreeting(owner.name)}${eHeading(ownerHeading)}${ePara(
+        intent === 'subscription_paused'
+          ? `Billing is now paused for <strong>${escapeHtml(studentName)}</strong>'s place in <strong>${escapeHtml(className)}</strong>. The parent has been notified. Resume it from the Fees tab when you're ready.`
+          : `The subscription for <strong>${escapeHtml(studentName)}</strong> in <strong>${escapeHtml(className)}</strong> (${amount}/month) has failed 3 payment attempts and is now <strong>past due</strong>. Nothing has been removed automatically — please follow up with the family.`
+      )}${ctaButton('Open your dashboard', `${env.PUBLIC_APP_URL}/mosque-dashboard`)}${eSignoff}`;
+      try { ids.push(await sendEmail(env, { to: owner.email, subject: `${ownerHeading} — ${className}`, html: wrapEmail(ownerHeading, ownerInner) })); }
+      catch (e) { console.error('[send-transactional] sub owner email failed', intent, e?.message); }
+    }
+  }
+  return { status: 200, body: { ok: true, sent: ids.length, ids } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1648,6 +1745,17 @@ export default async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'unauthorized' });
       }
       const out = await handleReminderSweep(env);
+      return res.status(out.status).json(out.body);
+    }
+
+    // Subscription lifecycle/dunning emails (Session BP) — fired by the stripe-connect
+    // webhook/actions, which have no caller JWT, so they authenticate with x-cron-secret
+    // (the same internal path as the sweep). Recipients resolve server-side by id.
+    if (typeof body.intent === 'string' && body.intent.startsWith('subscription_')) {
+      if (req.headers['x-cron-secret'] !== env.CRON_SECRET) {
+        return res.status(401).json({ ok: false, error: 'unauthorized' });
+      }
+      const out = await handleSubscriptionEmail(env, body.intent, body.subscriptionId);
       return res.status(out.status).json(out.body);
     }
 
