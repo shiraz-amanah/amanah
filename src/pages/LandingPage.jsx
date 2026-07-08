@@ -1,16 +1,17 @@
 import { useState } from "react";
-import { Sparkles, Check, BookOpen, Star, CreditCard, MessageCircle, Video, Building2, Receipt, ShieldCheck } from "lucide-react";
+import { Sparkles, Check, X, BookOpen, Star, CreditCard, MessageCircle, Video, Building2, Receipt, ShieldCheck } from "lucide-react";
 import LegalFooter from "../components/LegalFooter";
 
 // Landing page redesign (feature/landing-redesign). Self-contained: colours are
-// inline hex per the spec (no gradients/shadows/blur); layout + responsiveness via
-// Tailwind; the audience switcher is local useState. Wired to the root route in
-// App.jsx. Only reuses LegalFooter from existing components.
+// inline hex per the spec (no gradients/shadows/blur — except the hero's rotating
+// Islamic-star pattern, replicated exactly from PublicHome per the brief); layout +
+// responsiveness via Tailwind; the audience switcher + demo modal are local state.
+// Wired to the root route in App.jsx. Only reuses LegalFooter from existing code.
 
 const serif = { fontFamily: "Georgia, 'Times New Roman', serif" };
+const inputS = { width: "100%", fontSize: 14, color: "#1c1917", border: "1px solid #e7e5e4", borderRadius: 10, padding: "10px 12px", outline: "none", background: "#fff" };
+const DEMO_TIMES = ["Morning", "Afternoon", "Evening"];
 
-// Audience-switcher copy (mosque default). Headlines carry <em> for the green
-// italic emphasis word (styled by .lp-dark em / .lp-light em below).
 const AUD = {
   mosque: {
     tab: "I run a mosque",
@@ -61,13 +62,12 @@ const TAG_TONE = {
   "Core": { bg: "rgba(120,113,108,0.1)", color: "#57534e" },
 };
 
+const mutedW = (a) => `rgba(255,255,255,${a})`;
+const glass = { background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20 };
+
 const Dot = ({ color = "#4ade80", size = 6 }) => (
   <span className="lp-pulse" style={{ width: size, height: size, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
 );
-
-// ---- Right-column floating dashboard cards (all tabs) ----
-const glass = { background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20 };
-const mutedW = (a) => `rgba(255,255,255,${a})`;
 
 const HeroCards = () => (
   <div className="flex flex-col gap-3">
@@ -174,8 +174,61 @@ const PricingCard = ({ name, price, badge, desc, features, highlight }) => (
   </div>
 );
 
+// Book-a-demo modal (Fix 5). Real page (not an iframe) so position:fixed is fine.
+// Submits to send-transactional intent 'demo_request' (unauthenticated).
+const DemoModal = ({ onClose }) => {
+  const [form, setForm] = useState({ name: "", mosqueName: "", email: "", phone: "", preferredTime: "Morning" });
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.mosqueName.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setErr("Please fill in your name, mosque, and a valid email."); return;
+    }
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch("/api/send-transactional", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ intent: "demo_request", ...form }) });
+      const j = await res.json().catch(() => ({}));
+      if (j?.ok) setDone(true); else setErr("Something went wrong. Please try again or email us directly.");
+    } catch { setErr("Something went wrong. Please try again."); }
+    setBusy(false);
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, width: "100%", maxWidth: 440, position: "relative" }}>
+        <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", cursor: "pointer", color: "#a8a29e" }}><X size={18} /></button>
+        {done ? (
+          <div className="text-center" style={{ padding: "16px 0" }}>
+            <span style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(26,122,60,0.12)", color: "#1a7a3c", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Check size={22} strokeWidth={3} /></span>
+            <p style={{ ...serif, fontSize: 20, color: "#1c1917", marginTop: 14 }}>Thanks! We'll be in touch within 24 hours.</p>
+          </div>
+        ) : (
+          <>
+            <h3 style={{ ...serif, fontSize: 22, color: "#1c1917" }}>Book a demo</h3>
+            <p style={{ fontSize: 14, color: "#78716c", marginTop: 6, lineHeight: 1.5 }}>We'll show you Amanah live and set up your mosque in under 10 minutes.</p>
+            <form onSubmit={submit} className="mt-4 space-y-3">
+              <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Your name" style={inputS} />
+              <input value={form.mosqueName} onChange={(e) => set("mosqueName", e.target.value)} placeholder="Mosque name" style={inputS} />
+              <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="Email address" style={inputS} />
+              <input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Phone number (optional)" style={inputS} />
+              <select value={form.preferredTime} onChange={(e) => set("preferredTime", e.target.value)} style={inputS}>
+                {DEMO_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              {err && <p style={{ fontSize: 12, color: "#b91c1c" }}>{err}</p>}
+              <button type="submit" disabled={busy} style={{ width: "100%", fontSize: 14, fontWeight: 500, color: "#fff", background: "#1a7a3c", borderRadius: 10, padding: "12px", border: "none", cursor: "pointer", opacity: busy ? 0.6 : 1 }}>{busy ? "Sending…" : "Request a demo →"}</button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const LandingPage = ({ onSignIn, onNavigate }) => {
   const [aud, setAud] = useState("mosque");
+  const [showDemo, setShowDemo] = useState(false);
   const a = AUD[aud];
   const go = (role) => onSignIn?.(role);
 
@@ -188,6 +241,8 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
       <style>{`
         @keyframes lpPulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
         .lp-pulse { animation: lpPulse 2s ease-in-out infinite; }
+        @keyframes lpSlowRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .lp-pattern-rotate { animation: lpSlowRotate 120s linear infinite; transform-origin: center; }
         .lp-dark em { color:#4ade80; font-style:italic; }
         .lp-light em { color:#1a7a3c; font-style:italic; }
       `}</style>
@@ -199,24 +254,41 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
             <span style={{ width: 30, height: 30, borderRadius: 8, background: "#1a7a3c", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <ShieldCheck size={16} style={{ color: "#eafaf0" }} />
             </span>
-            <span style={{ fontSize: 17, color: "#fff", fontWeight: 500 }} >Amanah</span>
+            <span style={{ fontSize: 17, color: "#fff", fontWeight: 500 }}>Amanah</span>
           </a>
           <div className="hidden md:flex items-center" style={{ gap: 32 }}>
             <a href="#mosque-pitch" style={navLink}>For mosques</a>
             <a href="#parents" style={navLink}>For parents</a>
-            <a href="#scholar" style={navLink}>Find a scholar</a>
+            <a href="#scholars" style={navLink}>Find a scholar</a>
             <a href="#pricing" style={navLink}>Pricing</a>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <button onClick={() => go()} style={ghostBtn}>Sign in</button>
-            <button onClick={() => go("mosque")} style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: "#1a7a3c", borderRadius: 8, padding: "8px 16px", border: "none" }}>Book a demo →</button>
+            <button onClick={() => setShowDemo(true)} style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: "#1a7a3c", borderRadius: 8, padding: "8px 16px", border: "none" }}>Book a demo →</button>
           </div>
         </div>
       </nav>
 
       {/* ===== SECTION 2 — HERO ===== */}
-      <section className="lp-dark" style={{ background: "#0a1a0f" }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 items-center max-w-[1200px] mx-auto" style={{ gap: 80, padding: "60px 24px" }}>
+      <section className="lp-dark" style={{ background: "#0a1a0f", position: "relative", overflow: "hidden" }}>
+        {/* Rotating Islamic geometric star pattern (replicated from PublicHome) */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ opacity: 0.2 }}>
+          <svg className="lp-pattern-rotate absolute" style={{ top: "-30%", left: "-10%", width: "120%", height: "160%" }} viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="lpIslamicStar" x="0" y="0" width="120" height="120" patternUnits="userSpaceOnUse">
+                <g transform="translate(60 60)" stroke="rgba(251, 191, 36, 0.4)" strokeWidth="1" fill="none">
+                  <polygon points="0,-40 11,-11 40,0 11,11 0,40 -11,11 -40,0 -11,-11" />
+                  <rect x="-28" y="-28" width="56" height="56" transform="rotate(45)" />
+                  <rect x="-28" y="-28" width="56" height="56" />
+                  <circle r="6" fill="rgba(251, 191, 36, 0.3)" />
+                </g>
+              </pattern>
+            </defs>
+            <rect width="800" height="800" fill="url(#lpIslamicStar)" />
+          </svg>
+        </div>
+
+        <div className="relative grid grid-cols-1 md:grid-cols-2 items-center max-w-[1200px] mx-auto" style={{ gap: 80, padding: "80px 24px 60px" }}>
           {/* LEFT */}
           <div>
             {/* Switcher */}
@@ -230,13 +302,13 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
               ))}
             </div>
 
-            {/* Eyebrow */}
-            <div className="inline-flex items-center gap-2 mt-6" style={{ fontSize: 11, color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)", background: "rgba(74,222,128,0.05)", borderRadius: 20, padding: "6px 12px", marginBottom: 28 }}>
+            {/* Eyebrow — 20px below switcher, 28px above headline */}
+            <div className="inline-flex items-center gap-2" style={{ fontSize: 11, color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)", background: "rgba(74,222,128,0.05)", borderRadius: 20, padding: "6px 12px", marginTop: 20, marginBottom: 28 }}>
               <Dot /> The Islamic education platform
             </div>
 
             {/* Headline */}
-            <h1 style={{ ...serif, fontSize: 52, fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.02em", color: "#fff", marginTop: 4 }} className="max-md:!text-[38px]">
+            <h1 style={{ ...serif, fontSize: 52, fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.02em", color: "#fff", margin: 0 }} className="max-md:!text-[38px]">
               {a.headline}
             </h1>
 
@@ -247,20 +319,33 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
 
             {/* CTAs */}
             <div className="flex items-center gap-3 flex-wrap">
-              <button onClick={() => go(a.role)} style={solidBtn}>{a.primary}</button>
+              <button onClick={aud === "mosque" ? () => setShowDemo(true) : () => go(a.role)} style={solidBtn}>{a.primary}</button>
               <button onClick={() => go(a.role)} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, padding: "14px 28px", background: "transparent" }}>{a.secondary}</button>
             </div>
 
-            {/* Proof bar — mosque only */}
+            {/* Proof bar + trusted mosques bar — mosque only */}
             {aud === "mosque" && (
-              <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mt-8">
-                {["2 min to set up a class", "0% on donations — always", "UK-based · ICO registered"].map((t, i) => (
-                  <span key={t} className="flex items-center gap-4">
-                    {i > 0 && <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)" }} />}
-                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{t}</span>
-                  </span>
-                ))}
-              </div>
+              <>
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mt-8">
+                  {["2 min to set up a class", "0% on donations — always", "UK-based · ICO registered"].map((t, i) => (
+                    <span key={t} className="flex items-center gap-4">
+                      {i > 0 && <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.1)" }} />}
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>{t}</span>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ marginTop: 24 }}>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginBottom: 12 }}>Trusted by mosques across the UK</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {["MN", "BC", "MR", "AI", "+12 mosques"].map((m) => {
+                      const wide = m.startsWith("+");
+                      return (
+                        <span key={m} style={{ height: 32, minWidth: 32, width: wide ? "auto" : 32, padding: wide ? "0 10px" : 0, borderRadius: 8, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.3)", fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{m}</span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -280,8 +365,8 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-12" style={{ gap: 1, background: "#e7e5e4", border: "1px solid #e7e5e4", borderRadius: 14, overflow: "hidden" }}>
             {FEATURES.map((f) => (
-              <div key={f.name} style={{ background: "#fff", padding: "28px 24px" }}>
-                <span style={{ width: 40, height: 40, borderRadius: 10, background: `${f.color}1a`, color: f.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div key={f.name} className="flex flex-col" style={{ background: "#fff", padding: "28px 24px" }}>
+                <span style={{ width: 40, height: 40, borderRadius: 10, background: `${f.color}1a`, color: f.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <f.icon size={20} />
                 </span>
                 <div className="flex items-center gap-2 mt-4 flex-wrap">
@@ -409,6 +494,8 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
           <LegalFooter className="text-stone-500" />
         </div>
       </footer>
+
+      {showDemo && <DemoModal onClose={() => setShowDemo(false)} />}
     </div>
   );
 };
