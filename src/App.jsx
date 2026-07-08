@@ -12602,6 +12602,9 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [paymentSyncTick, setPaymentSyncTick] = useState(0); // bumped after a Stripe payment confirms → parent fees refetch
   const [returnView, setReturnView] = useState("publicHome");
+  // Session RBAC — token stashed when a logged-out invitee hits Sign in on the
+  // AcceptInvite page, so the userAuth flow can return them to /accept-invite?token=.
+  const [pendingInviteToken, setPendingInviteToken] = useState(null);
 
   // Saved items - lifted up so all views can access
   const [savedScholarIds, setSavedScholarIds] = useState(new Set());
@@ -13306,6 +13309,14 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
       await routeAuthedMosque(user.id, { replace: true });
       return;
     }
+    if (returnView === "acceptInvitePostAuth" && user && pendingInviteToken) {
+      // RBAC invite — return to the accept page with the preserved token so the
+      // accept RPC runs now that a session exists.
+      const t = pendingInviteToken;
+      setPendingInviteToken(null);
+      navigate("acceptInvite", {}, { token: t }, { replace: true });
+      return;
+    }
     navigate(returnView, {}, {}, { replace: true });
   }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} onForgotPassword={() => setView("forgotPassword")} />;
   if (view === "forgotPassword") return <ForgotPassword
@@ -13691,7 +13702,20 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
   if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
   if (view === "mosqueClaimAccept") return <MosqueClaimAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
-  if (view === "acceptInvite") return <AcceptInvite token={routeQuery.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
+  if (view === "acceptInvite") return <AcceptInvite
+    token={routeQuery.token}
+    onSignIn={() => {
+      // Real mosque auth flow (the /login screen is a non-authenticating legacy
+      // mock). Preserve the token so onComplete returns here and accept runs.
+      setPendingInviteToken(routeQuery.token);
+      setUserAuthRole("mosque");
+      setReturnView("acceptInvitePostAuth");
+      setUserAuthMode("login");
+      navigate("userAuth");
+    }}
+    onHome={() => setView("publicHome")}
+    onDone={() => window.location.assign("/mosque-dashboard")}
+  />;
   if (view === "communityCheckIn") return <CommunityCheckIn mosqueId={routeQuery.mosque} sessionId={routeQuery.session} authedUser={authedUser} onHome={() => setView("publicHome")} />;
   if (view === "pledgePublic") return <FinancePledgePublic sessionId={routeQuery.session} onHome={() => setView("publicHome")} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => goBack()} authedUser={authedUser} onSignIn={handleSignIn} />;

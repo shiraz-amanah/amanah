@@ -1,24 +1,29 @@
 import { useState, useEffect } from "react";
 import { Loader2, Check, AlertCircle, ShieldCheck, LogIn, Clock } from "lucide-react";
 import { acceptEmployeeInvite, getMosqueById } from "../auth";
+import { supabase } from "../supabaseClient";
 import { invalidateEmployeePermissions } from "../lib/useEmployeePermissions";
 
 // /accept-invite?token=… — an invited employee lands here from the branded email.
-// If not signed in, prompt sign-in/up first (magic-link, no password up front).
-// Once authed, accept_employee_invite binds their profile to the mosque_employees
-// row, flips it active, and clears the single-use token. Distinct verdicts —
-// accepted / expired / invalid / suspended — each get their own message.
-const AcceptInvite = ({ token, authedUser, onSignIn, onHome, onDone }) => {
-  const [state, setState] = useState("idle"); // idle | working | done | expired | invalid | suspended | error
+// On mount we check the ACTUAL Supabase session (not the App `authedUser` prop,
+// which is null on a cold deep-link before bootstrap resolves): if signed in, run
+// accept_employee_invite immediately; if not, prompt sign-in via the MOSQUE login
+// flow with the token preserved so the accept completes on return.
+const AcceptInvite = ({ token, onSignIn, onHome, onDone }) => {
+  const [state, setState] = useState("checking"); // checking | working | done | expired | invalid | suspended | error | signin
   const [error, setError] = useState("");
   const [mosqueName, setMosqueName] = useState("");
 
   useEffect(() => {
-    if (!authedUser || !token) return;
+    if (!token) { setState("invalid"); return; }
     let alive = true;
-    setState("working"); setError("");
-    acceptEmployeeInvite(token)
-      .then(async (res) => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!alive) return;
+      if (!session) { setState("signin"); return; }
+      setState("working"); setError("");
+      try {
+        const res = await acceptEmployeeInvite(token);
         if (!alive) return;
         if (res.ok && res.reason === "accepted") {
           invalidateEmployeePermissions(res.mosqueId); // dashboard re-resolves → access granted
@@ -31,12 +36,15 @@ const AcceptInvite = ({ token, authedUser, onSignIn, onHome, onDone }) => {
         }
         if (res.reason === "expired") { setState("expired"); return; }
         if (res.reason === "suspended") { setState("suspended"); return; }
-        if (res.reason === "not_authenticated") { setState("idle"); return; }
+        if (res.reason === "not_authenticated") { setState("signin"); return; }
         setState("invalid"); // invalid / already-used / rpc_error
-      })
-      .catch((err) => { if (alive) { setError(err?.message || "Something went wrong."); setState("error"); } });
+      } catch (err) {
+        if (alive) { setError(err?.message || "Something went wrong."); setState("error"); }
+      }
+    })();
     return () => { alive = false; };
-  }, [authedUser, token]);
+  }, [token]);
+
 
   const card = (children) => (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -48,8 +56,7 @@ const AcceptInvite = ({ token, authedUser, onSignIn, onHome, onDone }) => {
     <h1 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{t}</h1>
   );
 
-  // Signed-out — prompt to authenticate first, then this page re-runs the accept.
-  if (!authedUser) {
+  if (state === "signin") {
     return card(<>
       <ShieldCheck className="mx-auto text-emerald-600 mb-4" size={36} />
       {heading("Accept your invitation")}
@@ -58,7 +65,7 @@ const AcceptInvite = ({ token, authedUser, onSignIn, onHome, onDone }) => {
     </>);
   }
 
-  if (state === "working" || state === "idle") {
+  if (state === "checking" || state === "working") {
     return card(<Loader2 className="mx-auto animate-spin text-emerald-700" size={28} />);
   }
 
