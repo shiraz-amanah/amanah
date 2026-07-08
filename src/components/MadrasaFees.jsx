@@ -3,6 +3,7 @@ import {
   Loader2, Wallet, Sparkles, Download, X, Check, CircleDollarSign, Ban, Mail, Filter,
 } from "lucide-react";
 import { getFeeRecords, recordFeePayment, waiveFee } from "../auth";
+import MadrasaSubscriptions from "./MadrasaSubscriptions";
 import { sendMadrasaFeeReminder } from "../lib/email";
 import { getMadrasaFeeBrief } from "../lib/hrAssistant";
 import { money } from "../lib/format";
@@ -212,6 +213,11 @@ const MadrasaFees = ({ mosqueId, mosqueName }) => {
 
       {msg && <div className="mb-4 text-sm bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl px-3 py-2">{msg}</div>}
 
+      {/* Recurring subscriptions (Session BP) — MRR + Pause/Resume/Cancel. Sits
+          above the one-off fee ledger; the two are separate money models. */}
+      <MadrasaSubscriptions mosqueId={mosqueId} />
+
+      {/* One-off / ad-hoc fee ledger (record-keeping) below. */}
       {records == null ? (
         <div className="flex justify-center py-16 text-stone-400"><Loader2 size={22} className="animate-spin" /></div>
       ) : rows.length === 0 ? (
