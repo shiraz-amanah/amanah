@@ -7456,7 +7456,10 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
     // tagging them "mosque" would misroute them into the owner path on later
     // logins. The invite RPC handles their staff linkage separately.
     const interest = isInvite ? [] : isScholar ? "scholar" : isMosque ? "mosque" : form.interests;
-    const { data, error: authError } = await signUp(form.email, form.password, form.name, interest);
+    // For invites, point Supabase's confirmation email at /accept-invite so the
+    // user lands there with a live session and the accept RPC fires immediately.
+    const emailRedirectTo = isInvite ? `https://youramanah.co.uk/accept-invite?token=${inviteToken}` : undefined;
+    const { data, error: authError } = await signUp(form.email, form.password, form.name, interest, emailRedirectTo);
     if (authError) {
       setError(authError.message || "Something went wrong");
       setLoading(false);

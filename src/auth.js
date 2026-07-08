@@ -8,10 +8,16 @@ import {
 } from './lib/email'
 import { createDailyRoom } from './lib/video'
 
-export async function signUp(email, password, name, interest) {
+export async function signUp(email, password, name, interest, emailRedirectTo) {
   const { data, error } = await supabase.auth.signUp({
     email, password,
-    options: { data: { name: name, interest: interest } }
+    options: {
+      data: { name: name, interest: interest },
+      // Set only for the invite flow: Supabase's confirmation email link then
+      // lands the user on /accept-invite?token=… with a live session, so the
+      // accept RPC runs automatically. Omitted elsewhere → Supabase Site URL.
+      ...(emailRedirectTo ? { emailRedirectTo } : {}),
+    }
   })
   // Welcome email. Auto-confirmed signups have a session now; email-confirm
   // signups don't yet — sendWelcomeIfNew sends only when a session exists and
