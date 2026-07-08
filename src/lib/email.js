@@ -56,6 +56,14 @@ export function sendCommunityMemberInvite(memberId, message = '') {
   return postTransactional({ intent: 'community_member_invite', memberId, message });
 }
 
+// RBAC employee invite → emails the invitee their magic link. Owner-gated
+// server-side; recipient + token resolved from the mosque_employees row, so the
+// client passes only the id. Fire after inviteMosqueEmployee / resendEmployeeInvite.
+export function sendEmployeeInvite(employeeId) {
+  if (!employeeId) return Promise.resolve({ ok: false, error: 'missing_employeeId' });
+  return postTransactional({ intent: 'employee_invite', employeeId });
+}
+
 // Facility booking approved → emails the requester a confirmation. Fired by the
 // owner on approval. Server resolves the recipient + details from the booking.
 export function sendFacilityBookingConfirmed(bookingId) {

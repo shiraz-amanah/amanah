@@ -1718,6 +1718,184 @@ export async function getMyChildrenFeeRecords() {
   return data || []
 }
 
+// ===========================================================================
+// RBAC — employee permissions + magic-link invites (Session RBAC).
+// All mutations go through the SECURITY DEFINER RPCs in migration 127 (owner-
+// gated in-body); direct table access is owner-only via RLS (migration 125).
+// ===========================================================================
+
+function shapeEmployee(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    invitedName: row.invited_name,
+    invitedEmail: row.invited_email,
+    rolePreset: row.role_preset,
+    permissions: row.permissions || {},
+    assignedClasses: row.assigned_classes || [],
+    status: row.status,
+    inviteExpiresAt: row.invite_expires_at,
+    inviteAcceptedAt: row.invite_accepted_at,
+    profileId: row.profile_id,
+    profileName: row.profile_name,
+    profileAvatar: row.profile_avatar,
+    createdAt: row.created_at,
+  }
+}
+
+function shapeParentPermissions(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    mosqueId: row.mosque_id,
+    classId: row.class_id, // null = mosque-wide default
+    seeAttendance: row.see_attendance,
+    seeProgressReports: row.see_progress_reports,
+    seePastoralRewards: row.see_pastoral_rewards,
+    seeFeeAmounts: row.see_fee_amounts,
+    seeClassPhotos: row.see_class_photos,
+    messageTeacher: row.message_teacher,
+  }
+}
+
+// Owner invites an employee. Mints a single-use token server-side; returns
+// { employeeId, inviteToken, inviteExpiresAt } so the caller can fire the email.
+export async function inviteMosqueEmployee({ mosqueId, email, name, rolePreset, permissions, assignedClasses }) {
+  const { data, error } = await supabase.rpc('invite_mosque_employee', {
+    p_mosque_id: mosqueId,
+    p_email: email,
+    p_name: name,
+    p_role_preset: rolePreset,
+    p_permissions: permissions || {},
+    p_assigned_classes: assignedClasses || [],
+  })
+  if (error) { console.error('Error inviting employee:', error); return { error } }
+  const row = Array.isArray(data) ? data[0] : data
+  return { data: { employeeId: row?.employee_id, inviteToken: row?.invite_token, inviteExpiresAt: row?.invite_expires_at } }
+}
+
+// Accept an invite (caller must be signed in). Returns the (ok, reason, ...)
+// verdict so AcceptInvite can distinguish accepted / invalid / expired / suspended.
+export async function acceptEmployeeInvite(token) {
+  const { data, error } = await supabase.rpc('accept_employee_invite', { p_token: token })
+  if (error) { console.error('Error accepting invite:', error); return { ok: false, reason: 'rpc_error' } }
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) return { ok: false, reason: 'invalid' }
+  return {
+    ok: row.ok,
+    reason: row.reason,
+    mosqueId: row.mosque_id,
+    permissions: row.permissions || {},
+    rolePreset: row.role_preset,
+    assignedClasses: row.assigned_classes || [],
+  }
+}
+
+// Bootstrap resolver (migration 127 RPC #8): the caller's FIRST active employee
+// mosque with the full mosque row + permissions, so App.jsx can load the
+// dashboard for a non-owner employee. Returns null if they aren't an active
+// employee anywhere. Raw jsonb: { mosque, permissions, assigned_classes, role_preset, employee_id }.
+export async function getMyEmployeeMosque() {
+  const { data, error } = await supabase.rpc('get_my_employee_mosque')
+  if (error) { console.error('Error fetching my employee mosque:', error); return null }
+  return data || null
+}
+
+// The caller's own employee record for a mosque (or null if they aren't one —
+// e.g. the owner, who bypasses gates). Powers useEmployeePermissions.
+export async function getMyEmployeeRecord(mosqueId) {
+  if (!mosqueId) return null
+  const { data, error } = await supabase.rpc('get_my_employee_record', { p_mosque_id: mosqueId })
+  if (error) { console.error('Error fetching my employee record:', error); return null }
+  const row = Array.isArray(data) ? data[0] : data
+  return row
+    ? { id: row.id, rolePreset: row.role_preset, permissions: row.permissions || {}, assignedClasses: row.assigned_classes || [], status: row.status }
+    : null
+}
+
+// Owner reads all employees for their mosque (joined with profile name/avatar).
+export async function getMosqueEmployees(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.rpc('get_mosque_employees', { p_mosque_id: mosqueId })
+  if (error) { console.error('Error fetching mosque employees:', error); return [] }
+  return (data || []).map(shapeEmployee)
+}
+
+// Owner updates an employee's permissions / assigned classes / role label.
+export async function updateEmployeePermissions({ employeeId, permissions, assignedClasses, rolePreset }) {
+  const { error } = await supabase.rpc('update_employee_permissions', {
+    p_employee_id: employeeId,
+    p_permissions: permissions ?? null,
+    p_assigned_classes: assignedClasses ?? null,
+    p_role_preset: rolePreset ?? null,
+  })
+  if (error) console.error('Error updating employee permissions:', error)
+  return { error }
+}
+
+// Owner suspends (default) or reactivates ('active') an employee.
+export async function setEmployeeStatus(employeeId, status = 'suspended') {
+  const { error } = await supabase.rpc('suspend_employee', { p_employee_id: employeeId, p_status: status })
+  if (error) console.error('Error setting employee status:', error)
+  return { error }
+}
+
+// Owner resends an invite — new token + 24h expiry. Returns { inviteToken, ... }.
+export async function resendEmployeeInvite(employeeId) {
+  const { data, error } = await supabase.rpc('resend_employee_invite', { p_employee_id: employeeId })
+  if (error) { console.error('Error resending invite:', error); return { error } }
+  const row = Array.isArray(data) ? data[0] : data
+  return { data: { inviteToken: row?.invite_token, inviteExpiresAt: row?.invite_expires_at } }
+}
+
+// Owner removes an employee row entirely (owner RLS FOR ALL, migration 125).
+export async function removeEmployee(employeeId) {
+  const { error } = await supabase.from('mosque_employees').delete().eq('id', employeeId)
+  if (error) console.error('Error removing employee:', error)
+  return { error }
+}
+
+// --- Parent visibility permissions (migration 126) ---
+// Owner reads all rows for their mosque: the mosque-wide default (class_id null)
+// plus any per-class overrides. Owner RLS FOR ALL gates the read.
+export async function getParentPermissions(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_parent_permissions').select('*').eq('mosque_id', mosqueId)
+  if (error) { console.error('Error fetching parent permissions:', error); return [] }
+  return (data || []).map(shapeParentPermissions)
+}
+
+// Owner upserts the mosque-wide default (classId null) or a class override.
+// Relies on the migration-126 `unique nulls not distinct (mosque_id, class_id)`
+// index so the null-class_id default upserts in place instead of duplicating.
+export async function upsertParentPermissions({ mosqueId, classId = null, seeAttendance, seeProgressReports, seePastoralRewards, seeFeeAmounts, seeClassPhotos, messageTeacher }) {
+  const payload = {
+    mosque_id: mosqueId,
+    class_id: classId,
+    see_attendance: seeAttendance,
+    see_progress_reports: seeProgressReports,
+    see_pastoral_rewards: seePastoralRewards,
+    see_fee_amounts: seeFeeAmounts,
+    see_class_photos: seeClassPhotos,
+    message_teacher: messageTeacher,
+  }
+  const { data, error } = await supabase
+    .from('mosque_parent_permissions')
+    .upsert(payload, { onConflict: 'mosque_id,class_id' })
+    .select().single()
+  if (error) console.error('Error upserting parent permissions:', error)
+  return { data: shapeParentPermissions(data), error }
+}
+
+// Owner clears a class-specific override so the class falls back to the default.
+export async function resetClassParentPermissions(mosqueId, classId) {
+  const { error } = await supabase
+    .from('mosque_parent_permissions').delete().eq('mosque_id', mosqueId).eq('class_id', classId)
+  if (error) console.error('Error resetting class parent permissions:', error)
+  return { error }
+}
+
 // --- Recurring subscriptions (Session BP) ---
 // Mosque owner reads all subscriptions for their mosque (RLS owner policy, 123).
 // Embeds student + class names (owner can read both).
