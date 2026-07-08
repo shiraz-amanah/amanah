@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Check, BookOpen, Star, CreditCard, MessageCircle, Video, Building2, Receipt } from "lucide-react";
+import { Sparkles, Check, BookOpen, Star, CreditCard, MessageCircle, Video, Building2, Receipt, ShieldCheck } from "lucide-react";
 import LegalFooter from "../components/LegalFooter";
 
 // Landing page redesign (feature/landing-redesign). Self-contained: colours are
@@ -197,7 +197,7 @@ const LandingPage = ({ onSignIn, onNavigate }) => {
         <div className="flex items-center justify-between gap-4" style={{ padding: "18px 24px" }}>
           <a href="/" className="flex items-center gap-2.5 shrink-0">
             <span style={{ width: 30, height: 30, borderRadius: 8, background: "#1a7a3c", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Star size={16} style={{ color: "#eafaf0" }} />
+              <ShieldCheck size={16} style={{ color: "#eafaf0" }} />
             </span>
             <span style={{ fontSize: 17, color: "#fff", fontWeight: 500 }} >Amanah</span>
           </a>
