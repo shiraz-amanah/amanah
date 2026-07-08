@@ -109,6 +109,9 @@ const ROUTES = [
   { view: 'madrasaEnrolAccept',          path: '/enrol/accept/:token' },
   // Session AP — approved mosque-claim accept landing.
   { view: 'mosqueClaimAccept',           path: '/mosque/claim/accept/:token' },
+  // Session RBAC — employee magic-link invite accept (?token=…). No auth required
+  // to view; sign-in is prompted before the accept RPC runs.
+  { view: 'acceptInvite',                path: '/accept-invite' },
 ];
 
 const COMPILED = ROUTES.map(r => {
