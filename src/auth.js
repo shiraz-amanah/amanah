@@ -1718,6 +1718,36 @@ export async function getMyChildrenFeeRecords() {
   return data || []
 }
 
+// --- Recurring subscriptions (Session BP) ---
+// Mosque owner reads all subscriptions for their mosque (RLS owner policy, 123).
+// Embeds student + class names (owner can read both).
+export async function getMosqueSubscriptions(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('madrasa_subscriptions')
+    .select('*, students(name), madrasa_classes(name)')
+    .eq('mosque_id', mosqueId)
+    .not('stripe_subscription_id', 'is', null) // hide abandoned-Checkout placeholders
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching mosque subscriptions:', error); return [] }
+  return data || []
+}
+// Parent reads their own subscriptions (RLS parent policy: parent_id = auth.uid()).
+// Embedded names degrade to null if a table's RLS doesn't expose them — the UI
+// falls back to generic labels, so this never hard-fails.
+export async function getMySubscriptions() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  const { data, error } = await supabase
+    .from('madrasa_subscriptions')
+    .select('*, students(name), madrasa_classes(name), mosques(name)')
+    .eq('parent_id', user.id)
+    .not('stripe_subscription_id', 'is', null) // hide abandoned-Checkout placeholders
+    .order('created_at', { ascending: false })
+  if (error) { console.error('Error fetching my subscriptions:', error); return [] }
+  return data || []
+}
+
 // Roster for a class — owner reads enrolled students via the relaxed students
 // SELECT policy (068). Returns enrollments joined to the student.
 export async function getMadrasaRoster(classId) {
@@ -1844,7 +1874,7 @@ export async function getActiveMadrasaClasses({ mosqueId, subject } = {}) {
 export async function getMyMadrasaEnrollments() {
   const { data, error } = await supabase
     .from('madrasa_enrollments')
-    .select('*, student:students(id, name), class:madrasa_classes(name, subject, schedule, mosque:mosques(id, name))')
+    .select('*, student:students(id, name), class:madrasa_classes(name, subject, schedule, fee_cadence, fee_amount_pence, trial_duration_days, mosque:mosques(id, name))')
     .order('enrolled_at', { ascending: true })
   if (error) { console.error('Error fetching my enrolments:', error); return [] }
   return data || []

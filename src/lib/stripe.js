@@ -60,6 +60,79 @@ export async function stripeConfirmPayment(sessionId) {
   }
 }
 
+// --- Recurring subscriptions (Session BP) ---
+// Parent subscribes a child to a class. The server derives amount + cadence from
+// the class and opens a Stripe Checkout in SUBSCRIPTION mode on the mosque's
+// connected account (2.5% application_fee_percent). Returns a hosted checkout_url.
+export async function stripeCreateSubscriptionCheckout(studentId, classId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=create-subscription-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ studentId, classId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+
+// Belt-and-braces sync on the return from subscription Checkout
+// (?subscription=success&cs=&m=). mosqueId routes the retrieve to the connected
+// account; the server syncs the row so status shows without waiting on the webhook.
+export async function stripeConfirmSubscription(sessionId, mosqueId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=confirm-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ sessionId, mosqueId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+
+// Parent self-serve: cancel at period end (sets cancel_at_period_end=true).
+export async function stripeCancelSubscription(subscriptionId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=cancel-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ subscriptionId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+
+// Mosque owner: pause billing (void collection) / resume billing.
+export async function stripePauseSubscription(subscriptionId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=pause-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ subscriptionId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+export async function stripeResumeSubscription(subscriptionId) {
+  try {
+    const res = await fetch("/api/stripe-connect?action=resume-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ subscriptionId }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e?.message || "network_error" };
+  }
+}
+
 // After the owner returns from Stripe, re-read the account and sync our flags.
 export async function stripeOnboardingComplete(mosqueId) {
   try {
