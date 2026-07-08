@@ -7516,13 +7516,15 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
                     if (skipsInterest) {
                       // Scholars + mosques skip the parent-flavored "interest"
                       // picker — submit directly. Post-auth, App routes them
-                      // through routeAuthedScholar / routeAuthedMosque.
+                      // through routeAuthedScholar / routeAuthedMosque. Invited
+                      // employees also submit directly (name + password →
+                      // supabase.auth.signUp), then return to /accept-invite.
                       handleSignUp();
                     } else {
                       setStep(2);
                     }
                   }}
-                  disabled={!form.name || !form.email || form.password.length < 6 || loading}
+                  disabled={!form.name || !form.email || form.password.length < 6 || (isInvite && !form.confirmPassword) || loading}
                   className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
                 >
                   {skipsInterest
