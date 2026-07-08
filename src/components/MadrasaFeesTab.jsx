@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Loader2, Wallet, CreditCard, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
-import { getMyChildrenFeeRecords, getMySubscriptions, getMyMadrasaEnrollments } from "../auth";
+import { getMyChildrenFeeRecords, getMySubscriptions, getMyMadrasaEnrollments, getParentPermissionsForMosque } from "../auth";
 import { stripeCreateCheckout, stripeCancelSubscription, stripeCreateSubscriptionCheckout } from "../lib/stripe";
 import { money } from "../lib/format";
 
@@ -29,6 +29,9 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
   const [enrollments, setEnrollments] = useState([]);
   const [setupKey, setSetupKey] = useState(null); // `${studentId}:${classId}` in-flight
   const [setupErr, setSetupErr] = useState("");
+  // RBAC parent-enforcement — per-mosque see_fee_amounts, keyed by fee.mosque_id.
+  // Fees can span mosques, so this is a map (not the single-mosque hook). Fail-open.
+  const [permsByMosque, setPermsByMosque] = useState({});
 
   const loadSubs = () => getMySubscriptions().then((s) => setSubs(s || [])).catch((e) => console.error("subs load failed:", e));
   const loadEnrollments = () => getMyMadrasaEnrollments().then((e) => setEnrollments(e || [])).catch((e) => console.error("enrolments load failed:", e));
@@ -43,6 +46,26 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
     loadEnrollments();
     return () => { alive = false; };
   }, [syncTick]);
+
+  // Fetch see_fee_amounts for every mosque referenced by a fee, subscription, or
+  // subscribable enrolment (amounts appear in all three).
+  useEffect(() => {
+    const ids = [...new Set([
+      ...fees.map((f) => f.mosque_id),
+      ...subs.map((s) => s.mosque_id),
+      ...enrollments.map((e) => e.class?.mosque?.id),
+    ].filter(Boolean))];
+    if (!ids.length) return;
+    let alive = true;
+    Promise.all(ids.map((id) => getParentPermissionsForMosque(id).then((p) => [id, p])))
+      .then((pairs) => { if (!alive) return; const m = {}; pairs.forEach(([id, p]) => { if (p) m[id] = p; }); setPermsByMosque(m); })
+      .catch((e) => console.error("parent fee-permissions load failed:", e));
+    return () => { alive = false; };
+  }, [fees, subs, enrollments]);
+
+  // Fail-open: show the amount unless the mosque has explicitly turned it off.
+  const canSeeAmountForMosque = (mid) => permsByMosque[mid]?.see_fee_amounts !== false;
+  const canSeeAmount = (f) => canSeeAmountForMosque(f.mosque_id);
 
   // Path A (admin-enrolled children): a child enrolled in a subscription class who
   // has no live subscription yet → offer a "Set up payment" prompt so the parent can
@@ -91,23 +114,23 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
     && Number(e.class.fee_amount_pence) > 0
     && !liveSubKeys.has(`${e.student_id}:${e.class_id}`));
 
-  const Row = ({ f, payable }) => (
+  const Row = ({ f, payable, showAmount = true }) => (
     <div className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${payable ? "bg-amber-50 border-amber-200" : "bg-white border-stone-200"}`}>
       <div className="min-w-0">
         <p className="text-sm font-medium text-stone-900 truncate">{f.student_name || "Child"}<span className="text-stone-400 font-normal"> · {f.class_name || "Madrasah"}{f.term_label ? ` · ${f.term_label}` : ""}</span></p>
         <p className="text-[12px] text-stone-500">
           {payable
-            ? <>{money(outstandingOf(f), f.currency || "GBP")} due{f.due_date ? ` · by ${new Date(f.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</>
+            ? <>{showAmount ? `${money(outstandingOf(f), f.currency || "GBP")} due` : "Amount set by mosque"}{f.due_date ? ` · by ${new Date(f.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</>
             : <span className="text-emerald-700 font-medium inline-flex items-center gap-1"><CheckCircle2 size={12} /> {f.status === "waived" ? "Waived" : "Paid"}{f.paid_at ? ` · ${new Date(f.paid_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>}
         </p>
       </div>
       {payable ? (
         <button onClick={() => payFee(f.id)} disabled={payingId === f.id} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
-          {payingId === f.id ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />} Pay {money(outstandingOf(f), f.currency || "GBP")}
+          {payingId === f.id ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />} {showAmount ? `Pay ${money(outstandingOf(f), f.currency || "GBP")}` : "Pay"}
         </button>
       ) : (
         <div className="shrink-0 text-right">
-          <p className="text-sm font-semibold text-stone-900">{money(Number(f.amount_paid || f.amount_due || 0), f.currency || "GBP")}</p>
+          {showAmount && <p className="text-sm font-semibold text-stone-900">{money(Number(f.amount_paid || f.amount_due || 0), f.currency || "GBP")}</p>}
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">{f.status === "waived" ? "Waived" : "Paid"}</span>
         </div>
       )}
@@ -119,6 +142,7 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
     const nextBill = s.status === "trialing" ? s.trial_end : s.current_period_end;
     const scheduledCancel = s.cancel_at_period_end && s.status !== "canceled";
     const canCancel = s.status !== "canceled" && !s.cancel_at_period_end;
+    const showAmt = canSeeAmountForMosque(s.mosque_id);
     return (
       <div className="flex items-center justify-between gap-3 rounded-xl border bg-white border-stone-200 px-4 py-3">
         <div className="min-w-0">
@@ -127,8 +151,9 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${meta.cls}`}>{meta.label}</span>
           </div>
           <p className="text-[12px] text-stone-500">
-            {money((Number(s.amount_pence) || 0) / 100, "GBP")}/mo
-            {scheduledCancel ? ` · cancels ${fmtShort(s.current_period_end)}` : nextBill ? ` · ${s.status === "trialing" ? "trial ends" : "next"} ${fmtShort(nextBill)}` : ""}
+            {showAmt
+              ? <>{money((Number(s.amount_pence) || 0) / 100, "GBP")}/mo{scheduledCancel ? ` · cancels ${fmtShort(s.current_period_end)}` : nextBill ? ` · ${s.status === "trialing" ? "trial ends" : "next"} ${fmtShort(nextBill)}` : ""}</>
+              : "Contact mosque for fee details"}
           </p>
         </div>
         {canCancel ? (
@@ -161,11 +186,12 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
                   const isTrial = c.fee_cadence === "free_trial";
                   const amt = money((Number(c.fee_amount_pence) || 0) / 100, "GBP");
                   const days = Math.min(90, Math.max(1, Number(c.trial_duration_days) || 14));
+                  const showAmt = canSeeAmountForMosque(c.mosque?.id);
                   return (
                     <div key={e.id} className="flex items-center justify-between gap-3 rounded-xl border bg-amber-50 border-amber-200 px-4 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-stone-900 truncate">{e.student?.name || "Child"}<span className="text-stone-400 font-normal"> · {c.name}</span></p>
-                        <p className="text-[12px] text-stone-600">{isTrial ? `${days} days free, then ${amt}/month` : `${amt}/month`}</p>
+                        <p className="text-[12px] text-stone-600">{showAmt ? (isTrial ? `${days} days free, then ${amt}/month` : `${amt}/month`) : "Contact mosque for fee details"}</p>
                       </div>
                       <button onClick={() => startSetup(e)} disabled={setupKey === key} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{setupKey === key ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />} {isTrial ? "Start free trial" : "Set up payment"}</button>
                     </div>
@@ -196,16 +222,16 @@ const MadrasaFeesTab = ({ syncTick = 0 }) => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Outstanding</p>
-                    <p className="text-sm font-semibold text-amber-700">{money(totalDue, "GBP")} due</p>
+                    {outstanding.every(canSeeAmount) && <p className="text-sm font-semibold text-amber-700">{money(totalDue, "GBP")} due</p>}
                   </div>
-                  <div className="space-y-2">{outstanding.map((f) => <Row key={f.id} f={f} payable />)}</div>
+                  <div className="space-y-2">{outstanding.map((f) => <Row key={f.id} f={f} payable showAmount={canSeeAmount(f)} />)}</div>
                   {payError && <p className="text-xs text-rose-700 flex items-center gap-1.5 mt-2"><AlertTriangle size={13} /> {payError}</p>}
                 </div>
               )}
               {settled.length > 0 && (
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-2">Paid</p>
-                  <div className="space-y-2">{settled.map((f) => <Row key={f.id} f={f} payable={false} />)}</div>
+                  <div className="space-y-2">{settled.map((f) => <Row key={f.id} f={f} payable={false} showAmount={canSeeAmount(f)} />)}</div>
                 </div>
               )}
             </>

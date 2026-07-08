@@ -1888,6 +1888,17 @@ export async function upsertParentPermissions({ mosqueId, classId = null, seeAtt
   return { data: shapeParentPermissions(data), error }
 }
 
+// Parent-facing read of a mosque's parent-permission defaults (migration 127 RPC
+// #9). The table is owner-only RLS, so parents can't read it directly — this
+// DEFINER RPC returns ONLY the 6 boolean toggles (mosque-wide row), all-true when
+// unset. snake_case keys (see_fee_amounts, …) as the consumer components expect.
+export async function getParentPermissionsForMosque(mosqueId) {
+  if (!mosqueId) return null
+  const { data, error } = await supabase.rpc('get_parent_permissions_for_mosque', { p_mosque_id: mosqueId })
+  if (error) { console.error('Error fetching parent permissions for mosque:', error); return null }
+  return data || null
+}
+
 // Owner clears a class-specific override so the class falls back to the default.
 export async function resetClassParentPermissions(mosqueId, classId) {
   const { error } = await supabase

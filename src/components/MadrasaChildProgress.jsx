@@ -3,6 +3,7 @@ import { Loader2, CalendarClock, ClipboardList, Check, X, MessageCircle, Star, A
 import { money } from "../lib/format";
 import { getStudentAttendance, getHifzProgress, getHomeworkForClasses, getStudentCompletions, markHomeworkDone, unmarkHomeworkDone, getStudentReports, getMyChildConsent, setPhotoConsent, getStudentPhotos, getStudentRewards, uploadHomeworkFile, submitHomeworkFiles, removeHomeworkFiles, homeworkFileUrl, updateStudent } from "../auth";
 import { useOverlay, overlayBack } from "../lib/useOverlay";
+import { useParentPermissions } from "../lib/useParentPermissions";
 import MadrasaReportView from "./MadrasaReportView";
 import MadrasaHifzHero from "./MadrasaHifzHero";
 import MadrasaProgressSection from "./MadrasaProgressSection";
@@ -40,6 +41,9 @@ const ageFromDob = (dob) => {
 const MadrasaChildProgress = ({ student, enrollments = [], section = "overview", feesOutstanding = 0, feeCurrency = "GBP", onMessageTeacher, onWithdraw, onStudentUpdate, onNavigate }) => {
   const classIds = enrollments.map((e) => e.class_id);
   const mosques = Object.values(enrollments.reduce((acc, e) => { const m = e.class?.mosque; if (m?.id) acc[m.id] = { id: m.id, name: m.name }; return acc; }, {}));
+  // RBAC parent-enforcement — the mosque-wide toggles for this child's (primary)
+  // mosque decide which sections + the Message-teacher button render. Fail-open.
+  const pperms = useParentPermissions(enrollments[0]?.class?.mosque?.id);
 
   const [attendance, setAttendance] = useState([]);
   const [hifz, setHifz] = useState([]);
@@ -164,7 +168,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
   const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
   const overdueHw = pendingHw.filter((h) => h.due_date && new Date(h.due_date).getTime() < startToday.getTime());
   const attentionItems = [];
-  if (feesOutstanding > 0) attentionItems.push({ key: "fees", label: `${money(feesOutstanding, feeCurrency)} in fees outstanding`, cta: "Pay now", to: "madrasa-fees" });
+  if (feesOutstanding > 0) attentionItems.push({ key: "fees", label: pperms.see_fee_amounts ? `${money(feesOutstanding, feeCurrency)} in fees outstanding` : "Fees outstanding", cta: "Pay now", to: "madrasa-fees" });
   if (overdueHw.length > 0) attentionItems.push({ key: "hw", label: `${overdueHw.length} homework task${overdueHw.length === 1 ? "" : "s"} overdue`, cta: "View", to: "madrasa-homework" });
 
   const primary = enrollments[0];
@@ -193,7 +197,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
           </div>
           <div className="flex items-center gap-1.5">
             {!editing && <button onClick={openEdit} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Pencil size={11} /> Edit</button>}
-            {onMessageTeacher && primary && (
+            {onMessageTeacher && primary && pperms.message_teacher && (
               <button onClick={() => onMessageTeacher({ classId: primary.class_id, className: primary.class?.name })} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><MessageCircle size={11} /> Message teacher</button>
             )}
           </div>
@@ -275,11 +279,11 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
             </>
           )}
 
-          {section === "progress" && <MadrasaProgressSection student={student} hifz={hifz} publishedReports={publishedReports} onOpenReport={setOpenReport} />}
+          {section === "progress" && pperms.see_progress_reports && <MadrasaProgressSection student={student} hifz={hifz} publishedReports={publishedReports} onOpenReport={setOpenReport} />}
           {section === "homework" && <MadrasaHomeworkSection homework={homework} doneIds={doneIds} subFiles={subFiles} busy={busy} hwBusy={hwBusy} toggleDone={toggleDone} uploadSubmission={uploadSubmission} removeSubmission={removeSubmission} openFile={openFile} showDone={showDone} setShowDone={setShowDone} />}
-          {section === "attendance" && <MadrasaAttendanceSection attendance={attendance} attPct={attPct} />}
-          {section === "rewards" && <MadrasaRewardsSection rewards={rewards} starCount={starCount} firstName={firstName} />}
-          {section === "photos" && <MadrasaPhotosSection mosques={mosques} consentByMosque={consentByMosque} consentBusy={consentBusy} toggleConsent={toggleConsent} photos={photos} />}
+          {section === "attendance" && pperms.see_attendance && <MadrasaAttendanceSection attendance={attendance} attPct={attPct} />}
+          {section === "rewards" && pperms.see_pastoral_rewards && <MadrasaRewardsSection rewards={rewards} starCount={starCount} firstName={firstName} />}
+          {section === "photos" && pperms.see_class_photos && <MadrasaPhotosSection mosques={mosques} consentByMosque={consentByMosque} consentBusy={consentBusy} toggleConsent={toggleConsent} photos={photos} />}
         </div>
       )}
 

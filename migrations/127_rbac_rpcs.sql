@@ -416,6 +416,48 @@ end;
 $$;
 
 
+-- 9. get_parent_permissions_for_mosque ------------------------------
+-- Parent-facing read of the mosque-wide parent-permission defaults (class_id
+-- NULL row). mosque_parent_permissions is owner-only RLS, so parents can't read
+-- it directly — this DEFINER RPC exposes ONLY the 6 boolean toggles (no ids/notes),
+-- defaulting all-true when no row exists. Class-specific overrides are NOT consumed
+-- on the parent side yet (follow-up) — this returns the mosque-wide row only.
+-- Added post-probe (Session RBAC parent-enforcement); run via CREATE OR REPLACE in dev.
+create or replace function public.get_parent_permissions_for_mosque(p_mosque_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_defaults jsonb;
+begin
+  select jsonb_build_object(
+    'see_attendance', coalesce(see_attendance, true),
+    'see_progress_reports', coalesce(see_progress_reports, true),
+    'see_pastoral_rewards', coalesce(see_pastoral_rewards, true),
+    'see_fee_amounts', coalesce(see_fee_amounts, true),
+    'see_class_photos', coalesce(see_class_photos, true),
+    'message_teacher', coalesce(message_teacher, true)
+  )
+  into v_defaults
+  from mosque_parent_permissions
+  where mosque_id = p_mosque_id
+    and class_id is null;
+
+  if v_defaults is null then
+    v_defaults := jsonb_build_object(
+      'see_attendance', true, 'see_progress_reports', true,
+      'see_pastoral_rewards', true, 'see_fee_amounts', true,
+      'see_class_photos', true, 'message_teacher', true
+    );
+  end if;
+
+  return v_defaults;
+end;
+$$;
+
+
 -- Grants: authenticated only (no anon / public). Mirrors 121. --------
 revoke all on function public.invite_mosque_employee(uuid,text,text,text,jsonb,uuid[]) from public, anon;
 revoke all on function public.accept_employee_invite(text)                              from public, anon;
@@ -425,6 +467,7 @@ revoke all on function public.update_employee_permissions(uuid,jsonb,uuid[],text
 revoke all on function public.suspend_employee(uuid,text)                               from public, anon;
 revoke all on function public.resend_employee_invite(uuid)                              from public, anon;
 revoke all on function public.get_my_employee_mosque()                                  from public, anon;
+revoke all on function public.get_parent_permissions_for_mosque(uuid)                   from public, anon;
 
 grant execute on function public.invite_mosque_employee(uuid,text,text,text,jsonb,uuid[]) to authenticated;
 grant execute on function public.accept_employee_invite(text)                            to authenticated;
@@ -434,6 +477,7 @@ grant execute on function public.update_employee_permissions(uuid,jsonb,uuid[],t
 grant execute on function public.suspend_employee(uuid,text)                             to authenticated;
 grant execute on function public.resend_employee_invite(uuid)                            to authenticated;
 grant execute on function public.get_my_employee_mosque()                                to authenticated;
+grant execute on function public.get_parent_permissions_for_mosque(uuid)                 to authenticated;
 
 notify pgrst, 'reload schema';
 
