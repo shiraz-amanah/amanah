@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, GraduationCap, ArrowLeft, ShieldCheck, MapPin, Clock, Users,
-  X, Check, AlertCircle, Plus,
+  X, Check, AlertCircle, Plus, CreditCard,
 } from "lucide-react";
 import { getMosques, getActiveMadrasaClasses, getStudents, addStudent, enrolChild, joinWaitlist, getClassActiveCounts } from "../auth";
+import { stripeCreateSubscriptionCheckout } from "../lib/stripe";
+import { money } from "../lib/format";
 
 // Madrasa Phase 1b — public/parent browse + enrol. Parents browse active
 // classes (filter by mosque / subject / day), pick which child to enrol, and
@@ -36,6 +38,11 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
   const [childForm, setChildForm] = useState({ name: "", age: "", relation: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Payment setup (Session BP) — after enrolling into a class with a subscription
+  // cadence, prompt the parent to open Stripe Checkout in subscription mode.
+  const [paySetup, setPaySetup] = useState(null); // { studentId, cls }
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState(null);
 
   const loadCounts = () => getClassActiveCounts().then(setCounts).catch(() => {});
   useEffect(() => { getMosques().then((m) => setMosques(m || [])).catch(() => {}); loadCounts(); }, []);
@@ -88,12 +95,36 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
     setBusy(false);
     if (e) { setError(e.message || (waitlistMode ? "Couldn't join the waiting list." : "Couldn't enrol.")); return; }
     const name = enrolClass.name;
+    // If the class bills a subscription, prompt the parent to set up payment now
+    // (Session BP). Otherwise just confirm the enrolment.
+    const hasSub = !waitlistMode && (enrolClass.fee_cadence === "monthly" || enrolClass.fee_cadence === "free_trial") && Number(enrolClass.fee_amount_pence) > 0;
+    if (hasSub) {
+      setPaySetup({ studentId: childId, cls: enrolClass });
+      setEnrolClass(null); setStep(1); loadCounts();
+      return;
+    }
     setEnrolClass(null);
     setToast(waitlistMode
       ? `Added to the waiting list for ${name}. We'll email you if a place opens up.`
       : `Enrolled in ${name}. Homework, reports and attendance for your child will now appear on your dashboard.`);
     setStep(1);
     loadCounts();
+  };
+
+  const startSubscription = async () => {
+    if (!paySetup) return;
+    setPayBusy(true); setPayErr(null);
+    const r = await stripeCreateSubscriptionCheckout(paySetup.studentId, paySetup.cls.id).catch(() => ({ ok: false }));
+    if (r?.ok && r.checkout_url) { window.location.href = r.checkout_url; return; } // redirect to Stripe
+    setPayBusy(false);
+    setPayErr(r?.error === "mosque_not_ready"
+      ? "This mosque hasn't finished setting up online payments yet. You can set this up later from your Fees tab."
+      : "Couldn't start payment setup. You can set it up later from your Fees tab.");
+  };
+  const skipSubscription = () => {
+    const name = paySetup?.cls?.name || "the class";
+    setPaySetup(null); setPayErr(null);
+    setToast(`Enrolled in ${name}. You can set up payment any time from your Fees tab.`);
   };
 
   return (
@@ -108,6 +139,29 @@ const MadrasaBrowse = ({ onBack, authedUser, onSignIn }) => {
 
       <main className="max-w-4xl mx-auto px-5 md:px-6 py-6 md:py-8">
         {toast && <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4 flex items-center justify-between gap-2"><span>{toast}</span><button onClick={() => setToast(null)} className="text-emerald-700"><X size={14} /></button></p>}
+
+        {/* Subscription payment setup (Session BP) — after enrolling into a class
+            that bills recurring tuition, open Stripe Checkout in subscription mode. */}
+        {paySetup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center"><CreditCard size={18} className="text-emerald-700" /></div>
+                <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Set up payment</h3>
+              </div>
+              <p className="text-sm text-stone-600 mb-4">
+                {paySetup.cls.name} — {paySetup.cls.fee_cadence === "free_trial"
+                  ? <><strong>{Math.min(90, Math.max(1, Number(paySetup.cls.trial_duration_days) || 14))} days free</strong>, then <strong>{money((Number(paySetup.cls.fee_amount_pence) || 0) / 100, "GBP")}/month</strong>. Your card is collected now, but you're not charged until the trial ends.</>
+                  : <><strong>{money((Number(paySetup.cls.fee_amount_pence) || 0) / 100, "GBP")}/month</strong>, billed automatically. Cancel any time.</>}
+              </p>
+              {payErr && <p className="text-xs text-rose-700 flex items-center gap-1.5 mb-3"><AlertCircle size={13} /> {payErr}</p>}
+              <div className="flex items-center gap-2">
+                <button onClick={startSubscription} disabled={payBusy} className="flex-1 bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5">{payBusy ? <Loader2 size={15} className="animate-spin" /> : <CreditCard size={15} />} {paySetup.cls.fee_cadence === "free_trial" ? "Start free trial" : "Set up payment"}</button>
+                <button onClick={skipSubscription} disabled={payBusy} className="text-sm font-medium text-stone-500 hover:text-stone-800 px-3 py-2.5">Maybe later</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid sm:grid-cols-3 gap-3 mb-6">
           <div><label className={labelCls}>Mosque</label><select className={inputCls} value={filters.mosqueId} onChange={(e) => setFilters((f) => ({ ...f, mosqueId: e.target.value }))}><option value="">All mosques</option>{mosques.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
