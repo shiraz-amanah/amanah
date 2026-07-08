@@ -24,12 +24,14 @@ export const MOSQUE_NAV = [
     ["team", "Team", Users], ["hr", "HR", UserCog], ["rotas", "Rotas", CalendarDays],
     ["timesheets", "Timesheets", Clock], ["payroll", "Payroll", Banknote],
     ["publiclisting", "Public listing", Globe],
+    ["employees", "Employees", UserCog],
   ] },
   { tab: "mosque", label: "Mosque", icon: Building2, items: [
     ["profile", "Profile", Building2], ["prayer", "Prayer times", Clock],
     ["ramadan", "Ramadan", Moon], ["events", "Events", Calendar],
     ["bookings", "Bookings", CalendarCheck],
     ["announcements", "Announcements", Megaphone], ["donations", "Donations", HandCoins],
+    ["parentaccess", "Parent access", HeartHandshake],
   ] },
   { tab: "madrasah", label: "Madrasah", icon: GraduationCap, items: [
     ["classes", "Classes", GraduationCap], ["students", "All students", Users],
@@ -63,7 +65,7 @@ export const MOSQUE_NAV = [
   { tab: "account", label: "Account", icon: User, items: [] },
 ];
 
-const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0 }) => {
+const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0, groups = MOSQUE_NAV }) => {
   // Which accordion sections are expanded. Seeded with the active section, and the
   // active section auto-opens whenever the tab changes (e.g. a search deep-link).
   const [open, setOpen] = useState(() => new Set([nav.tab]));
@@ -84,7 +86,7 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0 }) => {
   };
   const leafActive = (g, v) => nav.tab === g.tab && nav.sub === v;
 
-  const activeGroup = MOSQUE_NAV.find((g) => g.tab === nav.tab);
+  const activeGroup = groups.find((g) => g.tab === nav.tab);
 
   return (
     <>
@@ -97,7 +99,7 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0 }) => {
             {mosque?.city && <p className="text-xs text-stone-500 truncate">{mosque.city}</p>}
           </div>
 
-          {MOSQUE_NAV.map((g) => {
+          {groups.map((g) => {
             const Icon = g.icon;
             const hasItems = g.items.length > 0;
             const isOpen = open.has(g.tab);
@@ -136,7 +138,7 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0 }) => {
       {/* Mobile — icon strip; tapping a section reveals its sub-items below */}
       <div className="md:hidden">
         <div className="flex gap-1 overflow-x-auto scrollbar-hide pb-1">
-          {MOSQUE_NAV.map((g) => {
+          {groups.map((g) => {
             const Icon = g.icon;
             const active = groupActive(g);
             return (

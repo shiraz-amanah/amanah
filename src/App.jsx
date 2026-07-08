@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships, linkMyCommunityMemberships, hasLiveMadrasaSession } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getMyEmployeeMosque, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships, linkMyCommunityMemberships, hasLiveMadrasaSession } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -30,6 +30,7 @@ import TermsOfService from "./pages/TermsOfService";
 import CookiePolicy from "./pages/CookiePolicy";
 import AdminClaims from "./components/AdminClaims";
 import MosqueClaimAccept from "./components/MosqueClaimAccept";
+import AcceptInvite from "./components/AcceptInvite";
 import HomepageEvents from "./components/HomepageEvents";
 import GeometricDivider from "./components/GeometricDivider";
 import { isDailyRoomUrl } from "./lib/video";
@@ -12540,6 +12541,10 @@ export default function App() {
   // dashboard/detail components read camelCase aliases (photo,
   // iqamaTimes, jumuahTime).
   const [myMosque, setMyMosque] = useState(null);
+  // Session RBAC — true when myMosque was resolved via employee membership
+  // (not ownership). Owners have isEmployee=false and bypass all permission
+  // gates; the dashboard reads useEmployeePermissions for the actual gating.
+  const [isEmployee, setIsEmployee] = useState(false);
   // Session W — the authed user's ACTIVE staff membership (mosque_staff row
   // joined to its mosque), or null. Set on bootstrap only when the user owns
   // no mosque. Drives the OPT-IN staff portal: UserDashboard surfaces a "go to
@@ -12794,9 +12799,22 @@ useEffect(() => {
           const mosqueApp = await getMyMosqueApplication();
           if (mosqueApp) setMyMosqueApplication(mosqueApp);
 
-          // Staff portal (opt-in) — only probe when the user owns no mosque;
-          // an owner managing their own mosque isn't "staff" of it.
+          // Session RBAC — if the user owns no mosque, they may be an ACTIVE
+          // EMPLOYEE of one. Resolve it so the mosque dashboard loads for them;
+          // the dashboard then gates every surface via useEmployeePermissions.
+          let employeeMosque = null;
           if (!mosque) {
+            const emp = await getMyEmployeeMosque();
+            if (emp?.mosque) {
+              employeeMosque = emp.mosque;
+              setMyMosque(transformMosque(emp.mosque));
+              setIsEmployee(true);
+            }
+          }
+
+          // Staff portal (opt-in) — only probe when the user owns no mosque and
+          // isn't an employee; an owner/employee of a mosque isn't "staff" of it.
+          if (!mosque && !employeeMosque) {
             const membership = await getMyStaffMembership();
             if (membership) setMyStaffMembership(membership);
           }
@@ -12807,8 +12825,9 @@ useEffect(() => {
           // a direct URL. profiles.role is only 'user' | 'scholar' | 'admin'
           // and mosque accounts are role='user' (migration 024), so it can't
           // map the UI role directly; derive from the scholar/mosque probes
-          // above, which carry the real account identity.
-          if (mosque) setRole("mosque");
+          // above, which carry the real account identity. Employees route to
+          // the mosque surface too.
+          if (mosque || employeeMosque) setRole("mosque");
           else if (scholar) setRole("scholar");
           else setRole("user");
         }
@@ -13595,6 +13614,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   if (view === "mosqueDashboard") return <MosqueDashboard
     MessagesInbox={MessagesInbox}
     mosque={myMosque}
+    isEmployee={isEmployee}
     authedUser={authedUser}
     tab={routeQuery.tab || "dashboard"}
     sub={routeQuery.sub || ""}
@@ -13671,6 +13691,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
   if (view === "madrasaEnrolAccept") return <MadrasaEnrolAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onBrowse={() => setView(authedUser ? "userDashboard" : "publicHome")} />;
   if (view === "mosqueClaimAccept") return <MosqueClaimAccept token={routeParams.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
+  if (view === "acceptInvite") return <AcceptInvite token={routeQuery.token} authedUser={authedUser} onSignIn={handleSignIn} onHome={() => setView("publicHome")} onDone={() => window.location.assign("/mosque-dashboard")} />;
   if (view === "communityCheckIn") return <CommunityCheckIn mosqueId={routeQuery.mosque} sessionId={routeQuery.session} authedUser={authedUser} onHome={() => setView("publicHome")} />;
   if (view === "pledgePublic") return <FinancePledgePublic sessionId={routeQuery.session} onHome={() => setView("publicHome")} />;
   if (view === "madrasaBrowse") return <MadrasaBrowse onBack={() => goBack()} authedUser={authedUser} onSignIn={handleSignIn} />;

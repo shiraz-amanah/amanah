@@ -42,7 +42,7 @@ const DELIVERY_MODES = [
 ];
 const scheduleText = (sch) => Array.isArray(sch) && sch.length ? sch.map((s) => `${(s.day || "").slice(0, 3)} ${s.start || ""}–${s.end || ""}`).join(", ") : "—";
 
-const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) => {
+const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, restrictClassIds = null }) => {
   const section = sub || "classes"; // active sidebar section
   const [classes, setClasses] = useState([]);
   const [counts, setCounts] = useState({});
@@ -74,11 +74,17 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange }) =
   const reload = () => {
     setLoading(true);
     Promise.all([getMadrasaClasses(mosqueId), getMadrasaEnrollmentCounts(mosqueId), getMosqueStaff(mosqueId)])
-      .then(([c, cnt, s]) => { setClasses(c || []); setCounts(cnt || {}); setStaff((s || []).filter((x) => !x.archived)); })
+      .then(([c, cnt, s]) => {
+        // RBAC — a class-scoped ("own") employee only sees their assigned classes.
+        // Filtering the master list here cascades the scope to the students,
+        // analytics, reports and timetable panes (all derive from `classes`).
+        const scoped = restrictClassIds ? (c || []).filter((x) => restrictClassIds.includes(x.id)) : (c || []);
+        setClasses(scoped); setCounts(cnt || {}); setStaff((s || []).filter((x) => !x.archived));
+      })
       .catch((e) => console.error("madrasa load failed:", e))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [mosqueId]);
+  useEffect(() => { reload(); /* eslint-disable-next-line */ }, [mosqueId, JSON.stringify(restrictClassIds)]);
 
   const openAdd = () => { setForm(blank); setEditingId(null); setError(null); setShowForm(true); };
   const openEdit = (c) => {

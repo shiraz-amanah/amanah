@@ -1,6 +1,6 @@
 import {
   Building2, HandCoins,
-  ShieldCheck, CheckCircle2, AlertCircle, LogOut,
+  ShieldCheck, CheckCircle2, AlertCircle, LogOut, Loader2, Lock,
 } from "lucide-react";
 import LegalFooter from "./LegalFooter";
 import MosqueProfileEditor from "./MosqueProfileEditor";
@@ -39,6 +39,9 @@ import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
 import MosquePayments from "./MosquePayments";
+import EmployeeManagement from "./EmployeeManagement";
+import ParentPermissionsSettings from "./ParentPermissionsSettings";
+import { useEmployeePermissions } from "../lib/useEmployeePermissions";
 
 // Mosque dashboard shell. Session AX (Phase 1 of the platform-wide sidebar) turned
 // the old top tab bar + per-tab sub-tab bars into one persistent MosqueSidebar
@@ -60,6 +63,40 @@ import MosquePayments from "./MosquePayments";
 const SUBTABS = Object.fromEntries(MOSQUE_NAV.map((g) => [g.tab, g.items]));
 const ALL_VALUES = MOSQUE_NAV.map((g) => g.tab); // includes messages + account (now sidebar items)
 
+// ---- Session RBAC: employee nav gating ----------------------------------
+// Maps each nav surface to the permission module an EMPLOYEE must hold to see it.
+// null = always shown (baseline). OWNER_ONLY = hidden for employees (a legacy
+// surface with no permission module yet — HR, compliance, community, governance).
+// Owners bypass all of this. When a future module is added, map its nav here.
+const OWNER_ONLY = "__owner_only__";
+const LEAFLESS_MODULE = { dashboard: null, payments: "finance", messages: "messages", account: null };
+const LEAF_MODULE = {
+  "people/team": OWNER_ONLY, "people/hr": OWNER_ONLY, "people/rotas": OWNER_ONLY,
+  "people/timesheets": OWNER_ONLY, "people/payroll": OWNER_ONLY,
+  "people/publiclisting": "mosque_settings", "people/employees": "employee_management",
+  "mosque/profile": "mosque_settings", "mosque/prayer": "mosque_settings", "mosque/ramadan": "mosque_settings",
+  "mosque/events": "mosque_settings", "mosque/bookings": "mosque_settings",
+  "mosque/announcements": "mosque_settings", "mosque/donations": "mosque_settings",
+  "mosque/parentaccess": "mosque_settings",
+  "madrasah/classes": "classes", "madrasah/students": "students",
+  "madrasah/waitinglist": "waiting_list", "madrasah/fees": "finance",
+  "madrasah/analytics": "analytics", "madrasah/reports": "reports",
+  "compliance/safeguarding": OWNER_ONLY, "compliance/compliance": OWNER_ONLY, "compliance/documents": OWNER_ONLY,
+  "community/members": OWNER_ONLY, "community/visitors": OWNER_ONLY, "community/groups": OWNER_ONLY,
+  "governance/committee": OWNER_ONLY, "governance/meetings": OWNER_ONLY, "governance/actions": OWNER_ONLY,
+  "governance/documents": OWNER_ONLY, "governance/ai": OWNER_ONLY,
+  "finance/sadaqah": "finance", "finance/waqf": "finance", "finance/pledges": "finance",
+  "finance/qard": "finance", "finance/reports": "finance",
+};
+
+const AccessDeniedPanel = () => (
+  <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+    <Lock className="mx-auto text-stone-300 mb-3" size={34} />
+    <h2 className="text-lg font-semibold text-stone-800 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No access to this section</h2>
+    <p className="text-sm text-stone-500 max-w-sm mx-auto">Your role doesn't include this area. Pick another section from the menu, or ask your mosque admin to adjust your permissions.</p>
+  </div>
+);
+
 const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
   <div>
     <div className="mb-6">
@@ -72,7 +109,29 @@ const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
   </div>
 );
 
-const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
+const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
+  // Session RBAC — permission gating. The hook is authoritative (it re-checks
+  // ownership); `isEmployee` from the App bootstrap only avoids a nav flash for
+  // owners. Owners (gated=false) bypass every gate below.
+  const perms = useEmployeePermissions(mosque?.id);
+  const gated = isEmployee && !perms.isOwner;
+  const canModule = (m) => {
+    if (!gated) return true;
+    if (m == null) return true;
+    if (m === OWNER_ONLY) return false;
+    return perms.canAccess(m);
+  };
+  const canLeaf = (t, v) => canModule(LEAF_MODULE[`${t}/${v}`] ?? OWNER_ONLY);
+  const visibleNav = gated
+    ? MOSQUE_NAV
+        .map((g) => {
+          if (g.items.length === 0) return canModule(LEAFLESS_MODULE[g.tab] ?? OWNER_ONLY) ? g : null;
+          const items = g.items.filter(([v]) => canLeaf(g.tab, v));
+          return items.length ? { ...g, items } : null;
+        })
+        .filter(Boolean)
+    : MOSQUE_NAV;
+
   if (!mosque) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -92,6 +151,18 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
   const activeTab = ALL_VALUES.includes(tab) ? tab : "dashboard";
   const subList = SUBTABS[activeTab] || [];
   const activeSub = subList.some(([v]) => v === sub) ? sub : (subList[0]?.[0] ?? null);
+
+  // Whether the CURRENT tab/sub is renderable for this user — blocks deep-link
+  // bypass of the sidebar filtering. Owners: always true.
+  const tabAllowed = !gated || ((SUBTABS[activeTab] || []).length === 0
+    ? canModule(LEAFLESS_MODULE[activeTab] ?? OWNER_ONLY)
+    : canModule(LEAF_MODULE[`${activeTab}/${activeSub}`] ?? OWNER_ONLY));
+
+  // Class-scoped employees ("own") only see their assigned classes/students;
+  // null = unrestricted (owners, or "all" scope). Drives MosqueMadrasa filtering.
+  const restrictClassIds = gated && (perms.scopeFor("classes") === "own" || perms.scopeFor("students") === "own")
+    ? (perms.assignedClasses || [])
+    : null;
 
   // Tab + sub + selected staff are URL-backed (?tab=&sub=&staffId=), navigated with
   // pushState so the browser Back button steps back through in-app views.
@@ -144,9 +215,15 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 flex flex-col md:flex-row gap-6">
-        <MosqueSidebar nav={{ tab: activeTab, sub: activeSub }} onSelect={setTab} onLogout={onLogout} mosque={mosque} unread={unread} />
+        <MosqueSidebar nav={{ tab: activeTab, sub: activeSub }} onSelect={setTab} onLogout={onLogout} mosque={mosque} unread={unread} groups={visibleNav} />
 
         <main className="flex-1 min-w-0">
+          {gated && perms.loading ? (
+            <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-emerald-700" size={26} /></div>
+          ) : !tabAllowed ? (
+            <AccessDeniedPanel />
+          ) : (
+          <>
           {/* ---- Dashboard ---- */}
           {activeTab === "dashboard" && (
             <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} />
@@ -186,6 +263,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
               </div>
             </div>
           )}
+          {activeTab === "people" && activeSub === "employees" && (
+            <EmployeeManagement mosqueId={mosque.id} />
+          )}
 
           {/* ---- Mosque ---- */}
           {activeTab === "mosque" && activeSub === "profile" && (
@@ -224,6 +304,9 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
           {activeTab === "mosque" && activeSub === "donations" && (
             <Placeholder title="Donations" blurb="Campaigns and per-mosque donations are part of a future release. When live, you'll see incoming gifts, donor messages, and Gift Aid totals here." />
           )}
+          {activeTab === "mosque" && activeSub === "parentaccess" && (
+            <ParentPermissionsSettings mosqueId={mosque.id} />
+          )}
 
           {/* ---- Madrasah (content-only; section driven by `sub`, class drill-down in-pane) ---- */}
           {activeTab === "madrasah" && (
@@ -233,6 +316,7 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
               onMosqueUpdate={onMosqueUpdate}
               sub={activeSub}
               onSubChange={(s) => setTab("madrasah", s)}
+              restrictClassIds={restrictClassIds}
             />
           )}
 
@@ -333,6 +417,8 @@ const MosqueDashboard = ({ mosque, authedUser, onLogout, onPublic, conversations
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </main>
       </div>
