@@ -326,7 +326,11 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
     if (!isOwner) return;
     let alive = true;
     setClsOverrides({}); setSettingsMsg(""); setFeeMsg("");
-    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "", has_hifz: classObj.has_hifz ?? false, delivery_mode: classObj.delivery_mode || "in_person" });
+    setSettingsForm({ name: classObj.name || "", capacity: classObj.capacity ?? "", teacher_staff_id: classObj.teacher_staff_id || "", has_hifz: classObj.has_hifz ?? false, delivery_mode: classObj.delivery_mode || "in_person",
+      fee_cadence: classObj.fee_cadence || "none",
+      fee_amount_pounds: classObj.fee_amount_pence != null ? String(classObj.fee_amount_pence / 100) : "",
+      trial_duration_days: classObj.trial_duration_days ?? 14,
+      subscription_pause_enabled: classObj.subscription_pause_enabled ?? true });
     setFeeForm({ feeType: "per_term", amount: "", termLabel: classObj.term || "", dueDate: "", gracePeriodDays: 7 });
     getMosqueStaff(classObj.mosque_id).then((s) => { if (alive) setStaff((s || []).filter((x) => !x.archived)); }).catch(() => {});
     getClassFeeSummary(classObj.id).then((f) => { if (alive) setFeeSummary(f); }).catch(() => {});
@@ -343,6 +347,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
       teacher_staff_id: settingsForm.teacher_staff_id || null,
       has_hifz: !!settingsForm.has_hifz,
       delivery_mode: settingsForm.delivery_mode || "in_person",
+      // Recurring tuition (Session BP) — pence in the DB, pounds in the input.
+      // termly is intentionally not selectable this session (only none/free_trial/monthly).
+      fee_cadence: settingsForm.fee_cadence || "none",
+      fee_amount_pence: settingsForm.fee_cadence === "none" || settingsForm.fee_amount_pounds === ""
+        ? null : Math.round(Number(settingsForm.fee_amount_pounds) * 100),
+      trial_duration_days: Math.min(90, Math.max(1, Number(settingsForm.trial_duration_days) || 14)),
+      subscription_pause_enabled: !!settingsForm.subscription_pause_enabled,
     };
     const { error } = await updateMadrasaClass(classObj.id, payload);
     setSavingSettings(false);
@@ -894,6 +905,51 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                       {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-emerald-700" : "text-rose-600"}`}>{settingsMsg}</span>}
                     </div>
                     <p className="text-[11px] text-stone-400">Subject, room and schedule are edited from the class list.</p>
+                  </div>
+                )}
+              </Section>
+
+              {/* Recurring tuition (Session BP) — the SUBSCRIPTION config on the class.
+                  Separate from the one-off fee ledger below: this is what a parent
+                  subscribes to at enrolment (Stripe, 2.5% platform fee per cycle). */}
+              <Section icon={Wallet} title="Recurring tuition" subtitle="Set a monthly or free-trial subscription parents pay for this class">
+                {settingsForm && (
+                  <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 space-y-3">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Billing</label>
+                        <select value={settingsForm.fee_cadence} onChange={(e) => setSettingsForm((f) => ({ ...f, fee_cadence: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+                          <option value="none">No subscription</option>
+                          <option value="free_trial">Free trial, then monthly</option>
+                          <option value="monthly">Monthly</option>
+                          {settingsForm.fee_cadence === "termly" && <option value="termly" disabled>Termly (coming soon)</option>}
+                        </select>
+                      </div>
+                      {settingsForm.fee_cadence !== "none" && settingsForm.fee_cadence !== "termly" && (
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Amount (£ / month)</label>
+                          <input type="number" min="0" step="0.01" value={settingsForm.fee_amount_pounds} onChange={(e) => setSettingsForm((f) => ({ ...f, fee_amount_pounds: e.target.value }))} placeholder="e.g. 30.00" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        </div>
+                      )}
+                    </div>
+                    {settingsForm.fee_cadence === "free_trial" && (
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Free trial length (days)</label>
+                        <input type="number" min="1" max="90" value={settingsForm.trial_duration_days} onChange={(e) => setSettingsForm((f) => ({ ...f, trial_duration_days: e.target.value }))} className="w-full sm:w-48 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <p className="text-[11px] text-stone-400 mt-1">The card is collected at enrolment; the parent isn't charged until the trial ends (auto-converts). 1–90 days.</p>
+                      </div>
+                    )}
+                    {settingsForm.fee_cadence !== "none" && (
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
+                        <input type="checkbox" checked={!!settingsForm.subscription_pause_enabled} onChange={(e) => setSettingsForm((f) => ({ ...f, subscription_pause_enabled: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />
+                        <span className="text-sm text-stone-700">Allow pausing this subscription<span className="block text-[11px] text-stone-400">You can pause a family's billing (e.g. over a long holiday) from the Fees tab.</span></span>
+                      </label>
+                    )}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button onClick={saveSettings} disabled={savingSettings} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
+                      {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-emerald-700" : "text-rose-600"}`}>{settingsMsg}</span>}
+                    </div>
+                    <p className="text-[11px] text-stone-400">Amanah keeps a 2.5% platform fee per payment; the rest goes to your connected Stripe account. This is separate from the one-off fees below.</p>
                   </div>
                 )}
               </Section>
