@@ -6,7 +6,7 @@ import { NEARBY_MOSQUES } from "./data/mockMosques";
 import { haversineDistance, useGeolocation } from "./lib/geo";
 import { transformScholar } from "./lib/scholarTransform";
 import { transformMosque } from "./lib/mosqueTransform";
-import { stripeConfirmPayment } from "./lib/stripe";
+import { stripeConfirmPayment, stripeConfirmSubscription } from "./lib/stripe";
 import AiSearchBar from "./components/AiSearchBar";
 import { aiMatch } from "./lib/aiMatch";
 import AdminBriefCard from "./components/AdminBriefCard";
@@ -12845,6 +12845,31 @@ useEffect(() => {
   return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [routeQuery.payment, authedUser]);
+
+// Stripe subscription return (Session BP): a parent comes back to
+// /dashboard?tab=madrasa-fees&subscription=success|cancel&cs=<session>&m=<mosque>. On
+// success we call confirm-subscription (belt-and-braces vs the async webhook) to sync
+// the row, then toast + strip the params. We WAIT for authedUser (cold load needs the
+// token). paymentSyncTick nudges the parent Fees tab (fees + subscriptions) to refetch.
+useEffect(() => {
+  const s = routeQuery.subscription;
+  if (s !== "success" && s !== "cancel") return;
+  if (s === "success" && routeQuery.cs && !authedUser) return; // wait for the session to restore
+  let alive = true;
+  (async () => {
+    if (s === "success" && routeQuery.cs && routeQuery.m) {
+      const r = await stripeConfirmSubscription(routeQuery.cs, routeQuery.m).catch(() => null);
+      if (alive && r?.ok) setPaymentSyncTick((t) => t + 1);
+    }
+    if (!alive) return;
+    showToast(s === "success"
+      ? "You're all set — your subscription is confirmed. Manage it any time from your Fees tab."
+      : "Setup cancelled — no subscription was created.");
+    navigate(view, {}, { ...routeQuery, subscription: undefined, cs: undefined, m: undefined }, { replace: true });
+  })();
+  return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [routeQuery.subscription, authedUser]);
 
 // Mirror a scholar's uploaded photo onto authedProfile.avatar_url. The photo
 // lives on the scholars row (myScholar), but every shared header (PublicHeader,
