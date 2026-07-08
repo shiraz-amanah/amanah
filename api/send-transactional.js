@@ -1700,6 +1700,54 @@ async function handleSubscriptionEmail(env, intent, subscriptionId) {
   return { status: 200, body: { ok: true, sent: ids.length, ids } };
 }
 
+// ---------------------------------------------------------------------------
+// RBAC employee magic-link invite (Session RBAC). The owner has just created the
+// mosque_employees row via invite_mosque_employee (which minted a single-use
+// token). We look the row up server-side by id, owner-gate it, and email the
+// branded magic link — the client never supplies the recipient address or the
+// URL, so this email can't be pointed at an arbitrary target. resend_employee_invite
+// refreshes the token, and the client re-fires this intent to send the new link.
+// ---------------------------------------------------------------------------
+const RBAC_ROLE_LABELS = {
+  coordinator: 'Coordinator', teacher: 'Teacher', treasurer: 'Treasurer',
+  receptionist: 'Receptionist', viewer: 'Viewer', custom: 'a team member',
+};
+
+async function handleEmployeeInvite(env, caller, employeeId) {
+  const rows = await sbGet(env, `mosque_employees?id=eq.${employeeId}&select=invited_email,invited_name,role_preset,invite_token,invite_expires_at,mosque_id,status`);
+  const emp = Array.isArray(rows) ? rows[0] : null;
+  if (!emp) return { status: 404, body: { ok: false, error: 'employee_not_found' } };
+
+  // Authorize: caller must own the employee's mosque (or be a platform admin).
+  const mrows = await sbGet(env, `mosques?id=eq.${emp.mosque_id}&select=name,user_id`);
+  const mosque = Array.isArray(mrows) ? mrows[0] : null;
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  const callerOwns = mosque.user_id === caller.id;
+  if (!callerOwns && !(await isAdmin(env, caller.id))) {
+    return { status: 403, body: { ok: false, error: 'forbidden' } };
+  }
+
+  // A live, unexpired token is required — never email a dead link.
+  if (!emp.invite_token || (emp.invite_expires_at && new Date(emp.invite_expires_at) < new Date())) {
+    return { status: 400, body: { ok: false, error: 'no_active_invite' } };
+  }
+
+  const inviteUrl = `${env.PUBLIC_APP_URL}/accept-invite?token=${encodeURIComponent(emp.invite_token)}`;
+  const roleLabel = RBAC_ROLE_LABELS[emp.role_preset] || 'a team member';
+  const inner = `${eGreeting(emp.invited_name)}${eHeading(`You've been invited to join ${mosque.name}`)}${ePara(
+    `<strong>${escapeHtml(mosque.name)}</strong> has invited you to join their Amanah workspace as <strong>${escapeHtml(roleLabel)}</strong>.`
+  )}${ctaButton('Accept invitation →', inviteUrl)}${ePara('This invitation expires in 24 hours.')}${ePara(
+    `<span style="font-size:13px; color:#9ca3af;">If you weren't expecting this, you can safely ignore this email.</span>`
+  )}${eSignoff}`;
+
+  const id = await sendEmail(env, {
+    to: emp.invited_email,
+    subject: `You've been invited to join ${mosque.name} on Amanah`,
+    html: wrapEmail(`Invitation to join ${mosque.name}`, inner),
+  });
+  return { status: 200, body: { ok: true, id } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1919,6 +1967,11 @@ export default async function handler(req, res) {
     if (body.intent === 'facility_booking_cancelled') {
       if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
       const out = await handleFacilityBookingCancelled(env, caller, body.bookingId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'employee_invite') {
+      if (!isUuid(body.employeeId)) return res.status(400).json({ ok: false, error: 'invalid_employeeId' });
+      const out = await handleEmployeeInvite(env, caller, body.employeeId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
