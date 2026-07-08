@@ -38,6 +38,7 @@ import { MOCK_CAMPAIGNS } from "./data/mockCampaigns";
 import { MOSQUE_SERVICES, MOSQUE_FACILITIES } from "./data/mosqueTaxonomy";
 import { fmt, initialsFromName } from "./lib/format";
 import { useUrlState } from "./lib/useUrlState";
+import { setPendingInviteTokenStorage } from "./lib/inviteToken";
 import { IMAM_REGISTRY, INITIAL_CHECKS } from "./data/mockImamRegistry";
 import { MOCK_JOBS, MOCK_MY_APPLICATIONS } from "./data/mockJobs";
 import { DEFAULT_AVAILABILITY, DEFAULT_BOOKINGS, DAYS_OF_WEEK } from "./data/scheduleDefaults";
@@ -7420,6 +7421,10 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
   const [form, setForm] = useState({ name: "", email: initialEmail || "", password: "", confirmPassword: "", interest: "", interests: [] });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Set when an invite signup succeeds but Supabase returned no session (email
+  // confirmation is ON). We can't run the accept RPC yet — the user must click
+  // the confirmation link first — so we show a "check your email" holding screen.
+  const [emailConfirmPending, setEmailConfirmPending] = useState(false);
 
   const isSignUp = mode === "signup";
   const isScholar = role === "scholar";
@@ -7457,7 +7462,19 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
       setLoading(false);
       return;
     }
-    // Success! data.user contains the new user
+    // Invite signup with email confirmation ON: signUp created the account (with
+    // the password) but returned NO session, so the accept RPC can't run yet.
+    // Persist the token — the confirmation link may open in a new tab where this
+    // component's props are gone — and show the "check your email" holding screen
+    // instead of falling through to onComplete (which would land on a blank view
+    // because getUser() is still null).
+    if (isInvite && !data?.session) {
+      setPendingInviteTokenStorage(inviteToken);
+      setEmailConfirmPending(true);
+      setLoading(false);
+      return;
+    }
+    // Success! data.user contains the new user (and a live session).
     onComplete(form);
   };
 
@@ -7472,6 +7489,38 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
     }
     onComplete(form);
   };
+
+  // Invite signup + email confirmation ON: account created (password set) but no
+  // session yet. Hold here until the user confirms via email, then let them
+  // bounce back to /accept-invite to finish joining. The token rides both in the
+  // button URL and in localStorage (for the new-tab confirmation case).
+  if (emailConfirmPending) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="w-full max-w-md">
+          <div className="text-center mb-6 md:mb-8">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
+              <ShieldCheck className="text-emerald-50" size={22} />
+            </div>
+            <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto mb-4"><Mail size={24} /></div>
+            <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Check your email to confirm your account</h2>
+            <p className="text-sm text-stone-600 mb-6 leading-relaxed">
+              We've sent a confirmation link to <span className="font-medium text-stone-900">{form.email}</span>. Once confirmed, click the button below to complete joining the mosque.
+            </p>
+            <button
+              onClick={() => window.location.assign(`/accept-invite?token=${encodeURIComponent(inviteToken)}`)}
+              className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] inline-flex items-center justify-center gap-2"
+            >
+              I've confirmed my email <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>

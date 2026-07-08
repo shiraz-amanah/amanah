@@ -3,6 +3,7 @@ import { Loader2, Check, AlertCircle, ShieldCheck, LogIn, Clock } from "lucide-r
 import { acceptEmployeeInvite, getMosqueById } from "../auth";
 import { supabase } from "../supabaseClient";
 import { invalidateEmployeePermissions } from "../lib/useEmployeePermissions";
+import { getPendingInviteToken, clearPendingInviteToken } from "../lib/inviteToken";
 
 // /accept-invite?token=… — an invited employee lands here from the branded email.
 // On mount we check the ACTUAL Supabase session (not the App `authedUser` prop,
@@ -13,9 +14,14 @@ const AcceptInvite = ({ token, onSignIn, onHome, onDone }) => {
   const [state, setState] = useState("checking"); // checking | working | done | expired | invalid | suspended | error | signin
   const [error, setError] = useState("");
   const [mosqueName, setMosqueName] = useState("");
+  // Fall back to the localStorage-stashed token when the URL has none. This
+  // covers the email-confirmation case where the user opens the confirmation
+  // link in a NEW TAB (no ?token= in that URL, in-memory state gone). The token
+  // that UserAuth stashed on signup lets us still run the accept RPC here.
+  const effectiveToken = token || getPendingInviteToken();
 
   useEffect(() => {
-    if (!token) { setState("invalid"); return; }
+    if (!effectiveToken) { setState("invalid"); return; }
     let alive = true;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -23,9 +29,10 @@ const AcceptInvite = ({ token, onSignIn, onHome, onDone }) => {
       if (!session) { setState("signin"); return; }
       setState("working"); setError("");
       try {
-        const res = await acceptEmployeeInvite(token);
+        const res = await acceptEmployeeInvite(effectiveToken);
         if (!alive) return;
         if (res.ok && res.reason === "accepted") {
+          clearPendingInviteToken(); // consumed — don't let a stale token linger
           invalidateEmployeePermissions(res.mosqueId); // dashboard re-resolves → access granted
           try {
             const m = await getMosqueById(res.mosqueId);
@@ -34,16 +41,21 @@ const AcceptInvite = ({ token, onSignIn, onHome, onDone }) => {
           if (alive) setState("done");
           return;
         }
-        if (res.reason === "expired") { setState("expired"); return; }
-        if (res.reason === "suspended") { setState("suspended"); return; }
+        // Terminal outcomes — the token is spent/dead, so clear the stash to
+        // stop a stale localStorage token re-firing on future /accept-invite
+        // visits. (not_authenticated is NOT terminal — keep the token so the
+        // post-sign-in return can retry.)
+        if (res.reason === "expired") { clearPendingInviteToken(); setState("expired"); return; }
+        if (res.reason === "suspended") { clearPendingInviteToken(); setState("suspended"); return; }
         if (res.reason === "not_authenticated") { setState("signin"); return; }
+        clearPendingInviteToken();
         setState("invalid"); // invalid / already-used / rpc_error
       } catch (err) {
         if (alive) { setError(err?.message || "Something went wrong."); setState("error"); }
       }
     })();
     return () => { alive = false; };
-  }, [token]);
+  }, [effectiveToken]);
 
 
   const card = (children) => (
