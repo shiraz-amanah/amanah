@@ -1700,6 +1700,27 @@ async function handleSubscriptionEmail(env, intent, subscriptionId) {
   return { status: 200, body: { ok: true, sent: ids.length, ids } };
 }
 
+// Demo request from the public landing page (feature/landing-redesign). Unauthenticated
+// — the submitter has no session; the recipient is FIXED server-side to the platform
+// owner (not client-supplied), so this is a contact-form, not an open relay. Fields
+// are the client's form inputs, escaped into the email body.
+async function handleDemoRequest(env, body) {
+  const name = (body?.name || '').toString().trim();
+  const mosqueName = (body?.mosqueName || '').toString().trim();
+  const email = (body?.email || '').toString().trim();
+  const phone = (body?.phone || '').toString().trim();
+  const preferredTime = (body?.preferredTime || '').toString().trim();
+  if (!name || !mosqueName) return { status: 400, body: { ok: false, error: 'missing_fields' } };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { status: 400, body: { ok: false, error: 'invalid_email' } };
+  const to = 'shiraz@savecobradford.co.uk';
+  const rows = [['Name', name], ['Mosque', mosqueName], ['Email', email], ['Phone', phone || '—'], ['Preferred time', preferredTime || '—']];
+  const rowsHtml = rows.map(([k, v]) => `<tr><td style="padding:6px 0;color:#78716c">${escapeHtml(k)}</td><td style="padding:6px 0;text-align:right;color:#1c1917">${escapeHtml(v)}</td></tr>`).join('');
+  const inner = `${eHeading('New demo request')}${ePara('A new demo request has come in from the Amanah landing page.')}
+    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:14px">${rowsHtml}</table>`;
+  await sendEmail(env, { to, subject: `New demo request — ${mosqueName}`, html: wrapEmail('New demo request', inner) });
+  return { status: 200, body: { ok: true } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1772,6 +1793,13 @@ export default async function handler(req, res) {
     if (body.intent === 'mosque_claim_received') {
       if (!isUuid(body.claimId)) return res.status(400).json({ ok: false, error: 'invalid_claimId' });
       const out = await handleMosqueClaimReceived(env, body.claimId);
+      return res.status(out.status).json(out.body);
+    }
+
+    // Unauthenticated — a demo request from the public landing page. Recipient is
+    // fixed server-side (the platform owner), so no caller is needed.
+    if (body.intent === 'demo_request') {
+      const out = await handleDemoRequest(env, body);
       return res.status(out.status).json(out.body);
     }
 
