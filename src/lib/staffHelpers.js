@@ -48,8 +48,11 @@ export function shapeStaffListRow(r) {
     dbsExpiryDate: r.dbs_expiry_date,
     dbsRequired: r.dbs_required,
     rtwVerified: r.rtw_verified,
+    rtwRefused: r.rtw_refused,           // migration 130
     rtwExpiryDate: r.rtw_expiry_date,
     rtwDocumentType: r.rtw_document_type,
+    showDbsBadgePublicly: r.show_dbs_badge_publicly, // migration 130
+    lastLoginAt: r.last_login_at,        // migration 130
     createdAt: r.created_at,
   };
 }
@@ -69,6 +72,22 @@ export async function getStaffSalary(staffId) {
   const { data, error } = await supabase.rpc("get_staff_salary", { p_staff_id: staffId });
   if (error) { console.error("getStaffSalary:", error); return { salaryPence: null, error }; }
   return { salaryPence: data ?? null, error: null };
+}
+
+// Employment TERMS (hours/contract/notice/probation/pension) — owner only, NOT
+// audited. Returns the raw jsonb object or null (migration 130).
+export async function getStaffEmployment(staffId) {
+  if (!staffId) return null;
+  const { data, error } = await supabase.rpc("get_staff_employment", { p_staff_id: staffId });
+  if (error) return null; // RPC not yet created (pre-migration 130)
+  return data || null;
+}
+
+// Stamp the caller's own mosque_staff row(s) with last_login_at=now(). Called on
+// sign-in; no-op if the caller isn't staff (migration 130).
+export async function stampStaffLogin() {
+  const { error } = await supabase.rpc("stamp_staff_login");
+  return { error };
 }
 
 // Sensitive PII bundle (dob/phone/address/rtw+dbs numbers/…) — owner only.
@@ -323,6 +342,11 @@ export function computeComplianceIssues(staff, { now = new Date() } = {}) {
         category: "dbs", message: `${nm} — DBS expires in ${dbsExp} day${dbsExp === 1 ? "" : "s"}` });
     }
 
+    // RTW refused — URGENT (a refused Right to Work means they can't work here)
+    if (s.rtwRefused) {
+      issues.push({ staffId: s.id, staffName: nm, severity: "urgent", code: "rtw_refused",
+        category: "rtw", message: `${nm} — Right to Work REFUSED` });
+    }
     const rtwExp = daysUntil(s.rtwExpiryDate, now);
     // 5. RTW expired
     if (rtwExp !== null && rtwExp < 0) {
@@ -370,7 +394,8 @@ export function computeOfstedScore(staff, { now = new Date() } = {}) {
     const dbsExp = daysUntil(s.dbsExpiryDate, now);
     if (dbsReq && dbsExp !== null && dbsExp < 0) score -= 10;            // expired DBS
     if (dbsReq && (s.dbsLevel === "basic" || s.dbsLevel === "standard")) score -= 8; // level mismatch
-    if (!s.rtwVerified && s.status === "active" && s.employmentType && s.employmentType !== "volunteer") score -= 5;
+    if (s.rtwRefused) score -= 10;                                                    // refused RTW
+    if (!s.rtwRefused && !s.rtwVerified && s.status === "active" && s.employmentType && s.employmentType !== "volunteer") score -= 5;
   }
   return Math.max(0, Math.min(100, score));
 }

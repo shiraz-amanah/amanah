@@ -47,6 +47,7 @@ import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
 import MosqueDashboard from "./components/MosqueDashboard";
 import StaffProfile from "./components/StaffProfile";
+import { stampStaffLogin } from "./lib/staffHelpers";
 import AdminSidebar from "./components/AdminSidebar";
 import ScholarSidebar from "./components/ScholarSidebar";
 import UserSidebar from "./components/UserSidebar";
@@ -13045,6 +13046,10 @@ useEffect(() => {
   // opted in and is within 100m of an open session at their mosque, silently check
   // them in — on any page, not just the Community tab. Silent except a success toast.
   useSilentGeofence(authedUser?.id, (sessionName, mosqueName) => showToast(`Checked in to ${sessionName} at ${mosqueName}`));
+
+  // RBAC-B: stamp last_login_at on the caller's own staff row(s) once per session
+  // (SECURITY DEFINER RPC, migration 130; no-op / 0 rows if they aren't staff).
+  useEffect(() => { if (authedUser?.id) stampStaffLogin().catch(() => {}); }, [authedUser?.id]);
 
   // Full sign-out helper — used in three places now (logout buttons,
   // suspended bounce, cross-path admin bounce). Clears everything

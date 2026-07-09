@@ -69,6 +69,7 @@ export function deriveStatus(s) {
   return { label: "Onboarding", cls: "bg-amber-50 text-amber-700", dot: "bg-amber-500" };
 }
 function deriveRtw(s) {
+  if (s.rtwRefused) return { label: "Refused", cls: "bg-rose-100 text-rose-800" };
   if (s.employmentType === "volunteer") return { label: "Not required", cls: "bg-stone-100 text-stone-500" };
   const d = daysUntil(s.rtwExpiryDate);
   if (d !== null && d < 0) return { label: "Expired", cls: "bg-rose-50 text-rose-700" };
@@ -357,7 +358,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
                 <Row label="Department" value={openRow.department || "—"} />
                 <Row label="Designation" value={openRow.jobTitle || openRow.role || "—"} />
                 <Row label="Joining date" value={fmtDate(openRow.startDate)} />
-                <Row label="Last login" value="—" />
+                <Row label="Last login" value={openRow.lastLoginAt ? fmtDate(openRow.lastLoginAt) : "—"} />
                 <Row label="Right to Work" value={<Pill {...deriveRtw(openRow)} />} />
                 <Row label="DBS" value={<Pill {...deriveDbs(openRow)} />} />
               </div>

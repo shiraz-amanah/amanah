@@ -32,7 +32,7 @@ import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
 import {
-  getMosqueStaffList, getStaffSalary, getStaffSensitive,
+  getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
   anonymiseStaff, suspendStaff, recordStaffAudit,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
@@ -100,6 +100,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const [sensLoading, setSensLoading] = useState(false);
   const [salary, setSalary] = useState(undefined); // undefined = not revealed
   const [salLoading, setSalLoading] = useState(false);
+  const [employment, setEmployment] = useState(null); // §3 terms (get_staff_employment)
 
   const load = () => {
     setLoading(true);
@@ -109,6 +110,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
       .finally(() => setLoading(false));
   };
   useEffect(() => { if (mosqueId && staffId) load(); /* eslint-disable-next-line */ }, [mosqueId, staffId]);
+  useEffect(() => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); }, [mosqueId, staffId]);
 
   const revealSensitive = async () => {
     if (sensitive || sensLoading) return;
@@ -238,11 +240,11 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
                 )}
               </span>
             </div>
-            <Field label="Hours / week" value="—" />
-            <Field label="Notice period" value="—" />
-            <Field label="Probation end" value="—" />
-            <Field label="Pension enrolled" value="—" />
-            <p className="text-xs text-stone-400 mt-1">Full employment terms load via the get_staff_employment RPC (migration 130).</p>
+            <Field label="Hours / week" value={employment?.hours_per_week ?? "—"} />
+            <Field label="Contract type" value={employment?.contract_type || "—"} />
+            <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
+            <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
+            <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
           </Section>
 
           {/* §4 Permissions */}
@@ -272,6 +274,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
 
           {/* §12 Account */}
           <Section icon={UserCog} title="Account" subtitle="Access and lifecycle">
+            <Field label="Last login" value={row.lastLoginAt ? fmtDate(row.lastLoginAt) : "—"} />
             <Field label="Account created" value={fmtDate(row.createdAt)} />
             <Field label="Onboarding completed" value={fmtDate(row.onboardingCompletedAt)} />
             <Field label="Invite status" value={row.inviteStatus} />
