@@ -13047,10 +13047,10 @@ useEffect(() => {
   // them in — on any page, not just the Community tab. Silent except a success toast.
   useSilentGeofence(authedUser?.id, (sessionName, mosqueName) => showToast(`Checked in to ${sessionName} at ${mosqueName}`));
 
-  // RBAC-B: stamp last_login_at on the caller's own mosque_staff row, scoped to the
-  // mosque they're in (myMosque covers owners AND non-owner employees per bootstrap).
-  // SECURITY DEFINER RPC (migration 130); no-op / 0 rows if they aren't staff there.
-  useEffect(() => { if (authedUser?.id && myMosque?.id) stampStaffLogin(myMosque.id).catch(() => {}); }, [authedUser?.id, myMosque?.id]);
+  // RBAC-B: stamp last_login_at on the caller's own mosque_staff row(s) once per
+  // session (mosque-agnostic). SECURITY DEFINER RPC (migration 130); no-op / 0 rows
+  // if the caller isn't staff.
+  useEffect(() => { if (authedUser?.id) stampStaffLogin().catch(() => {}); }, [authedUser?.id]);
 
   // Full sign-out helper — used in three places now (logout buttons,
   // suspended bounce, cross-path admin bounce). Clears everything
