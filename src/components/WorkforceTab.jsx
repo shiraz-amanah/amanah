@@ -60,14 +60,22 @@ function Timetable({ mosqueId, mosque }) {
   const [classes, setClasses] = useState(null);
   useEffect(() => { getMadrasaClasses(mosqueId).then(setClasses).catch(() => setClasses([])); }, [mosqueId]);
   const active = (classes || []).filter((c) => c.status !== "archived");
-  // Best-effort: place a class in a day column if its free-text schedule mentions that day.
+  // Place a class in a day column from its jsonb schedule (array of {day,start,end}).
   const byDay = useMemo(() => {
     const map = Object.fromEntries(DAYS.map((d) => [d, []]));
     const unscheduled = [];
     for (const c of active) {
-      const sched = (c.schedule || "").toLowerCase();
-      const days = DAYS.filter((d) => sched.includes(d.toLowerCase()) || sched.includes(DAY_FULL[d].toLowerCase()));
-      if (days.length) days.forEach((d) => map[d].push(c)); else unscheduled.push(c);
+      const scheduleDays = Array.isArray(c.schedule)
+        ? c.schedule.map((s) => s.day).filter(Boolean)
+        : [];
+      const days = DAYS.filter((d) =>
+        scheduleDays.some(
+          (sd) => sd.toLowerCase() === d.toLowerCase() ||
+                  sd.toLowerCase() === DAY_FULL[d].toLowerCase()
+        )
+      );
+      if (days.length) days.forEach((d) => map[d].push(c));
+      else unscheduled.push(c);
     }
     return { map, unscheduled };
   }, [active]);
@@ -84,7 +92,7 @@ function Timetable({ mosqueId, mosque }) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-stone-500">Class timetable. Manage classes and teachers in the Madrasah tab.</p>
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-timetable.csv`, [["Class", "Subject", "Schedule", "Room", "Teacher"], ...active.map((c) => [c.name, c.subject, c.schedule, c.room, teacherName(c)])])}
+        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-timetable.csv`, [["Class", "Subject", "Schedule", "Room", "Teacher"], ...active.map((c) => [c.name, c.subject, Array.isArray(c.schedule) ? c.schedule.map((s) => `${s.day} ${s.start}–${s.end}`).join("; ") : "", c.room, teacherName(c)])])}
           className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export</button>
       </div>
       {conflicts.length > 0 && (
