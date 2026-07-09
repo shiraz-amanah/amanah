@@ -23,6 +23,7 @@ import {
   ofstedColour, suspendStaff,
 } from "../lib/staffHelpers";
 import OrgStructure from "./OrgStructure";
+import AddStaffModal from "./AddStaffModal";
 
 // ── small helpers ────────────────────────────────────────────────────
 const AVATAR_TONES = [
@@ -104,6 +105,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [selected, setSelected] = useState(() => new Set());
   const [openId, setOpenId] = useState(staffId || null);
   const [tab, setTab] = useState("employees");
+  const [addOpen, setAddOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ status: "", rtw: "", dbs: "", department: "", employmentType: "" });
   const [onlyFlagged, setOnlyFlagged] = useState(false);
@@ -219,8 +221,8 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <button onClick={() => onAddStaff?.()} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
-          <Plus size={15} /> Add staff <ChevronDown size={13} />
+        <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
+          <Plus size={15} /> Add staff
         </button>
         <button onClick={() => onMessage?.(filtered.map((s) => s.id))} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3.5 py-2 rounded-lg">
           <MessageCircle size={15} /> Message all <ArrowRight size={13} />
@@ -359,6 +361,12 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
             </div>
           </aside>
         </>
+      )}
+
+      {addOpen && (
+        <AddStaffModal mosqueId={mosqueId} mosque={mosque}
+          onClose={() => setAddOpen(false)}
+          onCreated={() => { setAddOpen(false); setTick((t) => t + 1); }} />
       )}
     </div>
   );
