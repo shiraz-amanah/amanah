@@ -75,7 +75,7 @@ function deriveRtw(s) {
   if (s.rtwVerified) return { label: "Verified", cls: "bg-emerald-50 text-emerald-700" };
   return { label: "Not verified", cls: "bg-amber-50 text-amber-700" };
 }
-function deriveDbs(s) {
+export function deriveDbs(s) {
   if (s.dbsRequired === false) return { label: "Not required", cls: "bg-stone-100 text-stone-500" };
   const d = daysUntil(s.dbsExpiryDate);
   if (s.dbsStatus === "expired" || (d !== null && d < 0)) return { label: "Expired", cls: "bg-rose-50 text-rose-700" };

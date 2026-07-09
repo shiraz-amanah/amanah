@@ -232,7 +232,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
             <WorkforceTab mosqueId={mosque.id} mosque={mosque} />
           )}
           {activeTab === "people" && activeSub === "volunteers" && (
-            <VolunteersTab mosqueId={mosque.id} mosque={mosque} />
+            <VolunteersTab mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} onOpenProfile={onOpenProfile} />
           )}
 
           {/* ---- Mosque ---- */}

@@ -26,13 +26,14 @@ const EMP_TYPES = [
 const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-200";
 const L = ({ label, children }) => (<label className="block"><span className="text-xs text-stone-500">{label}</span>{children}</label>);
 
-export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated }) { // eslint-disable-line no-unused-vars
+export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, defaultEmploymentType }) { // eslint-disable-line no-unused-vars
   const [step, setStep] = useState(1);
   const [path, setPath] = useState(null); // 'remote' | 'inhouse'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [f, setF] = useState({
-    name: "", email: "", role: "Teacher", jobTitle: "", department: "", employmentType: "employed_part_time", startDate: "",
+    name: "", email: "", role: defaultEmploymentType === "volunteer" ? "Other" : "Teacher", jobTitle: "", department: "",
+    employmentType: defaultEmploymentType || "employed_part_time", startDate: "",
     salaryGbp: "", hoursPerWeek: "", noticeDays: "", probationEnd: "",
   });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
