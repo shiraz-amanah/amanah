@@ -326,3 +326,12 @@ export function sendLeaveDecision(leaveId) {
 export function sendOffboardingConfirmation(staffId) {
   return postTransactional({ intent: 'offboarding_confirmation', staffId });
 }
+
+// ── Session RBAC-C — contract e-signature emails (recipients resolved
+// server-side from staffId; handlers added in api/send-transactional.js) ──
+export function sendContractReadyToSign(staffId, { contractType, signUrl } = {}) {
+  return postTransactional({ intent: 'contract_ready_to_sign', staffId, contractType, signUrl });
+}
+export function sendContractSignedCopy(staffId, { contractType, signedDate } = {}) {
+  return postTransactional({ intent: 'contract_signed_copy', staffId, contractType, signedDate });
+}

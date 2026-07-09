@@ -238,6 +238,24 @@ export async function suspendStaff(staffId, status = "suspended") {
   const { error } = await supabase.rpc("suspend_staff", { p_staff_id: staffId, p_status: status });
   return { error };
 }
+// Contract audit RPCs (migration 131). Disclaimer = owner only; signed =
+// owner-OR-self (both parties sign). Return { error }.
+export async function logContractDisclaimerAccepted(staffId, contractType) {
+  if (!staffId) return { error: { message: "staffId required" } };
+  const { error } = await supabase.rpc("log_contract_disclaimer_accepted", {
+    p_staff_id: staffId, p_contract_type: contractType,
+  });
+  return { error };
+}
+export async function logContractSigned(staffId, contractType, signatoryName, storagePath) {
+  if (!staffId) return { error: { message: "staffId required" } };
+  const { error } = await supabase.rpc("log_contract_signed", {
+    p_staff_id: staffId, p_contract_type: contractType,
+    p_signatory_name: signatoryName, p_storage_path: storagePath,
+  });
+  return { error };
+}
+
 export async function recordStaffAudit(staffId, action, details = {}) {
   if (!staffId || !action) return { error: { message: "staffId + action required" } };
   const { error } = await supabase.rpc("record_staff_audit", {

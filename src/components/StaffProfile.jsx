@@ -31,6 +31,7 @@ import {
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
+import StaffContractGenerator from "./StaffContractGenerator";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
   anonymiseStaff, suspendStaff,
@@ -93,6 +94,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const [loading, setLoading] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [offboardOpen, setOffboardOpen] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
 
@@ -246,6 +248,9 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
             <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
             <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
             <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
+            <div className="pt-2">
+              <button onClick={() => setContractOpen(true)} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Generate contract</button>
+            </div>
           </Section>
 
           {/* §4 Permissions */}
@@ -295,6 +300,10 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
         <OffboardingFlow staffId={staffId} staffName={row.name}
           onClose={() => setOffboardOpen(false)}
           onDone={() => { setOffboardOpen(false); onBack?.(); }} />
+      )}
+      {contractOpen && (
+        <StaffContractGenerator staffRow={row} mosque={mosque} authedUser={authedUser}
+          onClose={() => setContractOpen(false)} />
       )}
     </div>
   );
