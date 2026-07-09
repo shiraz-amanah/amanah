@@ -83,10 +83,11 @@ export async function getStaffEmployment(staffId) {
   return data || null;
 }
 
-// Stamp the caller's own mosque_staff row(s) with last_login_at=now(). Called on
-// sign-in; no-op if the caller isn't staff (migration 130).
-export async function stampStaffLogin() {
-  const { error } = await supabase.rpc("stamp_staff_login");
+// Stamp the caller's own mosque_staff row with last_login_at=now(), scoped to the
+// mosque they're signing into. Called on sign-in; no-op if they aren't staff there
+// (migration 130). Pass null to stamp all of the caller's staff rows.
+export async function stampStaffLogin(mosqueId = null) {
+  const { error } = await supabase.rpc("stamp_staff_login", { p_mosque_id: mosqueId });
   return { error };
 }
 

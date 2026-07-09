@@ -153,22 +153,26 @@ begin
       order by s.created_at desc;
 end; $$;
 
--- 7) stamp last_login_at for the caller's own staff row(s). SECURITY DEFINER so a
---    staff member can update their own row despite the owner-only UPDATE RLS (030);
---    the WHERE profile_id = auth.uid() confines it to their own rows. Called from
---    the App bootstrap on sign-in (no-op / 0 rows if the caller isn't staff).
-create or replace function public.stamp_staff_login()
+-- 7) stamp last_login_at on mosque_staff for the caller's OWN row at the mosque
+--    they're signing into. SECURITY DEFINER so a staff member can update their own
+--    row despite the owner-only UPDATE RLS (030); WHERE profile_id = auth.uid()
+--    confines it to their own rows, and p_mosque_id scopes it to the current
+--    mosque (null = all of the caller's staff rows). Called from the App bootstrap;
+--    no-op / 0 rows if the caller isn't staff at that mosque.
+create or replace function public.stamp_staff_login(p_mosque_id uuid default null)
 returns void
 language plpgsql security definer set search_path = public as $$
 #variable_conflict use_column
 begin
-  update mosque_staff set last_login_at = now() where profile_id = auth.uid();
+  update mosque_staff set last_login_at = now()
+    where profile_id = auth.uid()
+      and (p_mosque_id is null or mosque_id = p_mosque_id);
 end; $$;
 
 grant execute on function public.get_staff_employment(uuid)  to authenticated;
 grant execute on function public.get_staff_performance(uuid) to authenticated;
 grant execute on function public.get_mosque_staff_list(uuid) to authenticated;
-grant execute on function public.stamp_staff_login()         to authenticated;
+grant execute on function public.stamp_staff_login(uuid)     to authenticated;
 
 notify pgrst, 'reload schema';
 
