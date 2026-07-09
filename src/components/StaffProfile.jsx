@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
+import GrantAccessModal from "./GrantAccessModal";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive,
   anonymiseStaff, suspendStaff, recordStaffAudit,
@@ -85,7 +86,7 @@ const Field = ({ label, value }) => (
   </div>
 );
 
-export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMessage, onGrantAccess }) {
+export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMessage }) {
   const mosqueId = mosque?.id;
   const [row, setRow] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -245,7 +246,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
           </Section>
 
           {/* §4 Permissions */}
-          <PermissionsSection staffRow={row} mosqueId={mosqueId} onGrantAccess={onGrantAccess} />
+          <PermissionsSection staffRow={row} mosqueId={mosqueId} />
 
           {/* §5 Identity verification (RTW) */}
           <RtwSection staffRow={row} mosqueId={mosqueId} authedUser={authedUser}
@@ -326,25 +327,30 @@ const ScopeControl = ({ value, onChange }) => (
 );
 
 // ── §4 Permissions (RBAC via mosque_employees, joined by profile_id) ──
-function PermissionsSection({ staffRow, mosqueId, onGrantAccess }) {
+function PermissionsSection({ staffRow, mosqueId }) {
   const [emp, setEmp] = useState(undefined); // undefined=loading, null=no access, obj=record
   const [classes, setClasses] = useState([]);
   const [perms, setPerms] = useState({});
   const [assigned, setAssigned] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    const email = staffRow.email?.toLowerCase();
     Promise.all([getMosqueEmployees(mosqueId), getMadrasaClasses(mosqueId)]).then(([emps, cls]) => {
       if (!alive) return;
       setClasses(cls || []);
-      const rec = staffRow.profileId ? (emps || []).find((e) => e.profileId === staffRow.profileId) : null;
+      // Match by linked profile_id, else by invited email (covers a pending invite
+      // whose profile_id isn't linked until the staffer accepts).
+      const rec = (emps || []).find((e) => (staffRow.profileId && e.profileId === staffRow.profileId) || (email && e.invitedEmail?.toLowerCase() === email));
       setEmp(rec || null);
       if (rec) { setPerms({ ...(rec.permissions || {}) }); setAssigned(rec.assignedClasses || []); }
     }).catch(() => { if (alive) setEmp(null); });
     return () => { alive = false; };
-  }, [mosqueId, staffRow.profileId]);
+  }, [mosqueId, staffRow.profileId, staffRow.email, tick]);
 
   const setModule = (key, val) => { setPerms((p) => ({ ...p, [key]: val })); setSaved(false); };
   const toggleClass = (id) => { setAssigned((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id])); setSaved(false); };
@@ -364,7 +370,7 @@ function PermissionsSection({ staffRow, mosqueId, onGrantAccess }) {
       ) : emp === null ? (
         <div className="py-2">
           <p className="text-sm text-stone-600 mb-3">This staff member doesn’t have dashboard access.</p>
-          <button onClick={() => onGrantAccess?.(staffRow)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
+          <button onClick={() => setGrantOpen(true)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
             Grant dashboard access →
           </button>
         </div>
@@ -402,6 +408,11 @@ function PermissionsSection({ staffRow, mosqueId, onGrantAccess }) {
             {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
           </div>
         </div>
+      )}
+      {grantOpen && (
+        <GrantAccessModal staffRow={staffRow} mosqueId={mosqueId}
+          onClose={() => setGrantOpen(false)}
+          onGranted={() => { setGrantOpen(false); setTick((t) => t + 1); }} />
       )}
     </Section>
   );
