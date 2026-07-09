@@ -22,6 +22,7 @@ import {
   getMosqueStaffList, computeComplianceIssues, computeOfstedScore,
   ofstedColour, suspendStaff,
 } from "../lib/staffHelpers";
+import OrgStructure from "./OrgStructure";
 
 // ── small helpers ────────────────────────────────────────────────────
 const AVATAR_TONES = [
@@ -49,7 +50,7 @@ function daysUntil(d) {
   return isNaN(dt) ? null : Math.ceil((dt - new Date()) / 86400000);
 }
 
-const Avatar = ({ name, photoUrl, size = 40 }) => (
+export const Avatar = ({ name, photoUrl, size = 40 }) => (
   photoUrl
     ? <img src={photoUrl} alt="" className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />
     : <span className={`inline-flex items-center justify-center rounded-full font-semibold shrink-0 ${toneFor(name)}`}
@@ -57,7 +58,7 @@ const Avatar = ({ name, photoUrl, size = 40 }) => (
 );
 
 // ── badge derivation (safe fields only) ──────────────────────────────
-function deriveStatus(s) {
+export function deriveStatus(s) {
   if (s.status === "offboarded" || s.archived) return { label: "Offboarded", cls: "bg-stone-200 text-stone-600", dot: "bg-stone-500" };
   if (s.status === "suspended") return { label: "Suspended", cls: "bg-stone-100 text-stone-600", dot: "bg-stone-400" };
   if (s.status === "active") return { label: "Active", cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" };
@@ -102,6 +103,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(() => new Set());
   const [openId, setOpenId] = useState(staffId || null);
+  const [tab, setTab] = useState("employees");
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ status: "", rtw: "", dbs: "", department: "", employmentType: "" });
   const [onlyFlagged, setOnlyFlagged] = useState(false);
@@ -183,6 +185,17 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         </div>
       </div>
 
+      {/* Tab switcher: Employees | Org Structure */}
+      <div className="flex items-center gap-1 mb-4 border-b border-stone-200">
+        {[["employees", `Employees (${staff.length})`], ["org", "Org Structure"]].map(([v, l]) => (
+          <button key={v} onClick={() => setTab(v)}
+            className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 ${tab === v ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
+        ))}
+      </div>
+
+      {tab === "org" && <OrgStructure mosque={mosque} staff={staff} onOpenNode={setOpenId} />}
+
+      {tab === "employees" && (<>
       {/* AI compliance bar */}
       {issues.length > 0 && (
         <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
@@ -298,6 +311,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           </tbody>
         </table>
       </div>
+      </>)}
 
       {/* Quick-view panel (slides in; does NOT navigate away) */}
       {openRow && (
