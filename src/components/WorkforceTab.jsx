@@ -10,7 +10,8 @@
 // payroll £ amounts land in RBAC-C.
 // ====================================================================
 import { useState, useEffect, useMemo } from "react";
-import { AlertTriangle, Download, Copy, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, Download, Copy, Loader2, Lock, X, Trash2 } from "lucide-react";
+import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { getMadrasaClasses, getMosqueRota, upsertMosqueRota } from "../auth";
 import {
   getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary,
@@ -124,27 +125,100 @@ function Timetable({ mosqueId, mosque }) {
   );
 }
 
-// ── Rotas ────────────────────────────────────────────────────────────
+// ── Rotas (drag-drop, @dnd-kit) ──────────────────────────────────────
+// Shift model: { [staffId]: { [dayKey]: [ {id, start, end, notes} ] } }. Persisted
+// to the existing mosque_rotas.slots (DB, survives reloads/devices) — chosen over
+// the plan's localStorage since the table already exists; a dedicated normalized
+// rota-shifts table is Session RBAC-D.
+const parseMin = (t) => { const [h, m] = (t || "").split(":").map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
+const shiftLabel = (sh) => (sh.start && sh.end ? `${sh.start}–${sh.end}` : (sh.notes || "Shift"));
+const shiftHours = (sh) => { const a = parseMin(sh.start), b = parseMin(sh.end); return a != null && b != null && b > a ? (b - a) / 60 : 0; };
+const normalizeShifts = (raw) => {
+  const out = {};
+  for (const [sid, days] of Object.entries(raw || {})) {
+    out[sid] = {};
+    for (const [day, val] of Object.entries(days || {})) {
+      out[sid][day] = Array.isArray(val) ? val : (typeof val === "string" && val.trim() ? [{ id: `${sid}-${day}`, notes: val }] : []);
+    }
+  }
+  return out;
+};
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.round(Math.random() * 1e6)}`);
+
+function ShiftPill({ dragId, sh, tone, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId });
+  const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
+  return (
+    <div ref={setNodeRef} style={style} className={`${tone} rounded-md pl-2 pr-1 py-1 text-xs flex items-center justify-between gap-1 ${isDragging ? "opacity-50" : ""}`}>
+      <span {...listeners} {...attributes} className="cursor-grab truncate">{shiftLabel(sh)}</span>
+      <button onClick={onRemove} className="opacity-60 hover:opacity-100 shrink-0"><X size={11} /></button>
+    </div>
+  );
+}
+function DayCell({ dropId, onLeave, onAdd, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
+  if (onLeave) return <td className="px-1 py-1 align-top"><div className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 text-center">On leave</div></td>;
+  return (
+    <td ref={setNodeRef} className={`px-1 py-1 align-top min-w-[112px] ${isOver ? "bg-emerald-50 rounded" : ""}`}>
+      <div className="space-y-1 min-h-[34px]">{children}
+        <button onClick={onAdd} className="text-[10px] text-stone-400 hover:text-emerald-700">+ shift</button>
+      </div>
+    </td>
+  );
+}
+
 function Rotas({ mosqueId, mosque }) {
   const [staff, setStaff] = useState(null);
   const [week, setWeek] = useState(() => mondayOf(new Date()));
-  const [slots, setSlots] = useState({}); // { [staffId]: { [day]: "9am-1pm" } }
+  const [shifts, setShifts] = useState({}); // { staffId: { dayKey: [shift] } }
   const [leave, setLeave] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [addAt, setAddAt] = useState(null); // { sid, day } | null
+  const [af, setAf] = useState({ start: "09:00", end: "13:00", notes: "" });
   const load = () => {
     getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded")));
-    getMosqueRota(mosqueId, iso(week)).then((r) => setSlots(r?.slots || {})).catch(() => setSlots({}));
+    getMosqueRota(mosqueId, iso(week)).then((r) => setShifts(normalizeShifts(r?.slots))).catch(() => setShifts({}));
     getMosqueLeave(mosqueId).then(setLeave).catch(() => setLeave([]));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId, week]);
 
-  const setCell = (sid, day, val) => setSlots((s) => ({ ...s, [sid]: { ...(s[sid] || {}), [day]: val } }));
-  const save = async () => { setSaving(true); await upsertMosqueRota(mosqueId, iso(week), slots); setSaving(false); };
-  const copyLast = async () => { const r = await getMosqueRota(mosqueId, iso(addDays(week, -7))); setSlots(r?.slots || {}); };
+  const persist = (next) => { setShifts(next); upsertMosqueRota(mosqueId, iso(week), next).catch(() => {}); };
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const onLeave = (sid, dayIdx) => {
-    const dayDate = iso(addDays(week, dayIdx));
-    return leave.some((l) => l.status === "approved" && (l.mosque_staff?.id === sid || l.staff_id === sid) && l.start_date <= dayDate && l.end_date >= dayDate);
+    const dt = iso(addDays(week, dayIdx));
+    return leave.some((l) => l.status === "approved" && (l.mosque_staff?.id === sid || l.staff_id === sid) && l.start_date <= dt && l.end_date >= dt);
   };
+  const staffName = (sid) => staff?.find((x) => x.id === sid)?.name || "Staff";
+
+  const onDragEnd = (e) => {
+    const { active, over } = e;
+    if (!over) return;
+    const [sSid, sDay, shId] = String(active.id).split("::");
+    const [tSid, tDay] = String(over.id).split("::");
+    if (sSid === tSid && sDay === tDay) return;
+    const tDayIdx = DAYS.indexOf(tDay);
+    if (onLeave(tSid, tDayIdx)) { flash(`${staffName(tSid)} is on leave that day`); return; }
+    const sh = (shifts[sSid]?.[sDay] || []).find((x) => x.id === shId);
+    if (!sh) return;
+    const next = { ...shifts };
+    next[sSid] = { ...next[sSid], [sDay]: (next[sSid]?.[sDay] || []).filter((x) => x.id !== shId) };
+    next[tSid] = { ...next[tSid], [tDay]: [...(next[tSid]?.[tDay] || []), sh] };
+    persist(next);
+  };
+  const removeShift = (sid, day, shId) => {
+    const next = { ...shifts, [sid]: { ...shifts[sid], [day]: (shifts[sid]?.[day] || []).filter((x) => x.id !== shId) } };
+    persist(next);
+  };
+  const addShift = () => {
+    if (!addAt) return;
+    const sh = { id: newId(), start: af.start, end: af.end, notes: af.notes.trim() };
+    const { sid, day } = addAt;
+    persist({ ...shifts, [sid]: { ...shifts[sid], [day]: [...(shifts[sid]?.[day] || []), sh] } });
+    setAddAt(null); setAf({ start: "09:00", end: "13:00", notes: "" });
+  };
+  const copyLast = async () => { const r = await getMosqueRota(mosqueId, iso(addDays(week, -7))); persist(normalizeShifts(r?.slots)); };
+  const clearWeek = () => { if (window.confirm("Remove all shifts for this week?")) persist({}); };
+  const rowHours = (sid) => DAYS.reduce((sum, d) => sum + (shifts[sid]?.[d] || []).reduce((a, sh) => a + shiftHours(sh), 0), 0);
 
   if (staff === null) return <Loading />;
   return (
@@ -155,29 +229,52 @@ function Rotas({ mosqueId, mosque }) {
         <button onClick={() => setWeek(addDays(week, 7))} className="text-sm border border-stone-300 px-2 py-1 rounded-lg">→</button>
         <div className="flex-1" />
         <button onClick={copyLast} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Copy size={14} /> Copy last week</button>
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-rota-${iso(week)}.csv`, [["Staff", ...DAYS], ...staff.map((s) => [s.name, ...DAYS.map((d) => slots[s.id]?.[d] || "")])])}
+        <button onClick={clearWeek} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Trash2 size={14} /> Clear</button>
+        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-rota-${iso(week)}.csv`, [["Staff", ...DAYS, "Total hours"], ...staff.map((s) => [s.name, ...DAYS.map((d) => (shifts[s.id]?.[d] || []).map(shiftLabel).join("; ")), rowHours(s.id)])])}
           className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export</button>
-        <button onClick={save} disabled={saving} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save rota"}</button>
       </div>
+      <p className="text-xs text-stone-400 mb-2">Drag a shift to move it to another day/person. Dropping on a day the person is on leave is rejected. Saved automatically.</p>
       {staff.length === 0 ? <Empty text="No staff to schedule." /> : (
-        <div className="overflow-x-auto">
-          <table className="min-w-max text-sm border border-stone-200 rounded-lg bg-white">
-            <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{DAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}</tr></thead>
-            <tbody className="divide-y divide-stone-100">
-              {staff.map((s) => (
-                <tr key={s.id}>
-                  <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap">{s.name}</td>
-                  {DAYS.map((d, di) => (
-                    <td key={d} className="px-1 py-1">
-                      {onLeave(s.id, di)
-                        ? <div className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 text-center">On leave</div>
-                        : <input value={slots[s.id]?.[d] || ""} onChange={(e) => setCell(s.id, d, e.target.value)} placeholder="—" className="w-24 text-xs border border-stone-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-300" />}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <DndContext onDragEnd={onDragEnd}>
+          <div className="overflow-x-auto">
+            <table className="min-w-max text-sm border border-stone-200 rounded-lg bg-white">
+              <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{DAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Hrs</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {staff.map((s) => (
+                  <tr key={s.id}>
+                    <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap align-top">{s.name}</td>
+                    {DAYS.map((d, di) => (
+                      <DayCell key={d} dropId={`${s.id}::${d}`} onLeave={onLeave(s.id, di)} onAdd={() => setAddAt({ sid: s.id, day: d })}>
+                        {(shifts[s.id]?.[d] || []).map((sh) => (
+                          <ShiftPill key={sh.id} dragId={`${s.id}::${d}::${sh.id}`} sh={sh} tone={toneFor(s.name)} onRemove={() => removeShift(s.id, d, sh.id)} />
+                        ))}
+                      </DayCell>
+                    ))}
+                    <td className="px-3 py-1.5 text-center font-semibold align-top">{rowHours(s.id) || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DndContext>
+      )}
+
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">{toast}</div>}
+
+      {addAt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={() => setAddAt(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-semibold text-stone-900 mb-3">Add shift · {staffName(addAt.sid)} · {addAt.day}</div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <label className="block"><span className="text-xs text-stone-500">Start</span><input type="time" value={af.start} onChange={(e) => setAf({ ...af, start: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5" /></label>
+              <label className="block"><span className="text-xs text-stone-500">End</span><input type="time" value={af.end} onChange={(e) => setAf({ ...af, end: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5" /></label>
+            </div>
+            <label className="block mb-3"><span className="text-xs text-stone-500">Notes (optional)</span><input value={af.notes} onChange={(e) => setAf({ ...af, notes: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5" /></label>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setAddAt(null)} className="text-sm text-stone-500 px-2">Cancel</button>
+              <button onClick={addShift} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg">Add shift</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
