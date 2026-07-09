@@ -10,9 +10,12 @@
 // payroll £ amounts land in RBAC-C.
 // ====================================================================
 import { useState, useEffect, useMemo } from "react";
-import { AlertTriangle, Download, Copy, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, Copy, Loader2, Lock } from "lucide-react";
 import { getMadrasaClasses, getMosqueRota, upsertMosqueRota } from "../auth";
-import { getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary } from "../lib/staffHelpers";
+import {
+  getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary,
+  getMosqueTimesheets, upsertTimesheet, deleteTimesheet, approveTimesheetWeek,
+} from "../lib/staffHelpers";
 import { sendLeaveDecision } from "../lib/email";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -29,7 +32,7 @@ function downloadCsv(name, rows) {
   const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url);
 }
 
-export default function WorkforceTab({ mosqueId, mosque }) {
+export default function WorkforceTab({ mosqueId, mosque, authedUser }) {
   const [sub, setSub] = useState("timetable");
   const TABS = [["timetable", "Timetable"], ["rotas", "Rotas"], ["leave", "Leave calendar"], ["timesheets", "Timesheets & Payroll"]];
   return (
@@ -46,7 +49,7 @@ export default function WorkforceTab({ mosqueId, mosque }) {
       {sub === "timetable" && <Timetable mosqueId={mosqueId} mosque={mosque} />}
       {sub === "rotas" && <Rotas mosqueId={mosqueId} mosque={mosque} />}
       {sub === "leave" && <LeaveCalendar mosqueId={mosqueId} />}
-      {sub === "timesheets" && <Timesheets mosqueId={mosqueId} mosque={mosque} />}
+      {sub === "timesheets" && <Timesheets mosqueId={mosqueId} mosque={mosque} authedUser={authedUser} />}
     </div>
   );
 }
@@ -267,24 +270,44 @@ function LeaveCalendar({ mosqueId }) {
 }
 
 // ── Timesheets & Payroll ─────────────────────────────────────────────
-function Timesheets({ mosqueId, mosque }) {
+function Timesheets({ mosqueId, mosque, authedUser }) {
+  const [week, setWeek] = useState(() => mondayOf(new Date()));
   const [staff, setStaff] = useState(null);
-  const [hours, setHours] = useState({}); // { [staffId]: { [day]: number } }
-  const [approved, setApproved] = useState({}); // { [staffId]: bool }
-  const [salaries, setSalaries] = useState(null); // staffId → annual pence (null until revealed)
+  const [entries, setEntries] = useState({}); // { staffId: { dateISO: { id, hours, approved } } }
+  const [salaries, setSalaries] = useState(null);
   const [revealing, setRevealing] = useState(false);
   const TDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  useEffect(() => { getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded"))).catch(() => setStaff([])); }, [mosqueId]);
+  const dates = TDAYS.map((_, i) => iso(addDays(week, i)));
+  const from = dates[0], to = dates[dates.length - 1];
 
-  const setCell = (sid, day, val) => setHours((h) => ({ ...h, [sid]: { ...(h[sid] || {}), [day]: val === "" ? "" : Number(val) } }));
-  const rowTotal = (sid) => TDAYS.reduce((sum, d) => sum + (Number(hours[sid]?.[d]) || 0), 0);
+  const load = () => {
+    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded"))).catch(() => setStaff([]));
+    getMosqueTimesheets(mosqueId, from, to).then((rows) => {
+      const map = {};
+      for (const r of rows) (map[r.staff_id] ||= {})[r.work_date] = { id: r.id, hours: r.hours_worked, approved: r.approved };
+      setEntries(map);
+    }).catch(() => setEntries({}));
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId, from]);
+
+  const cell = (sid, date) => entries[sid]?.[date];
+  const setLocal = (sid, date, hours) => setEntries((m) => ({ ...m, [sid]: { ...(m[sid] || {}), [date]: { ...(m[sid]?.[date] || {}), hours } } }));
+  const rowTotal = (sid) => dates.reduce((sum, dt) => sum + (Number(entries[sid]?.[dt]?.hours) || 0), 0);
   const grandTotal = (staff || []).reduce((s, st) => s + rowTotal(st.id), 0);
+
+  const persist = async (sid, date, raw) => {
+    const existing = cell(sid, date);
+    if (existing?.approved) return;
+    if (raw === "" || raw == null) { if (existing?.id) await deleteTimesheet(sid, date); load(); return; }
+    const hours = Math.max(0, Math.min(24, Number(raw)));
+    await upsertTimesheet(sid, mosqueId, date, hours); load();
+  };
+  const approveWeek = async (sid) => { await approveTimesheetWeek(mosqueId, sid, from, to, authedUser?.id); load(); };
+  const rowApproved = (sid) => dates.some((dt) => entries[sid]?.[dt]) && dates.every((dt) => !entries[sid]?.[dt] || entries[sid][dt].approved);
+
   const weeklyPay = (sid) => { const p = salaries?.[sid]; return p == null ? null : p / 100 / 52; };
   const totalWeekly = (staff || []).reduce((s, st) => s + (weeklyPay(st.id) || 0), 0);
   const revealed = salaries !== null;
-
-  // Owner-initiated + audited: one get_staff_salary per staff (each logs
-  // salary_viewed). On demand — NOT on tab load — so the audit trail stays meaningful.
   const revealSalaries = async () => {
     if (!staff) return;
     setRevealing(true);
@@ -297,24 +320,40 @@ function Timesheets({ mosqueId, mosque }) {
   if (staff === null) return <Loading />;
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-stone-500">Weekly hours. Hours persistence lands in Session RBAC-C.</p>
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-payroll.csv`, [["Staff", ...TDAYS, "Total hours", ...(revealed ? ["Annual salary (£)", "Est. weekly pay (£)"] : []), "Approved"],
-          ...staff.map((s) => [s.name, ...TDAYS.map((d) => hours[s.id]?.[d] ?? ""), rowTotal(s.id), ...(revealed ? [salaries[s.id] != null ? (salaries[s.id] / 100).toFixed(2) : "", weeklyPay(s.id) != null ? weeklyPay(s.id).toFixed(2) : ""] : []), approved[s.id] ? "yes" : "no"])])}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <button onClick={() => setWeek(addDays(week, -7))} className="text-sm border border-stone-300 px-2 py-1 rounded-lg">←</button>
+        <span className="text-sm font-medium text-stone-700">Week of {from}</span>
+        <button onClick={() => setWeek(addDays(week, 7))} className="text-sm border border-stone-300 px-2 py-1 rounded-lg">→</button>
+        <div className="flex-1" />
+        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-payroll-${from}.csv`, [["Staff", ...TDAYS, "Total hours", ...(revealed ? ["Annual salary (£)", "Est. weekly pay (£)"] : []), "Approved"],
+          ...staff.map((s) => [s.name, ...dates.map((dt) => entries[s.id]?.[dt]?.hours ?? ""), rowTotal(s.id), ...(revealed ? [salaries[s.id] != null ? (salaries[s.id] / 100).toFixed(2) : "", weeklyPay(s.id) != null ? weeklyPay(s.id).toFixed(2) : ""] : []), rowApproved(s.id) ? "yes" : "no"])])}
           className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export CSV</button>
       </div>
       {staff.length === 0 ? <Empty text="No staff to record." /> : (
         <div className="overflow-x-auto">
           <table className="min-w-max text-sm border border-stone-200 rounded-lg bg-white">
-            <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{TDAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Total</th>{revealed && <th className="px-3 py-2 font-medium">Pay (wk est.)</th>}<th className="px-3 py-2 font-medium">Approved</th></tr></thead>
+            <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{TDAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Total</th>{revealed && <th className="px-3 py-2 font-medium">Pay (wk est.)</th>}<th className="px-3 py-2 font-medium">Approve</th></tr></thead>
             <tbody className="divide-y divide-stone-100">
               {staff.map((s) => (
                 <tr key={s.id}>
                   <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap">{s.name}</td>
-                  {TDAYS.map((d) => <td key={d} className="px-1 py-1"><input type="number" value={hours[s.id]?.[d] ?? ""} onChange={(e) => setCell(s.id, d, e.target.value)} className="w-14 text-xs border border-stone-200 rounded px-1.5 py-1 text-center focus:outline-none focus:ring-1 focus:ring-emerald-300" /></td>)}
+                  {dates.map((dt) => {
+                    const c = cell(s.id, dt);
+                    return (
+                      <td key={dt} className="px-1 py-1">
+                        {c?.approved
+                          ? <div className="w-14 text-xs bg-emerald-50 text-emerald-800 rounded px-1.5 py-1 text-center inline-flex items-center justify-center gap-1"><Lock size={10} />{c.hours}</div>
+                          : <input type="number" value={c?.hours ?? ""} onChange={(e) => setLocal(s.id, dt, e.target.value)} onBlur={(e) => persist(s.id, dt, e.target.value)}
+                              className="w-14 text-xs border border-stone-200 rounded px-1.5 py-1 text-center focus:outline-none focus:ring-1 focus:ring-emerald-300" />}
+                      </td>
+                    );
+                  })}
                   <td className="px-3 py-1.5 text-center font-semibold">{rowTotal(s.id)}</td>
                   {revealed && <td className="px-3 py-1.5 text-center text-stone-700">{weeklyPay(s.id) != null ? gbp(weeklyPay(s.id)) : "—"}</td>}
-                  <td className="px-3 py-1.5 text-center"><input type="checkbox" checked={!!approved[s.id]} onChange={(e) => setApproved((a) => ({ ...a, [s.id]: e.target.checked }))} className="accent-emerald-600" /></td>
+                  <td className="px-3 py-1.5 text-center">
+                    {rowApproved(s.id) ? <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Lock size={11} /> Approved</span>
+                      : <button onClick={() => approveWeek(s.id)} className="text-xs text-emerald-700 hover:underline">Approve week</button>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -322,7 +361,7 @@ function Timesheets({ mosqueId, mosque }) {
         </div>
       )}
       <div className="mt-4 border border-stone-200 rounded-lg bg-stone-50 p-4 text-sm space-y-1 max-w-md">
-        <div className="flex justify-between"><span className="text-stone-500">Total hours this period</span><span className="font-semibold">{grandTotal}</span></div>
+        <div className="flex justify-between"><span className="text-stone-500">Total hours this week</span><span className="font-semibold">{grandTotal}</span></div>
         {!revealed ? (
           <button onClick={revealSalaries} disabled={revealing} className="text-sm text-emerald-700 inline-flex items-center gap-1.5 disabled:opacity-50">
             {revealing ? <Loader2 size={13} className="animate-spin" /> : null} Reveal salaries &amp; payroll — access is logged

@@ -170,6 +170,37 @@ export async function getMosqueLeave(mosqueId) {
   if (error) { console.error("getMosqueLeave:", error); return []; }
   return data || [];
 }
+// ── Timesheets (mosque_staff_timesheets, migration 131) ─────────────
+export async function getMosqueTimesheets(mosqueId, from, to) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_staff_timesheets").select("*")
+    .eq("mosque_id", mosqueId).gte("work_date", from).lte("work_date", to);
+  if (error) { console.error("getMosqueTimesheets:", error); return []; }
+  return data || [];
+}
+// Upsert one staff-day cell (unique on staff_id + work_date). hoursWorked 0–24.
+export async function upsertTimesheet(staffId, mosqueId, workDate, hoursWorked) {
+  const { data, error } = await supabase
+    .from("mosque_staff_timesheets")
+    .upsert({ staff_id: staffId, mosque_id: mosqueId, work_date: workDate, hours_worked: hoursWorked },
+            { onConflict: "staff_id,work_date" })
+    .select().single();
+  return { data, error };
+}
+export async function deleteTimesheet(staffId, workDate) {
+  const { error } = await supabase.from("mosque_staff_timesheets")
+    .delete().eq("staff_id", staffId).eq("work_date", workDate);
+  return { error };
+}
+// Approve all of a staff member's entries in a date range (owner action).
+export async function approveTimesheetWeek(mosqueId, staffId, from, to, approverId) {
+  const { error } = await supabase.from("mosque_staff_timesheets")
+    .update({ approved: true, approved_by: approverId || null, approved_at: new Date().toISOString() })
+    .eq("mosque_id", mosqueId).eq("staff_id", staffId).gte("work_date", from).lte("work_date", to);
+  return { error };
+}
+
 export async function addLeave(staffId, fields) {
   if (!staffId) return { error: { message: "staffId required" } };
   const { data, error } = await supabase
