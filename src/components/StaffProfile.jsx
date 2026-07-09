@@ -29,9 +29,10 @@ import {
   Upload, AlertTriangle, Check, Plus, Trash2,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
+import OffboardingFlow from "./OffboardingFlow";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive,
-  offboardStaff, anonymiseStaff, suspendStaff, recordStaffAudit,
+  anonymiseStaff, suspendStaff, recordStaffAudit,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
   getStaffLeave, addLeave, approveLeave, declineLeave,
@@ -42,7 +43,7 @@ import {
   requestPasswordReset, getMosqueEmployees, updateEmployeePermissions,
   updateMosqueStaff, upsertMosqueStaffEmployment, getMadrasaClasses,
 } from "../auth";
-import { sendOffboardingConfirmation, sendLeaveDecision } from "../lib/email";
+import { sendLeaveDecision } from "../lib/email";
 import { MODULES, detectPreset, ROLE_LABELS } from "../lib/employeePermissions";
 
 const fmtDate = (d) => {
@@ -89,6 +90,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const [row, setRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [offboardOpen, setOffboardOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
 
@@ -131,16 +133,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
     setBusy(true); await requestPasswordReset(row.email); setBusy(false); setActionsOpen(false);
     setNote("Password reset email sent.");
   };
-  const doOffboard = async () => {
-    const reason = window.prompt("Reason for offboarding (Resigned / Dismissed / Contract ended / …):");
-    if (reason == null) return;
-    const endDate = window.prompt("Last working day (YYYY-MM-DD):") || null;
-    setBusy(true);
-    const { error } = await offboardStaff(staffId, reason, endDate);
-    if (!error) { sendOffboardingConfirmation(staffId).catch(() => {}); setNote("Offboarded. Confirmation email sent."); }
-    setBusy(false); setActionsOpen(false);
-    if (!error) onBack?.();
-  };
+  const openOffboard = () => { setActionsOpen(false); setOffboardOpen(true); };
   const doAnonymise = async () => {
     if (!window.confirm("Anonymise this record? PII is replaced with [REDACTED] and cannot be recovered. The compliance audit trail is kept.")) return;
     setBusy(true);
@@ -196,7 +189,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
                       : <MenuItem onClick={() => doSuspend("suspended")} disabled={busy}>Suspend</MenuItem>}
                     <MenuItem onClick={doResetPassword} disabled={busy}>Reset password</MenuItem>
                     <div className="my-1 border-t border-stone-100" />
-                    <MenuItem onClick={doOffboard} disabled={busy} danger>Offboard</MenuItem>
+                    <MenuItem onClick={openOffboard} disabled={busy} danger>Offboard</MenuItem>
                     <MenuItem onClick={doAnonymise} disabled={busy} danger>Anonymise (GDPR)</MenuItem>
                   </div>
                 )}
@@ -286,12 +279,18 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
                 ? <button onClick={() => doSuspend("active")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reactivate</button>
                 : <button onClick={() => doSuspend("suspended")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate</button>}
               <button onClick={doResetPassword} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reset password</button>
-              <button onClick={doOffboard} disabled={busy} className="text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard</button>
+              <button onClick={openOffboard} disabled={busy} className="text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard</button>
               <button onClick={doAnonymise} disabled={busy} className="text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise (GDPR)</button>
             </div>
           </Section>
         </div>
       </div>
+
+      {offboardOpen && (
+        <OffboardingFlow staffId={staffId} staffName={row.name}
+          onClose={() => setOffboardOpen(false)}
+          onDone={() => { setOffboardOpen(false); onBack?.(); }} />
+      )}
     </div>
   );
 }
