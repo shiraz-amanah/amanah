@@ -142,6 +142,18 @@ export async function getStaffLeave(staffId) {
   if (error) { console.error("getStaffLeave:", error); return []; }
   return data || [];
 }
+// All leave across a mosque's staff (owner/admin — RLS gates by staff ownership).
+// Joins the staff name for calendar + summary rendering.
+export async function getMosqueLeave(mosqueId) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_staff_leave")
+    .select("*, mosque_staff!inner(id, name, mosque_id)")
+    .eq("mosque_staff.mosque_id", mosqueId)
+    .order("start_date", { ascending: false });
+  if (error) { console.error("getMosqueLeave:", error); return []; }
+  return data || [];
+}
 export async function addLeave(staffId, fields) {
   if (!staffId) return { error: { message: "staffId required" } };
   const { data, error } = await supabase
