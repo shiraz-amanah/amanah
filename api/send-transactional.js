@@ -1223,6 +1223,45 @@ async function handleOffboardingConfirmation(env, caller, staffId) {
   return { status: 200, body: { ok: true, sent: 1 } };
 }
 
+// Session RBAC-C — contract "ready to sign" notification to the staff member.
+// Owner-gated; email resolved server-side. signUrl is optional (remote signing
+// is RBAC-D; without it the message just asks them to arrange signing).
+async function handleContractReadyToSign(env, caller, staffId, contractType, signUrl) {
+  const rows = await sbGet(env, `mosque_staff?id=eq.${staffId}&select=name,email,mosque_id`);
+  const s = Array.isArray(rows) ? rows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+  const { mosque, ok } = await ownsMosque(env, caller, s.mosque_id);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  if (!s.email) return { status: 200, body: { ok: true, sent: 0, note: 'no_email' } };
+  const ctype = escapeHtml(String(contractType || 'employment').replace(/_/g, ' '));
+  const cta = (signUrl && /^https?:\/\//.test(signUrl))
+    ? ePara(`Please review and sign it here: <a href="${escapeHtml(signUrl)}">${escapeHtml(signUrl)}</a>`)
+    : ePara('Please arrange with the office to review and sign it.');
+  const inner = `${eGreeting(firstName(s.name))}${eHeading('Your contract is ready')}${ePara(`Your <strong>${ctype}</strong> contract with <strong>${escapeHtml(mosque.name)}</strong> is ready for signature.`)}${cta}${eSignoff}`;
+  await sendEmail(env, { to: s.email, subject: `Your contract is ready — ${mosque.name}`, html: wrapEmail('Contract ready to sign', inner) });
+  return { status: 200, body: { ok: true, sent: 1 } };
+}
+
+// Signed-copy confirmation to BOTH parties (staff + the owner who signed). The
+// signed PDF is filed to the staff member's Documents (viewable via signed URL) —
+// we email a confirmation, not the private file. Owner-gated; owner email = caller.
+async function handleContractSignedCopy(env, caller, staffId, contractType, signedDate) {
+  const rows = await sbGet(env, `mosque_staff?id=eq.${staffId}&select=name,email,mosque_id`);
+  const s = Array.isArray(rows) ? rows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+  const { mosque, ok } = await ownsMosque(env, caller, s.mosque_id);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const ctype = escapeHtml(String(contractType || 'employment').replace(/_/g, ' '));
+  const when = signedDate ? escapeHtml(formatDate(signedDate)) : escapeHtml(formatDate(new Date().toISOString()));
+  const inner = `${eHeading('Contract signed')}${ePara(`The <strong>${ctype}</strong> contract between <strong>${escapeHtml(mosque.name)}</strong> and <strong>${escapeHtml(s.name)}</strong> was signed electronically on <strong>${when}</strong> and filed to the staff record. A copy is available under the staff member's Documents.`)}${eSignoff}`;
+  let sent = 0;
+  if (s.email) { await sendEmail(env, { to: s.email, subject: `Your signed contract — ${mosque.name}`, html: wrapEmail('Contract signed', inner) }); sent++; }
+  if (caller.email && caller.email !== s.email) { await sendEmail(env, { to: caller.email, subject: `Signed contract filed — ${s.name}`, html: wrapEmail('Contract signed', inner) }); sent++; }
+  return { status: 200, body: { ok: true, sent } };
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. UNAUTHENTICATED intent (the staffer has no session). The
 // recipient is constrained server-side to a real mosque_staff row for that
@@ -2108,6 +2147,16 @@ export default async function handler(req, res) {
     if (body.intent === 'offboarding_confirmation') {
       if (!isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_staffId' });
       const out = await handleOffboardingConfirmation(env, caller, body.staffId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'contract_ready_to_sign') {
+      if (!isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_staffId' });
+      const out = await handleContractReadyToSign(env, caller, body.staffId, body.contractType, body.signUrl);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'contract_signed_copy') {
+      if (!isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_staffId' });
+      const out = await handleContractSignedCopy(env, caller, body.staffId, body.contractType, body.signedDate);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });
