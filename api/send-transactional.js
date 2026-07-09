@@ -1114,6 +1114,115 @@ async function handleDbsReminder(env, caller, mosqueId) {
   return { status: 200, body: { ok: true, sent: 1, count: attention.length } };
 }
 
+// ── Session RBAC-B — People-tab staff messaging + compliance reminders ──
+// SECURITY: every recipient is resolved server-side from mosque_staff for the
+// caller's own mosque. The client NEVER supplies an email address — it passes
+// mosque_staff.id values, which are validated to belong to the owner's mosque.
+
+const LEAVE_LABEL = {
+  annual: 'Annual leave', sick: 'Sick leave', compassionate: 'Compassionate leave',
+  unpaid: 'Unpaid leave', hajj: 'Hajj leave', maternity: 'Maternity leave',
+  paternity: 'Paternity leave', other: 'Leave',
+};
+
+// Free-text staff email to N verified staff of the caller's mosque. Body is
+// plain text from the composer; split on blank lines into paragraphs.
+async function handleStaffEmail(env, caller, { mosqueId, recipientIds, subject, body }) {
+  const { mosque, ok } = await ownsMosque(env, caller, mosqueId);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  if (!body || typeof body !== 'string' || !body.trim()) {
+    return { status: 400, body: { ok: false, error: 'empty_body' } };
+  }
+  const ids = (Array.isArray(recipientIds) ? recipientIds : []).filter(isUuid);
+  if (!ids.length) return { status: 400, body: { ok: false, error: 'no_recipients' } };
+  // in.(...) — recipients constrained to THIS mosque's staff, so no arbitrary send.
+  const staff = await sbGet(env, `mosque_staff?mosque_id=eq.${mosqueId}&id=in.(${ids.join(',')})&archived=eq.false&select=id,name,email`);
+  const subj = (subject && String(subject).trim()) || `A message from ${mosque.name}`;
+  const paras = String(body).trim().split(/\n{2,}/).map((p) => ePara(escapeHtml(p).replace(/\n/g, '<br />'))).join('');
+  let sent = 0;
+  for (const s of (staff || [])) {
+    if (!s.email) continue;
+    const inner = `${eGreeting(firstName(s.name))}${paras}${eSignoff}`;
+    await sendEmail(env, { to: s.email, subject: subj, html: wrapEmail(subj, inner) });
+    sent++;
+  }
+  return { status: 200, body: { ok: true, sent, requested: ids.length } };
+}
+
+// WhatsApp send — DEFERRED to Session N1 (no provider wired). Ownership is still
+// validated; the call is a logged no-op so callers can fire it unconditionally.
+async function handleStaffWhatsapp(env, caller, { mosqueId }) {
+  const { mosque, ok } = await ownsMosque(env, caller, mosqueId);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  return { status: 200, body: { ok: true, sent: 0, note: 'whatsapp_deferred_n1' } };
+}
+
+// One handler for the three compliance-expiry reminders (DBS / RTW / training).
+// Emails the STAFF MEMBER; email + name resolved server-side. daysRemaining /
+// expiryDate / courseName are non-sensitive copy inputs from the safe list.
+async function handleStaffComplianceReminder(env, caller, kind, { mosqueId, staffId, daysRemaining, expiryDate, courseName }) {
+  const { mosque, ok } = await ownsMosque(env, caller, mosqueId);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  const rows = await sbGet(env, `mosque_staff?id=eq.${staffId}&mosque_id=eq.${mosqueId}&select=name,email`);
+  const s = Array.isArray(rows) ? rows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+  if (!s.email) return { status: 200, body: { ok: true, sent: 0, note: 'no_email' } };
+
+  const when = Number.isFinite(daysRemaining)
+    ? (daysRemaining <= 0 ? 'has expired' : `expires in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`)
+    : (expiryDate ? `expires on ${formatDate(expiryDate)}` : 'needs renewing');
+  const map = {
+    dbs_expiry_reminder: { label: 'DBS check', title: 'DBS renewal reminder' },
+    rtw_expiry_reminder: { label: 'Right to Work document', title: 'Right to Work renewal reminder' },
+    training_expiry_reminder: { label: courseName ? `${courseName} training` : 'training', title: 'Training renewal reminder' },
+  };
+  const m = map[kind] || map.dbs_expiry_reminder;
+  const inner = `${eGreeting(firstName(s.name))}${eHeading(m.title)}${ePara(`Your <strong>${escapeHtml(m.label)}</strong> at <strong>${escapeHtml(mosque.name)}</strong> ${when}. Please arrange a renewal so your record stays compliant.`)}${ePara('If you have already actioned this, kindly let the office know so we can update your record.')}${eSignoff}`;
+  await sendEmail(env, { to: s.email, subject: `${m.title} — ${mosque.name}`, html: wrapEmail(m.title, inner) });
+  return { status: 200, body: { ok: true, sent: 1 } };
+}
+
+// Leave approved / declined — resolves the leave row, its staff member, and the
+// mosque, then gates on ownership of THAT mosque before emailing the employee.
+async function handleLeaveDecision(env, caller, leaveId) {
+  const lrows = await sbGet(env, `mosque_staff_leave?id=eq.${leaveId}&select=leave_type,start_date,end_date,status,staff_id`);
+  const leave = Array.isArray(lrows) ? lrows[0] : null;
+  if (!leave) return { status: 404, body: { ok: false, error: 'leave_not_found' } };
+  const srows = await sbGet(env, `mosque_staff?id=eq.${leave.staff_id}&select=name,email,mosque_id`);
+  const s = Array.isArray(srows) ? srows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+  const { mosque, ok } = await ownsMosque(env, caller, s.mosque_id);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  if (!s.email) return { status: 200, body: { ok: true, sent: 0, note: 'no_email' } };
+
+  const decided = leave.status === 'approved' ? 'approved' : 'declined';
+  const label = LEAVE_LABEL[leave.leave_type] || 'Leave';
+  const dates = `${formatDate(leave.start_date)} – ${formatDate(leave.end_date)}`;
+  const inner = `${eGreeting(firstName(s.name))}${eHeading(`Your leave request was ${decided}`)}${ePara(`Your <strong>${escapeHtml(label)}</strong> request for <strong>${escapeHtml(dates)}</strong> at <strong>${escapeHtml(mosque.name)}</strong> has been <strong>${decided}</strong>.`)}${eSignoff}`;
+  await sendEmail(env, { to: s.email, subject: `Leave ${decided} — ${mosque.name}`, html: wrapEmail('Leave decision', inner) });
+  return { status: 200, body: { ok: true, sent: 1 } };
+}
+
+// Offboarding confirmation to the (former) staff member. Email survives offboard
+// (only anonymise redacts it), so we resolve it from mosque_staff as normal.
+async function handleOffboardingConfirmation(env, caller, staffId) {
+  const rows = await sbGet(env, `mosque_staff?id=eq.${staffId}&select=name,email,mosque_id,end_date`);
+  const s = Array.isArray(rows) ? rows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+  const { mosque, ok } = await ownsMosque(env, caller, s.mosque_id);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  if (!s.email) return { status: 200, body: { ok: true, sent: 0, note: 'no_email' } };
+  const endTxt = s.end_date ? ` Your last working day is recorded as <strong>${escapeHtml(formatDate(s.end_date))}</strong>.` : '';
+  const inner = `${eGreeting(firstName(s.name))}${eHeading('Thank you for your service')}${ePara(`This confirms that your role at <strong>${escapeHtml(mosque.name)}</strong> has come to an end.${endTxt}`)}${ePara('JazakAllah khair for your contribution. We wish you every success going forward.')}${eSignoff}`;
+  await sendEmail(env, { to: s.email, subject: `Offboarding confirmation — ${mosque.name}`, html: wrapEmail('Offboarding confirmation', inner) });
+  return { status: 200, body: { ok: true, sent: 1 } };
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. UNAUTHENTICATED intent (the staffer has no session). The
 // recipient is constrained server-side to a real mosque_staff row for that
@@ -1972,6 +2081,33 @@ export default async function handler(req, res) {
     if (body.intent === 'employee_invite') {
       if (!isUuid(body.employeeId)) return res.status(400).json({ ok: false, error: 'invalid_employeeId' });
       const out = await handleEmployeeInvite(env, caller, body.employeeId);
+      return res.status(out.status).json(out.body);
+    }
+
+    // ── Session RBAC-B People-tab intents (recipients resolved server-side) ──
+    if (body.intent === 'staff_email') {
+      if (!isUuid(body.mosqueId)) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+      const out = await handleStaffEmail(env, caller, body);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'staff_whatsapp') {
+      if (!isUuid(body.mosqueId)) return res.status(400).json({ ok: false, error: 'invalid_mosqueId' });
+      const out = await handleStaffWhatsapp(env, caller, body);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'dbs_expiry_reminder' || body.intent === 'rtw_expiry_reminder' || body.intent === 'training_expiry_reminder') {
+      if (!isUuid(body.mosqueId) || !isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_ids' });
+      const out = await handleStaffComplianceReminder(env, caller, body.intent, body);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'leave_decision') {
+      if (!isUuid(body.leaveId)) return res.status(400).json({ ok: false, error: 'invalid_leaveId' });
+      const out = await handleLeaveDecision(env, caller, body.leaveId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'offboarding_confirmation') {
+      if (!isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_staffId' });
+      const out = await handleOffboardingConfirmation(env, caller, body.staffId);
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

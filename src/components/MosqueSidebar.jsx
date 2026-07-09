@@ -21,10 +21,8 @@ import {
 export const MOSQUE_NAV = [
   { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, items: [] },
   { tab: "people", label: "People", icon: Users, items: [
-    ["team", "Team", Users], ["hr", "HR", UserCog], ["rotas", "Rotas", CalendarDays],
-    ["timesheets", "Timesheets", Clock], ["payroll", "Payroll", Banknote],
-    ["publiclisting", "Public listing", Globe],
-    ["employees", "Employees", UserCog],
+    ["staff", "Staff", Users], ["workforce", "Workforce", CalendarDays],
+    ["volunteers", "Volunteers", HeartHandshake],
   ] },
   { tab: "mosque", label: "Mosque", icon: Building2, items: [
     ["profile", "Profile", Building2], ["prayer", "Prayer times", Clock],

@@ -22,7 +22,6 @@ import WeekSlotPicker from "./components/WeekSlotPicker";
 import CancelBookingModal from "./components/CancelBookingModal";
 import VideoCallEmbed from "./components/VideoCallEmbed";
 import MosqueProfileEditor from "./components/MosqueProfileEditor";
-import MosqueStaffPublic from "./components/MosqueStaffPublic";
 import MosqueEventsManager from "./components/MosqueEventsManager";
 import MosqueProfile from "./pages/MosqueProfile";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -46,8 +45,9 @@ import { slotsToWeekly } from "./lib/availability";
 import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHours, parseDurationToMinutes, formatBookingDateTime } from "./lib/schedule";
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
-import MosqueStaffDirectory from "./components/MosqueStaffDirectory";
 import MosqueDashboard from "./components/MosqueDashboard";
+import StaffProfile from "./components/StaffProfile";
+import { stampStaffLogin } from "./lib/staffHelpers";
 import AdminSidebar from "./components/AdminSidebar";
 import ScholarSidebar from "./components/ScholarSidebar";
 import UserSidebar from "./components/UserSidebar";
@@ -13047,10 +13047,21 @@ useEffect(() => {
   // them in — on any page, not just the Community tab. Silent except a success toast.
   useSilentGeofence(authedUser?.id, (sessionName, mosqueName) => showToast(`Checked in to ${sessionName} at ${mosqueName}`));
 
+  // RBAC-B: stamp last_login_at on the caller's own mosque_staff row(s) once per
+  // session (mosque-agnostic). SECURITY DEFINER RPC (migration 130); no-op / 0 rows
+  // if the caller isn't staff.
+  useEffect(() => { if (authedUser?.id) stampStaffLogin().catch(() => {}); }, [authedUser?.id]);
+
   // Full sign-out helper — used in three places now (logout buttons,
   // suspended bounce, cross-path admin bounce). Clears everything
   // auth-related so the next bootstrap starts cold. Caller decides
   // where to setView next.
+  //
+  // RBAC-B security audit: no mosque-staff HR data (salary/DOB/documents/staff
+  // lists) is ever lifted to App root — the People directory + StaffProfile keep
+  // it in component-local state that unmounts on sign-out (view → publicHome).
+  // The only staff-related root state is myStaffMembership (the caller's OWN
+  // membership row), cleared below. Do NOT hoist employee HR data to this scope.
   const fullSignOut = async () => {
     await signOut();
     setAuthedUser(null);
@@ -13711,6 +13722,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     sub={routeQuery.sub || ""}
     staffId={routeQuery.staffId || ""}
     onNavigate={(t, s, sid) => navigate("mosqueDashboard", {}, { tab: t, sub: s || "", staffId: sid || "" }, {})}
+    onOpenProfile={(id) => navigate("staffProfile", {}, { staffId: id || "" }, {})}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     conversations={inboxData}
@@ -13777,6 +13789,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     onView={() => setView("publicHome")}
     onHome={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
+  if (view === "staffProfile") return <StaffProfile staffId={routeQuery.staffId} mosque={myMosque} authedUser={authedUser} onBack={() => window.history.back()} />;
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
