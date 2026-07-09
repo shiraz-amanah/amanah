@@ -11,8 +11,8 @@
 // ====================================================================
 import { useState, useEffect, useMemo } from "react";
 import { AlertTriangle, Download, Copy, Loader2 } from "lucide-react";
-import { getMadrasaClasses, getMosqueRota, upsertMosqueRota, getMosqueTimeLogs } from "../auth";
-import { getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave } from "../lib/staffHelpers";
+import { getMadrasaClasses, getMosqueRota, upsertMosqueRota } from "../auth";
+import { getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary } from "../lib/staffHelpers";
 import { sendLeaveDecision } from "../lib/email";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -271,31 +271,49 @@ function Timesheets({ mosqueId, mosque }) {
   const [staff, setStaff] = useState(null);
   const [hours, setHours] = useState({}); // { [staffId]: { [day]: number } }
   const [approved, setApproved] = useState({}); // { [staffId]: bool }
+  const [salaries, setSalaries] = useState(null); // staffId → annual pence (null until revealed)
+  const [revealing, setRevealing] = useState(false);
   const TDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   useEffect(() => { getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded"))).catch(() => setStaff([])); }, [mosqueId]);
 
   const setCell = (sid, day, val) => setHours((h) => ({ ...h, [sid]: { ...(h[sid] || {}), [day]: val === "" ? "" : Number(val) } }));
   const rowTotal = (sid) => TDAYS.reduce((sum, d) => sum + (Number(hours[sid]?.[d]) || 0), 0);
   const grandTotal = (staff || []).reduce((s, st) => s + rowTotal(st.id), 0);
+  const weeklyPay = (sid) => { const p = salaries?.[sid]; return p == null ? null : p / 100 / 52; };
+  const totalWeekly = (staff || []).reduce((s, st) => s + (weeklyPay(st.id) || 0), 0);
+  const revealed = salaries !== null;
+
+  // Owner-initiated + audited: one get_staff_salary per staff (each logs
+  // salary_viewed). On demand — NOT on tab load — so the audit trail stays meaningful.
+  const revealSalaries = async () => {
+    if (!staff) return;
+    setRevealing(true);
+    const out = {};
+    for (const s of staff) { const { salaryPence } = await getStaffSalary(s.id); out[s.id] = salaryPence ?? null; }
+    setSalaries(out); setRevealing(false);
+  };
+  const gbp = (n) => `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (staff === null) return <Loading />;
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-stone-500">Weekly hours. Persistence to time logs + £ payroll land in Session RBAC-C.</p>
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-timesheet.csv`, [["Staff", ...TDAYS, "Total", "Approved"], ...staff.map((s) => [s.name, ...TDAYS.map((d) => hours[s.id]?.[d] ?? ""), rowTotal(s.id), approved[s.id] ? "yes" : "no"])])}
+        <p className="text-sm text-stone-500">Weekly hours. Hours persistence lands in Session RBAC-C.</p>
+        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-payroll.csv`, [["Staff", ...TDAYS, "Total hours", ...(revealed ? ["Annual salary (£)", "Est. weekly pay (£)"] : []), "Approved"],
+          ...staff.map((s) => [s.name, ...TDAYS.map((d) => hours[s.id]?.[d] ?? ""), rowTotal(s.id), ...(revealed ? [salaries[s.id] != null ? (salaries[s.id] / 100).toFixed(2) : "", weeklyPay(s.id) != null ? weeklyPay(s.id).toFixed(2) : ""] : []), approved[s.id] ? "yes" : "no"])])}
           className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export CSV</button>
       </div>
       {staff.length === 0 ? <Empty text="No staff to record." /> : (
         <div className="overflow-x-auto">
           <table className="min-w-max text-sm border border-stone-200 rounded-lg bg-white">
-            <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{TDAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Total</th><th className="px-3 py-2 font-medium">Approved</th></tr></thead>
+            <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{TDAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Total</th>{revealed && <th className="px-3 py-2 font-medium">Pay (wk est.)</th>}<th className="px-3 py-2 font-medium">Approved</th></tr></thead>
             <tbody className="divide-y divide-stone-100">
               {staff.map((s) => (
                 <tr key={s.id}>
                   <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap">{s.name}</td>
                   {TDAYS.map((d) => <td key={d} className="px-1 py-1"><input type="number" value={hours[s.id]?.[d] ?? ""} onChange={(e) => setCell(s.id, d, e.target.value)} className="w-14 text-xs border border-stone-200 rounded px-1.5 py-1 text-center focus:outline-none focus:ring-1 focus:ring-emerald-300" /></td>)}
                   <td className="px-3 py-1.5 text-center font-semibold">{rowTotal(s.id)}</td>
+                  {revealed && <td className="px-3 py-1.5 text-center text-stone-700">{weeklyPay(s.id) != null ? gbp(weeklyPay(s.id)) : "—"}</td>}
                   <td className="px-3 py-1.5 text-center"><input type="checkbox" checked={!!approved[s.id]} onChange={(e) => setApproved((a) => ({ ...a, [s.id]: e.target.checked }))} className="accent-emerald-600" /></td>
                 </tr>
               ))}
@@ -305,9 +323,14 @@ function Timesheets({ mosqueId, mosque }) {
       )}
       <div className="mt-4 border border-stone-200 rounded-lg bg-stone-50 p-4 text-sm space-y-1 max-w-md">
         <div className="flex justify-between"><span className="text-stone-500">Total hours this period</span><span className="font-semibold">{grandTotal}</span></div>
-        <div className="flex justify-between"><span className="text-stone-500">Salary × hours</span><span className="text-stone-400">via audited salary RPC — RBAC-C</span></div>
-        <div className="flex justify-between"><span className="text-stone-500">Pension contribution</span><span className="text-stone-400">RBAC-C</span></div>
-        <p className="text-xs text-stone-400 pt-1">UK auto-enrolment: a workplace pension is required for employees earning over £10,000/year.</p>
+        {!revealed ? (
+          <button onClick={revealSalaries} disabled={revealing} className="text-sm text-emerald-700 inline-flex items-center gap-1.5 disabled:opacity-50">
+            {revealing ? <Loader2 size={13} className="animate-spin" /> : null} Reveal salaries &amp; payroll — access is logged
+          </button>
+        ) : (
+          <div className="flex justify-between"><span className="text-stone-500">Est. weekly payroll</span><span className="font-semibold">{gbp(totalWeekly)}</span></div>
+        )}
+        <p className="text-xs text-stone-400 pt-1">Weekly pay is an estimate (annual salary ÷ 52). UK auto-enrolment: a workplace pension is required for employees earning over £10,000/year.</p>
       </div>
     </div>
   );
