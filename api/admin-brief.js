@@ -921,6 +921,22 @@ async function handleStaffMessageDraft(req, res, body, env) {
   return res.status(200).json({ ok: true, draft: r.answer });
 }
 
+// Session RBAC-B — 1-2 sentence compliance summary for one staff member.
+// ANONYMISED input only: name + compliance flag strings (statuses/expiries).
+// The client is instructed never to send salary/DOB/document numbers/address/
+// phone; this prompt reinforces it. Owner-gated. Returns { ok, summary }.
+async function handleStaffAiSummary(req, res, body, env) {
+  const mosque = await authOwner(req, res, env, body.mosqueId);
+  if (!mosque) return;
+  const name = (body.name || 'This staff member').toString().slice(0, 80);
+  const issues = Array.isArray(body.issues) ? body.issues.slice(0, 10).map((s) => String(s).slice(0, 160)) : [];
+  const system = `You write a one or two sentence, plain-English compliance summary for a member of staff at a UK mosque. Use ONLY the compliance flags provided (names + statuses). NEVER mention or infer salary, date of birth, document numbers, home address or phone number. If there are no flags, say everything looks good. Be concise, specific and calm (not alarmist). Return ONLY the summary sentence(s) — no preamble, no markdown.`;
+  const userMsg = `Staff member: ${name}\nCompliance flags: ${issues.length ? issues.join('; ') : 'none'}\n\nWrite the summary.`;
+  const r = await callAnthropic(env, 'staff-ai-summary', { system, userMsg });
+  if (r.error) return res.status(502).json({ ok: false, error: r.error });
+  return res.status(200).json({ ok: true, summary: r.answer });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -982,6 +998,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'staff_message_draft') {
       return handleStaffMessageDraft(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'staff_ai_summary') {
+      return handleStaffAiSummary(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 

@@ -72,6 +72,15 @@ export async function draftStaffMessage(mosqueId, oneLine, template = "") {
   return postBrief({ mode: "staff_message_draft", mosqueId, oneLine, template });
 }
 
+// Session RBAC-B — AI compliance summary for one staff member. ANONYMISED:
+// only `name` + `issues` (status/expiry strings) are sent — never salary/DOB/
+// document numbers/address/phone. Returns { ok, summary }. Short timeout so the
+// quick-view falls back to the deterministic summary quickly on any hiccup.
+export async function staffComplianceSummary(mosqueId, name, issues = []) {
+  if (!mosqueId) return { ok: false, error: "missing_mosqueId" };
+  return postBrief({ mode: "staff_ai_summary", mosqueId, name, issues }, { timeoutMs: 8000 });
+}
+
 // Mosque DASHBOARD morning briefing (mode:'mosque_ops'). Returns { ok, brief }.
 export async function getMosqueBriefing(mosqueId) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };

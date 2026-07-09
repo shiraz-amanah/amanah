@@ -25,6 +25,7 @@ import {
 import OrgStructure from "./OrgStructure";
 import AddStaffModal from "./AddStaffModal";
 import MessageModal from "./MessageModal";
+import { staffComplianceSummary } from "../lib/hrAssistant";
 
 // ── small helpers ────────────────────────────────────────────────────
 const AVATAR_TONES = [
@@ -114,6 +115,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  const [aiSummaries, setAiSummaries] = useState({}); // staffId → LLM summary (falls back to deterministic)
 
   useEffect(() => {
     let alive = true;
@@ -126,6 +128,20 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   }, [mosqueId, tick]);
 
   useEffect(() => { if (staffId) setOpenId(staffId); }, [staffId]);
+
+  // AI compliance summary for the open profile — anonymised (name + issue
+  // strings only). Deterministic aiSummaryFor shows instantly; the LLM version
+  // replaces it when ready. Cached per staffId; never re-fetched.
+  useEffect(() => {
+    if (!openId || !mosqueId || aiSummaries[openId] !== undefined) return;
+    const r = staff.find((s) => s.id === openId);
+    if (!r) return;
+    setAiSummaries((m) => ({ ...m, [openId]: null })); // mark in-flight
+    const msgs = computeComplianceIssues(staff).filter((i) => i.staffId === openId).map((i) => i.message);
+    staffComplianceSummary(mosqueId, r.name, msgs)
+      .then((res) => { if (res.ok && res.summary) setAiSummaries((m) => ({ ...m, [openId]: res.summary })); })
+      .catch(() => {});
+  }, [openId, mosqueId, staff]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const issues = useMemo(() => computeComplianceIssues(staff), [staff]);
   const ofsted = useMemo(() => computeOfstedScore(staff), [staff]);
@@ -349,7 +365,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
               <div className="mt-4 border-t border-stone-100 pt-4">
                 <div className="flex items-start gap-2 text-sm text-stone-600">
                   <Sparkles size={15} className="shrink-0 mt-0.5 text-emerald-600" />
-                  <span>{aiSummaryFor(openRow.id, issues)}</span>
+                  <span>{aiSummaries[openRow.id] || aiSummaryFor(openRow.id, issues)}</span>
                 </div>
               </div>
 
