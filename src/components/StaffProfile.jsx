@@ -19,18 +19,21 @@ import {
   ChevronDown, ChevronRight, ArrowLeft, MessageCircle, MoreHorizontal,
   Eye, Loader2, ShieldCheck, ShieldAlert, GraduationCap, BookOpen,
   CalendarDays, TrendingUp, Globe, FileText, UserCog, Lock,
-  Upload, AlertTriangle, Check,
+  Upload, AlertTriangle, Check, Plus, Trash2,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive,
   offboardStaff, anonymiseStaff, suspendStaff, recordStaffAudit,
+  getStaffIjazahs, addIjazah, deleteIjazah,
+  getStaffTrainingFor, addTraining, deleteTraining,
+  getStaffLeave, addLeave, approveLeave, declineLeave,
 } from "../lib/staffHelpers";
 import {
   requestPasswordReset, getMosqueEmployees, updateEmployeePermissions,
   updateMosqueStaff, upsertMosqueStaffEmployment, getMadrasaClasses,
 } from "../auth";
-import { sendOffboardingConfirmation } from "../lib/email";
+import { sendOffboardingConfirmation, sendLeaveDecision } from "../lib/email";
 import { MODULES, detectPreset, ROLE_LABELS } from "../lib/employeePermissions";
 
 const fmtDate = (d) => {
@@ -254,10 +257,14 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
           <DbsSection staffRow={row} mosqueId={mosqueId}
             sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
 
-          {/* §7–11 placeholders */}
-          <Section icon={GraduationCap} title="Ijazah & scholarly credentials"><Placeholder /></Section>
-          <Section icon={BookOpen} title="Training & CPD"><Placeholder /></Section>
-          <Section icon={CalendarDays} title="Leave & absence"><Placeholder /></Section>
+          {/* §7 Ijazah */}
+          <IjazahSection staffId={staffId} />
+          {/* §8 Training & CPD */}
+          <TrainingSection staffId={staffId} mosqueId={mosqueId} />
+          {/* §9 Leave & absence */}
+          <LeaveSection staffId={staffId} staffRow={row} authedUser={authedUser} />
+
+          {/* §10–11 placeholders */}
           <Section icon={TrendingUp} title="Performance"><Placeholder /></Section>
           <Section icon={Globe} title="Platform listing"><Placeholder /></Section>
           <Section icon={FileText} title="Documents"><Placeholder /></Section>
@@ -511,6 +518,217 @@ function DbsSection({ staffRow, mosqueId, sensitive, revealSensitive, sensLoadin
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
         {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
       </div>
+    </Section>
+  );
+}
+
+// ── §7 Ijazah & scholarly credentials ────────────────────────────────
+const IJAZAH_TYPES = [
+  ["quran_recitation", "Qur'an recitation"], ["tajweed", "Tajweed"],
+  ["islamic_studies", "Islamic studies"], ["fiqh", "Fiqh"], ["arabic", "Arabic"],
+  ["hadith", "Hadith"], ["other", "Other"],
+];
+const ijazahLabel = (t) => IJAZAH_TYPES.find(([v]) => v === t)?.[1] || t;
+function IjazahSection({ staffId }) {
+  const blank = { ijazah_type: "quran_recitation", qiraat: "", granted_by: "", sanad: "", date_granted: "", notes: "" };
+  const [items, setItems] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const load = () => getStaffIjazahs(staffId).then(setItems).catch(() => setItems([]));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
+  const add = async () => {
+    if (!f.granted_by.trim()) return;
+    setBusy(true);
+    await addIjazah(staffId, { ...f, date_granted: f.date_granted || null, qiraat: f.qiraat || null, sanad: f.sanad || null, notes: f.notes || null });
+    setBusy(false); setAdding(false); setF(blank); load();
+  };
+  const remove = async (id) => { await deleteIjazah(id); load(); };
+  return (
+    <Section icon={GraduationCap} title="Ijazah & scholarly credentials">
+      {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
+        : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No ijazahs recorded.</p>
+        : (
+          <div className="space-y-2">
+            {items.map((i) => (
+              <div key={i.id} className="flex items-start justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-stone-800">{ijazahLabel(i.ijazah_type)}{i.qiraat && ` · ${i.qiraat}`}</div>
+                  <div className="text-xs text-stone-500">Granted by {i.granted_by}{i.date_granted && ` · ${fmtDate(i.date_granted)}`}</div>
+                  {i.sanad && <div className="text-xs text-stone-400 mt-0.5 break-words">Sanad: {i.sanad}</div>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {i.verified
+                    ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Verified</span>
+                    : <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">Unverified</span>}
+                  <button onClick={() => remove(i.id)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      {adding ? (
+        <div className="mt-3 border border-stone-200 rounded-lg p-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-3">
+            <LabeledSelect label="Type" value={f.ijazah_type} onChange={(v) => setF({ ...f, ijazah_type: v })} options={IJAZAH_TYPES} />
+            {f.ijazah_type === "quran_recitation" && <LabeledInput label="Qira'at" value={f.qiraat} onChange={(v) => setF({ ...f, qiraat: v })} />}
+            <LabeledInput label="Granted by" value={f.granted_by} onChange={(v) => setF({ ...f, granted_by: v })} />
+            <LabeledInput type="date" label="Date granted" value={f.date_granted} onChange={(v) => setF({ ...f, date_granted: v })} />
+          </div>
+          <LabeledInput label="Sanad (chain of transmission)" value={f.sanad} onChange={(v) => setF({ ...f, sanad: v })} />
+          <LabeledInput label="Notes" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} />
+          <div className="flex items-center gap-2">
+            <button onClick={add} disabled={busy || !f.granted_by.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Save</button>
+            <button onClick={() => { setAdding(false); setF(blank); }} className="text-sm text-stone-500 px-2">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add ijazah</button>
+      )}
+    </Section>
+  );
+}
+
+// ── §8 Training & CPD ────────────────────────────────────────────────
+const TRAIN_CATS = [
+  ["safeguarding", "Safeguarding"], ["first_aid", "First aid"], ["teaching", "Teaching"],
+  ["islamic", "Islamic"], ["governance", "Governance"], ["other", "Other"],
+];
+const trainCat = (c) => TRAIN_CATS.find(([v]) => v === c)?.[1] || c || "—";
+function TrainingSection({ staffId, mosqueId }) {
+  const blank = { course_name: "", provider: "", category: "safeguarding", completed_date: "", expiry_date: "", notes: "" };
+  const [items, setItems] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const load = () => getStaffTrainingFor(staffId).then(setItems).catch(() => setItems([]));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
+  const add = async () => {
+    if (!f.course_name.trim()) return;
+    setBusy(true);
+    await addTraining(staffId, mosqueId, f);
+    setBusy(false); setAdding(false); setF(blank); load();
+  };
+  const remove = async (id) => { await deleteTraining(id); load(); };
+  const dueDays = (d) => (d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null);
+  return (
+    <Section icon={BookOpen} title="Training & CPD">
+      {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
+        : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No training recorded.</p>
+        : (
+          <div className="space-y-2">
+            {items.map((t) => {
+              const dl = dueDays(t.renewal_due);
+              return (
+                <div key={t.id} className="flex items-start justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-stone-800">{t.course_name || t.training_type}</div>
+                    <div className="text-xs text-stone-500">{trainCat(t.category)}{t.provider && ` · ${t.provider}`}{t.completion_date && ` · completed ${fmtDate(t.completion_date)}`}</div>
+                    {t.renewal_due && (
+                      <div className={`text-xs mt-0.5 inline-flex items-center gap-1 ${dl < 0 ? "text-rose-700" : dl <= 60 ? "text-orange-700" : "text-stone-400"}`}>
+                        {dl <= 60 && <AlertTriangle size={11} />} Expires {fmtDate(t.renewal_due)}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => remove(t.id)} className="text-stone-400 hover:text-rose-600 shrink-0"><Trash2 size={14} /></button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      {adding ? (
+        <div className="mt-3 border border-stone-200 rounded-lg p-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-3">
+            <LabeledInput label="Course name" value={f.course_name} onChange={(v) => setF({ ...f, course_name: v })} />
+            <LabeledInput label="Provider" value={f.provider} onChange={(v) => setF({ ...f, provider: v })} />
+            <LabeledSelect label="Category" value={f.category} onChange={(v) => setF({ ...f, category: v })} options={TRAIN_CATS} />
+            <LabeledInput type="date" label="Completed" value={f.completed_date} onChange={(v) => setF({ ...f, completed_date: v })} />
+            <LabeledInput type="date" label="Expiry" value={f.expiry_date} onChange={(v) => setF({ ...f, expiry_date: v })} />
+          </div>
+          <LabeledInput label="Notes" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} />
+          <div className="flex items-center gap-2">
+            <button onClick={add} disabled={busy || !f.course_name.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Save</button>
+            <button onClick={() => { setAdding(false); setF(blank); }} className="text-sm text-stone-500 px-2">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add training</button>
+      )}
+    </Section>
+  );
+}
+
+// ── §9 Leave & absence ───────────────────────────────────────────────
+const LEAVE_TYPES = [
+  ["annual", "Annual"], ["sick", "Sick"], ["compassionate", "Compassionate"], ["unpaid", "Unpaid"],
+  ["hajj", "Hajj"], ["maternity", "Maternity"], ["paternity", "Paternity"], ["other", "Other"],
+];
+const LEAVE_STATUS_CLS = { pending: "bg-amber-50 text-amber-700", approved: "bg-emerald-50 text-emerald-700", declined: "bg-rose-50 text-rose-700", cancelled: "bg-stone-100 text-stone-500" };
+const leaveLabel = (t) => LEAVE_TYPES.find(([v]) => v === t)?.[1] || t;
+function LeaveSection({ staffId, staffRow, authedUser }) {
+  const blank = { leave_type: "annual", start_date: "", end_date: "", notes: "" };
+  const [items, setItems] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const load = () => getStaffLeave(staffId).then(setItems).catch(() => setItems([]));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
+  const add = async () => {
+    if (!f.start_date || !f.end_date) return;
+    setBusy(true);
+    const days = Math.max(1, Math.round((new Date(f.end_date) - new Date(f.start_date)) / 86400000) + 1);
+    await addLeave(staffId, { leave_type: f.leave_type, start_date: f.start_date, end_date: f.end_date, days_taken: days, notes: f.notes || null });
+    setBusy(false); setAdding(false); setF(blank); load();
+  };
+  const decide = async (id, approve) => {
+    setBusy(true);
+    if (approve) await approveLeave(id, authedUser?.id); else await declineLeave(id, authedUser?.id);
+    sendLeaveDecision(id).catch(() => {});
+    setBusy(false); load();
+  };
+  const bal = staffRow.leaveBalanceDays, ann = staffRow.annualLeaveDays;
+  return (
+    <Section icon={CalendarDays} title="Leave & absence" subtitle={bal != null ? `${bal} days remaining of ${ann ?? "—"} annual leave` : undefined}>
+      {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
+        : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No leave recorded.</p>
+        : (
+          <div className="space-y-2">
+            {items.map((l) => (
+              <div key={l.id} className="flex items-center justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-stone-800">{leaveLabel(l.leave_type)} <span className="text-stone-400 font-normal">· {l.days_taken || "—"} day{l.days_taken === 1 ? "" : "s"}</span></div>
+                  <div className="text-xs text-stone-500">{fmtDate(l.start_date)} – {fmtDate(l.end_date)}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${LEAVE_STATUS_CLS[l.status] || "bg-stone-100 text-stone-500"}`}>{l.status}</span>
+                  {l.status === "pending" && (
+                    <>
+                      <button onClick={() => decide(l.id, true)} disabled={busy} className="text-xs text-emerald-700 hover:underline">Approve</button>
+                      <button onClick={() => decide(l.id, false)} disabled={busy} className="text-xs text-rose-600 hover:underline">Decline</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      {adding ? (
+        <div className="mt-3 border border-stone-200 rounded-lg p-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-3">
+            <LabeledSelect label="Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} options={LEAVE_TYPES} />
+            <div />
+            <LabeledInput type="date" label="Start date" value={f.start_date} onChange={(v) => setF({ ...f, start_date: v })} />
+            <LabeledInput type="date" label="End date" value={f.end_date} onChange={(v) => setF({ ...f, end_date: v })} />
+          </div>
+          <LabeledInput label="Notes" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} />
+          <div className="flex items-center gap-2">
+            <button onClick={add} disabled={busy || !f.start_date || !f.end_date} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Submit</button>
+            <button onClick={() => { setAdding(false); setF(blank); }} className="text-sm text-stone-500 px-2">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add leave</button>
+      )}
     </Section>
   );
 }
