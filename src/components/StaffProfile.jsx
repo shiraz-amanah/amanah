@@ -21,25 +21,26 @@
 // Document UPLOAD (§5/§6/§11) is deferred to Session RBAC-C; document VIEW works
 // now (fresh 1-hour signed URL + audit log via viewStaffDocument).
 // ====================================================================
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ChevronDown, ChevronRight, ArrowLeft, MessageCircle, MoreHorizontal,
   Eye, Loader2, ShieldCheck, ShieldAlert, GraduationCap, BookOpen,
   CalendarDays, TrendingUp, Globe, FileText, UserCog, Lock,
-  Upload, AlertTriangle, Check, Plus, Trash2,
+  Upload, AlertTriangle, Check, Plus, Trash2, X,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
-  anonymiseStaff, suspendStaff, recordStaffAudit,
+  anonymiseStaff, suspendStaff,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
   getStaffLeave, addLeave, approveLeave, declineLeave,
   getStaffPerformance, getStaffReviewNotes, addStaffReviewNote,
-  getStaffDocuments, deleteStaffDocument, viewStaffDocument,
+  getStaffDocuments, deleteStaffDocument, addStaffDocument,
 } from "../lib/staffHelpers";
+import { uploadStaffDoc, getStaffDocUrl, deleteStaffDoc } from "../lib/staffStorage";
 import {
   requestPasswordReset, getMosqueEmployees, updateEmployeePermissions,
   updateMosqueStaff, upsertMosqueStaffEmployment, getMadrasaClasses,
@@ -259,7 +260,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
             sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
 
           {/* §7 Ijazah */}
-          <IjazahSection staffId={staffId} />
+          <IjazahSection staffId={staffId} mosqueId={mosqueId} />
           {/* §8 Training & CPD */}
           <TrainingSection staffId={staffId} mosqueId={mosqueId} />
           {/* §9 Leave & absence */}
@@ -270,7 +271,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
           {/* §11 Platform listing */}
           <PlatformListingSection staffRow={row} onReload={load} />
           {/* Documents */}
-          <DocumentsSection staffId={staffId} />
+          <DocumentsSection staffId={staffId} mosqueId={mosqueId} />
 
           {/* §12 Account */}
           <Section icon={UserCog} title="Account" subtitle="Access and lifecycle">
@@ -422,6 +423,79 @@ function PermissionsSection({ staffRow, mosqueId }) {
   );
 }
 
+// ── shared document upload/view/delete (staff-documents bucket) ──────
+function FilePick({ onPick, busy, label = "Upload document" }) {
+  const ref = useRef(null);
+  return (
+    <>
+      <input ref={ref} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ""; }} />
+      <button type="button" onClick={() => ref.current?.click()} disabled={busy}
+        className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {label}
+      </button>
+    </>
+  );
+}
+
+// A single-document slot for a section (RTW/DBS). Documents live in
+// mosque_staff_documents (readable + audited-view via get_staff_document_url);
+// the employmentColumn (rtw_storage_path / dbs_storage_path) also points at the
+// latest upload for downstream use. Files are on the private staff-documents bucket.
+function DocSlot({ staffId, mosqueId, docType, employmentColumn, uploadLabel }) {
+  const [docs, setDocs] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const load = () => getStaffDocuments(staffId)
+    .then((all) => setDocs((all || []).filter((d) => d.document_type === docType)))
+    .catch(() => setDocs([]));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
+
+  const onPick = async (file) => {
+    setBusy(true); setErr(null);
+    const { path, error } = await uploadStaffDoc(file, mosqueId, staffId, docType);
+    if (error) { setErr(error); setBusy(false); return; }
+    await addStaffDocument(staffId, { document_type: docType, document_name: file.name, storage_path: path });
+    if (employmentColumn) await upsertMosqueStaffEmployment(staffId, mosqueId, { [employmentColumn]: path });
+    setBusy(false); load();
+  };
+  const view = async (d) => {
+    setErr(null);
+    const { url, error } = await getStaffDocUrl(d.storage_path, staffId);
+    if (url) window.open(url, "_blank", "noopener"); else setErr(error);
+  };
+  const remove = async (d) => {
+    setBusy(true);
+    await deleteStaffDoc(d.storage_path);
+    await deleteStaffDocument(d.id);
+    if (employmentColumn) await upsertMosqueStaffEmployment(staffId, mosqueId, { [employmentColumn]: null });
+    setBusy(false); load();
+  };
+
+  return (
+    <div className="mt-1">
+      {docs && docs.length > 0 ? (
+        <div className="space-y-1.5">
+          {docs.map((d) => (
+            <div key={d.id} className="flex items-center justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
+              <div className="min-w-0"><div className="text-sm text-stone-800 truncate">{d.document_name}</div><div className="text-xs text-stone-400">{d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString("en-GB") : ""}</div></div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => view(d)} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"><Eye size={12} /> View</button>
+                <button onClick={() => remove(d)} disabled={busy} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
+          <FilePick onPick={onPick} busy={busy} label="Replace" />
+        </div>
+      ) : (
+        <FilePick onPick={onPick} busy={busy} label={uploadLabel || "Upload document"} />
+      )}
+      {err && <p className="text-xs text-rose-600 mt-1">{err}</p>}
+      <p className="text-xs text-stone-400 mt-1">PDF/JPG/PNG, max 10MB · private bucket · viewing is 1-hour signed + audit-logged.</p>
+    </div>
+  );
+}
+
 // ── §5 Identity verification (RTW) ───────────────────────────────────
 const RTW_DOCS = {
   GB: ["UK/Irish Passport", "BRP", "UK Driving Licence", "Share code", "EU Settlement Scheme"],
@@ -451,7 +525,6 @@ function RtwSection({ staffRow, mosqueId, authedUser, sensitive, revealSensitive
     await upsertMosqueStaffEmployment(staffRow.id, mosqueId, fields);
     setSaving(false); setSaved(true); onReload?.();
   };
-  const viewDoc = () => recordStaffAudit(staffRow.id, "document_viewed", { kind: "rtw" });
 
   return (
     <Section icon={ShieldAlert} title="Identity verification" subtitle="Right to Work">
@@ -474,14 +547,14 @@ function RtwSection({ staffRow, mosqueId, authedUser, sensitive, revealSensitive
         </div>
       </div>
       {verified && <p className="text-xs text-stone-500 mt-1">Will record: verified by you on {new Date().toLocaleDateString("en-GB")}.</p>}
+      <div className="mt-3"><span className="text-xs text-stone-500 block mb-1">RTW document</span>
+        <DocSlot staffId={staffRow.id} mosqueId={mosqueId} docType="rtw" employmentColumn="rtw_storage_path" uploadLabel="Upload document" />
+      </div>
       <div className="flex items-center gap-2 mt-3">
-        <button disabled className="text-sm border border-stone-200 text-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Upload document</button>
-        <button onClick={viewDoc} className="text-sm border border-stone-300 text-stone-600 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> View document</button>
         <div className="flex-1" />
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
         {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
       </div>
-      <p className="text-xs text-stone-400 mt-2">Document upload &amp; signed-URL viewing land in Session RBAC-C. “View document” logs an audit entry.</p>
     </Section>
   );
 }
@@ -508,7 +581,6 @@ function DbsSection({ staffRow, mosqueId, sensitive, revealSensitive, sensLoadin
     if (numberTouched) await upsertMosqueStaffEmployment(staffRow.id, mosqueId, { dbs_certificate_number: number || null });
     setSaving(false); setSaved(true); onReload?.();
   };
-  const viewDoc = () => recordStaffAudit(staffRow.id, "document_viewed", { kind: "dbs" });
 
   return (
     <Section icon={ShieldCheck} title="DBS check">
@@ -532,9 +604,10 @@ function DbsSection({ staffRow, mosqueId, sensitive, revealSensitive, sensLoadin
         <LabeledInput type="date" label="Issue date" value={issue} onChange={(v) => { setIssue(v); setSaved(false); }} />
         <LabeledInput type="date" label="Expiry date" value={expiry || ""} onChange={(v) => { setExpiry(v); setSaved(false); }} />
       </div>
+      <div className="mt-3"><span className="text-xs text-stone-500 block mb-1">DBS certificate</span>
+        <DocSlot staffId={staffRow.id} mosqueId={mosqueId} docType="dbs" employmentColumn="dbs_storage_path" uploadLabel="Upload certificate" />
+      </div>
       <div className="flex items-center gap-2 mt-3">
-        <button disabled className="text-sm border border-stone-200 text-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Upload certificate</button>
-        <button onClick={viewDoc} className="text-sm border border-stone-300 text-stone-600 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> View certificate</button>
         <div className="flex-1" />
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
         {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
@@ -550,21 +623,30 @@ const IJAZAH_TYPES = [
   ["hadith", "Hadith"], ["other", "Other"],
 ];
 const ijazahLabel = (t) => IJAZAH_TYPES.find(([v]) => v === t)?.[1] || t;
-function IjazahSection({ staffId }) {
+function IjazahSection({ staffId, mosqueId }) {
   const blank = { ijazah_type: "quran_recitation", qiraat: "", granted_by: "", sanad: "", date_granted: "", notes: "" };
   const [items, setItems] = useState(null);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState(blank);
+  const [certFile, setCertFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
   const load = () => getStaffIjazahs(staffId).then(setItems).catch(() => setItems([]));
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
   const add = async () => {
     if (!f.granted_by.trim()) return;
-    setBusy(true);
-    await addIjazah(staffId, { ...f, date_granted: f.date_granted || null, qiraat: f.qiraat || null, sanad: f.sanad || null, notes: f.notes || null });
-    setBusy(false); setAdding(false); setF(blank); load();
+    setBusy(true); setErr(null);
+    let storage_path = null;
+    if (certFile) {
+      const { path, error } = await uploadStaffDoc(certFile, mosqueId, staffId, "ijazah");
+      if (error) { setErr(error); setBusy(false); return; }
+      storage_path = path;
+    }
+    await addIjazah(staffId, { ...f, date_granted: f.date_granted || null, qiraat: f.qiraat || null, sanad: f.sanad || null, notes: f.notes || null, storage_path });
+    setBusy(false); setAdding(false); setF(blank); setCertFile(null); load();
   };
-  const remove = async (id) => { await deleteIjazah(id); load(); };
+  const remove = async (i) => { if (i.storage_path) await deleteStaffDoc(i.storage_path); await deleteIjazah(i.id); load(); };
+  const viewCert = async (i) => { const { url } = await getStaffDocUrl(i.storage_path, staffId); if (url) window.open(url, "_blank", "noopener"); };
   return (
     <Section icon={GraduationCap} title="Ijazah & scholarly credentials">
       {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
@@ -579,10 +661,11 @@ function IjazahSection({ staffId }) {
                   {i.sanad && <div className="text-xs text-stone-400 mt-0.5 break-words">Sanad: {i.sanad}</div>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {i.storage_path && <button onClick={() => viewCert(i)} className="text-xs text-emerald-700 hover:underline">View cert</button>}
                   {i.verified
                     ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Verified</span>
                     : <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">Unverified</span>}
-                  <button onClick={() => remove(i.id)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
+                  <button onClick={() => remove(i)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
@@ -598,9 +681,15 @@ function IjazahSection({ staffId }) {
           </div>
           <LabeledInput label="Sanad (chain of transmission)" value={f.sanad} onChange={(v) => setF({ ...f, sanad: v })} />
           <LabeledInput label="Notes" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} />
+          <div>
+            <span className="text-xs text-stone-500 block mb-1">Certificate (optional)</span>
+            {certFile ? <span className="text-xs text-stone-600 inline-flex items-center gap-2">{certFile.name} <button onClick={() => setCertFile(null)} className="text-stone-400 hover:text-rose-600"><X size={12} /></button></span>
+              : <FilePick onPick={setCertFile} busy={false} label="Choose certificate" />}
+          </div>
+          {err && <p className="text-xs text-rose-600">{err}</p>}
           <div className="flex items-center gap-2">
-            <button onClick={add} disabled={busy || !f.granted_by.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Save</button>
-            <button onClick={() => { setAdding(false); setF(blank); }} className="text-sm text-stone-500 px-2">Cancel</button>
+            <button onClick={add} disabled={busy || !f.granted_by.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+            <button onClick={() => { setAdding(false); setF(blank); setCertFile(null); }} className="text-sm text-stone-500 px-2">Cancel</button>
           </div>
         </div>
       ) : (
@@ -621,16 +710,25 @@ function TrainingSection({ staffId, mosqueId }) {
   const [items, setItems] = useState(null);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState(blank);
+  const [certFile, setCertFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
   const load = () => getStaffTrainingFor(staffId).then(setItems).catch(() => setItems([]));
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
   const add = async () => {
     if (!f.course_name.trim()) return;
-    setBusy(true);
-    await addTraining(staffId, mosqueId, f);
-    setBusy(false); setAdding(false); setF(blank); load();
+    setBusy(true); setErr(null);
+    let certificate_path = null;
+    if (certFile) {
+      const { path, error } = await uploadStaffDoc(certFile, mosqueId, staffId, "training");
+      if (error) { setErr(error); setBusy(false); return; }
+      certificate_path = path;
+    }
+    await addTraining(staffId, mosqueId, { ...f, certificate_path });
+    setBusy(false); setAdding(false); setF(blank); setCertFile(null); load();
   };
-  const remove = async (id) => { await deleteTraining(id); load(); };
+  const remove = async (t) => { if (t.certificate_path) await deleteStaffDoc(t.certificate_path); await deleteTraining(t.id); load(); };
+  const viewCert = async (t) => { const { url } = await getStaffDocUrl(t.certificate_path, staffId); if (url) window.open(url, "_blank", "noopener"); };
   const dueDays = (d) => (d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null);
   return (
     <Section icon={BookOpen} title="Training & CPD">
@@ -651,7 +749,10 @@ function TrainingSection({ staffId, mosqueId }) {
                       </div>
                     )}
                   </div>
-                  <button onClick={() => remove(t.id)} className="text-stone-400 hover:text-rose-600 shrink-0"><Trash2 size={14} /></button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {t.certificate_path && <button onClick={() => viewCert(t)} className="text-xs text-emerald-700 hover:underline">View</button>}
+                    <button onClick={() => remove(t)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
+                  </div>
                 </div>
               );
             })}
@@ -667,9 +768,15 @@ function TrainingSection({ staffId, mosqueId }) {
             <LabeledInput type="date" label="Expiry" value={f.expiry_date} onChange={(v) => setF({ ...f, expiry_date: v })} />
           </div>
           <LabeledInput label="Notes" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} />
+          <div>
+            <span className="text-xs text-stone-500 block mb-1">Certificate (optional)</span>
+            {certFile ? <span className="text-xs text-stone-600 inline-flex items-center gap-2">{certFile.name} <button onClick={() => setCertFile(null)} className="text-stone-400 hover:text-rose-600"><X size={12} /></button></span>
+              : <FilePick onPick={setCertFile} busy={false} label="Choose certificate" />}
+          </div>
+          {err && <p className="text-xs text-rose-600">{err}</p>}
           <div className="flex items-center gap-2">
-            <button onClick={add} disabled={busy || !f.course_name.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Save</button>
-            <button onClick={() => { setAdding(false); setF(blank); }} className="text-sm text-stone-500 px-2">Cancel</button>
+            <button onClick={add} disabled={busy || !f.course_name.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+            <button onClick={() => { setAdding(false); setF(blank); setCertFile(null); }} className="text-sm text-stone-500 px-2">Cancel</button>
           </div>
         </div>
       ) : (
@@ -841,18 +948,29 @@ function PlatformListingSection({ staffRow, onReload }) {
 }
 
 // ── Documents (signed-URL viewing; uploads land in RBAC-C) ───────────
-function DocumentsSection({ staffId }) {
+const DOC_TYPES = ["other", "rtw", "dbs", "training", "ijazah", "contracts"];
+function DocumentsSection({ staffId, mosqueId }) {
   const [docs, setDocs] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [docType, setDocType] = useState("other");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
   const load = () => getStaffDocuments(staffId).then(setDocs).catch(() => setDocs([]));
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
   const view = async (d) => {
-    setViewing(d.id);
-    const { url } = await viewStaffDocument(staffId, d.storage_path);
+    setViewing(d.id); setErr(null);
+    const { url, error } = await getStaffDocUrl(d.storage_path, staffId);
     setViewing(null);
-    if (url) window.open(url, "_blank", "noopener");
+    if (url) window.open(url, "_blank", "noopener"); else setErr(error);
   };
-  const remove = async (id) => { await deleteStaffDocument(id); load(); };
+  const remove = async (d) => { await deleteStaffDoc(d.storage_path); await deleteStaffDocument(d.id); load(); };
+  const onPick = async (file) => {
+    setBusy(true); setErr(null);
+    const { path, error } = await uploadStaffDoc(file, mosqueId, staffId, docType);
+    if (error) { setErr(error); setBusy(false); return; }
+    await addStaffDocument(staffId, { document_type: docType, document_name: file.name, storage_path: path });
+    setBusy(false); load();
+  };
   return (
     <Section icon={FileText} title="Documents">
       {docs === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
@@ -865,11 +983,17 @@ function DocumentsSection({ staffId }) {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => view(d)} disabled={viewing === d.id} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1">{viewing === d.id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} View</button>
-                <button onClick={() => remove(d.id)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
+                <button onClick={() => remove(d)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
               </div>
             </div>))}</div>}
-      <button disabled className="mt-3 text-sm border border-stone-200 text-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Attach document</button>
-      <p className="text-xs text-stone-400 mt-2">Uploads land in Session RBAC-C. “View” resolves a fresh 1-hour signed URL and logs an audit entry.</p>
+      <div className="mt-3 flex items-center gap-2">
+        <select value={docType} onChange={(e) => setDocType(e.target.value)} className="border border-stone-300 rounded-lg text-sm px-2 py-1.5">
+          {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <FilePick onPick={onPick} busy={busy} label="Attach document" />
+      </div>
+      {err && <p className="text-xs text-rose-600 mt-1">{err}</p>}
+      <p className="text-xs text-stone-400 mt-2">PDF/JPG/PNG, max 10MB · private bucket · viewing is 1-hour signed + audit-logged.</p>
     </Section>
   );
 }

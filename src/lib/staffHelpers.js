@@ -13,9 +13,6 @@
 // one place per the RBAC-B plan.
 // ====================================================================
 import { supabase } from "../supabaseClient";
-import { getSignedDocUrl } from "./storage";
-
-const HR_BUCKET = "mosque-hr-docs"; // private bucket, migration 064
 
 // ── Shapers (snake_case row → camelCase) ────────────────────────────
 export function shapeStaffListRow(r) {
@@ -218,16 +215,10 @@ export async function deleteStaffDocument(id) {
   const { error } = await supabase.from("mosque_staff_documents").delete().eq("id", id);
   return { error };
 }
-// Resolve a fresh 1-hour signed URL for a stored HR document AND audit-log the
-// access. staffId is required so the view is attributable in the audit trail.
-export async function viewStaffDocument(staffId, storagePath, action = "document_viewed") {
-  if (!storagePath) return { url: null, error: { message: "storagePath required" } };
-  const { url, error } = await getSignedDocUrl(HR_BUCKET, storagePath, 3600);
-  if (!error && staffId) {
-    await recordStaffAudit(staffId, action, { path: storagePath }).catch(() => {});
-  }
-  return { url, error };
-}
+// NOTE: staff-document viewing moved to src/lib/staffStorage.getStaffDocUrl (the
+// staff-documents bucket + get_staff_document_url RPC) in RBAC-C. The old
+// mosque-hr-docs viewStaffDocument was removed — that bucket is deprecated for
+// staff docs.
 
 // ── Lifecycle RPCs (all audit-logged server-side) ──────────────────
 export async function offboardStaff(staffId, reason, endDate) {
