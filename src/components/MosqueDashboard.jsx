@@ -104,7 +104,7 @@ const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
   </div>
 );
 
-const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
+const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, onOpenProfile, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
   // Session RBAC — permission gating. The hook is authoritative (it re-checks
   // ownership); `isEmployee` from the App bootstrap only avoids a nav flash for
   // owners. Owners (gated=false) bypass every gate below.
@@ -226,7 +226,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
 
           {/* ---- People (RBAC-B rebuild) ---- */}
           {activeTab === "people" && activeSub === "staff" && (
-            <StaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} />
+            <StaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} onOpenProfile={onOpenProfile} />
           )}
           {activeTab === "people" && activeSub === "workforce" && (
             <WorkforceTab mosqueId={mosque.id} mosque={mosque} />

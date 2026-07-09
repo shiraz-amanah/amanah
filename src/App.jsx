@@ -46,6 +46,7 @@ import { toDateKey, isToday, generateSlots, getSlotsForDate, calculateWeeklyHour
 import { MOCK_USER, MOCK_USER_BOOKINGS, MOCK_USER_DONATIONS, MOCK_SAVED_SCHOLARS, MOCK_SAVED_CAMPAIGNS } from "./data/mockUser";
 import { getPrayerTimes, parseTimeToday, getCurrentPrayerState, timeUntil, getQiblaBearing } from "./lib/prayer";
 import MosqueDashboard from "./components/MosqueDashboard";
+import StaffProfile from "./components/StaffProfile";
 import AdminSidebar from "./components/AdminSidebar";
 import ScholarSidebar from "./components/ScholarSidebar";
 import UserSidebar from "./components/UserSidebar";
@@ -13715,6 +13716,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     sub={routeQuery.sub || ""}
     staffId={routeQuery.staffId || ""}
     onNavigate={(t, s, sid) => navigate("mosqueDashboard", {}, { tab: t, sub: s || "", staffId: sid || "" }, {})}
+    onOpenProfile={(id) => navigate("staffProfile", {}, { staffId: id || "" }, {})}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}
     conversations={inboxData}
@@ -13781,6 +13783,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     onView={() => setView("publicHome")}
     onHome={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
+  if (view === "staffProfile") return <StaffProfile staffId={routeQuery.staffId} mosque={myMosque} authedUser={authedUser} onBack={() => window.history.back()} />;
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;
