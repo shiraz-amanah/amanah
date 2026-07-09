@@ -13051,6 +13051,12 @@ useEffect(() => {
   // suspended bounce, cross-path admin bounce). Clears everything
   // auth-related so the next bootstrap starts cold. Caller decides
   // where to setView next.
+  //
+  // RBAC-B security audit: no mosque-staff HR data (salary/DOB/documents/staff
+  // lists) is ever lifted to App root — the People directory + StaffProfile keep
+  // it in component-local state that unmounts on sign-out (view → publicHome).
+  // The only staff-related root state is myStaffMembership (the caller's OWN
+  // membership row), cleared below. Do NOT hoist employee HR data to this scope.
   const fullSignOut = async () => {
     await signOut();
     setAuthedUser(null);

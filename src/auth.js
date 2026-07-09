@@ -1321,10 +1321,31 @@ export async function getMosqueUpcomingEvents(mosqueId, limit = 5) {
 // (createStaffInvite + sendStaffInviteEmail) which sets invite_status, and the
 // accept RPC (055) links the account back.
 
+// RBAC-B security: NEVER select('*') here. This legacy bulk fetch feeds the
+// non-sensitive surviving consumers (madrasa teacher dropdowns, Overview,
+// Compliance, Safeguarding, RotaBuilder) — the new People directory uses the
+// audited get_mosque_staff_list RPC (staffHelpers) instead. Sensitive fields are
+// excluded from this list: the DBS certificate NUMBER (dbs_certificate), phone,
+// and the single-use invite tokens (wizard_token*). Salary/DOB/doc numbers live
+// on mosque_staff_employment and are read only via get_staff_salary /
+// get_staff_sensitive RPCs.
+const STAFF_LIST_COLS = [
+  'id', 'mosque_id', 'profile_id', 'name', 'email', 'role', 'staff_type',
+  'status', 'invite_status', 'archived', 'photo_url', 'show_on_profile',
+  'speciality', 'bio', 'linked_scholar_id', 'portal_access', 'cover_reason',
+  'start_date', 'end_date', 'created_at', 'updated_at',
+  'dbs_status', 'dbs_issue_date', 'dbs_expiry_date', 'dbs_level', 'dbs_required',
+  'department', 'job_title', 'employment_type', 'wizard_status',
+  'listed_on_marketplace', 'show_dbs_badge_publicly',
+  'onboarding_completed_at', 'onboarding_method',
+  'offboarding_reason', 'offboarding_completed_at', 'deleted_at',
+  'annual_leave_days', 'leave_balance_days',
+].join(',')
+
 export async function getMosqueStaff(mosqueId) {
   if (!mosqueId) return []
   const { data, error } = await supabase
-    .from('mosque_staff').select('*').eq('mosque_id', mosqueId)
+    .from('mosque_staff').select(STAFF_LIST_COLS).eq('mosque_id', mosqueId)
     .order('created_at', { ascending: true })
   if (error) { console.error('Error fetching mosque staff:', error); return [] }
   return data || []
