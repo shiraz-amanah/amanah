@@ -9,10 +9,17 @@
 // address/…) and get_staff_salary — each reveal writes mosque_staff_audit_log
 // server-side. No sensitive field is fetched until the owner clicks reveal.
 //
-// GROUP 1 (this commit): §1 Header, §2 Personal, §3 Employment, §12 Account.
-// §§4–11 are collapsible placeholders fleshed out in following commits.
-// Full employment terms (hours/notice/probation/pension) await the get_staff_
-// employment RPC (bundled into migration 130) — shown as — until then.
+// All sections live: Header · Personal · Employment · Permissions (RBAC) ·
+// Identity/RTW · DBS · Ijazah · Training · Leave · Performance · Platform
+// listing · Documents · Account.
+//
+// Migration-130-gated placeholders (render now, auto-activate on landing):
+//   §3 hours/notice/probation/pension → get_staff_employment RPC
+//   §10 attendance/homework/hifz metrics → get_staff_performance RPC
+//   §10 review notes → mosque_staff_review_notes table
+//   §11 show_dbs_badge_publicly current value → added to get_mosque_staff_list
+// Document UPLOAD (§5/§6/§11) is deferred to Session RBAC-C; document VIEW works
+// now (fresh 1-hour signed URL + audit log via viewStaffDocument).
 // ====================================================================
 import { useState, useEffect } from "react";
 import {
@@ -28,6 +35,8 @@ import {
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
   getStaffLeave, addLeave, approveLeave, declineLeave,
+  getStaffPerformance, getStaffReviewNotes, addStaffReviewNote,
+  getStaffDocuments, deleteStaffDocument, viewStaffDocument,
 } from "../lib/staffHelpers";
 import {
   requestPasswordReset, getMosqueEmployees, updateEmployeePermissions,
@@ -73,10 +82,6 @@ const Field = ({ label, value }) => (
     <span className="text-sm text-stone-500 shrink-0">{label}</span>
     <span className="text-sm text-stone-800 font-medium text-right break-words">{value ?? "—"}</span>
   </div>
-);
-
-const Placeholder = () => (
-  <p className="text-sm text-stone-400 py-2">This section is being built in this session.</p>
 );
 
 export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMessage, onGrantAccess }) {
@@ -264,10 +269,12 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
           {/* §9 Leave & absence */}
           <LeaveSection staffId={staffId} staffRow={row} authedUser={authedUser} />
 
-          {/* §10–11 placeholders */}
-          <Section icon={TrendingUp} title="Performance"><Placeholder /></Section>
-          <Section icon={Globe} title="Platform listing"><Placeholder /></Section>
-          <Section icon={FileText} title="Documents"><Placeholder /></Section>
+          {/* §10 Performance */}
+          <PerformanceSection staffId={staffId} authedUser={authedUser} mosqueId={mosqueId} />
+          {/* §11 Platform listing */}
+          <PlatformListingSection staffRow={row} onReload={load} />
+          {/* Documents */}
+          <DocumentsSection staffId={staffId} />
 
           {/* §12 Account */}
           <Section icon={UserCog} title="Account" subtitle="Access and lifecycle">
@@ -729,6 +736,126 @@ function LeaveSection({ staffId, staffRow, authedUser }) {
       ) : (
         <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add leave</button>
       )}
+    </Section>
+  );
+}
+
+// ── §10 Performance (metrics via get_staff_performance; review notes) ──
+function PerformanceSection({ staffId, authedUser, mosqueId }) {
+  const [perf, setPerf] = useState(undefined);
+  const [notes, setNotes] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const loadNotes = () => getStaffReviewNotes(staffId).then(setNotes).catch(() => setNotes([]));
+  useEffect(() => {
+    getStaffPerformance(staffId).then(setPerf).catch(() => setPerf(null));
+    loadNotes(); /* eslint-disable-next-line */
+  }, [staffId]);
+  const add = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    const { error } = await addStaffReviewNote(staffId, mosqueId, authedUser?.id, text.trim());
+    setBusy(false);
+    if (!error) { setText(""); setAdding(false); loadNotes(); }
+  };
+  const pct = (v) => (v == null ? "—" : `${Math.round(v)}%`);
+  return (
+    <Section icon={TrendingUp} title="Performance">
+      <Field label="Student attendance (their classes)" value={pct(perf?.attendance_pct)} />
+      <Field label="Homework completion (their classes)" value={pct(perf?.homework_pct)} />
+      <Field label="Hifz progress (assigned students, avg)" value={pct(perf?.hifz_avg)} />
+      {!perf && <p className="text-xs text-stone-400 mt-1">Auto-metrics populate via get_staff_performance (migration 130).</p>}
+      <div className="mt-3 border-t border-stone-100 pt-3">
+        <div className="text-sm font-medium text-stone-700 mb-1.5">Review notes</div>
+        {notes === null ? <p className="text-sm text-stone-400">Loading…</p>
+          : notes.length === 0 ? <p className="text-sm text-stone-400">No review notes yet.</p>
+          : <div className="space-y-2">{notes.map((n) => (
+              <div key={n.id} className="text-sm text-stone-700 border border-stone-100 rounded-lg px-3 py-2">
+                {n.note}<div className="text-xs text-stone-400 mt-1">{fmtDate(n.created_at)}</div>
+              </div>))}</div>}
+        {adding ? (
+          <div className="mt-2 space-y-2">
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} className={inputCls} placeholder="Write a review note…" />
+            <div className="flex items-center gap-2">
+              <button onClick={add} disabled={busy || !text.trim()} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Save note</button>
+              <button onClick={() => { setAdding(false); setText(""); }} className="text-sm text-stone-500 px-2">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} className="mt-2 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add review note</button>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// ── §11 Platform listing (marketplace toggles) ───────────────────────
+const ToggleRow = ({ label, hint, on, onClick }) => (
+  <div className="flex items-center justify-between gap-3 py-2 border-b border-stone-50">
+    <div><div className="text-sm text-stone-800">{label}</div>{hint && <div className="text-xs text-stone-400">{hint}</div>}</div>
+    <Toggle on={on} onClick={onClick} />
+  </div>
+);
+function PlatformListingSection({ staffRow, onReload }) {
+  const [listed, setListed] = useState(!!staffRow.listedOnMarketplace);
+  const [badge, setBadge] = useState(!!staffRow.showDbsBadgePublicly);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    await updateMosqueStaff(staffRow.id, { listed_on_marketplace: listed, show_dbs_badge_publicly: badge });
+    setSaving(false); setSaved(true); onReload?.();
+  };
+  const unlinkScholar = async () => { await updateMosqueStaff(staffRow.id, { linked_scholar_id: null }); onReload?.(); };
+  return (
+    <Section icon={Globe} title="Platform listing">
+      <ToggleRow label="Listed on the Amanah marketplace" hint="Show this staff member on your public mosque profile." on={listed} onClick={() => { setListed(!listed); setSaved(false); }} />
+      <ToggleRow label="Show DBS-verified badge publicly" hint="Display a “DBS verified” badge on their public listing." on={badge} onClick={() => { setBadge(!badge); setSaved(false); }} />
+      <div className="flex items-center justify-between gap-3 py-2">
+        <div><div className="text-sm text-stone-800">Scholar profile</div><div className="text-xs text-stone-400">{staffRow.linkedScholarId ? "Linked to a scholar profile." : "Not linked."}</div></div>
+        {staffRow.linkedScholarId
+          ? <button onClick={unlinkScholar} className="text-xs text-rose-600 hover:underline">Unlink</button>
+          : <span className="text-xs text-stone-400">Linking flow in RBAC-C</span>}
+      </div>
+      <div className="pt-3 flex items-center gap-2">
+        <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+        {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
+      </div>
+    </Section>
+  );
+}
+
+// ── Documents (signed-URL viewing; uploads land in RBAC-C) ───────────
+function DocumentsSection({ staffId }) {
+  const [docs, setDocs] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const load = () => getStaffDocuments(staffId).then(setDocs).catch(() => setDocs([]));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [staffId]);
+  const view = async (d) => {
+    setViewing(d.id);
+    const { url } = await viewStaffDocument(staffId, d.storage_path);
+    setViewing(null);
+    if (url) window.open(url, "_blank", "noopener");
+  };
+  const remove = async (id) => { await deleteStaffDocument(id); load(); };
+  return (
+    <Section icon={FileText} title="Documents">
+      {docs === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
+        : docs.length === 0 ? <p className="text-sm text-stone-400 py-2">No documents attached.</p>
+        : <div className="space-y-2">{docs.map((d) => (
+            <div key={d.id} className="flex items-center justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-stone-800 truncate">{d.document_name}</div>
+                <div className="text-xs text-stone-500">{d.document_type}{d.uploaded_at && ` · ${fmtDate(d.uploaded_at)}`}{d.expires_at && ` · expires ${fmtDate(d.expires_at)}`}</div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => view(d)} disabled={viewing === d.id} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1">{viewing === d.id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} View</button>
+                <button onClick={() => remove(d.id)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
+              </div>
+            </div>))}</div>}
+      <button disabled className="mt-3 text-sm border border-stone-200 text-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Attach document</button>
+      <p className="text-xs text-stone-400 mt-2">Uploads land in Session RBAC-C. “View” resolves a fresh 1-hour signed URL and logs an audit entry.</p>
     </Section>
   );
 }

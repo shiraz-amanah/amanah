@@ -239,6 +239,33 @@ export async function logStaffMessage(mosqueId, { sentBy, recipientIds, subject,
   return { data, error };
 }
 
+// ── Performance + review notes (activate on migration 130) ──────────
+// get_staff_performance RPC + mosque_staff_review_notes table land in migration
+// 130. These call them but fail GRACEFULLY (null / []) until then, so StaffProfile
+// §10 renders now and auto-populates the moment 130 is applied.
+export async function getStaffPerformance(staffId) {
+  if (!staffId) return null;
+  const { data, error } = await supabase.rpc("get_staff_performance", { p_staff_id: staffId });
+  if (error) return null; // RPC not yet created (migration 130)
+  return data || null;
+}
+export async function getStaffReviewNotes(staffId) {
+  if (!staffId) return [];
+  const { data, error } = await supabase
+    .from("mosque_staff_review_notes").select("*").eq("staff_id", staffId)
+    .order("created_at", { ascending: false });
+  if (error) return []; // table not yet created (migration 130)
+  return data || [];
+}
+export async function addStaffReviewNote(staffId, mosqueId, authorId, note) {
+  if (!staffId || !note) return { error: { message: "staffId + note required" } };
+  const { data, error } = await supabase
+    .from("mosque_staff_review_notes")
+    .insert({ staff_id: staffId, mosque_id: mosqueId, author_id: authorId || null, note })
+    .select().single();
+  return { data, error };
+}
+
 // ====================================================================
 // PURE HELPERS — compliance monitor + Ofsted score.
 // Operate ONLY on get_mosque_staff_list rows (no sensitive fields), plus
