@@ -379,6 +379,7 @@ function PermissionsSection({ staffRow, mosqueId }) {
         </div>
       ) : (
         <div className="space-y-1">
+          {emp.status === "pending" && <div className="mb-2 text-xs bg-sky-50 text-sky-800 border border-sky-100 rounded-lg px-3 py-2">Invite pending — awaiting acceptance. You can still adjust permissions below.</div>}
           {MODULES.map((m) => (
             <div key={m.key} className="flex items-center justify-between gap-3 py-1.5 border-b border-stone-50 last:border-0">
               <div className="min-w-0">
