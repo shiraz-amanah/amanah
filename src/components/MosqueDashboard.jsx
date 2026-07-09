@@ -226,7 +226,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
 
           {/* ---- People (RBAC-B rebuild) ---- */}
           {activeTab === "people" && activeSub === "staff" && (
-            <StaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} onOpenProfile={onOpenProfile} />
+            <StaffDirectory mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} staffId={staffId} onSelectStaff={selectStaff} onOpenProfile={onOpenProfile} />
           )}
           {activeTab === "people" && activeSub === "workforce" && (
             <WorkforceTab mosqueId={mosque.id} mosque={mosque} />

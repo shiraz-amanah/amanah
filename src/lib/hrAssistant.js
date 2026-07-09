@@ -64,6 +64,14 @@ export async function askMosqueHr(mosqueId, question = "") {
   return postBrief({ mode: "mosque_hr", mosqueId, question });
 }
 
+// Session RBAC-B — draft a professional staff message from a one-line intent
+// (MessageModal "✦ Draft with AI"). No PII sent — just the prompt + template
+// hint. Returns { ok, draft } or { ok:false, error }.
+export async function draftStaffMessage(mosqueId, oneLine, template = "") {
+  if (!mosqueId || !oneLine?.trim()) return { ok: false, error: "missing_input" };
+  return postBrief({ mode: "staff_message_draft", mosqueId, oneLine, template });
+}
+
 // Mosque DASHBOARD morning briefing (mode:'mosque_ops'). Returns { ok, brief }.
 export async function getMosqueBriefing(mosqueId) {
   if (!mosqueId) return { ok: false, error: "missing_mosqueId" };

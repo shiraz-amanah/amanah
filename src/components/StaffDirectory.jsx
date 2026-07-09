@@ -24,6 +24,7 @@ import {
 } from "../lib/staffHelpers";
 import OrgStructure from "./OrgStructure";
 import AddStaffModal from "./AddStaffModal";
+import MessageModal from "./MessageModal";
 
 // ── small helpers ────────────────────────────────────────────────────
 const AVATAR_TONES = [
@@ -98,7 +99,7 @@ function aiSummaryFor(staffId, issues) {
 }
 
 // ── main ─────────────────────────────────────────────────────────────
-export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaff, onOpenProfile, onMessage, onAddStaff }) { // eslint-disable-line no-unused-vars
+export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaff, onOpenProfile, authedUser }) {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -106,6 +107,8 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [openId, setOpenId] = useState(staffId || null);
   const [tab, setTab] = useState("employees");
   const [addOpen, setAddOpen] = useState(false);
+  const [msgRecipients, setMsgRecipients] = useState(null); // null = closed; array = open
+  const openMsg = (list) => setMsgRecipients(list || []);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ status: "", rtw: "", dbs: "", department: "", employmentType: "" });
   const [onlyFlagged, setOnlyFlagged] = useState(false);
@@ -224,7 +227,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
           <Plus size={15} /> Add staff
         </button>
-        <button onClick={() => onMessage?.(filtered.map((s) => s.id))} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3.5 py-2 rounded-lg">
+        <button onClick={() => openMsg(filtered)} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3.5 py-2 rounded-lg">
           <MessageCircle size={15} /> Message all <ArrowRight size={13} />
         </button>
         <div className="flex-1" />
@@ -255,7 +258,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         <div className="flex items-center gap-2 mb-3 bg-stone-900 text-white rounded-lg px-3 py-2 text-sm">
           <span className="font-medium">{selected.size} selected</span>
           <div className="flex-1" />
-          <button onClick={() => onMessage?.([...selected])} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded"><MessageCircle size={14} /> Message</button>
+          <button onClick={() => openMsg(staff.filter((s) => selected.has(s.id)))} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded"><MessageCircle size={14} /> Message</button>
           <button onClick={exportCsv} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded"><Download size={14} /> Export CSV</button>
           <button onClick={bulkSuspend} disabled={busy} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded disabled:opacity-50"><UserX size={14} /> Suspend</button>
           <button onClick={() => setSelected(new Set())} className="inline-flex items-center gap-1 hover:bg-white/10 px-2 py-1 rounded"><X size={14} /></button>
@@ -351,7 +354,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
               </div>
 
               <div className="mt-5 border-t border-stone-100 pt-4 flex items-center gap-2">
-                <button onClick={() => onMessage?.([openRow.id])} className="flex-1 inline-flex items-center justify-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg">
+                <button onClick={() => openMsg([openRow])} className="flex-1 inline-flex items-center justify-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg">
                   <MessageCircle size={15} /> Message
                 </button>
                 <button onClick={() => (onOpenProfile || onSelectStaff)?.(openRow.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium px-3 py-2 rounded-lg">
@@ -367,6 +370,11 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         <AddStaffModal mosqueId={mosqueId} mosque={mosque}
           onClose={() => setAddOpen(false)}
           onCreated={() => { setAddOpen(false); setTick((t) => t + 1); }} />
+      )}
+
+      {msgRecipients && (
+        <MessageModal mosqueId={mosqueId} mosque={mosque} authedUser={authedUser}
+          recipients={msgRecipients} onClose={() => setMsgRecipients(null)} />
       )}
     </div>
   );

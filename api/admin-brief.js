@@ -906,6 +906,21 @@ async function handlePledgeReminder(req, res, body, env) {
   return res.status(200).json({ ok: true, draft: r.answer });
 }
 
+// Session RBAC-B — draft a professional staff message from a one-line intent.
+// Owner-gated. No PII goes in: only the one-line prompt + mosque name + an
+// optional template hint. Returns { ok, draft } (message body only).
+async function handleStaffMessageDraft(req, res, body, env) {
+  const mosque = await authOwner(req, res, env, body.mosqueId);
+  if (!mosque) return;
+  const oneLine = (body.oneLine || '').trim();
+  if (!oneLine) return res.status(400).json({ ok: false, error: 'missing_oneLine' });
+  const system = `You draft warm, professional messages from the management of "${mosque.name}", a UK mosque, to a member (or members) of its staff. Open with an Islamic greeting ("Assalamu alaikum,"). Tone: respectful, clear and encouraging. Keep it concise (under 120 words). Do not invent names, dates, figures or policy the sender didn't mention. Return ONLY the message body — no subject line, no markdown, no placeholders in [brackets].`;
+  const userMsg = `The sender wants to say (one line): "${oneLine}"${body.template ? `\nContext/template: ${body.template}` : ''}\n\nDraft the staff message body.`;
+  const r = await callAnthropic(env, 'staff-message-draft', { system, userMsg });
+  if (r.error) return res.status(502).json({ ok: false, error: r.error });
+  return res.status(200).json({ ok: true, draft: r.answer });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
@@ -964,6 +979,9 @@ export default async function handler(req, res) {
     }
     if (body?.mode === 'pledge_reminder') {
       return handlePledgeReminder(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
+    }
+    if (body?.mode === 'staff_message_draft') {
+      return handleStaffMessageDraft(req, res, body, { ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY });
     }
   }
 
