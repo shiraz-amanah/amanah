@@ -111,6 +111,12 @@ begin
 end; $$;
 
 -- 6) get_mosque_staff_list — add last_login_at, show_dbs_badge_publicly, rtw_refused
+-- GUARD: get_mosque_staff_list (below) and stamp_staff_login (§7) both reference
+-- mosque_staff.last_login_at. On the PROD apply this column-add had to be run
+-- manually first (the top-of-file ALTER didn't take effect before the function
+-- was created), so re-assert it here — idempotently — to guarantee the column
+-- exists at function-creation time regardless of how the file is run.
+alter table public.mosque_staff add column if not exists last_login_at timestamptz;
 -- DROP first: the RETURNS TABLE signature changed, so CREATE OR REPLACE alone
 -- errors ("cannot change return type of existing function") on re-apply/prod.
 drop function if exists public.get_mosque_staff_list(uuid);
