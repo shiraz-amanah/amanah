@@ -294,3 +294,35 @@ export async function sendStaffWizardSubmitted(email) {
     return { ok: false, error: 'network_exception' };
   }
 }
+
+// ── Session RBAC-B — People-tab staff messaging + compliance reminders ──
+// All authed; the server resolves recipient emails from mosque_staff for the
+// caller's own mosque (client never supplies an address). Fire-and-forget.
+
+// Free-text message to N staff (recipientIds = mosque_staff.id values).
+export function sendStaffEmail(mosqueId, { recipientIds, subject, body, templateUsed } = {}) {
+  return postTransactional({ intent: 'staff_email', mosqueId, recipientIds, subject, body, templateUsed });
+}
+// WhatsApp — logged no-op until Session N1; safe to call unconditionally.
+export function sendStaffWhatsapp(mosqueId, { recipientIds, body } = {}) {
+  return postTransactional({ intent: 'staff_whatsapp', mosqueId, recipientIds, body });
+}
+// Compliance-expiry reminders to the staff member (email resolved server-side).
+export function sendDbsExpiryReminder(mosqueId, staffId, { daysRemaining, expiryDate } = {}) {
+  return postTransactional({ intent: 'dbs_expiry_reminder', mosqueId, staffId, daysRemaining, expiryDate });
+}
+export function sendRtwExpiryReminder(mosqueId, staffId, { daysRemaining, expiryDate } = {}) {
+  return postTransactional({ intent: 'rtw_expiry_reminder', mosqueId, staffId, daysRemaining, expiryDate });
+}
+export function sendTrainingExpiryReminder(mosqueId, staffId, { daysRemaining, expiryDate, courseName } = {}) {
+  return postTransactional({ intent: 'training_expiry_reminder', mosqueId, staffId, daysRemaining, expiryDate, courseName });
+}
+// Leave approved/declined → emails the employee. Server reads the decision from
+// the leave row, so call AFTER approveLeave/declineLeave has persisted.
+export function sendLeaveDecision(leaveId) {
+  return postTransactional({ intent: 'leave_decision', leaveId });
+}
+// Offboarding confirmation → emails the (former) staff member.
+export function sendOffboardingConfirmation(staffId) {
+  return postTransactional({ intent: 'offboarding_confirmation', staffId });
+}
