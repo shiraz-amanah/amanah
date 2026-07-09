@@ -7,21 +7,17 @@ import MosqueProfileEditor from "./MosqueProfileEditor";
 import MosquePrayerEditor from "./MosquePrayerEditor";
 import MosqueRamadanMode from "./MosqueRamadanMode";
 import MosqueRamadanEditor from "./MosqueRamadanEditor";
-import MosqueStaffPublic from "./MosqueStaffPublic";
 import MosqueEventsManager from "./MosqueEventsManager";
 import MosqueBookings from "./MosqueBookings";
 import MosqueAnnouncementsManager from "./MosqueAnnouncementsManager";
-import MosqueStaffDirectory from "./MosqueStaffDirectory";
+import StaffDirectory from "./StaffDirectory";
+import WorkforceTab from "./WorkforceTab";
+import VolunteersTab from "./VolunteersTab";
 import MosqueOverview from "./MosqueOverview";
 import MosqueMadrasa from "./MosqueMadrasa";
-import MosqueRota from "./MosqueRota";
-import MosqueTimesheets from "./MosqueTimesheets";
-import MosquePayroll from "./MosquePayroll";
-import MosqueHR from "./MosqueHR";
 import MosqueSafeguarding from "./MosqueSafeguarding";
 import MosqueCompliance from "./MosqueCompliance";
 import MosqueDocuments from "./MosqueDocuments";
-import MosqueScholarLinks from "./MosqueScholarLinks";
 import CommunityMembers from "./CommunityMembers";
 import CommunityGroups from "./CommunityGroups";
 import CommunityVisitorRegister from "./CommunityVisitorRegister";
@@ -39,7 +35,6 @@ import NotificationBell from "./NotificationBell";
 import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
 import MosquePayments from "./MosquePayments";
-import EmployeeManagement from "./EmployeeManagement";
 import ParentPermissionsSettings from "./ParentPermissionsSettings";
 import { useEmployeePermissions } from "../lib/useEmployeePermissions";
 
@@ -171,7 +166,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
     if (newTab === activeTab && (s || "") === (activeSub || "") && !staffId) return; // no-op, avoid history spam
     onNavigate?.(newTab, s || "", "");
   };
-  const selectStaff = (id) => onNavigate?.("people", "team", id || "");
+  const selectStaff = (id) => onNavigate?.("people", "staff", id || "");
 
   // Global search result → destination within this mosque's dashboard.
   const handleSearchSelect = (r) => {
@@ -229,42 +224,15 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
             <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} />
           )}
 
-          {/* ---- People ---- */}
-          {activeTab === "people" && activeSub === "team" && (
-            <MosqueStaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} />
+          {/* ---- People (RBAC-B rebuild) ---- */}
+          {activeTab === "people" && activeSub === "staff" && (
+            <StaffDirectory mosqueId={mosque.id} mosque={mosque} onRequestCover={onRequestCover} staffId={staffId} onSelectStaff={selectStaff} />
           )}
-          {activeTab === "people" && activeSub === "hr" && (
-            <MosqueHR mosqueId={mosque.id} onViewStaff={selectStaff} />
+          {activeTab === "people" && activeSub === "workforce" && (
+            <WorkforceTab mosqueId={mosque.id} mosque={mosque} />
           )}
-          {activeTab === "people" && activeSub === "rotas" && (
-            <MosqueRota mosqueId={mosque.id} mosque={mosque} tabs={["rota", "finder"]} />
-          )}
-          {activeTab === "people" && activeSub === "timesheets" && (
-            <MosqueTimesheets mosqueId={mosque.id} mosqueName={mosque?.name} />
-          )}
-          {activeTab === "people" && activeSub === "payroll" && (
-            <MosquePayroll mosqueId={mosque.id} mosqueName={mosque.name} />
-          )}
-          {activeTab === "people" && activeSub === "publiclisting" && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public listing</h2>
-                <p className="text-sm text-stone-600">Choose which staff appear on your public profile, and link the teachers who serve your mosque.</p>
-              </div>
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Public team listing</h3>
-                  <MosqueStaffPublic mosqueId={mosque.id} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-stone-900 mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Our teachers</h3>
-                  <MosqueScholarLinks mosqueId={mosque.id} />
-                </div>
-              </div>
-            </div>
-          )}
-          {activeTab === "people" && activeSub === "employees" && (
-            <EmployeeManagement mosqueId={mosque.id} />
+          {activeTab === "people" && activeSub === "volunteers" && (
+            <VolunteersTab mosqueId={mosque.id} mosque={mosque} />
           )}
 
           {/* ---- Mosque ---- */}
