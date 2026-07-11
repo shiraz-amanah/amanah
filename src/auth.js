@@ -2178,7 +2178,7 @@ export async function submitEnrollmentInvite({ token, name, dob, gender, relatio
 // --- Madrasa live lessons (088, item 14) ---
 // Start a live session for a class (reusing one already running). The session
 // row is created under RLS (owner/teacher); the Daily room_url is filled by the
-// extended /api/create-daily-room. Then end it when the lesson finishes.
+// /api/daily (action=create-room). Then end it when the lesson finishes.
 // forceNew skips the reuse-existing-live-session step — used by the retry flow so a
 // brand-new session id is created (and passed to room creation), never a stale one.
 export async function startMadrasaLiveLesson({ classId, mosqueId, forceNew = false }) {
@@ -3348,7 +3348,7 @@ export async function createBooking({
   if (data && !error) {
     // Create the Daily.co video room first so meeting_url is populated by the
     // time the family lands on their dashboard. Idempotent server-side; never
-    // overwrites a manually-entered link. (See api/create-daily-room.js.)
+    // overwrites a manually-entered link. (See api/daily.js, action=create-room.)
     createDailyRoom(data.id)
       .then((r) => { if (!r.ok) console.warn('[booking] video room not created:', r.error) })
 

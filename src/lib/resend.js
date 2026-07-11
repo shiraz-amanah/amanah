@@ -1,8 +1,10 @@
 // Resend helper — thin client-side wrapper that POSTs to the
-// /api/send-staff-invite Vercel serverless function. The serverless
-// function looks up email content via validate_staff_invite() against
-// Supabase, so this client never sends user-visible email fields —
-// only the token, which is the bearer credential for the invite.
+// /api/send-transactional Vercel serverless function (the onboarding_invite /
+// onboarding_reminder intents; folded in from the former send-staff-invite
+// function in Consolidation 1). The serverless function looks up email content
+// via validate_staff_invite() / validate_staff_wizard() against Supabase, so
+// this client never sends user-visible email fields — only the token, which is
+// the bearer credential for the invite.
 //
 // Returns { ok: true, id } on success, { ok: false, error } on
 // failure. Network exceptions are caught and surfaced as
@@ -12,10 +14,10 @@
 export async function sendStaffInviteEmail({ token }) {
   if (!token) return { ok: false, error: 'missing_token' };
   try {
-    const res = await fetch('/api/send-staff-invite', {
+    const res = await fetch('/api/send-transactional', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ intent: 'onboarding_invite', token }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body?.ok) {
@@ -29,15 +31,16 @@ export async function sendStaffInviteEmail({ token }) {
 }
 
 // Session W — remote onboarding wizard email. Same serverless function
-// (kind:'wizard'), which looks up the recipient via validate_staff_wizard so
-// no email content is client-supplied. Returns { ok } / { ok:false, error }.
+// (intent:'onboarding_reminder'), which looks up the recipient via
+// validate_staff_wizard so no email content is client-supplied.
+// Returns { ok } / { ok:false, error }.
 export async function sendStaffWizardEmail({ token }) {
   if (!token) return { ok: false, error: 'missing_token' };
   try {
-    const res = await fetch('/api/send-staff-invite', {
+    const res = await fetch('/api/send-transactional', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, kind: 'wizard' }),
+      body: JSON.stringify({ intent: 'onboarding_reminder', token }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body?.ok) {

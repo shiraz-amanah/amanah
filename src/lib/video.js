@@ -1,5 +1,6 @@
 // Video calls — thin client-side wrappers around the Daily.co serverless
-// functions (/api/create-daily-room, /api/get-meeting-token). Mirrors the
+// function (/api/daily, routed by ?action=create-room / ?action=get-token —
+// the two former functions merged in Consolidation 2). Mirrors the
 // shape of src/lib/email.js: the client passes ONLY a bookingId + its Supabase
 // access token; the function resolves the booking, authorizes the caller, and
 // talks to Daily.co with the server-only DAILY_API_KEY. The browser never sees
@@ -34,7 +35,7 @@ export async function createDailyRoom(bookingId) {
   try {
     const headers = await authHeader();
     if (!headers) return { ok: false, error: 'not_signed_in' };
-    const res = await fetch('/api/create-daily-room', {
+    const res = await fetch('/api/daily?action=create-room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ bookingId }),
@@ -57,7 +58,7 @@ export async function createMadrasaRoom(madrasaSessionId) {
   try {
     const headers = await authHeader();
     if (!headers) return { ok: false, error: 'not_signed_in' };
-    const res = await fetch('/api/create-daily-room', {
+    const res = await fetch('/api/daily?action=create-room', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ madrasaSessionId }),
@@ -78,7 +79,7 @@ export async function getMeetingToken(bookingId) {
   try {
     const headers = await authHeader();
     if (!headers) return { ok: false, error: 'not_signed_in' };
-    const res = await fetch(`/api/get-meeting-token?bookingId=${encodeURIComponent(bookingId)}`, {
+    const res = await fetch(`/api/daily?action=get-token&bookingId=${encodeURIComponent(bookingId)}`, {
       method: 'GET',
       headers,
     });

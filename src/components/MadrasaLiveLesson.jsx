@@ -6,7 +6,7 @@ import { sendMadrasaLessonStarted } from "../lib/email";
 import MadrasaLiveRoom from "./MadrasaLiveRoom";
 
 // Live lesson control (Session AL, item 14) — teacher/admin side. Start creates a
-// madrasa_sessions row (RLS) then a Daily room via the extended create-daily-room
+// madrasa_sessions row (RLS) then a Daily room via /api/daily (action=create-room)
 // API; parents see a Join button on their dashboard while it's live. End closes it.
 //
 // `compact` renders a slim inline variant for the Register tab (the primary entry

@@ -12,7 +12,7 @@ import { getMeetingToken } from "../lib/video";
 //   now > end (start+duration) → "Session ended"
 //
 // The Daily room is PRIVATE, so joining needs a per-participant meeting token
-// fetched server-side (getMeetingToken → /api/get-meeting-token). The frame is
+// fetched server-side (getMeetingToken → /api/daily?action=get-token). The frame is
 // created lazily on the Join click — never on render — so multiple booking rows
 // can mount this component without tripping Daily's "duplicate instance" guard,
 // and the camera doesn't switch on until the user opts in. If the token fetch

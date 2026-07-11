@@ -1,37 +1,45 @@
-// /api/create-daily-room — Vercel serverless function (Session T).
+// /api/daily — Vercel serverless function (Consolidation 2).
 //
-// Creates a private Daily.co video room for a booking and stores the returned
-// URL in bookings.meeting_url. Called fire-and-forget from createBooking() right
-// after the booking row is inserted (see src/auth.js).
+// Merges the former create-daily-room.js + get-meeting-token.js into one
+// function, routed by ?action= (they shared a large set of verbatim helpers —
+// isUuid, verifyCaller, sbGet, getBooking, callerOwnsBooking, roomNameFromUrl —
+// now defined once here):
 //
-// Trust model (mirrors send-transactional.js):
-//   - The caller forwards their Supabase access token (Authorization: Bearer
-//     <jwt>); we resolve the auth user via /auth/v1/user.
-//   - Authorization is by UUID: the caller must be the booking's parent_id OR
-//     the user_id of the booking's scholar. We read the booking row with the
-//     SERVICE ROLE (PostgREST RLS would otherwise hide the scholar.user_id and
-//     block the meeting_url UPDATE on another party's row).
-//   - DAILY_API_KEY is read server-side only and never reaches the client. The
-//     client receives just { url, roomName }.
+//   * POST ?action=create-room  — create (or reuse) a Daily room.
+//       - Booking path:  body { bookingId }          → private 1:1 room, URL
+//         stored in bookings.meeting_url.
+//       - Madrasah path: body { madrasaSessionId }   → public class room, URL
+//         stored on the madrasa_sessions row.
+//   * GET  ?action=get-token&bookingId=<uuid>  — issue a per-participant meeting
+//       token for the booking's PRIVATE Daily room.
 //
-// Idempotent: if meeting_url is already set on the booking (a prior room, or a
-// manually-entered Zoom/Meet link from the scholar's editor), we return the
-// existing URL and never overwrite it.
+// Back-compat: a POST with no action (or action=create-room) is treated as the
+// booking/madrasah room path; a GET with no action is treated as get-token.
+//
+// Trust model (unchanged from the originals): the caller forwards their Supabase
+// JWT (Authorization: Bearer <jwt>); we resolve the auth user via /auth/v1/user
+// and authorize by UUID (booking.parent_id / the scholar's user_id; or the mosque
+// owner / the class's assigned teacher). Rows are read with the SERVICE ROLE so
+// RLS can't hide the scholar.user_id or block the meeting_url UPDATE. DAILY_API_KEY
+// never reaches the client.
 //
 // Env (Vercel Production + local .env — NOTE: `vercel dev` reads .env, not
 // .env.local, for /api functions):
 //   DAILY_API_KEY             — Daily.co REST API key
 //   SUPABASE_URL              — project URL
 //   SUPABASE_ANON_KEY         — used to verify the caller's JWT
-//   SUPABASE_SERVICE_ROLE_KEY — service role (booking read + meeting_url write)
+//   SUPABASE_SERVICE_ROLE_KEY — service role (row reads + meeting_url/room_url writes)
 
 const DAILY_ROOMS_ENDPOINT = 'https://api.daily.co/v1/rooms';
+const DAILY_TOKENS_ENDPOINT = 'https://api.daily.co/v1/meeting-tokens';
 
 // Session length when a booking has no duration_minutes (defensive — the column
 // exists and createBooking defaults it to 60, but null-guard anyway).
 const DEFAULT_DURATION_MINUTES = 60;
 // Room opens this many minutes before the scheduled start (Daily `nbf`).
 const JOIN_LEAD_MINUTES = 5;
+
+// --- Shared helpers (deduplicated from the two former files) ---------------
 
 function isUuid(s) {
   return typeof s === 'string' &&
@@ -44,7 +52,7 @@ function envOrThrow() {
     DAILY_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
   }).filter(([, v]) => !v).map(([k]) => k);
   if (missing.length) {
-    console.error('[create-daily-room] missing env', missing);
+    console.error('[daily] missing env', missing);
     throw new Error('server_misconfigured');
   }
   return { DAILY_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY };
@@ -70,7 +78,7 @@ async function sbGet(env, path) {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
   });
-  if (!res.ok) { console.error('[create-daily-room] sbGet failed', path, res.status); return []; }
+  if (!res.ok) { console.error('[daily] sbGet failed', path, res.status); return []; }
   return res.json().catch(() => []);
 }
 
@@ -108,6 +116,11 @@ function roomWindow(booking) {
   };
 }
 
+// =====================================================================
+// action=create-room — booking rooms + madrasah live-lesson rooms
+// (logic from the former create-daily-room.js)
+// =====================================================================
+
 async function createDailyRoom(env, booking) {
   const { nbf, exp } = roomWindow(booking);
   const res = await fetch(DAILY_ROOMS_ENDPOINT, {
@@ -136,7 +149,7 @@ async function createDailyRoom(env, booking) {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    console.error('[create-daily-room] daily_create_failed', res.status, json?.info || json?.error);
+    console.error('[daily] daily_create_failed', res.status, json?.info || json?.error);
     throw new Error('daily_create_failed');
   }
   return { url: json.url, roomName: json.name };
@@ -159,7 +172,7 @@ async function storeMeetingUrl(env, bookingId, url) {
     }
   );
   if (!res.ok) {
-    console.error('[create-daily-room] meeting_url update failed', res.status);
+    console.error('[daily] meeting_url update failed', res.status);
     return null;
   }
   const rows = await res.json().catch(() => []);
@@ -220,7 +233,7 @@ async function createMadrasaRoom(env) {
   const raw = await res.text();
   if (!res.ok) {
     // Exact Daily.co response on failure (invalid key / plan restriction / etc.).
-    console.error('[create-daily-room] madrasa daily_create_failed', res.status, raw);
+    console.error('[daily] madrasa daily_create_failed', res.status, raw);
     throw new Error('daily_create_failed');
   }
   const json = JSON.parse(raw || '{}');
@@ -241,7 +254,7 @@ async function storeSessionRoomUrl(env, sessionId, url, roomName) {
       body: JSON.stringify({ room_url: url, room_name: roomName }),
     }
   );
-  if (!res.ok) { console.error('[create-daily-room] session room_url update failed', res.status); return null; }
+  if (!res.ok) { console.error('[daily] session room_url update failed', res.status); return null; }
   const rows = await res.json().catch(() => []);
   if (Array.isArray(rows) && rows[0]) return rows[0].room_url;
   return null;
@@ -271,16 +284,7 @@ async function handleMadrasaRoom(env, req, res, sessionId) {
   }
 }
 
-export default async function handler(req, res) {
-  let env;
-  try { env = envOrThrow(); }
-  catch { return res.status(500).json({ ok: false, error: 'server_misconfigured' }); }
-
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({ ok: false, error: 'method_not_allowed' });
-  }
-
+async function handleCreateRoom(env, req, res) {
   const body = typeof req.body === 'object' && req.body ? req.body : {};
 
   // Madrasah live-lesson branch (Session AL, item 14): the caller has already
@@ -329,4 +333,99 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(502).json({ ok: false, error: err?.message || 'create_failed' });
   }
+}
+
+// =====================================================================
+// action=get-token — per-participant token for a booking's private room
+// (logic from the former get-meeting-token.js)
+// =====================================================================
+
+// Token exp = session end (scheduled_at + duration), matching the room's exp.
+function tokenExp(booking) {
+  const startMs = new Date(booking.scheduled_at).getTime();
+  const durationMin = Number(booking.duration_minutes) > 0
+    ? Number(booking.duration_minutes)
+    : DEFAULT_DURATION_MINUTES;
+  return Math.floor(startMs / 1000) + durationMin * 60;
+}
+
+async function createMeetingToken(env, { roomName, userId, exp }) {
+  const res = await fetch(DAILY_TOKENS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.DAILY_API_KEY}`,
+    },
+    body: JSON.stringify({ properties: { room_name: roomName, user_id: userId, exp } }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('[daily] daily_token_failed', res.status, json?.info || json?.error);
+    throw new Error('daily_token_failed');
+  }
+  return json.token;
+}
+
+async function handleGetToken(env, req, res) {
+  const bookingId = req.query?.bookingId;
+  if (!isUuid(bookingId)) {
+    return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
+  }
+
+  const caller = await verifyCaller(env, req.headers.authorization);
+  if (!caller?.id) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+  const booking = await getBooking(env, bookingId);
+  if (!booking) return res.status(404).json({ ok: false, error: 'booking_not_found' });
+  if (!callerOwnsBooking(booking, caller.id)) {
+    return res.status(403).json({ ok: false, error: 'forbidden' });
+  }
+
+  const roomName = roomNameFromUrl(booking.meeting_url);
+  if (!roomName) {
+    // No Daily room yet (or a non-Daily manual link) — nothing to tokenize.
+    return res.status(409).json({ ok: false, error: 'no_room' });
+  }
+
+  try {
+    const token = await createMeetingToken(env, {
+      roomName,
+      userId: caller.id,
+      exp: tokenExp(booking),
+    });
+    return res.status(200).json({ ok: true, token });
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err?.message || 'token_failed' });
+  }
+}
+
+// =====================================================================
+// Router
+// =====================================================================
+
+export default async function handler(req, res) {
+  let env;
+  try { env = envOrThrow(); }
+  catch { return res.status(500).json({ ok: false, error: 'server_misconfigured' }); }
+
+  const action = req.query?.action;
+
+  // GET → get-token (default GET action).
+  if (req.method === 'GET') {
+    if (action && action !== 'get-token') {
+      return res.status(400).json({ ok: false, error: 'unknown_action' });
+    }
+    return handleGetToken(env, req, res);
+  }
+
+  // POST → create-room (default POST action).
+  if (req.method === 'POST') {
+    if (action && action !== 'create-room') {
+      return res.status(400).json({ ok: false, error: 'unknown_action' });
+    }
+    return handleCreateRoom(env, req, res);
+  }
+
+  res.setHeader('Allow', 'GET, POST');
+  return res.status(405).json({ ok: false, error: 'method_not_allowed' });
 }

@@ -469,8 +469,10 @@ async function isAdmin(env, userId) {
   return Array.isArray(profiles) && profiles[0]?.role === 'admin';
 }
 
-async function sendEmail(env, { to, subject, html, attachments }) {
+async function sendEmail(env, { to, subject, html, text, attachments }) {
   const payload = { from: env.RESEND_FROM, to: [to], subject, html };
+  // Optional plaintext alternative (the onboarding invite/reminder emails carry one).
+  if (text) payload.text = text;
   // Resend attachments: [{ filename, content: <base64 string> }] (Fix 5).
   if (Array.isArray(attachments) && attachments.length) payload.attachments = attachments;
   const res = await fetch(RESEND_ENDPOINT, {
@@ -1896,6 +1898,122 @@ async function handleEmployeeInvite(env, caller, employeeId) {
   return { status: 200, body: { ok: true, id } };
 }
 
+// ---------------------------------------------------------------------------
+// Staff onboarding: invite + reminder (folded from the former send-staff-invite.js
+// — Consolidation 1). Both are UNAUTHENTICATED: the token is the bearer credential
+// and the recipient + all content resolve server-side via the validate_staff_invite
+// / validate_staff_wizard SECURITY DEFINER RPCs, so no client-supplied email fields
+// are ever trusted (mirrors the open-relay defence used across this function).
+// The bespoke markup below is preserved byte-for-byte from send-staff-invite.js so
+// the delivered emails are unchanged.
+// ---------------------------------------------------------------------------
+function buildStaffInviteHtml({ mosqueName, role, inviteeName, acceptUrl, expiresAt }) {
+  const greeting = inviteeName ? `Hi ${escapeHtml(inviteeName)},` : 'Hello,';
+  const expiryLine = expiresAt
+    ? `<p style="margin:16px 0 0;color:#78716c;font-size:13px;">This invite expires on ${escapeHtml(new Date(expiresAt).toUTCString())}.</p>`
+    : '';
+  return `<!doctype html>
+<html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
+    <div style="background:#ffffff;border:1px solid #e7e5e4;border-radius:16px;padding:32px;">
+      <h1 style="margin:0 0 12px;font-family:Georgia,serif;font-size:22px;color:#1c1917;">You're invited to join ${escapeHtml(mosqueName)}</h1>
+      <p style="margin:0 0 8px;color:#44403c;font-size:15px;line-height:1.5;">${greeting}</p>
+      <p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">You've been invited to join <strong>${escapeHtml(mosqueName)}</strong> on Amanah as <strong>${escapeHtml(role)}</strong>. Click the button below to accept and set up your account.</p>
+      <p style="margin:0;text-align:center;">
+        <a href="${escapeHtml(acceptUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Accept invite</a>
+      </p>
+      ${expiryLine}
+      <hr style="border:none;border-top:1px solid #e7e5e4;margin:28px 0 16px;">
+      <p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.<br>If you weren't expecting this invite, you can ignore this email.</p>
+    </div>
+  </div>
+</body></html>`;
+}
+
+function buildStaffInviteText({ mosqueName, role, inviteeName, acceptUrl, expiresAt }) {
+  const greeting = inviteeName ? `Hi ${inviteeName},` : 'Hello,';
+  const expiry = expiresAt ? `\n\nThis invite expires on ${new Date(expiresAt).toUTCString()}.` : '';
+  return `${greeting}
+
+You've been invited to join ${mosqueName} on Amanah as ${role}.
+
+Accept your invite: ${acceptUrl}${expiry}
+
+If you weren't expecting this, you can ignore this email.
+
+— Amanah`;
+}
+
+// onboarding_invite — the initial staff invite (validate_staff_invite → /staff/accept).
+async function handleOnboardingInvite(env, token) {
+  const rows = await callRpc(env, 'validate_staff_invite', { p_token: token });
+  const invite = Array.isArray(rows) ? rows[0] : rows;
+  if (!invite || !invite.valid) {
+    return { status: 400, body: { ok: false, error: `invite_invalid:${invite?.reason || 'unknown'}` } };
+  }
+
+  const acceptUrl = `${env.PUBLIC_APP_URL}/staff/accept/${encodeURIComponent(token)}`;
+  const params = {
+    mosqueName: invite.mosque_name,
+    role: invite.role,
+    inviteeName: invite.invitee_name,
+    acceptUrl,
+    expiresAt: invite.expires_at,
+  };
+  const id = await sendEmail(env, {
+    to: invite.invitee_email,
+    subject: `You're invited to join ${invite.mosque_name} on Amanah`,
+    html: buildStaffInviteHtml(params),
+    text: buildStaffInviteText(params),
+  });
+  return { status: 200, body: { ok: true, id } };
+}
+
+// onboarding_welcome — sent by api/create-account.js after it provisions an auth
+// user for an approved onboarding session. Server-to-server only (x-cron-secret),
+// so the fields are supplied by that trusted admin-gated caller rather than
+// resolved by id here (mirrors the subscription_* emails).
+async function handleOnboardingWelcome(env, { to, employee_name, username, set_password_url, mosque_name }) {
+  if (!to || !set_password_url) return { status: 400, body: { ok: false, error: 'missing_fields' } };
+  const atMosque = mosque_name ? ` at <strong>${escapeHtml(mosque_name)}</strong>` : '';
+  const inner = `${eGreeting(employee_name)}${eHeading('Your Amanah account is ready')}${ePara(
+    `An account has been created for you${atMosque} on Amanah. Set a password to sign in and get started.`
+  )}${ePara(`Your username is <strong>${escapeHtml(username || '')}</strong>.`)}${ctaButton('Set your password →', set_password_url)}${ePara(
+    `<span style="font-size:13px; color:#9ca3af;">This link is single-use and expires soon. If you weren't expecting this, you can safely ignore this email.</span>`
+  )}${eSignoff}`;
+  const id = await sendEmail(env, {
+    to,
+    subject: `Your Amanah account${mosque_name ? ` for ${mosque_name}` : ''} is ready`,
+    html: wrapEmail('Your Amanah account is ready', inner),
+  });
+  return { status: 200, body: { ok: true, id } };
+}
+
+// onboarding_reminder — the onboarding-wizard nudge (validate_staff_wizard → /staff/onboard).
+async function handleOnboardingReminder(env, token) {
+  const rows = await callRpc(env, 'validate_staff_wizard', { p_token: token });
+  const wiz = Array.isArray(rows) ? rows[0] : rows;
+  if (!wiz || !wiz.valid) {
+    return { status: 400, body: { ok: false, error: `wizard_invalid:${wiz?.reason || 'unknown'}` } };
+  }
+  if (!wiz.staff_email) return { status: 400, body: { ok: false, error: 'wizard_no_email' } };
+
+  const onboardUrl = `${env.PUBLIC_APP_URL}/staff/onboard/${encodeURIComponent(token)}`;
+  const subject = `Complete your onboarding for ${wiz.mosque_name} on Amanah`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:480px;margin:0 auto;padding:32px 24px;">
+<p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${wiz.staff_name ? ' ' + escapeHtml(wiz.staff_name) : ''},</p>
+<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;"><strong>${escapeHtml(wiz.mosque_name)}</strong> has asked you to complete your staff onboarding on Amanah — personal, right-to-work, DBS, employment and payroll details. It takes a few minutes and your information is held securely.</p>
+<p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Complete onboarding</a></p>
+<p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">This secure link expires in 7 days.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.<br>If you weren't expecting this, you can ignore this email.</p>
+</div></body></html>`;
+  const text = `Assalamu alaikum${wiz.staff_name ? ' ' + wiz.staff_name : ''},\n\n${wiz.mosque_name} has asked you to complete your staff onboarding on Amanah.\n\nComplete it here: ${onboardUrl}\n\nThis secure link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
+
+  const id = await sendEmail(env, { to: wiz.staff_email, subject, html, text });
+  return { status: 200, body: { ok: true, id } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -1955,6 +2073,17 @@ export default async function handler(req, res) {
       return res.status(out.status).json(out.body);
     }
 
+    // onboarding_welcome (Consolidation 3) — fired by api/create-account.js, a
+    // trusted admin-gated server function with no caller JWT, so it authenticates
+    // server-to-server with x-cron-secret (same internal path as the sweeps).
+    if (body.intent === 'onboarding_welcome') {
+      if (req.headers['x-cron-secret'] !== env.CRON_SECRET) {
+        return res.status(401).json({ ok: false, error: 'unauthorized' });
+      }
+      const out = await handleOnboardingWelcome(env, body);
+      return res.status(out.status).json(out.body);
+    }
+
     // Unauthenticated intent — the remote onboarding staffer has no session.
     // Recipient is constrained server-side (see handler), so no caller needed.
     if (body.intent === 'staff_wizard_submitted') {
@@ -1968,6 +2097,20 @@ export default async function handler(req, res) {
     if (body.intent === 'mosque_claim_received') {
       if (!isUuid(body.claimId)) return res.status(400).json({ ok: false, error: 'invalid_claimId' });
       const out = await handleMosqueClaimReceived(env, body.claimId);
+      return res.status(out.status).json(out.body);
+    }
+
+    // Unauthenticated onboarding intents (folded from send-staff-invite.js —
+    // Consolidation 1). The token is the bearer credential; recipient + content
+    // resolve server-side via the validate_* RPCs, so no caller is needed.
+    if (body.intent === 'onboarding_invite') {
+      if (!isUuid(body.token)) return res.status(400).json({ ok: false, error: 'invalid_token' });
+      const out = await handleOnboardingInvite(env, body.token);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'onboarding_reminder') {
+      if (!isUuid(body.token)) return res.status(400).json({ ok: false, error: 'invalid_token' });
+      const out = await handleOnboardingReminder(env, body.token);
       return res.status(out.status).json(out.body);
     }
 
