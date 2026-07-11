@@ -31,6 +31,10 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   const [path, setPath] = useState(null); // 'remote' | 'inhouse'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  // Set when the staff record was created but the invite email failed to send.
+  // The record must NOT be re-created (no unique guard on the wizard row), so we
+  // stop in a terminal state with a single "Done" instead of re-enabling submit.
+  const [emailWarn, setEmailWarn] = useState(null);
   const [f, setF] = useState({
     name: "", email: "", role: defaultEmploymentType === "volunteer" ? "Other" : "Teacher", jobTitle: "", department: "",
     employmentType: defaultEmploymentType || "employed_part_time", startDate: "",
@@ -54,7 +58,18 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         const { data, error } = await createStaffWizardInvite({ mosqueId, name: f.name.trim(), email: f.email.trim() });
         if (error || !data?.id) throw new Error(error?.message || "Could not create staff record");
         await updateMosqueStaff(data.id, base);
-        if (data.token) await sendStaffWizardEmail({ token: data.token });
+        if (data.token) {
+          // Record exists (HR-record-first). The invite email is best-effort — but
+          // respect its {ok,error}: on failure, surface it and STOP here so the admin
+          // can resend from the staff profile. We deliberately do not call onCreated
+          // (which would close the modal and hide the warning) and do not re-enable
+          // submit (re-running createStaffWizardInvite would duplicate the row).
+          const mail = await sendStaffWizardEmail({ token: data.token });
+          if (!mail.ok) {
+            setEmailWarn(`Staff record created, but the onboarding email couldn't be sent (${mail.error}). Resend it from their staff profile.`);
+            return;
+          }
+        }
       } else {
         const { data, error } = await createMosqueStaff({
           mosqueId, name: f.name.trim(), email: f.email.trim().toLowerCase(),
@@ -144,12 +159,24 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
                   : "Creates the staff record (status: Active). You can record RTW, DBS and grant dashboard access from their profile."}
               </p>
               {err && <p className="text-sm text-rose-600">{err}</p>}
+              {emailWarn && <p className="text-sm text-amber-700">{emailWarn}</p>}
             </div>
           )}
         </div>
 
         {/* Footer nav */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-stone-100">
+          {emailWarn ? (
+            // Terminal state: record created but email failed. Only exit is Done →
+            // refresh + close (no re-submit path, so no duplicate record).
+            <>
+              <span />
+              <button onClick={() => onCreated?.()}
+                className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+                <Users size={15} /> Done
+              </button>
+            </>
+          ) : (<>
           <button onClick={step === 1 ? onClose : back} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">
             {step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}
           </button>
@@ -165,6 +192,7 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               {path === "remote" ? "Create & send invite" : "Create staff member"}
             </button>
           )}
+          </>)}
         </div>
       </div>
     </div>

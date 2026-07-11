@@ -9,7 +9,7 @@
 //   * Stripe webhook (has `stripe-signature` header; NO caller auth) — verifies the
 //       signature and keeps the row in sync on `account.updated`.
 //
-// Auth model mirrors create-daily-room: the caller forwards their Supabase JWT,
+// Auth model mirrors api/daily.js: the caller forwards their Supabase JWT,
 // we resolve the user via /auth/v1/user, then read the mosque with the SERVICE
 // ROLE and require caller == mosque.user_id. All writes to mosque_stripe_accounts
 // are service-role (RLS has no client write path — migration 119).

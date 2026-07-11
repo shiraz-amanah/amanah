@@ -21,7 +21,7 @@
 //
 // Why this runs server-side: the Anthropic/OpenAI keys must never reach
 // the browser bundle. Vite only exposes VITE_-prefixed vars to the client,
-// so we read the unprefixed keys here, exactly like send-staff-invite.js
+// so we read the unprefixed keys here, exactly like send-transactional.js
 // reads RESEND_API_KEY / SUPABASE_* .
 //
 // Required env (Vercel project settings + .env.local for `vercel dev`):

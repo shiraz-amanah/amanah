@@ -38,6 +38,7 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
   const [result, setResult] = useState(null); // { created:[{id,email,name}], skipped:[{row,reason}] }
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteMsg, setInviteMsg] = useState(null);
+  const [inviteTone, setInviteTone] = useState("ok"); // 'ok' | 'warn'
 
   const downloadTemplate = () => {
     const blob = new Blob([TEMPLATE], { type: "text/csv" });
@@ -79,7 +80,9 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
         email: r.email || null, phone: r.phone || null, start_date: r.start_date || null,
       });
       if (e) skipped.push({ name: r.name, reason: e.message || "insert failed" });
-      else created.push({ id: data.id, name: data.name, email: r.email });
+      // Carry role so inviteAll can pass a valid (non-blank) role to createStaffInvite,
+      // and email so accept_staff_invite links to THIS directory row by email (055).
+      else created.push({ id: data.id, name: data.name, email: r.email, role: r.role });
     }
     setImporting(false);
     setResult({ created, skipped });
@@ -88,15 +91,31 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
 
   const inviteAll = async () => {
     const withEmail = (result?.created || []).filter((c) => c.email);
-    if (withEmail.length === 0) { setInviteMsg("No imported staff have email addresses."); return; }
+    if (withEmail.length === 0) { setInviteTone("warn"); setInviteMsg("No imported staff have email addresses."); return; }
     setInviteBusy(true); setInviteMsg(null);
     let sent = 0;
+    const failures = [];
     for (const c of withEmail) {
-      const { data, error: e } = await createStaffInvite({ mosqueId, email: c.email, name: c.name, role: "" });
-      if (!e && data?.token) { await sendStaffInviteEmail({ token: data.token }); await updateMosqueStaff(c.id, { invite_status: "invited" }); sent++; }
+      // Pass the imported role: createStaffInvite rejects a blank role (so the old
+      // role:"" never produced a token and no email ever sent). The invite's email
+      // matches the directory row's email, so on accept migration 055 LINKS to that
+      // row instead of inserting a duplicate mosque_staff record.
+      const { data, error: e } = await createStaffInvite({ mosqueId, email: c.email, name: c.name, role: c.role || "Staff" });
+      if (e || !data?.token) { failures.push(`${c.name || c.email}: ${e?.message || "invite not created"}`); continue; }
+      // Respect the email helper's {ok,error}: only count + mark 'invited' on a real send.
+      const mail = await sendStaffInviteEmail({ token: data.token });
+      if (!mail.ok) { failures.push(`${c.name || c.email}: email failed (${mail.error})`); continue; }
+      await updateMosqueStaff(c.id, { invite_status: "invited" });
+      sent++;
     }
     setInviteBusy(false);
-    setInviteMsg(`Invited ${sent} of ${withEmail.length} staff with emails.`);
+    if (failures.length) {
+      setInviteTone("warn");
+      setInviteMsg(`Invited ${sent} of ${withEmail.length}. ${failures.length} failed — ${failures.slice(0, 3).join("; ")}${failures.length > 3 ? "…" : ""}`);
+    } else {
+      setInviteTone("ok");
+      setInviteMsg(`Invited ${sent} of ${withEmail.length} staff with emails.`);
+    }
     onDone?.();
   };
 
@@ -163,7 +182,7 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
             <button onClick={inviteAll} disabled={inviteBusy} className="border border-emerald-300 text-emerald-800 hover:bg-emerald-50 text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1.5">{inviteBusy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send invites to imported staff</button>
             {onClose && <button onClick={onClose} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Done</button>}
           </div>
-          {inviteMsg && <p className="text-sm text-emerald-700">{inviteMsg}</p>}
+          {inviteMsg && <p className={`text-sm ${inviteTone === "warn" ? "text-amber-700" : "text-emerald-700"}`}>{inviteMsg}</p>}
         </div>
       )}
     </div>

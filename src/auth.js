@@ -3246,8 +3246,14 @@ export async function validateStaffInvite(token) {
   return Array.isArray(data) ? (data[0] || null) : (data || null)
 }
 
-// Authenticated. Wraps accept_staff_invite — atomic insert of
-// mosque_staff + update of invite status. Caller must already be
+// Authenticated. Wraps accept_staff_invite (migration 055 — LINK-OR-INSERT,
+// not a plain insert): on accept it (1) short-circuits if the caller is already
+// staff here, else (2) LINKS the account onto a pre-existing account-less
+// directory row whose email matches invitee_email (stamping profile_id +
+// invite_status='active'), else (3) inserts a fresh row. So a bulk-imported /
+// admin-created directory record is the owner of the mosque_staff row; accept
+// links to it rather than duplicating it, provided the emails match. Then it
+// updates the invite status. Caller must already be
 // signed in as the user whose email matches invitee_email
 // (case-insensitive). Returns { ok, reason, staff_id, mosque_id }
 // on success, or { ok:false, reason:'rpc_error', message, code, error }
