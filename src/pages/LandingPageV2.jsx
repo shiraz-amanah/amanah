@@ -260,7 +260,7 @@ const LandingPageV2 = ({ onSignIn }) => {
             <a href="#pricing" style={{ fontSize: 13, color: T.w55 }}>Pricing</a>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <button onClick={() => go()} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 16px", background: "transparent", cursor: "pointer" }}>Sign in</button>
+            <button onClick={() => go("mosque")} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 16px", background: "transparent", cursor: "pointer" }}>Sign in</button>
             <button onClick={openDemo} style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: T.green, borderRadius: 8, padding: "8px 16px", border: "none", cursor: "pointer" }}>Book a demo →</button>
           </div>
         </div>

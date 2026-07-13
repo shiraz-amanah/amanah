@@ -16,8 +16,11 @@ const ROUTES = [
   { view: 'publicHome',                  path: '/' },
   { view: 'mosquesListing',              path: '/mosques' },
   { view: 'mosqueDetail',                path: '/mosque/:slug' },
-  { view: 'allCampaigns',                path: '/campaigns' },
-  { view: 'campaignDetail',              path: '/campaign/:id' },
+  // Retired: the campaign/donate cluster runs on MOCK_CAMPAIGNS (fake £ raised).
+  // Their paths intentionally fall through to publicHome until campaigns are
+  // real. In-app links are neutralized in App.jsx; render branches are kept for
+  // recoverability. Removed routes: allCampaigns (/campaigns),
+  // campaignDetail (/campaign/:id), donate (/donate), orderCheck (/order-check).
   { view: 'scholarDetail',               path: '/scholar/:slug' },
   { view: 'categoryListing',             path: '/category/:id' },
   { view: 'prayerHub',                   path: '/prayer' },
@@ -34,6 +37,8 @@ const ROUTES = [
   { view: 'userAuth',                    path: '/auth' },
   { view: 'rolePicker',                  path: '/signin' },
   { view: 'login',                       path: '/login' },
+  { view: 'forgotPassword',              path: '/forgot-password' },
+  { view: 'resetPassword',               path: '/reset-password' },
   { view: 'imamRegister',                path: '/register/scholar' },
   { view: 'mosqueRegister',              path: '/register/mosque' },
   { view: 'registrationPending',         path: '/registration-pending' },
@@ -59,8 +64,7 @@ const ROUTES = [
   { view: 'bookingConfirm',              path: '/book' },
   { view: 'bookingSuccess',              path: '/book/success' },
 
-  // Donate flow
-  { view: 'donate',                      path: '/donate' },
+  // Donate flow (donate view retired — see the campaign/donate note above).
   { view: 'donationSuccess',             path: '/donate/success' },
 
   // Campaign authoring
@@ -86,9 +90,6 @@ const ROUTES = [
   { view: 'schedule',                    path: '/schedule' },
   { view: 'availabilityEditor',          path: '/schedule/edit' },
 
-  // Order check (DBS)
-  { view: 'orderCheck',                  path: '/order-check' },
-
   // Admin
   { view: 'adminLogin',                  path: '/admin/login' },
   { view: 'adminPanel',                  path: '/admin' },
@@ -97,14 +98,18 @@ const ROUTES = [
   { view: 'mosqueImamDetail',            path: '/mosque/imam/:slug' },
 
   // Staff invites (Session M Part B Day 1).
-  // /mosque-dashboard/staff  — admin-facing invite wizard
   // /staff/accept/:token     — invitee-facing accept page
-  { view: 'mosqueStaff',                 path: '/mosque-dashboard/staff' },
   { view: 'staffAccept',                 path: '/staff/accept/:token' },
+  // Staff self-service surfaces. staffProfile keeps staffId in the query
+  // (?staffId=…) so a refresh doesn't lose which member is open.
+  { view: 'mosqueStaffPortal',           path: '/staff/portal' },
+  { view: 'staffProfile',                path: '/staff/profile' },
   // Session W — remote staff onboarding wizard landing.
   { view: 'staffWizard',                 path: '/staff/onboard/:token' },
   // Session AM — public contract e-sign landing.
   { view: 'contractSign',                path: '/contract/sign/:token' },
+  // Public madrasah browse/discovery surface (reached from the parent dashboard).
+  { view: 'madrasaBrowse',               path: '/madrasa/browse' },
   // Session AL — Path B madrasah enrolment accept (parent completes registration).
   { view: 'madrasaEnrolAccept',          path: '/enrol/accept/:token' },
   // Session AP — approved mosque-claim accept landing.

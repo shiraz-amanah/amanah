@@ -2982,9 +2982,13 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
               <p className="text-xs text-stone-600 mt-0.5">Studying abroad? Publishing a book? Running a course? Raise funds from Amanah's community.</p>
             </div>
           </div>
-          <button onClick={onStartCampaign} className="inline-flex items-center gap-2 bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] flex-shrink-0">
+          {/* Neutralized: campaign authoring runs on the MOCK_CAMPAIGNS cluster,
+              so this CTA no longer navigates into createCampaign. Kept as a
+              non-interactive pill for recoverability — restore the onClick +
+              onStartCampaign when campaigns are real. */}
+          <div className="inline-flex items-center gap-2 bg-amber-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex-shrink-0">
             Start a campaign <ArrowRight size={14} />
-          </button>
+          </div>
         </div>
 
         <button className="text-sm text-emerald-800 font-medium hover:underline">Edit my profile →</button>
@@ -8333,7 +8337,11 @@ setBookings(transformed);
                     if (!c) return null;
                     const pct = Math.min((c.raised / c.goal) * 100, 100);
                     return (
-                      <button key={id} onClick={() => onViewCampaign(c)} className="bg-white border border-stone-200 rounded-2xl overflow-hidden text-left hover:border-emerald-300 transition-colors">
+                      // Neutralized: campaign detail runs on MOCK_CAMPAIGNS, so
+                      // the card no longer links into a fake donation page. Kept
+                      // as a non-interactive tile — restore the onClick +
+                      // onViewCampaign when campaigns are real.
+                      <div key={id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden text-left">
                         <div className={`h-20 bg-gradient-to-br ${c.gradient}`}></div>
                         <div className="p-4">
                           <h4 className="text-sm font-semibold text-stone-900 line-clamp-1 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{c.title}</h4>
@@ -8346,7 +8354,7 @@ setBookings(transformed);
                             <span className="text-stone-500">{Math.round(pct)}%</span>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -8356,17 +8364,13 @@ setBookings(transformed);
             <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">All donations</h3>
             <div className="space-y-3">
               {donations.map(d => {
-                const linkedCampaign = d.campaignId
-                  ? MOCK_CAMPAIGNS.find(c => String(c.id) === String(d.campaignId))
-                  : null;
-                const handleRowClick = () => {
-                  if (linkedCampaign) onViewCampaign(linkedCampaign);
-                };
+                // Neutralized: rows no longer link to the MOCK_CAMPAIGNS-backed
+                // campaign detail page. Restore the onClick → onViewCampaign
+                // wiring when campaigns are real.
                 return (
                 <div
                   key={d.id}
-                  onClick={linkedCampaign ? handleRowClick : undefined}
-                  className={`bg-white border border-stone-200 rounded-2xl p-4 md:p-5 ${linkedCampaign ? "cursor-pointer hover:border-emerald-300 transition-colors" : ""}`}
+                  className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5"
                 >
                   <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                     <div className="min-w-0">
@@ -12990,6 +12994,19 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [routeQuery.subscription, authedUser]);
 
+// Client-side role gate for /admin. is_admin() RLS already protects every
+// admin record, but the admin chrome itself should only render for an authed
+// admin — anyone else who types /admin is redirected to the admin sign-in
+// form. We wait for authLoading to clear so a refreshing admin (profile not
+// yet resolved) isn't bounced off their own panel.
+useEffect(() => {
+  if (authLoading) return;
+  if (view === "adminPanel" && authedProfile?.role !== "admin") {
+    navigate("adminLogin", {}, {}, { replace: true });
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [authLoading, view, authedProfile]);
+
 // Mirror a scholar's uploaded photo onto authedProfile.avatar_url. The photo
 // lives on the scholars row (myScholar), but every shared header (PublicHeader,
 // the public home top-bar, the user-dashboard + Messages chrome) reads the
@@ -13425,7 +13442,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   // — the user isn't unauthenticated, myMosque just hasn't loaded yet). The
   // bootstrap sets myMosque/myScholar BEFORE authLoading clears, so once the
   // loader lifts the dashboard has its data.
-  if (authLoading && (view === "userDashboard" || view === "mosqueDashboard" || view === "scholarDashboard")) {
+  if (authLoading && (view === "userDashboard" || view === "mosqueDashboard" || view === "scholarDashboard" || view === "adminPanel")) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <Loader2 className="animate-spin text-emerald-700" size={28} />
@@ -13689,6 +13706,16 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
       setView("adminPanel");
     }}
   />;
+  if (view === "adminPanel" && authedProfile?.role !== "admin") {
+    // Non-admin (or unauthed) at /admin. The redirect effect above sends
+    // them to adminLogin; render a neutral loader for the frame in between
+    // so the admin chrome never paints.
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <Loader2 className="animate-spin text-emerald-700" size={28} />
+      </div>
+    );
+  }
   if (view === "adminPanel") return <AdminPanel
     authedProfile={authedProfile}
     onLogout={async () => {
