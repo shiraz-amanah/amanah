@@ -79,6 +79,23 @@ export function sendFacilityBookingCancelled(bookingId) {
 
 // Scholar approved/verified → emails the scholar. Fired when an admin publishes
 // the scholar (status → active). `scholarId` is scholars.id.
+// RBAC-D onboarding review — owner-triggered, fire-and-forget. The function
+// resolves the employee + link + mosque server-side from the session id and
+// verifies the caller owns the mosque, so we pass only the id.
+export async function sendOnboardingChangesRequested(sessionId) {
+  if (!sessionId) return { ok: false, error: 'missing_sessionId' };
+  const r = await postTransactional({ intent: 'onboarding_changes_requested', sessionId });
+  if (!r.ok) console.warn('[email] onboarding_changes_requested failed:', r); // surface the handler error
+  return r;
+}
+
+export async function sendOnboardingApproved(sessionId) {
+  if (!sessionId) return { ok: false, error: 'missing_sessionId' };
+  const r = await postTransactional({ intent: 'onboarding_approved', sessionId });
+  if (!r.ok) console.warn('[email] onboarding_approved failed:', r);
+  return r;
+}
+
 export function sendScholarApprovedEmail(scholarId) {
   if (!scholarId) return Promise.resolve({ ok: false, error: 'missing_scholarId' });
   return postTransactional({ intent: 'scholar_approved', scholarId });

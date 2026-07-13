@@ -2014,6 +2014,82 @@ async function handleOnboardingReminder(env, token) {
   return { status: 200, body: { ok: true, id } };
 }
 
+// --- RBAC-D onboarding review emails (owner-triggered) -----------------------
+// The client passes only the session id + its JWT. We resolve the session +
+// mosque server-side (service role) and verify the caller OWNS that mosque (or
+// is an Amanah admin) before emailing the employee — an authed non-owner can't
+// spam or fish another mosque's onboarding.
+async function fetchOnboardingSession(env, sessionId) {
+  const res = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/mosque_staff_onboarding_sessions?id=eq.${sessionId}&select=token,employee_email,employee_name,review_notes,mosque_id`,
+    { headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+async function fetchMosqueOwnerAndName(env, mosqueId) {
+  const res = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/mosques?id=eq.${mosqueId}&select=user_id,name`,
+    { headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+// Shared: resolve + owner-gate. Returns { sess, mosque } or an { status, body } error.
+async function resolveOwnedOnboarding(env, caller, sessionId) {
+  const sess = await fetchOnboardingSession(env, sessionId);
+  if (!sess) return { err: { status: 404, body: { ok: false, error: 'session_not_found' } } };
+  const mosque = await fetchMosqueOwnerAndName(env, sess.mosque_id);
+  if (!mosque) return { err: { status: 404, body: { ok: false, error: 'mosque_not_found' } } };
+  if (mosque.user_id !== caller.id && !(await isAdmin(env, caller.id))) {
+    return { err: { status: 403, body: { ok: false, error: 'forbidden' } } };
+  }
+  if (!sess.employee_email) return { err: { status: 400, body: { ok: false, error: 'no_email' } } };
+  return { sess, mosque };
+}
+
+async function handleOnboardingChangesRequested(env, caller, sessionId) {
+  const r = await resolveOwnedOnboarding(env, caller, sessionId);
+  if (r.err) return r.err;
+  const { sess, mosque } = r;
+  const onboardUrl = `${env.PUBLIC_APP_URL}/staff/onboard/${encodeURIComponent(sess.token)}`;
+  const nm = sess.employee_name ? ' ' + escapeHtml(sess.employee_name) : '';
+  const subject = `Action needed: changes requested on your ${mosque.name} onboarding`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:480px;margin:0 auto;padding:32px 24px;">
+<p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${nm},</p>
+<p style="margin:0 0 16px;color:#44403c;font-size:15px;line-height:1.5;"><strong>${escapeHtml(mosque.name)}</strong> has reviewed your onboarding and asked for a few changes before it can be approved:</p>
+${sess.review_notes ? `<p style="margin:0 0 20px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;color:#78350f;font-size:14px;line-height:1.5;">${escapeHtml(sess.review_notes)}</p>` : ''}
+<p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Return to your onboarding</a></p>
+<p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">Open the link, make the changes, and submit again — your secure link is still valid.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.</p>
+</div></body></html>`;
+  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\n${mosque.name} has reviewed your onboarding and asked for a few changes before it can be approved:\n\n${sess.review_notes || '(see your mosque for details)'}\n\nReturn to your onboarding: ${onboardUrl}\n\nOpen the link, make the changes, and submit again.`;
+  const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });
+  return { status: 200, body: { ok: true, id } };
+}
+
+async function handleOnboardingApproved(env, caller, sessionId) {
+  const r = await resolveOwnedOnboarding(env, caller, sessionId);
+  if (r.err) return r.err;
+  const { sess, mosque } = r;
+  const nm = sess.employee_name ? ' ' + escapeHtml(sess.employee_name) : '';
+  const subject = `You're now part of the team at ${mosque.name}`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:480px;margin:0 auto;padding:32px 24px;">
+<p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${nm},</p>
+<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team. There's nothing more you need to do.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — trusted Muslim scholars and mosques.</p>
+</div></body></html>`;
+  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team. There's nothing more you need to do.\n\nJazakAllah khair.`;
+  const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });
+  return { status: 200, body: { ok: true, id } };
+}
+
 export default async function handler(req, res) {
   let env;
   try { env = envOrThrow(); }
@@ -2117,6 +2193,17 @@ export default async function handler(req, res) {
     // The client-initiated intents require a verified caller.
     const caller = await verifyCaller(env, req.headers.authorization);
     if (!caller?.id) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+    if (body.intent === 'onboarding_changes_requested') {
+      if (!isUuid(body.sessionId)) return res.status(400).json({ ok: false, error: 'invalid_sessionId' });
+      const out = await handleOnboardingChangesRequested(env, caller, body.sessionId);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'onboarding_approved') {
+      if (!isUuid(body.sessionId)) return res.status(400).json({ ok: false, error: 'invalid_sessionId' });
+      const out = await handleOnboardingApproved(env, caller, body.sessionId);
+      return res.status(out.status).json(out.body);
+    }
 
     if (body.intent === 'mosque_claim_approved') {
       if (!isUuid(body.claimId)) return res.status(400).json({ ok: false, error: 'invalid_claimId' });

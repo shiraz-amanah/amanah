@@ -1391,47 +1391,122 @@ export async function upsertMosqueStaffEmployment(staffId, mosqueId, fields) {
   return { data, error }
 }
 
-// --- Remote onboarding wizard (migration 066) ---
-// Admin creates a stub mosque_staff row with a random wizard_token + 7-day
-// expiry, then emails the link. Token is a raw uuid string (matches the
-// invites posture). Returns { data: { id, token }, error }.
-export async function createStaffWizardInvite({ mosqueId, name, email }) {
+// --- Remote/in-person onboarding sessions (migration 133; token cutover 136) ---
+// createStaffWizardInvite mints TWO rows: the stub mosque_staff directory row
+// (carrying the LOWERCASED employee email — the 055 link invariant carrier) and
+// the onboarding session that holds resumable progress + the review gate.
+// staff_id links them. We NO LONGER write wizard_token/wizard_status (dead cols,
+// dropped in RBAC-E). Returns { data: { staffId, sessionId, token }, error }.
+export async function createStaffWizardInvite({ mosqueId, name, email, path = 'remote' }) {
   if (!mosqueId || !name || !email) return { data: null, error: { message: 'mosqueId, name and email are required' } }
-  const token = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`)
-  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data, error } = await supabase
+  const cleanName = name.trim()
+  const cleanEmail = email.trim().toLowerCase()
+  // onboarding_method vocabulary — LIVE dev constraint (probed 2026-07-13):
+  //   CHECK (onboarding_method = ANY (ARRAY['remote_invite','in_house'])), convalidated=true.
+  // Derived from path so a future in_person invite records the right method; the
+  // stub is created WITH a valid value (not left null) and approve keeps it in
+  // sync (141). NEVER 'remote_session' or 'invite' — both violate the check.
+  const method = path === 'in_person' ? 'in_house' : 'remote_invite'
+  // 1. Stub directory row. status left at its default (pending_rtw) so the
+  //    directory renders "Onboarding"; approve_onboarding_session flips it active.
+  const { data: staff, error: e1 } = await supabase
     .from('mosque_staff')
-    .insert({
-      mosque_id: mosqueId,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      role: 'Imam',           // placeholder; the wizard's Employment step overwrites it
-      staff_type: 'permanent',
-      invite_status: 'not_invited',
-      wizard_status: 'not_started',
-      wizard_token: token,
-      wizard_token_expires_at: expires,
-    })
-    .select('id, wizard_token')
+    .insert({ mosque_id: mosqueId, name: cleanName, email: cleanEmail, role: 'Imam', staff_type: 'permanent', invite_status: 'not_invited', onboarding_method: method })
+    .select('id')
     .single()
-  if (error) return { data: null, error }
-  return { data: { id: data.id, token: data.wizard_token }, error: null }
+  if (e1 || !staff) return { data: null, error: e1 || { message: 'Could not create staff record' } }
+  // 2. Session row — SAME lowercased email (invariant). token + 7-day expiry default in DB.
+  const { data: sess, error: e2 } = await supabase
+    .from('mosque_staff_onboarding_sessions')
+    .insert({ mosque_id: mosqueId, staff_id: staff.id, employee_name: cleanName, employee_email: cleanEmail, path })
+    .select('id, token')
+    .single()
+  if (e2 || !sess) {
+    await supabase.from('mosque_staff').delete().eq('id', staff.id) // roll back the orphan stub
+    return { data: null, error: e2 || { message: 'Could not create onboarding session' } }
+  }
+  return { data: { staffId: staff.id, sessionId: sess.id, token: sess.token }, error: null }
 }
 
-// Anon-callable (token is the auth). Returns the first row or null.
-export async function validateStaffWizard(token) {
+// Anon-callable (token is the auth). Hydration row for the wizard, or null.
+// NEVER returns bank_details; NI stripped (bank_details_saved / ni_saved flags instead).
+export async function getOnboardingSessionByToken(token) {
   if (!token) return null
-  const { data, error } = await supabase.rpc('validate_staff_wizard', { p_token: token })
-  if (error) { console.error('validate_staff_wizard failed:', error); return null }
-  return Array.isArray(data) ? data[0] : data
+  const { data, error } = await supabase.rpc('get_onboarding_session_by_token', { p_token: token })
+  if (error) { console.error('get_onboarding_session_by_token failed:', error); return null }
+  return Array.isArray(data) ? data[0] || null : data
 }
 
-export async function submitStaffWizard(token, payload) {
+// Save one step's jsonb (anon, token-gated). Returns true on success.
+export async function saveOnboardingStep(token, step, dataObj) {
+  if (!token) return false
+  const { data, error } = await supabase.rpc('save_onboarding_step', { p_token: token, p_step: step, p_data: dataObj })
+  if (error) { console.error('save_onboarding_step failed:', error); return false }
+  return data === true
+}
+
+// Submit for review (anon, token-gated). Returns { ok } / { ok:false, error }.
+export async function submitOnboardingSession(token) {
   if (!token) return { ok: false, error: 'missing_token' }
-  const { data, error } = await supabase.rpc('submit_staff_wizard', { p_token: token, p_payload: payload })
-  if (error) { console.error('submit_staff_wizard failed:', error); return { ok: false, error: error.message } }
-  const row = Array.isArray(data) ? data[0] : data
-  return row?.ok ? { ok: true } : { ok: false, error: row?.reason || 'submit_failed' }
+  const { data, error } = await supabase.rpc('submit_onboarding_session', { p_token: token })
+  if (error) { console.error('submit_onboarding_session failed:', error); return { ok: false, error: error.message } }
+  return data === true ? { ok: true } : { ok: false, error: 'locked' }
+}
+
+// Owner-gated list (no sensitive fields).
+export async function getOnboardingSessionsForMosque(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.rpc('get_onboarding_sessions_for_mosque', { p_mosque_id: mosqueId })
+  if (error) { console.error('get_onboarding_sessions_for_mosque failed:', error); return [] }
+  return data || []
+}
+
+// Owner-gated full reveal (bank + NI). Writes an onboarding_sensitive_viewed audit row.
+export async function getOnboardingSessionFull(sessionId) {
+  if (!sessionId) return null
+  const { data, error } = await supabase.rpc('get_onboarding_session_full', { p_session_id: sessionId })
+  if (error) { console.error('get_onboarding_session_full failed:', error); return null }
+  return Array.isArray(data) ? data[0] || null : data
+}
+
+// Owner-gated approve → promotes into mosque_staff + employment. { ok } / { ok:false, error }.
+export async function approveOnboardingSession(sessionId) {
+  if (!sessionId) return { ok: false, error: 'missing_id' }
+  const { data, error } = await supabase.rpc('approve_onboarding_session', { p_session_id: sessionId })
+  if (error) { console.error('approve_onboarding_session failed:', error); return { ok: false, error: error.message } }
+  return data === true ? { ok: true } : { ok: false, error: 'failed' }
+}
+
+// Owner-gated request changes (notes + refreshed expiry). { ok } / { ok:false, error }.
+export async function requestOnboardingChanges(sessionId, notes) {
+  if (!sessionId) return { ok: false, error: 'missing_id' }
+  const { data, error } = await supabase.rpc('request_onboarding_changes', { p_session_id: sessionId, p_notes: notes || null })
+  if (error) { console.error('request_onboarding_changes failed:', error); return { ok: false, error: error.message } }
+  return data === true ? { ok: true } : { ok: false, error: 'failed' }
+}
+
+// Token-authed employee document upload (RTW/DBS) for the REMOTE onboarding.
+// api/onboarding-upload.js (service role) validates the token + mints a signed
+// upload URL; the file then PUTs straight to staff-documents. The employee has
+// no auth session, so this NEVER hits the RLS-guarded storage client path.
+// Returns { path } / { error }.
+export async function uploadOnboardingDoc({ token, docType, file }) {
+  if (!token || !file) return { error: 'missing_token_or_file' }
+  try {
+    const res = await fetch('/api/onboarding-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, doc_type: docType, filename: file.name }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok || !body?.path || !body?.token) return { error: body?.error || `http_${res.status}` }
+    const { error } = await supabase.storage.from('staff-documents').uploadToSignedUrl(body.path, body.token, file)
+    if (error) { console.error('uploadToSignedUrl failed:', error); return { error: error.message } }
+    return { path: body.path }
+  } catch (err) {
+    console.error('uploadOnboardingDoc failed:', err?.message)
+    return { error: 'network_exception' }
+  }
 }
 
 // --- Compliance (migration 063) — owner+admin only ---

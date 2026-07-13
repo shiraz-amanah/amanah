@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Loader2, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
-import { validateStaffWizard } from "../auth";
+import { getOnboardingSessionByToken } from "../auth";
 import MosqueStaffWizard from "./MosqueStaffWizard";
 
-// Session W — public landing for the remote onboarding link
-// (/staff/onboard/:token). Validates the token, then mounts the wizard in
-// remote mode (writes via submit_staff_wizard RPC). Signed-out friendly.
+// Session RBAC-D — public landing for the remote onboarding link
+// (/staff/onboard/:token). Hydrates the session via get_onboarding_session_by_token
+// (returns nothing for expired/submitted/approved/invalid tokens → clean
+// "link unavailable" page, never a crash), then mounts the wizard in remote mode
+// with the saved progress. Signed-out friendly.
 
 const Shell = ({ children }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -33,7 +35,7 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
 
   useEffect(() => {
     let alive = true;
-    validateStaffWizard(token)
+    getOnboardingSessionByToken(token)
       .then((row) => { if (alive) setState({ loading: false, row }); })
       .catch(() => { if (alive) setState({ loading: false, row: null }); });
     return () => { alive = false; };
@@ -51,12 +53,11 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
   }
 
   const row = state.row;
-  if (!row || !row.valid) {
-    const msg = row?.reason === "expired" ? "This onboarding link has expired. Please ask your mosque admin to send a new one."
-      : row?.reason === "completed" ? "This onboarding has already been completed."
-      : "This onboarding link is no longer valid.";
+  // The RPC returns nothing for expired / already-submitted / approved / invalid
+  // tokens (hard harvest guard) — one clean message covers them all.
+  if (!row) {
     return <Shell><Card icon={AlertCircle} tone="rose" title="Link unavailable">
-      <p className="text-sm text-stone-600 mb-5">{msg}</p>
+      <p className="text-sm text-stone-600 mb-5">This onboarding link has expired or is no longer active. Please contact your mosque to have a new one sent.</p>
       <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
     </Card></Shell>;
   }
@@ -65,12 +66,18 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
     <Shell>
       <div className="mb-4 text-center">
         <p className="text-sm text-stone-600">Onboarding for <span className="font-semibold text-stone-900">{row.mosque_name}</span></p>
+        {row.status === "changes_requested" && row.review_notes && (
+          <div className="mt-3 text-left text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <span className="font-semibold">Changes requested by your mosque:</span> {row.review_notes}
+          </div>
+        )}
       </div>
       <MosqueStaffWizard
         remoteMode
         token={token}
-        prefillName={row.staff_name || ""}
-        staffEmail={row.staff_email || ""}
+        session={row}
+        prefillName={row.employee_name || ""}
+        staffEmail={row.employee_email || ""}
         mosque={{ name: row.mosque_name }}
         onDone={() => setDone(true)}
         onCancel={onBrowse}

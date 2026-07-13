@@ -25,6 +25,9 @@ import {
 import OrgStructure from "./OrgStructure";
 import AddStaffModal from "./AddStaffModal";
 import MessageModal from "./MessageModal";
+import OnboardingReview from "./OnboardingReview";
+import MosqueBulkImport from "./MosqueBulkImport";
+import { getOnboardingSessionsForMosque } from "../auth";
 import { staffComplianceSummary } from "../lib/hrAssistant";
 
 // ── small helpers ────────────────────────────────────────────────────
@@ -109,6 +112,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [openId, setOpenId] = useState(staffId || null);
   const [tab, setTab] = useState("employees");
   const [addOpen, setAddOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [msgRecipients, setMsgRecipients] = useState(null); // null = closed; array = open
   const openMsg = (list) => setMsgRecipients(list || []);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -116,6 +120,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  const [pendingOnboarding, setPendingOnboarding] = useState(0); // submitted sessions awaiting review
   const [aiSummaries, setAiSummaries] = useState({}); // staffId → LLM summary (falls back to deterministic)
 
   useEffect(() => {
@@ -129,6 +134,15 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   }, [mosqueId, tick]);
 
   useEffect(() => { if (staffId) setOpenId(staffId); }, [staffId]);
+
+  // Count onboarding submissions awaiting review (drives the tab badge).
+  useEffect(() => {
+    let alive = true;
+    getOnboardingSessionsForMosque(mosqueId)
+      .then((rows) => { if (alive) setPendingOnboarding((rows || []).filter((r) => r.status === "submitted").length); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [mosqueId, tick]);
 
   // AI compliance summary for the open profile — anonymised (name + issue
   // strings only). Deterministic aiSummaryFor shows instantly; the LLM version
@@ -207,15 +221,19 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         </div>
       </div>
 
-      {/* Tab switcher: Employees | Org Structure */}
+      {/* Tab switcher: Employees | Org Structure | Onboarding review */}
       <div className="flex items-center gap-1 mb-4 border-b border-stone-200">
-        {[["employees", `Employees (${staff.length})`], ["org", "Org Structure"]].map(([v, l]) => (
+        {[["employees", `Employees (${staff.length})`], ["org", "Org Structure"], ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`]].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
-            className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 ${tab === v ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
+            className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+            {l}{v === "onboarding" && pendingOnboarding > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+          </button>
         ))}
       </div>
 
       {tab === "org" && <OrgStructure mosque={mosque} staff={staff} onOpenNode={setOpenId} />}
+
+      {tab === "onboarding" && <OnboardingReview mosqueId={mosqueId} onChanged={() => setTick((t) => t + 1)} />}
 
       {tab === "employees" && (<>
       {/* AI compliance bar */}
@@ -244,6 +262,9 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
           <Plus size={15} /> Add staff
         </button>
+        <button onClick={() => setBulkOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${bulkOpen ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
+          <Download size={15} /> Bulk import
+        </button>
         <button onClick={() => openMsg(filtered)} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3.5 py-2 rounded-lg">
           <MessageCircle size={15} /> Message all <ArrowRight size={13} />
         </button>
@@ -269,6 +290,13 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
             className="pl-9 pr-3 py-2 w-64 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
         </div>
       </div>
+
+      {/* Bulk import panel (session-model onboarding invites + email guard) */}
+      {bulkOpen && (
+        <div className="mb-3">
+          <MosqueBulkImport mosqueId={mosqueId} onDone={() => setTick((t) => t + 1)} onClose={() => setBulkOpen(false)} />
+        </div>
+      )}
 
       {/* Bulk actions bar */}
       {selected.size > 0 && (

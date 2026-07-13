@@ -56,8 +56,8 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
       };
       if (path === "remote") {
         const { data, error } = await createStaffWizardInvite({ mosqueId, name: f.name.trim(), email: f.email.trim() });
-        if (error || !data?.id) throw new Error(error?.message || "Could not create staff record");
-        await updateMosqueStaff(data.id, base);
+        if (error || !data?.staffId) throw new Error(error?.message || "Could not create staff record");
+        await updateMosqueStaff(data.staffId, base);
         if (data.token) {
           // Record exists (HR-record-first). The invite email is best-effort — but
           // respect its {ok,error}: on failure, surface it and STOP here so the admin

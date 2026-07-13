@@ -5,7 +5,7 @@ import {
   UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle, ChevronRight, HeartHandshake,
 } from "lucide-react";
 import { getMosqueBriefing } from "../lib/hrAssistant";
-import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments, getCommunityMembers } from "../auth";
+import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments, getCommunityMembers, getOnboardingSessionsForMosque } from "../auth";
 import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
 import { collapseRecurringEvents } from "../lib/events";
 import RecurrenceBadge from "./RecurrenceBadge";
@@ -59,6 +59,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   const [rotaSlots, setRotaSlots] = useState({});
   const [docs, setDocs] = useState([]);
   const [members, setMembers] = useState([]);
+  const [onboardingSessions, setOnboardingSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // AI briefing — independent of the data widgets so a slow/failed Anthropic
@@ -83,8 +84,9 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
       getMosqueRota(mosque.id, mondayOf(new Date())),
       getMosqueDocuments(mosque.id),
       getCommunityMembers(mosque.id),
+      getOnboardingSessionsForMosque(mosque.id),
     ])
-      .then(([s, e, t, r, d, cm]) => {
+      .then(([s, e, t, r, d, cm, os]) => {
         if (!alive) return;
         setStaff((s || []).filter((x) => !x.archived));
         setEvents(e || []);
@@ -92,6 +94,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
         setRotaSlots(r?.slots || {});
         setDocs(d || []);
         setMembers(cm || []);
+        setOnboardingSessions(os || []);
       })
       .catch((err) => console.error("dashboard load failed:", err))
       .finally(() => { if (alive) setLoading(false); });
@@ -113,12 +116,13 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
   // Next 5 expiring docs (soonest first; already ordered by the query).
   const upcomingExpiry = docs.filter((d) => d.expiry_date).slice(0, 5);
 
-  // Staff who completed remote onboarding and await admin review/approval.
-  const reviewPending = staff.filter((s) => s.wizard_status === "completed" && s.invite_status === "not_invited");
+  // Staff who submitted remote onboarding and await admin review/approval
+  // (RBAC-D session model — replaces the old wizard_status heuristic).
+  const reviewPending = onboardingSessions.filter((s) => s.status === "submitted");
 
   // Derived recent-activity feed (no audit log yet).
   const activity = [
-    ...reviewPending.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} completed onboarding — review pending`, flag: true })),
+    ...reviewPending.map((s) => ({ when: s.updated_at || s.created_at, text: `${s.employee_name || "Unnamed staff member"} submitted onboarding — review pending`, flag: true })),
     ...staff.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} added to staff` })),
     ...collapseRecurringEvents(events).map((e) => ({ when: e.created_at, text: `Event "${e.title}" created` })),
     ...docs.map((d) => ({ when: d.created_at, text: `Document "${d.label}" uploaded` })),

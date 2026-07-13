@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2, Paperclip, PenLine } from "lucide-react";
 import { MOSQUE_STAFF_ROLES } from "../data/mosqueTaxonomy";
-import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, submitStaffWizard, createContract } from "../auth";
+import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, saveOnboardingStep, submitOnboardingSession, uploadOnboardingDoc, createContract } from "../auth";
 import { uploadMosqueHrDoc } from "../lib/storage";
 import { sendStaffWizardSubmitted, sendContractInvite } from "../lib/email";
 import { buildContractTerms, CONTRACT_TYPES as CONTRACT_DOC_TYPES } from "../lib/contract";
@@ -43,11 +43,11 @@ const blank = {
   emergency_contact_name: "", emergency_contact_phone: "",
   rtw_na: false,
   rtw_check_type: "", rtw_document_type: "", rtw_document_number: "", rtw_share_code: "",
-  rtw_check_date: "", rtw_expiry_date: "", rtw_checked_by: "", rtw_file: null,
+  rtw_check_date: "", rtw_expiry_date: "", rtw_checked_by: "", rtw_file: null, rtw_storage_path: "",
   dbs_na: false,
   dbs_check_type: "", dbs_workforce_type: "", dbs_id_document_type: "", dbs_id_document_number: "",
   dbs_ucheck_reference: "", dbs_certificate_number: "", dbs_result_date: "", dbs_expiry_date: "",
-  dbs_checked_by: "", dbs_file: null,
+  dbs_checked_by: "", dbs_file: null, dbs_storage_path: "",
   role: "Imam", roleOther: "", contract_type: "permanent", start_date: "", hours_per_week: "", salary_rate: "",
   student_loan: false, student_loan_plan: "", p46_statement: "",
   bank_account_name: "", bank_sort_code: "", bank_account_number: "",
@@ -75,10 +75,22 @@ const LABELS = {
 // Module-level (NOT defined inside the wizard) so they keep a stable component
 // identity across renders — otherwise React remounts them on every keystroke,
 // which is what made fields appear to reset when navigating Back.
-const FileField = ({ label, required, value, remoteMode, onSelect, onClear, error }) => (
+const FileField = ({ label, required, value, remoteMode, onSelect, onClear, error, onRemoteUpload, uploadedName, uploading, uploadError }) => (
   <Field label={label} required={required}>
     {remoteMode ? (
-      <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">Your mosque admin will attach this document for you.</p>
+      <div className="space-y-1.5">
+        {uploadedName && (
+          <div className="flex items-center gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-emerald-800">
+            <CheckCircle2 size={14} className="shrink-0" /> <span className="truncate">{uploadedName}</span> <span className="text-emerald-600 text-xs">uploaded</span>
+          </div>
+        )}
+        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />} {uploadedName ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB)
+          <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onRemoteUpload?.(f); e.target.value = ""; }} />
+        </label>
+        {uploadError && <p className="text-xs text-rose-600">{uploadError}</p>}
+        <p className="text-[11px] text-stone-400">Optional — your mosque admin can also attach this later.</p>
+      </div>
     ) : (
       <div className="space-y-1.5">
         {value && (
@@ -104,9 +116,54 @@ const NotRequiredToggle = ({ checked, onChange }) => (
   </label>
 );
 
-const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = false, token = null, prefillName = "", staffEmail = "" }) => {
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState(() => ({ ...blank, name: prefillName || "" }));
+// Map a resumed session's per-step jsonb back into the flat form. NI + bank are
+// intentionally left blank (write-only, masked on the client). "not_required"
+// check types round-trip back to the NA toggle.
+function hydrateForm(session) {
+  const p = session.personal_details || {}, r = session.rtw_details || {}, d = session.dbs_details || {};
+  const e = session.employment_details || {}, t = session.tax_details || {};
+  const roleVal = e.role || blank.role;
+  const knownRole = MOSQUE_STAFF_ROLES.includes(roleVal);
+  return {
+    ...blank,
+    name: p.name || "", phone: p.phone || "", dob: p.dob || "", address: p.address || "",
+    ni_number: "",
+    emergency_contact_name: p.emergency_contact_name || "", emergency_contact_phone: p.emergency_contact_phone || "",
+    rtw_na: !!p.rtw_na || r.rtw_check_type === "not_required" || !!r.rtw_na,
+    rtw_check_type: r.rtw_check_type === "not_required" ? "" : (r.rtw_check_type || ""),
+    rtw_document_type: r.rtw_document_type || "", rtw_document_number: r.rtw_document_number || "",
+    rtw_share_code: r.rtw_share_code || "", rtw_check_date: r.rtw_check_date || "",
+    rtw_expiry_date: r.rtw_expiry_date || "", rtw_checked_by: r.rtw_checked_by || "",
+    rtw_storage_path: r.rtw_storage_path || "", rtw_file: r.rtw_storage_path ? { name: "Uploaded document" } : null,
+    dbs_na: d.dbs_check_type === "not_required" || !!d.dbs_na,
+    dbs_check_type: d.dbs_check_type === "not_required" ? "" : (d.dbs_check_type || ""),
+    dbs_workforce_type: d.dbs_workforce_type || "", dbs_id_document_type: d.dbs_id_document_type || "",
+    dbs_id_document_number: d.dbs_id_document_number || "", dbs_ucheck_reference: d.dbs_ucheck_reference || "",
+    dbs_certificate_number: d.dbs_certificate_number || "", dbs_result_date: d.dbs_result_date || "",
+    dbs_expiry_date: d.dbs_expiry_date || "", dbs_checked_by: d.dbs_checked_by || "",
+    dbs_storage_path: d.dbs_storage_path || "", dbs_file: d.dbs_storage_path ? { name: "Uploaded certificate" } : null,
+    role: knownRole ? roleVal : "Other", roleOther: knownRole ? "" : roleVal,
+    contract_type: e.contract_type || blank.contract_type, start_date: e.start_date || "",
+    hours_per_week: e.hours_per_week != null && e.hours_per_week !== "" ? String(e.hours_per_week) : "",
+    student_loan: !!t.student_loan, student_loan_plan: t.student_loan_plan || "", p46_statement: t.p46_statement || "",
+  };
+}
+
+const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = false, token = null, prefillName = "", staffEmail = "", session = null }) => {
+  // Remote resume: hydrate the flat form from the session's per-step jsonb
+  // (migration 133). Bank + NI are NOT returned (write-only) — the booleans
+  // niSaved/bankSaved drive a masked "saved — re-enter to change" hint instead.
+  const hydrated = remoteMode && session ? hydrateForm(session) : null;
+  const [step, setStep] = useState(() => {
+    const total = (remoteMode ? STEPS_REMOTE : STEPS_ADMIN).length;
+    if (remoteMode && session?.step_completed) return Math.max(1, Math.min(session.step_completed + 1, total));
+    return 1;
+  });
+  const [form, setForm] = useState(() => hydrated || ({ ...blank, name: prefillName || "" }));
+  const [niSaved, setNiSaved] = useState(!!session?.ni_saved);
+  const [bankSaved, setBankSaved] = useState(!!session?.bank_details_saved);
+  const [uploading, setUploading] = useState({});   // { rtw: bool, dbs: bool }
+  const [uploadErr, setUploadErr] = useState({});    // { rtw, dbs }
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState(null);
@@ -149,10 +206,20 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
 
   // Next is gated on the current step being complete — blocks advancing past
   // an empty required field (e.g. name) or a missing mandatory upload.
-  const next = () => {
+  const next = async () => {
     const issues = stepIssues(step);
     if (issues.length) { setAttempted(true); setError(`Please complete: ${issues.join(", ")}.`); return; }
     setError(null);
+    // Remote: persist this step before advancing (resumability). Admin (fill-now)
+    // keeps everything client-side until the single final write.
+    if (remoteMode) {
+      setSaving(true);
+      const ok = await saveOnboardingStep(token, step, buildStepBlob(step));
+      setSaving(false);
+      if (!ok) { setError("Couldn't save your progress — this link may have expired. Refresh the page and try again."); return; }
+      if (step === 1 && form.ni_number.trim()) setNiSaved(true);
+      if (step === 6 && (form.bank_account_number.trim() || form.bank_account_name.trim() || form.bank_sort_code.trim())) setBankSaved(true);
+    }
     setStep((s) => Math.min(TOTAL, s + 1)); // strictly the next step in sequence
   };
   // Back never validates and never resets data (single form state); functional
@@ -176,18 +243,43 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
   const dbsStatus = () => (form.dbs_na ? "not_checked" : dbsStatusFromForm());
   const dbsExpiry = () => (form.dbs_na ? "" : form.dbs_expiry_date);
 
-  // Flat payload for the remote RPC (no Files; salary removed — admin-only).
-  const buildPayload = () => ({
-    name: form.name.trim(), role: roleValue, phone: form.phone.trim(),
-    start_date: form.start_date, dbs_status: dbsStatus(),
-    dbs_expiry_date: dbsExpiry(),
-    ni_number: form.ni_number.trim(), dob: form.dob, address: form.address.trim(),
-    emergency_contact_name: form.emergency_contact_name.trim(), emergency_contact_phone: form.emergency_contact_phone.trim(),
-    bank_account_name: form.bank_account_name.trim(), bank_sort_code: form.bank_sort_code.trim(), bank_account_number: form.bank_account_number.trim(),
-    contract_type: form.contract_type, hours_per_week: form.hours_per_week === "" ? "" : String(form.hours_per_week), salary_rate: "",
-    p46_statement: form.p46_statement, student_loan: !!form.student_loan, student_loan_plan: form.student_loan ? form.student_loan_plan : "",
-    ...dbsVals(), ...rtwVals(),
-  });
+  // Per-step jsonb for save_onboarding_step. 137 MERGES, so masked NI/bank are
+  // OMITTED when blank → previously-saved (unseeable) values persist. Keys match
+  // the approve_onboarding_session named-blob contract exactly (no cross-step
+  // collisions). salary_rate never sent — admin-only.
+  const buildStepBlob = (s) => {
+    if (s === 1) {
+      const b = { name: form.name.trim(), phone: form.phone.trim(), dob: form.dob, address: form.address.trim(),
+        emergency_contact_name: form.emergency_contact_name.trim(), emergency_contact_phone: form.emergency_contact_phone.trim() };
+      if (form.ni_number.trim()) b.ni_number = form.ni_number.trim();
+      return b;
+    }
+    if (s === 2) return { rtw_na: form.rtw_na, ...rtwVals(), ...(form.rtw_storage_path ? { rtw_storage_path: form.rtw_storage_path } : {}) };
+    if (s === 3) return { dbs_na: form.dbs_na, ...dbsVals(), dbs_status: dbsStatus(), dbs_expiry_date: dbsExpiry(), ...(form.dbs_storage_path ? { dbs_storage_path: form.dbs_storage_path } : {}) };
+    if (s === 4) return { role: roleValue, contract_type: form.contract_type, start_date: form.start_date, hours_per_week: form.hours_per_week === "" ? "" : String(form.hours_per_week) };
+    if (s === 5) return { p46_statement: form.p46_statement, student_loan: !!form.student_loan, student_loan_plan: form.student_loan ? form.student_loan_plan : "" };
+    if (s === 6) {
+      const b = {};
+      if (form.bank_account_name.trim()) b.bank_account_name = form.bank_account_name.trim();
+      if (form.bank_sort_code.trim()) b.bank_sort_code = form.bank_sort_code.trim();
+      if (form.bank_account_number.trim()) b.bank_account_number = form.bank_account_number.trim();
+      return b;
+    }
+    return {};
+  };
+
+  // Remote employee document upload (RTW/DBS) via api/onboarding-upload.js →
+  // staff-documents. Stores the returned path so buildStepBlob carries it.
+  const uploadRemote = async (kind, file) => {
+    if (!file) return;
+    setUploadErr((e) => ({ ...e, [kind]: null }));
+    setUploading((u) => ({ ...u, [kind]: true }));
+    const { path, error: upErr } = await uploadOnboardingDoc({ token, docType: kind, file });
+    setUploading((u) => ({ ...u, [kind]: false }));
+    if (upErr) { setUploadErr((e) => ({ ...e, [kind]: `Upload failed: ${upErr}` })); return; }
+    set(`${kind}_storage_path`, path);
+    set(`${kind}_file`, { name: file.name });
+  };
 
   const save = async () => {
     // Final gate — required fields + mandatory uploads, respecting skips.
@@ -207,14 +299,13 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
     }
     setSaving(true); setError(null);
 
-    // Remote (token) path — write via the SECURITY DEFINER RPC. No uploads.
+    // Remote (token) path — each step already persisted via save_onboarding_step;
+    // this just flips the session to 'submitted' for admin review.
     if (remoteMode) {
-      const r = await submitStaffWizard(token, buildPayload());
+      const r = await submitOnboardingSession(token);
       setSaving(false);
       if (!r.ok) {
-        setError(r.error === "expired" ? "This link has expired — ask your mosque admin to resend it."
-          : r.error === "completed" ? "This onboarding has already been completed."
-          : r.error === "not_found" ? "This link is no longer valid."
+        setError(r.error === "locked" ? "This onboarding link is no longer active — contact your mosque admin."
           : "Something went wrong submitting your details. Please try again.");
         return;
       }
@@ -323,7 +414,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
             <Field label="Date of birth" required><input type="date" className={inputCls + errCls("dob", 1)} value={form.dob} onChange={(e) => set("dob", e.target.value)} /></Field>
           </div>
           <Field label="Address"><textarea className={inputCls} rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
-          <Field label="National Insurance number"><input className={inputCls} value={form.ni_number} onChange={(e) => set("ni_number", e.target.value)} placeholder="QQ123456C" /></Field>
+          <Field label="National Insurance number"><input className={inputCls} value={form.ni_number} onChange={(e) => set("ni_number", e.target.value)} placeholder={niSaved && !form.ni_number ? "•••••••• saved — re-enter to change" : "QQ123456C"} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Emergency contact name" required><input className={inputCls + errCls("emergency_contact_name", 1)} value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name", e.target.value)} /></Field>
             <Field label="Emergency contact number" required><input className={inputCls + errCls("emergency_contact_phone", 1)} value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone", e.target.value)} /></Field>
@@ -354,7 +445,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <Field label="Expiry date" required><input type="date" className={inputCls + errCls("rtw_expiry_date", 2)} value={form.rtw_expiry_date} onChange={(e) => set("rtw_expiry_date", e.target.value)} /></Field>
             </div>
             <Field label="Checked by"><input className={inputCls} value={form.rtw_checked_by} onChange={(e) => set("rtw_checked_by", e.target.value)} /></Field>
-            <FileField label="Attach document" required={uploadReq("rtw")} value={form.rtw_file} remoteMode={remoteMode} onSelect={(f) => set("rtw_file", f)} onClear={() => set("rtw_file", null)} error={attempted && uploadReq("rtw") && !form.rtw_file} />
+            <FileField label="Attach document" required={uploadReq("rtw")} value={form.rtw_file} remoteMode={remoteMode} onSelect={(f) => set("rtw_file", f)} onClear={() => set("rtw_file", null)} error={attempted && uploadReq("rtw") && !form.rtw_file} onRemoteUpload={(f) => uploadRemote("rtw", f)} uploadedName={form.rtw_file?.name} uploading={uploading.rtw} uploadError={uploadErr.rtw} />
           </>)}
         </>)}
 
@@ -388,7 +479,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <Field label="Expiry date"><input type="date" className={inputCls} value={form.dbs_expiry_date} onChange={(e) => set("dbs_expiry_date", e.target.value)} /></Field>
               <Field label="Checked by"><input className={inputCls} value={form.dbs_checked_by} onChange={(e) => set("dbs_checked_by", e.target.value)} /></Field>
             </div>
-            <FileField label="Attach certificate" required={uploadReq("dbs")} value={form.dbs_file} remoteMode={remoteMode} onSelect={(f) => set("dbs_file", f)} onClear={() => set("dbs_file", null)} error={attempted && uploadReq("dbs") && !form.dbs_file} />
+            <FileField label="Attach certificate" required={uploadReq("dbs")} value={form.dbs_file} remoteMode={remoteMode} onSelect={(f) => set("dbs_file", f)} onClear={() => set("dbs_file", null)} error={attempted && uploadReq("dbs") && !form.dbs_file} onRemoteUpload={(f) => uploadRemote("dbs", f)} uploadedName={form.dbs_file?.name} uploading={uploading.dbs} uploadError={uploadErr.dbs} />
           </>)}
         </>)}
 
@@ -441,10 +532,13 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           <div className="flex items-start gap-2 text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
             <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> Bank details are stored securely and are only ever visible to mosque admins — never to the staff member or the public.
           </div>
-          <Field label="Account name"><input className={inputCls} value={form.bank_account_name} onChange={(e) => set("bank_account_name", e.target.value)} /></Field>
+          {bankSaved && !form.bank_account_number && !form.bank_account_name && !form.bank_sort_code && (
+            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">Your bank details are saved. Leave blank to keep them, or re-enter below to change.</p>
+          )}
+          <Field label="Account name"><input className={inputCls} value={form.bank_account_name} onChange={(e) => set("bank_account_name", e.target.value)} placeholder={bankSaved && !form.bank_account_name ? "saved — re-enter to change" : ""} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Sort code"><input className={inputCls} value={form.bank_sort_code} onChange={(e) => set("bank_sort_code", e.target.value)} placeholder="00-00-00" /></Field>
-            <Field label="Account number"><input className={inputCls} value={form.bank_account_number} onChange={(e) => set("bank_account_number", e.target.value)} /></Field>
+            <Field label="Sort code"><input className={inputCls} value={form.bank_sort_code} onChange={(e) => set("bank_sort_code", e.target.value)} placeholder={bankSaved && !form.bank_sort_code ? "saved" : "00-00-00"} /></Field>
+            <Field label="Account number"><input className={inputCls} value={form.bank_account_number} onChange={(e) => set("bank_account_number", e.target.value)} placeholder={bankSaved && !form.bank_account_number ? "saved — re-enter to change" : ""} /></Field>
           </div>
         </>)}
 
@@ -494,7 +588,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               ["DBS expiry", form.dbs_na ? "—" : (form.dbs_expiry_date || "—")],
               ["Hours/week", form.hours_per_week || "—"],
               ...(remoteMode ? [] : [["Salary/rate", form.salary_rate || "—"]]),
-              ["Bank set", form.bank_account_number ? "Yes" : "No"],
+              ["Bank set", (bankSaved || form.bank_account_number) ? "Yes" : "No"],
               ...(remoteMode ? [] : [["Documents", [form.dbs_file && "DBS", form.rtw_file && "RTW"].filter(Boolean).join(", ") || "none"]]),
               ...(remoteMode ? [] : [["Contract", form.issue_contract ? `${CONTRACT_DOC_TYPES.find(([v]) => v === form.contract_doc_type)?.[1] || form.contract_doc_type}${form.email ? ` → ${form.email}` : ""}` : "Not issued"]]),
             ].map(([k, v]) => (
