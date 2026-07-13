@@ -512,6 +512,25 @@ async function sbInsert(env, table, rows) {
   if (!res.ok) console.error('[send-transactional] sbInsert failed', table, res.status);
 }
 
+// Service-role single-row insert that THROWS on failure (unlike sbInsert, which
+// swallows errors for best-effort bell notifications). Returns the inserted row.
+// Used for the demo-request lead write, where a silent drop would lose the lead.
+async function sbInsertRow(env, table, row) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json', Prefer: 'return=representation',
+    },
+    body: JSON.stringify(row),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(`sbInsertRow_failed:${table}:${res.status}:${json?.message || ''}`);
+  }
+  return Array.isArray(json) ? json[0] : json;
+}
+
 // Resolve a recipient profile (email/name/role) by user id. profiles.email
 // mirrors auth.users, so this avoids needing an auth-schema RPC.
 async function getProfile(env, userId) {
@@ -2091,9 +2110,15 @@ async function handleOnboardingApproved(env, caller, sessionId) {
 }
 
 // Demo request from the public landing page (LandingPageV2). Unauthenticated —
-// the submitter has no session; the recipient is FIXED server-side to the platform
-// owner (not client-supplied), so this is a contact-form, not an open relay. Fields
-// are the client's form inputs, escaped into the email body.
+// the submitter has no session; the owner-notification recipient is FIXED
+// server-side to the platform owner (not client-supplied), so this is a
+// contact-form, not an open relay. Fields are the client's form inputs.
+//
+// The lead is PERSISTED to demo_requests (migration 142) BEFORE any email is
+// sent, so a Resend bounce/filter can no longer lose the lead. The DB write and
+// the owner notification are independent best-effort: a failure of one must not
+// suppress the other. The requester confirmation (handleDemoRequestAck) is a
+// nice-to-have that never blocks lead capture.
 async function handleDemoRequest(env, body) {
   const name = (body?.name || '').toString().trim();
   const mosqueName = (body?.mosqueName || '').toString().trim();
@@ -2102,13 +2127,67 @@ async function handleDemoRequest(env, body) {
   const preferredTime = (body?.preferredTime || '').toString().trim();
   if (!name || !mosqueName) return { status: 400, body: { ok: false, error: 'missing_fields' } };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { status: 400, body: { ok: false, error: 'invalid_email' } };
-  const to = 'shiraz@savecobradford.co.uk';
-  const rows = [['Name', name], ['Mosque', mosqueName], ['Email', email], ['Phone', phone || '—'], ['Preferred time', preferredTime || '—']];
-  const rowsHtml = rows.map(([k, v]) => `<tr><td style="padding:6px 0;color:#78716c">${escapeHtml(k)}</td><td style="padding:6px 0;text-align:right;color:#1c1917">${escapeHtml(v)}</td></tr>`).join('');
-  const inner = `${eHeading('New demo request')}${ePara('A new demo request has come in from the Amanah landing page.')}
-    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:14px">${rowsHtml}</table>`;
-  await sendEmail(env, { to, subject: `New demo request — ${mosqueName}`, html: wrapEmail('New demo request', inner) });
-  return { status: 200, body: { ok: true } };
+
+  // 1. Persist the lead FIRST — the durable record. Service-role write bypasses
+  //    RLS; the anon INSERT policy in 142 is the posture for direct client writes.
+  let stored = false;
+  try {
+    await sbInsertRow(env, 'demo_requests', {
+      name, mosque_name: mosqueName, email,
+      phone: phone || null, preferred_time: preferredTime || null,
+    });
+    stored = true;
+  } catch (err) {
+    console.error('[send-transactional] demo_request store failed', err?.message);
+    Sentry.captureException(err, { tags: { intent: 'demo_request', step: 'store' } });
+  }
+
+  // 2. Owner notification (the original behaviour) — best-effort.
+  let notified = false;
+  try {
+    const rows = [['Name', name], ['Mosque', mosqueName], ['Email', email], ['Phone', phone || '—'], ['Preferred time', preferredTime || '—']];
+    const rowsHtml = rows.map(([k, v]) => `<tr><td style="padding:6px 0;color:#78716c">${escapeHtml(k)}</td><td style="padding:6px 0;text-align:right;color:#1c1917">${escapeHtml(v)}</td></tr>`).join('');
+    const inner = `${eHeading('New demo request')}${ePara('A new demo request has come in from the Amanah landing page.')}
+      <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:14px">${rowsHtml}</table>`;
+    await sendEmail(env, { to: 'shiraz@savecobradford.co.uk', subject: `New demo request — ${mosqueName}`, html: wrapEmail('New demo request', inner) });
+    notified = true;
+  } catch (err) {
+    console.error('[send-transactional] demo_request notify failed', err?.message);
+    Sentry.captureException(err, { tags: { intent: 'demo_request', step: 'notify' } });
+  }
+
+  // 3. Requester confirmation — best-effort; the recipient is the just-recorded
+  //    lead's own email, so no open-relay exposure. Never blocks the response.
+  try {
+    await handleDemoRequestAck(env, { email, name, mosqueName });
+  } catch (err) {
+    console.error('[send-transactional] demo_request ack failed', err?.message);
+    Sentry.captureException(err, { tags: { intent: 'demo_request', step: 'ack' } });
+  }
+
+  // The lead is safe if EITHER it was recorded OR the owner was notified.
+  if (!stored && !notified) {
+    if (SENTRY_DSN) await Sentry.flush(2000);
+    return { status: 502, body: { ok: false, error: 'demo_request_failed' } };
+  }
+  if (SENTRY_DSN && !(stored && notified)) await Sentry.flush(2000);
+  return { status: 200, body: { ok: true, stored } };
+}
+
+// Requester-confirmation email for a demo request (NEW INTENT: demo_request_ack).
+// Reassures the submitter their request landed — previously they got only an
+// on-screen "Thanks" and nothing in their inbox. Recipient is the submitter's
+// own email. Reusable as an x-cron-secret-gated intent AND called inline by
+// handleDemoRequest after the lead is recorded.
+async function handleDemoRequestAck(env, body) {
+  const email = (body?.email || '').toString().trim();
+  const name = (body?.name || '').toString().trim();
+  const mosqueName = (body?.mosqueName || '').toString().trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { status: 400, body: { ok: false, error: 'invalid_email' } };
+  const forMosque = mosqueName ? ` for <strong>${escapeHtml(mosqueName)}</strong>` : '';
+  const inner = `${eHeading('We received your demo request')}${eGreeting(name)}${ePara(`Thank you for requesting a demo of Amanah${forMosque}. We've got your details and a member of our team will be in touch within 24 hours to arrange a time that suits you.`)}${ePara('If you need anything sooner, just reply to this email.')}${eSignoff}`;
+  const id = await sendEmail(env, { to: email, subject: 'We received your Amanah demo request', html: wrapEmail('Demo request received', inner) });
+  return { status: 200, body: { ok: true, id } };
 }
 
 export default async function handler(req, res) {
@@ -2215,6 +2294,18 @@ export default async function handler(req, res) {
     // fixed server-side (the platform owner), so no caller is needed.
     if (body.intent === 'demo_request') {
       const out = await handleDemoRequest(env, body);
+      return res.status(out.status).json(out.body);
+    }
+
+    // Requester-confirmation email for a demo request. handleDemoRequest already
+    // fires this inline after recording the lead; this standalone entry is
+    // server-to-server only (x-cron-secret) so it can't be used as an open relay
+    // to email arbitrary addresses.
+    if (body.intent === 'demo_request_ack') {
+      if (req.headers['x-cron-secret'] !== env.CRON_SECRET) {
+        return res.status(401).json({ ok: false, error: 'unauthorized' });
+      }
+      const out = await handleDemoRequestAck(env, body);
       return res.status(out.status).json(out.body);
     }
 
