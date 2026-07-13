@@ -98,6 +98,7 @@ Supersedes the RBAC-C "carry-forward → RBAC-D" clause. This session's api-cons
 - **Account creation on approval** via `api/create-account.js` (built this session) — currently gated on `profiles.role='admin'`; **must change to mosque-owner-gated**.
 - **Make NI number required** (needed for HMRC RTI; currently optional).
 - **Drop the redundant `wizard_*` columns** once nothing reads them.
+- **Reconcile `mosque_staff.onboarding_method` vocabulary with `mosque_staff_onboarding_sessions.path`** — two columns, two vocabularies for the same concept (`onboarding_method` ∈ `remote_invite`/`in_house`, live-probed; `path` ∈ `remote`/`in_person`). Currently bridged by a `case` map in `approve_onboarding_session` (141) + `createStaffWizardInvite` (auth.js). Will bite the moment a third path is added — pick one vocabulary. (No file-vs-deployed drift here after all: the live dev constraint `ARRAY['remote_invite','in_house']` matches migration 128. An earlier RBAC-D round wrongly targeted `'invite'` from a mis-stated value and cost two rounds — hence the "probe the live DB, paste it" rule below.)
 
 ### Separate small commit (any time)
 - **Rename People → HR** across nav + routes + deep links.
@@ -110,6 +111,15 @@ Persistent draft-contract table (remote e-sign), normalized rota-shifts table, o
 
 ### Capacity
 `api/` is **11/12** after this session's consolidations — **one free Vercel function slot remains**.
+
+---
+
+## Migration & storage discipline (LOCKED)
+
+- **Bucket creation ALWAYS goes in the migration via `insert into storage.buckets` — never a manual dashboard step.** A `storage.objects` policy referencing a bucket is valid SQL whether or not the bucket exists, so policy probes do NOT prove the bucket is there. Probe `storage.buckets` explicitly. (Learned the hard way in RBAC-D: migration 131 left `staff-documents` as a manual "create the bucket" checklist line that was never done on dev OR prod, so every RBAC-C document upload had been failing with "Bucket not found" while our policy probes passed green. Migration 135 creates the bucket in SQL + re-asserts the 6 policies idempotently.)
+- **Any claim about a column, constraint, or allowed value MUST be read from the LIVE DB and pasted — never stated from a migration file or memory.** Migration files drift from what's deployed (guardless-137, and the `onboarding_method` allowed-set: a mis-stated `'invite'` vs the live `'remote_invite'` cost two rounds). Before writing a value into a constrained column, run `pg_get_constraintdef` / `pg_get_functiondef` on the target env and paste the result. Dev and prod can differ — probe both before shipping.
+- **Probes prove an object EXISTS and has the right shape. They do NOT prove it RUNS.** plpgsql `RETURNS TABLE` shadowing (42702) and CHECK-constraint violations BOTH pass every migration probe (`prosecdef`, grants, policies, column list) and fail only when a real user clicks the button. **Any RPC that writes to a table must have every written column checked against that table's constraints (CHECK + NOT NULL) BEFORE the migration ships — and must be exercised end-to-end through the UI, not just probed.** (RBAC-D promotion path hit THREE such runtime bugs in a row that all probed green: 42702 ambiguous `id` in `get_onboarding_session_full` (140), then `onboarding_method='remote_session'` violating its CHECK (141), each caught only by the UI smoke.)
+- **plpgsql RPCs with `RETURNS TABLE`: output column names shadow table columns. ALWAYS alias the table and qualify every reference (`s.id`, not `id`).** A `RETURNS TABLE` column named `id` + an unqualified `where id = ...` throws 42702 ("column reference id is ambiguous") **at runtime, not at CREATE time** — it passes every migration probe and only fails when a real user clicks the button. (RBAC-D: `get_onboarding_session_full` shipped this way and 400'd on the admin's first "view submission", after `approve` had already been probed green — the bug only surfaced from the specific `RETURNS TABLE`+unqualified-`id` combo. Fixed in 140 by aliasing.) Explicit qualification is preferred over `#variable_conflict use_column`: RBAC-C's RPCs used the pragma and 133's didn't, and that inconsistency is exactly how a copied-from-the-wrong-template RPC slips the bug in. Alias every table; qualify every column; don't rely on a pragma.
 
 ---
 
@@ -5025,6 +5035,7 @@ Session G cleared every parent-facing parked item from C–F. What
 remains is structural / pre-launch work, not parent-flow polish.
 
 - **Trim remaining debug `console.log` lines** once confident things are stable.
+- **Storage buckets have no server-side size/type limits (platform-wide hardening).** As of RBAC-D (135), only `staff-documents` carries `file_size_limit` + `allowed_mime_types`. The other 8 buckets (`avatars`, `credentials`, `dbs-certificates`, `governance-docs`, `madrasa-homework-uploads`, `mosque-hr-docs`, `mosque-logos`, `mosque-madrasa-photos`, `mosque-photos`) have NEITHER — every size/type guard on those is client-side only and bypassable (esp. relevant for the private doc buckets). Set `file_size_limit` + `allowed_mime_types` on each via `update storage.buckets` in a dedicated hardening pass (dev then prod, probe each). Not RBAC-D scope.
 - **Consider splitting `App.jsx`, Phase 2** (~7,800 lines) — components still inline. Phase 1 (data + lib) shipped 5 May 2026. No timeline; revisit when something concrete forces it.
 - **Add a smoke-test suite** — even one per page would have caught the original scholars-not-loading bug in 5 seconds. Would also have caught the saved-campaign id-type-mismatch silently fixed in Session G's `dd70b28`.
 - **`SCHOLAR_REVIEWS_DB` migration** — confirmed broken on prod in Session G (integer keys vs. UUID `scholar.id`). Reviews silently render empty for every real scholar detail page. Now in the "next session candidates" list at the top.
