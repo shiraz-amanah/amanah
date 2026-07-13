@@ -27,6 +27,7 @@ import MosqueProfile from "./pages/MosqueProfile";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import CookiePolicy from "./pages/CookiePolicy";
+import LandingPageV2 from "./pages/LandingPageV2";
 import AdminClaims from "./components/AdminClaims";
 import MosqueClaimAccept from "./components/MosqueClaimAccept";
 import AcceptInvite from "./components/AcceptInvite";
@@ -13281,22 +13282,7 @@ const handleSignIn = (r) => {
   // <GlobalToast> alongside whichever view is active without having to
   // mutate every individual return statement.
   const renderView = () => {
-  if (view === "publicHome") return <PublicHome
-    onCategory={(id) => { setSelectedCategory(id); navigate("categoryListing", { id }); }}
-    onScholar={(s) => { setSelectedScholar(s); navigate("scholarDetail", { slug: s.slug }); }}
-    onSignIn={handleSignIn}
-    onCampaign={(c) => { setSelectedCampaign(c); navigate("campaignDetail", { id: c.id }); }}
-    onAllCampaigns={() => setView("allCampaigns")}
-    onLeaveReview={(s) => { setReviewScholar(s); setView("leaveReview"); }}
-    savedScholarIds={savedScholarIds} toggleScholarSave={toggleScholarSave}
-    authedUser={authedUser} authedProfile={authedProfile}
-    onMosquesListing={() => setView("mosquesListing")}
-    onMosqueDetail={(m) => { setSelectedMosque(m); navigate("mosqueDetail", { slug: m.slug }); }}
-    savedMosqueIds={savedMosqueIds}
-    toggleMosqueSave={toggleMosqueSave}
-    savedCampaignIds={savedCampaignIds}
-    toggleCampaignSave={toggleCampaignSave}
-    />;
+  if (view === "publicHome") return <LandingPageV2 onSignIn={handleSignIn} />;
 if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} onSignIn={(r) => { setRole(r); navigate("login"); }} />;
 if (view === "privacyPolicy") return <PrivacyPolicy header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
 if (view === "termsOfService") return <TermsOfService header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
