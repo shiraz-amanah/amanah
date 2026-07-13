@@ -47,6 +47,13 @@ const serifHead = { fontFamily: T.serif, fontWeight: 400, letterSpacing: "-0.02e
 const inputS = { width: "100%", fontSize: 14, color: L.ink, border: `1px solid ${L.border}`, borderRadius: 10, padding: "10px 12px", outline: "none", background: L.white };
 const DEMO_TIMES = ["Morning", "Afternoon", "Evening"];
 
+// Single shared content rail: every section centres its content on this one
+// max-width via `mx-auto` (THEME-1 c3). Previously each section set its own
+// width (640/900/1000) and the dark sections had no mx-auto, so the column
+// visibly shifted left↔centre while scrolling. One rail = one fixed column.
+const RAIL = 1080;
+const railClass = "mx-auto w-full";
+
 const solidBtn = { fontSize: 14, fontWeight: 500, color: "#fff", background: T.green, borderRadius: 8, padding: "12px 24px", border: "none", cursor: "pointer" };
 const ghostBtn = { fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "12px 24px", background: "transparent", cursor: "pointer" };
 
@@ -248,7 +255,7 @@ const LandingPageV2 = ({ onSignIn }) => {
 
       {/* ===== SECTION 1 — NAV ===== */}
       <nav className="lpv-dark px-5 md:px-12" style={{ background: T.dark, borderBottom: `0.5px solid ${T.wBorder}`, paddingTop: 18, paddingBottom: 18 }}>
-        <div className="flex items-center justify-between gap-4">
+        <div className={`${railClass} flex items-center justify-between gap-4`} style={{ maxWidth: RAIL }}>
           <a href="/" className="flex items-center gap-2.5 shrink-0">
             <span style={{ width: 30, height: 30, borderRadius: 8, background: T.green, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <ShieldCheck size={16} style={{ color: "#eafaf0" }} />
@@ -285,7 +292,7 @@ const LandingPageV2 = ({ onSignIn }) => {
           </svg>
         </div>
 
-        <div className="relative lg:grid lg:grid-cols-[1fr_auto] lg:items-center lg:gap-12">
+        <div className={`relative ${railClass} lg:grid lg:grid-cols-[1fr_auto] lg:items-center lg:gap-12`} style={{ maxWidth: RAIL }}>
           {/* LEFT — copy column */}
           <div style={{ maxWidth: 640 }}>
           {/* Eyebrow pill */}
@@ -336,7 +343,7 @@ const LandingPageV2 = ({ onSignIn }) => {
 
       {/* ===== SECTION 3 — THE PROBLEM LEDGER ===== */}
       <section className="lpv-dark px-5 md:px-12" style={{ background: T.dark, borderTop: `0.5px solid ${T.wBorder}`, paddingTop: 64, paddingBottom: 72 }}>
-        <div style={{ width: "85%", maxWidth: 900 }}>
+        <div className={railClass} style={{ maxWidth: RAIL }}>
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: T.w35 }}>Right now</p>
           <h2 style={{ ...serifHead, fontSize: 36, color: "#fff", marginTop: 14, lineHeight: 1.15 }}>Your mosque runs on:</h2>
 
@@ -355,15 +362,21 @@ const LandingPageV2 = ({ onSignIn }) => {
 
       {/* ===== SECTION 4 — PRODUCT CHAPTERS ===== */}
       <section id="product" className="lpv-light px-5 md:px-12" style={{ background: L.white, paddingTop: 72, paddingBottom: 72 }}>
-        <div className="mx-auto" style={{ maxWidth: 1000 }}>
+        <div className={railClass} style={{ maxWidth: RAIL }}>
           <div className="space-y-16">
             {CHAPTERS.map((c) => (
-              <div key={c.num} className="flex gap-5 md:gap-6">
+              // justify-center: the number+560 content is capped below the rail
+              // width, so centre the pair within the rail instead of hugging the
+              // left (which left the whole right half of wide screens empty).
+              <div key={c.num} className="flex justify-center gap-5 md:gap-6">
                 <div style={{ ...serifHead, fontSize: 56, color: L.chapterNum, lineHeight: 1, flexShrink: 0 }} className="max-md:!text-[40px]">{c.num}</div>
-                <div className="min-w-0 flex-1">
+                {/* Content column capped so heading, body and the artifact card
+                    all share ONE measure — the card fills its column instead of
+                    floating narrow with empty space to its right. */}
+                <div className="min-w-0 flex-1" style={{ maxWidth: 560 }}>
                   <h3 style={{ ...serifHead, fontSize: 26, color: L.ink, lineHeight: 1.2 }}>{c.title}</h3>
-                  <p style={{ fontSize: 15, color: L.muted, lineHeight: 1.6, marginTop: 10, maxWidth: 520 }}>{c.body}</p>
-                  <div style={{ marginTop: 18, maxWidth: 460 }}>{c.artifact}</div>
+                  <p style={{ fontSize: 15, color: L.muted, lineHeight: 1.6, marginTop: 10 }}>{c.body}</p>
+                  <div style={{ marginTop: 18 }}>{c.artifact}</div>
                 </div>
               </div>
             ))}
@@ -373,7 +386,10 @@ const LandingPageV2 = ({ onSignIn }) => {
 
       {/* ===== SECTION 5 — PROOF STRIP ===== */}
       <section className="lpv-light px-5 md:px-12" style={{ background: L.surface, borderTop: `0.5px solid ${L.border}`, borderBottom: `0.5px solid ${L.border}`, paddingTop: 40, paddingBottom: 40 }}>
-        <div className="mx-auto grid grid-cols-2 md:grid-cols-4 gap-8" style={{ maxWidth: 900 }}>
+        {/* Narrow (640) inner measure, CENTRED on the rail — same reasoning as
+            pricing: at the full 1080 the four stats spread so far apart they
+            read as four unrelated things, not one proof cluster. */}
+        <div className={`${railClass} grid grid-cols-2 md:grid-cols-4 gap-8`} style={{ maxWidth: 640 }}>
           {PROOF.map((p) => (
             <div key={p.l} className="text-center">
               <p style={{ ...serifHead, fontSize: 30, color: p.green ? T.green : L.ink }}>{p.n}</p>
@@ -385,7 +401,11 @@ const LandingPageV2 = ({ onSignIn }) => {
 
       {/* ===== SECTION 6 — PRICING ===== */}
       <section id="pricing" className="lpv-light px-5 md:px-12" style={{ background: L.white, paddingTop: 64, paddingBottom: 64 }}>
-        <div className="mx-auto" style={{ maxWidth: 640 }}>
+        {/* Pricing keeps a narrow inner measure (640) but stays CENTRED on the
+            rail — consistency of the rail, not the measure. At the full 1080
+            the plan name and price sat a viewport apart and read like a
+            spreadsheet; this is the section where the buyer decides to book. */}
+        <div className={railClass} style={{ maxWidth: 640 }}>
           <h2 style={{ ...serifHead, fontSize: 30, color: L.ink, textAlign: "center", lineHeight: 1.2 }}>
             Pay for what you use. <em>Nothing else.</em>
           </h2>
@@ -411,20 +431,22 @@ const LandingPageV2 = ({ onSignIn }) => {
 
       {/* ===== SECTION 7 — FINAL CTA ===== */}
       <section className="lpv-dark px-5 md:px-12" style={{ background: T.dark, paddingTop: 72, paddingBottom: 72, textAlign: "center" }}>
-        <h2 style={{ ...serifHead, fontSize: 40, color: "#fff", lineHeight: 1.15 }} className="max-md:!text-[32px]">
-          Give your mosque<br />a <em>brain.</em>
-        </h2>
-        <p style={{ fontSize: 14, color: T.w55, marginTop: 16, lineHeight: 1.6 }}>
-          Set up in an afternoon. Free until you collect your first fee.
-        </p>
-        <div style={{ marginTop: 28 }}>
-          <button onClick={openDemo} style={{ ...solidBtn, padding: "14px 32px" }}>Book a demo →</button>
+        <div className={railClass} style={{ maxWidth: RAIL }}>
+          <h2 style={{ ...serifHead, fontSize: 40, color: "#fff", lineHeight: 1.15 }} className="max-md:!text-[32px]">
+            Give your mosque<br />a <em>brain.</em>
+          </h2>
+          <p style={{ fontSize: 14, color: T.w55, marginTop: 16, lineHeight: 1.6 }}>
+            Set up in an afternoon. Free until you collect your first fee.
+          </p>
+          <div style={{ marginTop: 28 }}>
+            <button onClick={openDemo} style={{ ...solidBtn, padding: "14px 32px" }}>Book a demo →</button>
+          </div>
         </div>
       </section>
 
       {/* ===== SECTION 8 — FOOTER ===== */}
       <footer className="px-5 md:px-12" style={{ background: T.dark, borderTop: `0.5px solid ${T.wBorder}`, paddingTop: 40, paddingBottom: 40 }}>
-        <div className="mx-auto" style={{ maxWidth: 1000 }}>
+        <div className={railClass} style={{ maxWidth: RAIL }}>
           <LegalFooter className="text-stone-500" />
         </div>
       </footer>
