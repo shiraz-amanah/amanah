@@ -1,0 +1,23 @@
+/* Amanah design tokens — single source of truth for the platform theme.
+ *
+ * Introduced in Session LANDING-V2 for the pure-SaaS editorial landing page
+ * (src/pages/LandingPageV2.jsx uses these tokens EXCLUSIVELY — no hardcoded hex).
+ *
+ * These are deliberately scoped as CSS custom properties on :root so the same
+ * palette can later roll into the dashboard shells as a token change rather than
+ * a rewrite (future session THEME-1: "roll amanahTheme tokens into dashboard
+ * shells"). Do not fork these values — extend them here.
+ */
+:root {
+  --amanah-green: #1a7a3c;
+  --amanah-green-bright: #4ade80;
+  --amanah-green-tint: #EAF3DE;
+  --amanah-green-deep: #3B6D11;
+  --amanah-dark: #0a1a0f;
+  --amanah-dark-2: #0d1f12;
+  --amanah-serif: Georgia, 'Times New Roman', serif;
+  --amanah-white-90: rgba(255, 255, 255, 0.9);
+  --amanah-white-55: rgba(255, 255, 255, 0.55);
+  --amanah-white-35: rgba(255, 255, 255, 0.35);
+  --amanah-white-border: rgba(255, 255, 255, 0.1);
+}
