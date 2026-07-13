@@ -285,7 +285,9 @@ const LandingPageV2 = ({ onSignIn }) => {
           </svg>
         </div>
 
-        <div className="relative" style={{ maxWidth: 640 }}>
+        <div className="relative lg:grid lg:grid-cols-[1fr_auto] lg:items-center lg:gap-12">
+          {/* LEFT — copy column */}
+          <div style={{ maxWidth: 640 }}>
           {/* Eyebrow pill */}
           <div className="inline-flex items-center gap-2" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: T.greenBright, border: "1px solid rgba(74,222,128,0.25)", background: "rgba(74,222,128,0.05)", borderRadius: 20, padding: "6px 12px" }}>
             <Dot /> The operating system for UK mosques
@@ -316,12 +318,25 @@ const LandingPageV2 = ({ onSignIn }) => {
               </span>
             ))}
           </div>
+          </div>
+
+          {/* RIGHT — floating Ofsted-readiness card (dark glass, desktop ≥1024px only) */}
+          <div className="hidden lg:flex justify-end">
+            <div style={{ background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.1)", borderRadius: 14, padding: "18px 22px", maxWidth: 300 }}>
+              <div className="flex items-start justify-between gap-3">
+                <p style={{ ...serifHead, fontSize: 34, color: T.greenBright, lineHeight: 1 }}>92/100</p>
+                <ShieldCheck size={20} style={{ color: T.greenBright, flexShrink: 0 }} />
+              </div>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>Ofsted readiness</p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6, lineHeight: 1.5 }}>1 DBS renewal due in 18 days — reminder already sent</p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ===== SECTION 3 — THE PROBLEM LEDGER ===== */}
       <section className="lpv-dark px-5 md:px-12" style={{ background: T.dark, borderTop: `0.5px solid ${T.wBorder}`, paddingTop: 64, paddingBottom: 72 }}>
-        <div style={{ maxWidth: 640 }}>
+        <div style={{ width: "85%", maxWidth: 900 }}>
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: T.w35 }}>Right now</p>
           <h2 style={{ ...serifHead, fontSize: 36, color: "#fff", marginTop: 14, lineHeight: 1.15 }}>Your mosque runs on:</h2>
 
