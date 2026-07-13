@@ -10,6 +10,10 @@ import { sentryVitePlugin } from '@sentry/vite-plugin'
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN
 
 export default defineConfig({
+  // Dev-only: forward /api/* to the Vercel functions running on :3000 (via
+  // `vercel dev`), since `vite` alone doesn't serve serverless functions. No
+  // effect on `vite build` / production (Vercel serves /api directly there).
+  server: { proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } } },
   build: { sourcemap: !!sentryAuthToken },
   plugins: [
     react(),
