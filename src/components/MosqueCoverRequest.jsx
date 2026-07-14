@@ -37,8 +37,11 @@ const MosqueCoverRequest = ({ scholar, mosqueId, onClose, onSent }) => {
 
   const submit = async () => {
     if (coverType.length === 0 && sessions.length === 0) { setError("Pick at least one cover type or session."); return; }
+    // recipient_profile_id (migration 143) is the identity key. A scholar's
+    // user_id IS their profile id; an unclaimed scholar (no account) can't receive.
+    if (!scholar.user_id) { setError("This scholar hasn't claimed their account yet, so they can't receive cover requests."); return; }
     setBusy(true); setError(null);
-    const { error: e } = await createCoverRequest({ mosqueId, scholarId: scholar.id, coverType, sessions, dateFrom, dateTo, notes });
+    const { error: e } = await createCoverRequest({ mosqueId, recipientProfileId: scholar.user_id, scholarId: scholar.id, coverType, sessions, dateFrom, dateTo, notes });
     setBusy(false);
     if (e) { setError(e.message || "Couldn't send the request."); return; }
     onSent?.();

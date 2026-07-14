@@ -2998,12 +2998,15 @@ export async function getExportRoster(mosqueId) {
 // --- Cover requests (migration 061) ---
 // Mosque sends a scholar a structured cover request (replaces the old
 // free-text message thread). Owner RLS on insert/select.
-export async function createCoverRequest({ mosqueId, scholarId, coverType, sessions, dateFrom, dateTo, notes }) {
-  if (!mosqueId || !scholarId) return { error: { message: 'mosqueId + scholarId required' } }
+// recipientProfileId is the identity key (migration 143): the profiles.id of the
+// person being asked to cover — a scholar's user_id OR a mosque_staff member's
+// profile_id. scholarId stays as an inert display/provenance column (nullable).
+export async function createCoverRequest({ mosqueId, recipientProfileId, scholarId, coverType, sessions, dateFrom, dateTo, notes }) {
+  if (!mosqueId || !recipientProfileId) return { error: { message: 'mosqueId + recipientProfileId required' } }
   const { data, error } = await supabase
     .from('cover_requests')
     .insert({
-      mosque_id: mosqueId, scholar_id: scholarId,
+      mosque_id: mosqueId, recipient_profile_id: recipientProfileId, scholar_id: scholarId || null,
       cover_type: coverType || [], sessions: sessions || [],
       date_from: dateFrom || null, date_to: dateTo || null, notes: notes || null,
     })
@@ -3011,8 +3014,9 @@ export async function createCoverRequest({ mosqueId, scholarId, coverType, sessi
   return { data, error }
 }
 
-// Scholar side — RLS returns only requests addressed to the caller's scholar
-// record (061 scholar-read policy).
+// Recipient side — RLS (143 "Recipient read own") returns only requests whose
+// recipient_profile_id = auth.uid(), i.e. addressed to the caller (scholar OR
+// mosque_staff). Function name kept for its one caller (ScholarCoverRequests).
 export async function getCoverRequestsForScholar() {
   const { data, error } = await supabase
     .from('cover_requests')
@@ -3022,7 +3026,8 @@ export async function getCoverRequestsForScholar() {
   return data || []
 }
 
-// Scholar accepts/declines (061 scholar-update policy restricts to own rows).
+// Recipient accepts/declines (143 "Recipient respond" restricts to own rows via
+// recipient_profile_id = auth.uid()).
 export async function updateCoverRequestStatus(id, status) {
   if (!id || !status) return { error: { message: 'id + status required' } }
   const { data, error } = await supabase

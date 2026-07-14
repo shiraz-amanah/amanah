@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { Loader2, Check, X, CalendarClock, MapPin } from "lucide-react";
 import { getCoverRequestsForScholar, updateCoverRequestStatus } from "../auth";
 
-// Session W (7b) — scholar-facing cover requests. Lists structured requests
-// sent by mosques; the scholar accepts or declines (updates cover_requests
-// status under the 061 scholar-update RLS). On accept the mosque adds the
-// scholar to its temp staff from its own Rota → cover list.
+// Session W (7b) — recipient-facing cover requests. Lists structured requests
+// sent by mosques; the recipient accepts or declines (updates cover_requests
+// status under the 143 "Recipient respond" RLS, keyed on recipient_profile_id).
+// On accept the mosque adds them to its temp staff from its own Rota → cover list.
 
 const STATUS_CLS = {
   requested: "bg-amber-50 border-amber-200 text-amber-700",
