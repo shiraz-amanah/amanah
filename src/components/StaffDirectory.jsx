@@ -210,7 +210,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   };
 
   const oColour = ofstedColour(ofsted);
-  const oCls = oColour === "green" ? "text-emerald-700 bg-emerald-50" : oColour === "amber" ? "text-amber-700 bg-amber-50" : "text-rose-700 bg-rose-50";
+  const oCls = oColour === "green" ? "text-success-700 bg-success-50" : oColour === "amber" ? "text-amber-700 bg-amber-50" : "text-rose-700 bg-rose-50";
 
   return (
     <div className="relative">
@@ -231,7 +231,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       <div className="flex items-center gap-1 mb-4 border-b border-stone-200">
         {[["employees", `Employees (${staff.length})`], ["org", "Org Structure"], ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`]].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
-            className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+            className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-brand-600 text-brand-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             {l}{v === "onboarding" && pendingOnboarding > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
           </button>
         ))}
@@ -265,10 +265,10 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
+        <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
           <Plus size={15} /> Add staff
         </button>
-        <button onClick={() => setBulkOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${bulkOpen ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
+        <button onClick={() => setBulkOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${bulkOpen ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
           <Download size={15} /> Bulk import
         </button>
         <button onClick={() => openMsg(filtered)} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3.5 py-2 rounded-lg">
@@ -276,7 +276,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         </button>
         <div className="flex-1" />
         <div className="relative">
-          <button onClick={() => setFilterOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${anyFilter ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
+          <button onClick={() => setFilterOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${anyFilter ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
             <Filter size={15} /> Filter {anyFilter && <span className="text-xs">•</span>} <ChevronDown size={13} />
           </button>
           {filterOpen && (
@@ -293,7 +293,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, department, role…"
-            className="pl-9 pr-3 py-2 w-64 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+            className="pl-9 pr-3 py-2 w-64 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200" />
         </div>
       </div>
 
@@ -321,7 +321,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         <table className="w-full text-sm">
           <thead className="bg-stone-50 text-stone-500 text-xs uppercase tracking-wide">
             <tr>
-              <th className="w-10 px-3 py-2.5"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="accent-emerald-600" /></th>
+              <th className="w-10 px-3 py-2.5"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="accent-brand-600" /></th>
               <th className="px-3 py-2.5 text-left font-medium">Name</th>
               <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Department</th>
               <th className="px-3 py-2.5 text-left font-medium hidden lg:table-cell">Role</th>
@@ -340,9 +340,9 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
               const st = deriveStatus(s);
               return (
                 <tr key={s.id} onClick={() => setOpenId(s.id)}
-                  className={`cursor-pointer hover:bg-stone-50 ${openId === s.id ? "bg-emerald-50/40" : ""}`}>
+                  className={`cursor-pointer hover:bg-stone-50 ${openId === s.id ? "bg-brand-50/40" : ""}`}>
                   <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} className="accent-emerald-600" />
+                    <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} className="accent-brand-600" />
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -399,7 +399,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
               <div className="mt-4 border-t border-stone-100 pt-4">
                 <div className="flex items-start gap-2 text-sm text-stone-600">
-                  <Sparkles size={15} className="shrink-0 mt-0.5 text-emerald-600" />
+                  <Sparkles size={15} className="shrink-0 mt-0.5 text-brand-600" />
                   <span>{aiSummaries[openRow.id] || aiSummaryFor(openRow.id, issues)}</span>
                 </div>
               </div>
@@ -442,7 +442,7 @@ const FilterSelect = ({ label, value, onChange, options }) => (
   <label className="block">
     <span className="text-xs text-stone-500">{label}</span>
     <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="mt-0.5 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-200">
+      className="mt-0.5 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-200">
       <option value="">Any</option>
       {options.map((o) => <option key={o} value={o}>{o.replace(/_/g, " ")}</option>)}
     </select>
