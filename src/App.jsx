@@ -13148,7 +13148,10 @@ const handleSignIn = (r) => {
           routeAuthedMosque(authedUser.id);
           return;
         }
-        if (myScholar) { setView("scholarDashboard"); return; }
+        // A scholar who is also ACTIVE staff (144 bridge) works via the staff
+        // portal. Scholar-scoped so non-scholar staff still land on their parent
+        // dashboard with the opt-in "go to staff portal" banner (unchanged).
+        if (myScholar) { setView(myStaffMembership?.mosque ? "mosqueStaffPortal" : "scholarDashboard"); return; }
         const isScholarSignup = authedUser?.user_metadata?.interest === "scholar";
         if (myScholarApplication || isScholarSignup) {
           routeAuthedScholar(authedUser.id);
@@ -13219,9 +13222,22 @@ const handleSignIn = (r) => {
       setMyScholar(scholar);
       if (scholar.status === "pending_verification") {
         go("scholarVerificationPending");
-      } else {
-        go("scholarDashboard");
+        return;
       }
+      // A scholar linked into a mosque as ACTIVE staff (migration 144 bridge)
+      // works through the staff portal, not the marketplace dashboard. Guard on
+      // membership.mosque, not just the row: getMyStaffMembership joins the mosque
+      // under the scholar's own RLS, so a non-active (unreadable) mosque yields a
+      // null join — in which case the portal can't render ("No active staff
+      // record"), so we correctly fall through to the scholar dashboard instead of
+      // stranding them there.
+      const membership = await getMyStaffMembership();
+      if (membership?.mosque) {
+        setMyStaffMembership(membership);
+        go("mosqueStaffPortal");
+        return;
+      }
+      go("scholarDashboard");
       return;
     }
     const application = await getMyScholarApplication();
