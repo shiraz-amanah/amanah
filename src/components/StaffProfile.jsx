@@ -149,7 +149,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-700" size={26} /></div>
+    <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-brand-700" size={26} /></div>
   );
   if (!row) return (
     <div className="min-h-screen bg-stone-50">
@@ -168,7 +168,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
       <div className="max-w-3xl mx-auto px-4 py-6">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 mb-5"><ArrowLeft size={16} /> Back to staff</button>
 
-        {note && <div className="mb-4 text-sm bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg px-3 py-2">{note}</div>}
+        {note && <div className="mb-4 text-sm bg-brand-50 text-brand-800 border border-brand-200 rounded-lg px-3 py-2">{note}</div>}
 
         {/* §1 Header */}
         <div className="bg-white border border-stone-200 rounded-xl p-5 mb-4">
@@ -220,7 +220,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
               </>
             ) : (
               <div className="py-2">
-                <button onClick={revealSensitive} disabled={sensLoading} className="inline-flex items-center gap-1.5 text-sm text-emerald-700 hover:text-emerald-900 font-medium">
+                <button onClick={revealSensitive} disabled={sensLoading} className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-900 font-medium">
                   {sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal personal details — access is logged
                 </button>
               </div>
@@ -237,7 +237,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
               <span className="text-sm text-stone-500 shrink-0">Salary</span>
               <span className="text-sm text-stone-800 font-medium text-right">
                 {salary !== undefined ? money(salary) : (
-                  <button onClick={revealSalary} disabled={salLoading} className="inline-flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 font-medium">
+                  <button onClick={revealSalary} disabled={salLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
                     {salLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
                   </button>
                 )}
@@ -314,7 +314,7 @@ const MenuItem = ({ onClick, disabled, danger, children }) => (
 );
 
 // ── shared form controls ─────────────────────────────────────────────
-const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-200";
+const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-200";
 const LabeledInput = ({ label, value, onChange, type = "text" }) => (
   <label className="block"><span className="text-xs text-stone-500">{label}</span>
     <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} /></label>
@@ -326,7 +326,7 @@ const LabeledSelect = ({ label, value, onChange, options }) => (
     </select></label>
 );
 const Toggle = ({ on, onClick }) => (
-  <button type="button" onClick={onClick} className={`w-10 h-6 rounded-full transition-colors relative shrink-0 ${on ? "bg-emerald-500" : "bg-stone-300"}`}>
+  <button type="button" onClick={onClick} className={`w-10 h-6 rounded-full transition-colors relative shrink-0 ${on ? "bg-brand-500" : "bg-stone-300"}`}>
     <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
   </button>
 );
@@ -334,7 +334,7 @@ const ScopeControl = ({ value, onChange }) => (
   <div className="inline-flex rounded-lg border border-stone-200 overflow-hidden shrink-0">
     {[[false, "None"], ["own", "Own"], ["all", "All"]].map(([v, l]) => (
       <button key={String(v)} type="button" onClick={() => onChange(v)}
-        className={`text-xs px-2.5 py-1 ${value === v ? "bg-emerald-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`}>{l}</button>
+        className={`text-xs px-2.5 py-1 ${value === v ? "bg-brand-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`}>{l}</button>
     ))}
   </div>
 );
@@ -383,7 +383,7 @@ function PermissionsSection({ staffRow, mosqueId }) {
       ) : emp === null ? (
         <div className="py-2">
           <p className="text-sm text-stone-600 mb-3">This staff member doesn’t have dashboard access.</p>
-          <button onClick={() => setGrantOpen(true)} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
+          <button onClick={() => setGrantOpen(true)} className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
             Grant dashboard access →
           </button>
         </div>
@@ -409,7 +409,7 @@ function PermissionsSection({ staffRow, mosqueId }) {
                   const on = assigned.includes(c.id);
                   return (
                     <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
-                      className={`text-xs px-2.5 py-1 rounded-full border ${on ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-200 text-stone-500"}`}>
+                      className={`text-xs px-2.5 py-1 rounded-full border ${on ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-200 text-stone-500"}`}>
                       {on && <Check size={11} className="inline mr-1" />}{c.name || "Class"}
                     </button>
                   );
@@ -419,7 +419,7 @@ function PermissionsSection({ staffRow, mosqueId }) {
           )}
           <div className="pt-3 flex items-center gap-2">
             <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save permissions"}</button>
-            {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
+            {saved && <span className="text-xs text-brand-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
           </div>
         </div>
       )}
@@ -489,7 +489,7 @@ function DocSlot({ staffId, mosqueId, docType, employmentColumn, uploadLabel }) 
             <div key={d.id} className="flex items-center justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
               <div className="min-w-0"><div className="text-sm text-stone-800 truncate">{d.document_name}</div><div className="text-xs text-stone-400">{d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString("en-GB") : ""}</div></div>
               <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => view(d)} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1"><Eye size={12} /> View</button>
+                <button onClick={() => view(d)} className="text-xs text-brand-700 hover:underline inline-flex items-center gap-1"><Eye size={12} /> View</button>
                 <button onClick={() => remove(d)} disabled={busy} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
               </div>
             </div>
@@ -546,7 +546,7 @@ function RtwSection({ staffRow, mosqueId, authedUser, sensitive, revealSensitive
           {sensitive ? (
             <input value={number} onChange={(e) => { setNumber(e.target.value); setNumberTouched(true); setSaved(false); }} className={inputCls} />
           ) : (
-            <div><button onClick={revealSensitive} disabled={sensLoading} className="text-sm text-emerald-700 inline-flex items-center gap-1.5 mt-1">{sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged</button></div>
+            <div><button onClick={revealSensitive} disabled={sensLoading} className="text-sm text-brand-700 inline-flex items-center gap-1.5 mt-1">{sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged</button></div>
           )}
         </div>
         <LabeledInput type="date" label="Expiry date" value={expiry || ""} onChange={(v) => { setExpiry(v); setSaved(false); }} />
@@ -562,7 +562,7 @@ function RtwSection({ staffRow, mosqueId, authedUser, sensitive, revealSensitive
       <div className="flex items-center gap-2 mt-3">
         <div className="flex-1" />
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
-        {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
+        {saved && <span className="text-xs text-brand-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
       </div>
     </Section>
   );
@@ -607,7 +607,7 @@ function DbsSection({ staffRow, mosqueId, sensitive, revealSensitive, sensLoadin
           {sensitive ? (
             <input value={number} onChange={(e) => { setNumber(e.target.value); setNumberTouched(true); setSaved(false); }} className={inputCls} />
           ) : (
-            <div><button onClick={revealSensitive} disabled={sensLoading} className="text-sm text-emerald-700 inline-flex items-center gap-1.5 mt-1">{sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged</button></div>
+            <div><button onClick={revealSensitive} disabled={sensLoading} className="text-sm text-brand-700 inline-flex items-center gap-1.5 mt-1">{sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged</button></div>
           )}
         </div>
         <LabeledInput type="date" label="Issue date" value={issue} onChange={(v) => { setIssue(v); setSaved(false); }} />
@@ -619,7 +619,7 @@ function DbsSection({ staffRow, mosqueId, sensitive, revealSensitive, sensLoadin
       <div className="flex items-center gap-2 mt-3">
         <div className="flex-1" />
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
-        {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
+        {saved && <span className="text-xs text-brand-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
       </div>
     </Section>
   );
@@ -670,9 +670,9 @@ function IjazahSection({ staffId, mosqueId }) {
                   {i.sanad && <div className="text-xs text-stone-400 mt-0.5 break-words">Sanad: {i.sanad}</div>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {i.storage_path && <button onClick={() => viewCert(i)} className="text-xs text-emerald-700 hover:underline">View cert</button>}
+                  {i.storage_path && <button onClick={() => viewCert(i)} className="text-xs text-brand-700 hover:underline">View cert</button>}
                   {i.verified
-                    ? <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Verified</span>
+                    ? <span className="text-xs px-2 py-0.5 rounded-full bg-success-50 text-success-700">Verified</span>
                     : <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">Unverified</span>}
                   <button onClick={() => remove(i)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
                 </div>
@@ -702,7 +702,7 @@ function IjazahSection({ staffId, mosqueId }) {
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add ijazah</button>
+        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-brand-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add ijazah</button>
       )}
     </Section>
   );
@@ -759,7 +759,7 @@ function TrainingSection({ staffId, mosqueId }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {t.certificate_path && <button onClick={() => viewCert(t)} className="text-xs text-emerald-700 hover:underline">View</button>}
+                    {t.certificate_path && <button onClick={() => viewCert(t)} className="text-xs text-brand-700 hover:underline">View</button>}
                     <button onClick={() => remove(t)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
                   </div>
                 </div>
@@ -789,7 +789,7 @@ function TrainingSection({ staffId, mosqueId }) {
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add training</button>
+        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-brand-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add training</button>
       )}
     </Section>
   );
@@ -842,7 +842,7 @@ function LeaveSection({ staffId, staffRow, authedUser }) {
                   <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${LEAVE_STATUS_CLS[l.status] || "bg-stone-100 text-stone-500"}`}>{l.status}</span>
                   {l.status === "pending" && (
                     <>
-                      <button onClick={() => decide(l.id, true)} disabled={busy} className="text-xs text-emerald-700 hover:underline">Approve</button>
+                      <button onClick={() => decide(l.id, true)} disabled={busy} className="text-xs text-brand-700 hover:underline">Approve</button>
                       <button onClick={() => decide(l.id, false)} disabled={busy} className="text-xs text-rose-600 hover:underline">Decline</button>
                     </>
                   )}
@@ -866,7 +866,7 @@ function LeaveSection({ staffId, staffRow, authedUser }) {
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add leave</button>
+        <button onClick={() => setAdding(true)} className="mt-3 text-sm text-brand-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add leave</button>
       )}
     </Section>
   );
@@ -915,7 +915,7 @@ function PerformanceSection({ staffId, authedUser, mosqueId }) {
             </div>
           </div>
         ) : (
-          <button onClick={() => setAdding(true)} className="mt-2 text-sm text-emerald-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add review note</button>
+          <button onClick={() => setAdding(true)} className="mt-2 text-sm text-brand-700 inline-flex items-center gap-1.5"><Plus size={14} /> Add review note</button>
         )}
       </div>
     </Section>
@@ -952,7 +952,7 @@ function PlatformListingSection({ staffRow, onReload }) {
       </div>
       <div className="pt-3 flex items-center gap-2">
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
-        {saved && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
+        {saved && <span className="text-xs text-brand-700 inline-flex items-center gap-1"><Check size={13} /> Saved</span>}
       </div>
     </Section>
   );
@@ -993,7 +993,7 @@ function DocumentsSection({ staffId, mosqueId }) {
                 <div className="text-xs text-stone-500">{d.document_type}{d.uploaded_at && ` · ${fmtDate(d.uploaded_at)}`}{d.expires_at && ` · expires ${fmtDate(d.expires_at)}`}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => view(d)} disabled={viewing === d.id} className="text-xs text-emerald-700 hover:underline inline-flex items-center gap-1">{viewing === d.id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} View</button>
+                <button onClick={() => view(d)} disabled={viewing === d.id} className="text-xs text-brand-700 hover:underline inline-flex items-center gap-1">{viewing === d.id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} View</button>
                 <button onClick={() => remove(d)} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
               </div>
             </div>))}</div>}
