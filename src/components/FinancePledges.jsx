@@ -12,7 +12,7 @@ import { draftPledgeReminder, assistantErrorMessage } from "../lib/hrAssistant";
 import { money } from "./FinanceSadaqah";
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -57,12 +57,12 @@ const PledgeNightLive = ({ session, mosqueId, onBack, onChanged }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{sess.name}</h2>
           <p className="text-sm text-stone-600">Live Pledge Night — pledges arrive in real time.</p>
         </div>
-        <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full font-medium uppercase tracking-wider ${open ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{open ? <><Radio size={10} /> Live</> : <><Lock size={10} /> Closed</>}</span>
+        <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full font-medium uppercase tracking-wider ${open ? "bg-success-50 text-success-800 border border-success-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{open ? <><Radio size={10} /> Live</> : <><Lock size={10} /> Closed</>}</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className={cardCls + " text-center"}>
-          <p className="text-[11px] uppercase tracking-wider text-emerald-700 font-semibold">Running total</p>
+          <p className="text-[11px] uppercase tracking-wider text-brand-700 font-semibold">Running total</p>
           <p className="text-4xl md:text-5xl font-semibold text-stone-900 my-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{money(total)}</p>
           <p className="text-sm text-stone-500">{rows.length} pledge{rows.length === 1 ? "" : "s"}</p>
           {open && <button onClick={close} className="mt-4 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Lock size={14} /> Close session</button>}
@@ -73,19 +73,19 @@ const PledgeNightLive = ({ session, mosqueId, onBack, onChanged }) => {
               <p className="text-sm font-medium text-stone-900 mb-1">Scan to pledge</p>
               <p className="text-xs text-stone-500 mb-3">Display this on screen. Pledges appear here instantly.</p>
               {qr ? <img src={qr} alt="Pledge QR" className="w-48 h-48 mx-auto rounded-xl border border-stone-200" /> : <div className="w-48 h-48 mx-auto flex items-center justify-center text-stone-300"><Loader2 size={24} className="animate-spin" /></div>}
-              {qr && <div className="text-center mt-2"><a href={qr} download="pledge-qr.png" className="text-xs text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-1"><Download size={12} /> Download QR</a></div>}
+              {qr && <div className="text-center mt-2"><a href={qr} download="pledge-qr.png" className="text-xs text-brand-800 hover:text-brand-900 inline-flex items-center gap-1"><Download size={12} /> Download QR</a></div>}
             </>
           ) : <p className="text-sm text-stone-500">This session is closed.</p>}
         </div>
       </div>
 
       <div className={cardCls}>
-        <p className="text-sm font-medium text-stone-900 mb-3 flex items-center gap-1.5">{open && <Radio size={13} className="text-emerald-600 animate-pulse" />} Pledge feed ({rows.length})</p>
+        <p className="text-sm font-medium text-stone-900 mb-3 flex items-center gap-1.5">{open && <Radio size={13} className="text-success-600 animate-pulse" />} Pledge feed ({rows.length})</p>
         {rows.length ? (
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
             {rows.map((r) => (
               <div key={r.id} className="flex items-center gap-2.5 text-sm py-1">
-                <span className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-xs font-medium">{(r.donor_name || "?").slice(0, 1).toUpperCase()}</span>
+                <span className="w-8 h-8 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0 text-xs font-medium">{(r.donor_name || "?").slice(0, 1).toUpperCase()}</span>
                 <span className="flex-1 min-w-0 truncate text-stone-800">{r.donor_name}</span>
                 <span className="font-semibold text-stone-900 shrink-0">{money(r.amount_pledged)}</span>
               </div>
@@ -194,18 +194,18 @@ const FinancePledges = ({ mosqueId }) => {
           {/* Pledge Night */}
           <div className={cardCls}>
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><Radio size={15} className="text-emerald-700" /> Pledge Night</p>
+              <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><Radio size={15} className="text-brand-700" /> Pledge Night</p>
             </div>
             <div className="flex gap-2 mb-3">
               <input className={inputCls} value={newSess} onChange={(e) => setNewSess(e.target.value)} placeholder="Session name (e.g. Ramadan Pledge Night)" />
-              <button onClick={openSession} disabled={!newSess.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0 inline-flex items-center gap-1.5"><Radio size={14} /> Open live</button>
+              <button onClick={openSession} disabled={!newSess.trim()} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg shrink-0 inline-flex items-center gap-1.5"><Radio size={14} /> Open live</button>
             </div>
             {sessions.length > 0 && (
               <div className="space-y-1.5">
                 {sessions.map((s) => (
                   <button key={s.id} onClick={() => setLiveId(s.id)} className="w-full flex items-center gap-2 text-left bg-stone-50 hover:bg-stone-100 border border-stone-100 rounded-lg px-3 py-2 group">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${isOpen(s) ? "bg-emerald-500" : "bg-stone-300"}`} />
-                    <span className="flex-1 min-w-0 text-sm text-stone-700 group-hover:text-emerald-800">{s.name} · {isOpen(s) ? "Live" : "Closed"}</span>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isOpen(s) ? "bg-success-500" : "bg-stone-300"}`} />
+                    <span className="flex-1 min-w-0 text-sm text-stone-700 group-hover:text-brand-800">{s.name} · {isOpen(s) ? "Live" : "Closed"}</span>
                     <ChevronRight size={15} className="text-stone-300" />
                   </button>
                 ))}
@@ -216,8 +216,8 @@ const FinancePledges = ({ mosqueId }) => {
           {/* Pledge campaigns */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Sparkles size={16} className="text-emerald-700" /> Pledge campaigns</h3>
-              {!showCamp && <button onClick={() => setShowCamp(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> New</button>}
+              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Sparkles size={16} className="text-brand-700" /> Pledge campaigns</h3>
+              {!showCamp && <button onClick={() => setShowCamp(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> New</button>}
             </div>
             {showCamp && (
               <div className={cardCls + " mb-2"}>
@@ -226,7 +226,7 @@ const FinancePledges = ({ mosqueId }) => {
                   <div><label className={labelCls}>Target (£)</label><input type="number" className={inputCls} value={cf.target_amount} onChange={(e) => setCf({ ...cf, target_amount: e.target.value })} /></div>
                   <div><label className={labelCls}>Deadline</label><input type="date" className={inputCls} value={cf.deadline} onChange={(e) => setCf({ ...cf, deadline: e.target.value })} /></div>
                 </div>
-                <div className="flex gap-2"><button onClick={saveCamp} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Create</button><button onClick={() => { setCf(blankCamp); setShowCamp(false); }} className="text-sm text-stone-600 px-3 py-2">Cancel</button></div>
+                <div className="flex gap-2"><button onClick={saveCamp} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Create</button><button onClick={() => { setCf(blankCamp); setShowCamp(false); }} className="text-sm text-stone-600 px-3 py-2">Cancel</button></div>
               </div>
             )}
             {campaigns.length ? (
@@ -242,8 +242,8 @@ const FinancePledges = ({ mosqueId }) => {
           {/* Register */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><HandCoins size={16} className="text-emerald-700" /> Pledge register</h3>
-              {!showP && <button onClick={() => setShowP(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Add pledge</button>}
+              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><HandCoins size={16} className="text-brand-700" /> Pledge register</h3>
+              {!showP && <button onClick={() => setShowP(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Add pledge</button>}
             </div>
             {showP && (
               <div className={cardCls + " mb-3"}>
@@ -255,8 +255,8 @@ const FinancePledges = ({ mosqueId }) => {
                   <div><label className={labelCls}>Email</label><input className={inputCls} value={pf.donor_email} onChange={(e) => setPf({ ...pf, donor_email: e.target.value })} /></div>
                   <div><label className={labelCls}>Address (Gift Aid)</label><input className={inputCls} value={pf.donor_address} onChange={(e) => setPf({ ...pf, donor_address: e.target.value })} /></div>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-stone-700 mt-3"><input type="checkbox" checked={pf.gift_aid_eligible} onChange={(e) => setPf({ ...pf, gift_aid_eligible: e.target.checked })} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-200" /> Gift Aid eligible</label>
-                <div className="flex gap-2 mt-3"><button onClick={savePledge} disabled={pBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{pBusy ? <Loader2 size={14} className="animate-spin" /> : pEditing ? <Check size={14} /> : <Plus size={14} />} {pEditing ? "Update" : "Add pledge"}</button><button onClick={() => { setPf(blankPledge); setPEditing(null); setShowP(false); }} className="text-sm text-stone-600 px-3 py-2">Cancel</button></div>
+                <label className="flex items-center gap-2 text-sm text-stone-700 mt-3"><input type="checkbox" checked={pf.gift_aid_eligible} onChange={(e) => setPf({ ...pf, gift_aid_eligible: e.target.checked })} className="rounded border-stone-300 text-brand-700 focus:ring-brand-200" /> Gift Aid eligible</label>
+                <div className="flex gap-2 mt-3"><button onClick={savePledge} disabled={pBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{pBusy ? <Loader2 size={14} className="animate-spin" /> : pEditing ? <Check size={14} /> : <Plus size={14} />} {pEditing ? "Update" : "Add pledge"}</button><button onClick={() => { setPf(blankPledge); setPEditing(null); setShowP(false); }} className="text-sm text-stone-600 px-3 py-2">Cancel</button></div>
               </div>
             )}
             <select className={inputCls + " sm:w-44 mb-3"} value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
@@ -271,25 +271,25 @@ const FinancePledges = ({ mosqueId }) => {
                       <div className="flex items-center gap-3">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase tracking-wider shrink-0 ${cls}`}>{lbl}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{p.donor_name} {p.campaign?.name && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{p.campaign.name}</span>}{p.gift_aid_eligible && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Gift Aid</span>}</p>
+                          <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{p.donor_name} {p.campaign?.name && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500">{p.campaign.name}</span>}{p.gift_aid_eligible && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">Gift Aid</span>}</p>
                           <p className="text-xs text-stone-500">{money(paid)} of {money(p.amount_pledged)}{out > 0.001 ? ` · ${money(out)} outstanding` : ""}{p.due_date ? ` · due ${fmtDate(p.due_date)}` : ""}</p>
                         </div>
-                        {out > 0.001 && <button onClick={() => runDraft(p)} title="AI reminder" className="text-emerald-700 hover:text-emerald-900 p-1.5 shrink-0"><Sparkles size={14} /></button>}
-                        {out > 0.001 && <button onClick={() => { setPayFor(payFor === p.id ? null : p.id); setPayAmt(""); }} className="text-emerald-800 hover:text-emerald-900 text-sm font-medium inline-flex items-center gap-1 shrink-0"><CircleDollarSign size={14} /> Payment</button>}
-                        <button onClick={() => editPledge(p)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+                        {out > 0.001 && <button onClick={() => runDraft(p)} title="AI reminder" className="text-brand-700 hover:text-brand-900 p-1.5 shrink-0"><Sparkles size={14} /></button>}
+                        {out > 0.001 && <button onClick={() => { setPayFor(payFor === p.id ? null : p.id); setPayAmt(""); }} className="text-brand-800 hover:text-brand-900 text-sm font-medium inline-flex items-center gap-1 shrink-0"><CircleDollarSign size={14} /> Payment</button>}
+                        <button onClick={() => editPledge(p)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
                         <button onClick={() => removePledge(p.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
                       </div>
                       {payFor === p.id && (
                         <div className="flex gap-2 mt-2 ml-16">
                           <input type="number" min="0" step="0.01" className={inputCls + " max-w-[160px]"} value={payAmt} onChange={(e) => setPayAmt(e.target.value)} placeholder={`Amount (max ${money(out)})`} />
-                          <button onClick={() => recordPayment(p)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-3 py-2 rounded-lg">Record</button>
+                          <button onClick={() => recordPayment(p)} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-3 py-2 rounded-lg">Record</button>
                         </div>
                       )}
                       {draftFor === p.id && (
-                        <div className="mt-2 ml-16 bg-emerald-50/60 border border-emerald-100 rounded-lg p-3">
+                        <div className="mt-2 ml-16 bg-brand-50/60 border border-brand-100 rounded-lg p-3">
                           {draftBusy ? <div className="text-sm text-stone-400 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Drafting a warm reminder…</div> : (
                             <>
-                              <p className="text-xs text-stone-500 mb-1.5 flex items-center gap-1"><Sparkles size={12} className="text-emerald-700" /> AI-drafted reminder — review &amp; edit before sending</p>
+                              <p className="text-xs text-stone-500 mb-1.5 flex items-center gap-1"><Sparkles size={12} className="text-brand-700" /> AI-drafted reminder — review &amp; edit before sending</p>
                               <textarea rows={6} className={inputCls + " resize-y"} value={draftText} onChange={(e) => setDraftText(e.target.value)} />
                               <div className="flex gap-2 mt-2">
                                 <button onClick={() => { navigator.clipboard?.writeText(draftText).catch(() => {}); setCopied(true); }} className="text-sm border border-stone-300 hover:bg-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{copied ? <><ClipboardCheck size={13} /> Copied</> : <><Copy size={13} /> Copy</>}</button>
