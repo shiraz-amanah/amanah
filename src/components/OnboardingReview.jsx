@@ -20,7 +20,8 @@ import { getStaffDocUrl } from "../lib/staffStorage";
 const STATUS_META = {
   submitted:          { label: "Awaiting review", cls: "bg-amber-50 text-amber-700", dot: "bg-amber-500" },
   changes_requested:  { label: "Changes requested", cls: "bg-sky-50 text-sky-700", dot: "bg-sky-500" },
-  approved:           { label: "Approved", cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
+  approved:           { label: "Approved", cls: "bg-success-50 text-success-700", dot: "bg-success-500" }, // Job A: positive status -> success-*
+
   in_progress:        { label: "In progress", cls: "bg-stone-100 text-stone-500", dot: "bg-stone-400" },
 };
 

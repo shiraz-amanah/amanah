@@ -8,7 +8,8 @@ import { sendMosqueClaimApproved } from "../lib/email";
 const fmt = (d) => { try { return new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return d; } };
 const STATUS_STYLE = {
   pending: "bg-amber-50 border-amber-200 text-amber-700",
-  approved: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  // Colour split (Job A): positive status -> success-* (== emerald-* today).
+  approved: "bg-success-50 border-success-200 text-success-700",
   rejected: "bg-stone-100 border-stone-200 text-stone-500",
 };
 

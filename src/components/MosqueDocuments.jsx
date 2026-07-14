@@ -16,7 +16,7 @@ const CONTRACT_TYPE = { full_time: "Full-time", part_time: "Part-time", sessiona
 const STATUS_CLS = {
   expired: "bg-rose-50 border-rose-200 text-rose-700",
   expiring: "bg-amber-50 border-amber-200 text-amber-700",
-  valid: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  valid: "bg-success-50 border-success-200 text-success-700", // Job A: positive status -> success-*
   pending: "bg-stone-100 border-stone-200 text-stone-600",
 };
 const STATUS_LABEL = { expired: "Expired", expiring: "Expiring", valid: "Valid", pending: "Pending" };
