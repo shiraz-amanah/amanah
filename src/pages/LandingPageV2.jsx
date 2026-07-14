@@ -276,7 +276,7 @@ const LandingPageV2 = ({ onSignIn, onAudience }) => {
             {/* Job B — secondary sign-in for parents + staff (mosque stays primary). */}
             <div className="hidden sm:flex items-center" style={{ gap: 14, marginRight: 2 }}>
               <button onClick={() => signIn("user")} style={navLink}>Parent sign-in</button>
-              <button onClick={() => signIn("scholar")} style={navLink}>Staff sign-in</button>
+              <button onClick={() => signIn("scholar")} style={navLink}>Staff / Employee sign-in</button>
             </div>
             <button onClick={() => signIn("mosque")} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 16px", background: "transparent", cursor: "pointer" }}>Sign in</button>
             <button onClick={openDemo} style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: T.green, borderRadius: 8, padding: "8px 16px", border: "none", cursor: "pointer" }}>Book a demo →</button>
@@ -457,7 +457,7 @@ const LandingPageV2 = ({ onSignIn, onAudience }) => {
             Already using Amanah at your mosque?{" "}
             <button onClick={() => signIn("user")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Parent sign-in</button>
             <span style={{ opacity: 0.4 }}> · </span>
-            <button onClick={() => signIn("scholar")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Staff sign-in</button>
+            <button onClick={() => signIn("scholar")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Staff / Employee sign-in</button>
           </p>
         </div>
       </section>
