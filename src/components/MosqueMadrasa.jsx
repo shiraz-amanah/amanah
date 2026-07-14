@@ -31,7 +31,7 @@ const SUBJECT_LABEL = Object.fromEntries(SUBJECTS);
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
 
 const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "", has_hifz: false, delivery_mode: "in_person" };
@@ -151,7 +151,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
             <button onClick={() => setClassView("timetable")} className={`text-xs font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5 ${classView === "timetable" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"}`}><CalendarClock size={13} /> Timetable</button>
           </div>
         ) : <span />}
-        {!showForm && <button onClick={openAdd} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
+        {!showForm && <button onClick={openAdd} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New class</button>}
       </div>
 
       {showForm && (
@@ -180,7 +180,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
                 </div>
               ))}</div>
             )}
-            <button onClick={addSlot} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">+ Add a day/time</button>
+            <button onClick={addSlot} className="text-xs font-medium text-brand-800 hover:text-brand-900">+ Add a day/time</button>
           </div>
           <div>
             <label className={labelCls}>Delivery mode</label>
@@ -190,12 +190,12 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
             <p className="text-[11px] text-stone-400 mt-1">{DELIVERY_MODES.find(([v]) => v === form.delivery_mode)?.[2]}</p>
           </div>
           <label className="flex items-start gap-2.5 cursor-pointer select-none">
-            <input type="checkbox" checked={!!form.has_hifz} onChange={(e) => set("has_hifz", e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />
+            <input type="checkbox" checked={!!form.has_hifz} onChange={(e) => set("has_hifz", e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-brand-700 focus:ring-brand-500" />
             <span className="text-sm text-stone-700">This class includes Hifz (Qur'an memorisation)<span className="block text-[11px] text-stone-400">Adds a Hifz tab for tracking surah progress. Leave off for non-memorisation classes.</span></span>
           </label>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setShowForm(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-            <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {editingId ? "Save" : "Create class"}</button>
+            <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {editingId ? "Save" : "Create class"}</button>
           </div>
         </div>
       )}
@@ -213,9 +213,9 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
         ) : (
           <div className="space-y-2">
             {classes.map((c) => (
-              <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-emerald-300 hover:shadow-sm"}`}>
+              <div key={c.id} className={`flex items-center gap-3 bg-white border rounded-2xl p-4 transition-all ${c.status === "archived" ? "border-stone-200 opacity-70" : "border-stone-200 hover:border-brand-300 hover:shadow-sm"}`}>
                 <button onClick={() => openClass(c)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-brand-700" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{c.name}
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600">{SUBJECT_LABEL[c.subject] || c.subject}</span>
@@ -230,7 +230,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
                   <span className="text-xs text-stone-600 inline-flex items-center gap-1 whitespace-nowrap"><Users size={12} /> {counts[c.id] || 0}{c.capacity ? `/${c.capacity}` : ""}</span>
                   <ChevronRight size={16} className="text-stone-300 shrink-0" />
                 </button>
-                <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+                <button onClick={() => openEdit(c)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
                 <button onClick={() => archive(c)} title={c.status === "archived" ? "Unarchive" : "Archive"} className="text-stone-400 hover:text-rose-700 p-1.5"><Archive size={14} /></button>
               </div>
             ))}
