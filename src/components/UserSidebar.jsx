@@ -1,4 +1,4 @@
-import { Calendar, GraduationCap, HeartHandshake, HandCoins, Heart, Building2, MessageCircle, Settings, LogOut, ChevronDown } from "lucide-react";
+import { GraduationCap, HeartHandshake, HandCoins, MessageCircle, Settings, LogOut, ChevronDown } from "lucide-react";
 
 // Parent/user dashboard persistent left sidebar (platform-wide nav Phase 4) —
 // light/emerald, flat list, modeled on ScholarSidebar. `active` is the URL-backed
@@ -23,13 +23,14 @@ const MADRASA_SUBNAV = [
 const isMadrasaTab = (v) => typeof v === "string" && v.startsWith("madrasa");
 
 const UserSidebar = ({ active, onSelect, onLogout, userName, hasMadrasa, hasCommunity, madrasaLive, counts }) => {
-  // Items either side of the Madrasah group, in display order.
-  const leadItems = [["bookings", "Bookings", Calendar]];
+  // Items either side of the Madrasah group, in display order. The marketplace
+  // surfaces (Bookings, My scholars, My Mosques) are UNLINKED — their components
+  // and /dashboard?tab=… render blocks stay dormant for a future marketplace, but
+  // they're no longer in the nav. See the parent-unlink commit.
+  const leadItems = [];
   const tailItems = [
     ...(hasCommunity ? [["community", "Community", HeartHandshake]] : []),
     ["donations", "My giving", HandCoins],
-    ["saved", "My scholars", Heart],
-    ["mosques", "My Mosques", Building2],
     ["messages", "Messages", MessageCircle],
     ["account", "Account", Settings],
   ];

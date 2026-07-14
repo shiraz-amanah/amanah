@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText, Video } from "lucide-react";
+import { Loader2, Baby, X, ChevronDown, ChevronUp, Megaphone, ListOrdered, Check, Clock, PartyPopper, ArrowUpCircle, FileText, Video } from "lucide-react";
 import { getStudents, getMyMadrasaEnrollments, withdrawEnrollment, getMyMadrasaAnnouncements, getMyWaitlist, acceptWaitlistOffer, cancelWaitlist, declineWaitlistOffer, getMyLessonSummaries, getActiveMadrasaSession, joinMadrasaSession, getMyChildrenFeeRecords } from "../auth";
 import MadrasaChildProgress from "./MadrasaChildProgress";
 import MadrasaLiveRoom from "./MadrasaLiveRoom";
@@ -112,22 +112,22 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
     }
   }
 
+  // Enrolment is MOSQUE-INITIATED (unlink commit): a parent no longer self-serves
+  // via cross-mosque class discovery. The mosque adds the child and sends an
+  // activation link, so the empty state points at that flow rather than a
+  // "Browse classes" button.
   const emptyCard = (
     <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
       <Baby className="mx-auto text-stone-300 mb-3" size={36} />
-      <p className="text-stone-600 text-sm mb-4 max-w-md mx-auto">{students.length === 0 ? "No children added yet. Browse classes and add a child when you enrol." : "None of your children are enrolled yet. Browse classes to get started."}</p>
-      <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Search size={14} /> Browse classes</button>
+      <p className="text-stone-600 text-sm max-w-md mx-auto">Once your mosque enrols your child, you'll get an email with an activation link to get started.</p>
     </div>
   );
 
   return (
     <div>
-      <div className="mb-5 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
-          <p className="text-sm text-stone-600">{SECTION_LABEL[sub] || SECTION_LABEL.overview}</p>
-        </div>
-        <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Search size={14} /> Browse classes</button>
+      <div className="mb-5">
+        <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Madrasah</h2>
+        <p className="text-sm text-stone-600">{SECTION_LABEL[sub] || SECTION_LABEL.overview}</p>
       </div>
 
       {loading ? (

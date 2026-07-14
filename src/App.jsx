@@ -4526,6 +4526,11 @@ function adaptConversation(conv) {
     "";
   return {
     id: conv.id,
+    // Raw participant role of the other party ('teacher' | 'scholar' | 'parent' |
+    // 'mosque_admin' | 'student'). Kept alongside the display roleLabel so the
+    // parent dashboard can show ONLY teacher threads (scholar DMs are unlinked
+    // marketplace) — roleLabel alone can't, since 'teacher' maps to "".
+    participantRole: otherRole,
     counterparty: {
       name: other?.name || "Unknown",
       initials: other?.avatarInitials || (other?.name ? other.name.slice(0, 2).toUpperCase() : "??"),
@@ -7677,7 +7682,7 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
 };
 
 // ==================== USER DASHBOARD ====================
-  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onViewMosque, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "bookings", onTabChange, onNotificationNavigate, madrasaSyncTick = 0 }) => {
+  const UserDashboard = ({ profile, isDemo, staffMembership, onStaffPortal, onMadrasaBrowse, onMessageTeacher, onProfileUpdate, onLogout, onPublic, onViewMosque, onBookAgain, onReview, onViewCampaign, conversations, conversationsLoading, onConversation, savedScholarIds: realSavedScholarIds, savedCampaignIds: realSavedCampaignIds, savedScholars: realSavedScholars, onScholar, toggleScholarSave, savedMosqueIds, savedMosques, toggleMosqueSave, onMosque, tab = "madrasa", onTabChange, onNotificationNavigate, madrasaSyncTick = 0 }) => {
   // tab is URL-backed (?tab=X in /dashboard). onTabChange PUSHES a history entry
   // per tab switch (Session AN) so the parent's browser Back steps back through
   // tabs / sub-views in reverse order instead of jumping to the homepage. setTab
@@ -8478,10 +8483,14 @@ setBookings(transformed);
           <MessagesInbox
             embedded
             role="user"
-            conversations={conversations || []}
+            // Parent-side messaging is mosque-scoped: show ONLY parent↔teacher
+            // threads. Scholar DMs (participantRole 'scholar') are unlinked
+            // marketplace — filtered out here rather than in the shared inboxData,
+            // so the mosque/scholar surfaces keep their full lists.
+            conversations={(conversations || []).filter((c) => c.participantRole === "teacher")}
             loading={conversationsLoading}
             onConversation={onConversation}
-            onBack={() => setTab("bookings")}
+            onBack={() => setTab("madrasa")}
           />
         )}
 
@@ -13528,7 +13537,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     conversations={inboxData}
     conversationsLoading={conversationsLoading && !!authedProfile}
     onConversation={(c) => { setSelectedConversation(c); setRole("user"); navigate("conversationView", { id: c.id }); }}
-    tab={routeQuery.tab || "bookings"}
+    tab={routeQuery.tab || "madrasa"}
     onTabChange={(t) => navigate("userDashboard", {}, { tab: t }, {})}
     onNotificationNavigate={(t) => navigate("userDashboard", {}, { tab: t }, {})}
     savedScholarIds={savedScholarIds}
