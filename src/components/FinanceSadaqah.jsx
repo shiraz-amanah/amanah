@@ -9,7 +9,7 @@ import {
 // (progress bars) + Gift Aid (25% uplift). Owner-only.
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 export const money = (v) => `£${Number(v || 0).toLocaleString("en-GB", { maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
@@ -83,7 +83,7 @@ const FinanceSadaqah = ({ mosqueId }) => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Sadaqah</h2>
-        <p className="text-sm text-stone-600">Record donations and run Sadaqah Jariyah campaigns. <span className="text-stone-900 font-medium">{money(totalRaised)}</span> received{giftAidClaimable > 0 ? <> · <span className="text-emerald-700 font-medium">{money(giftAidClaimable)}</span> Gift Aid claimable</> : null}.</p>
+        <p className="text-sm text-stone-600">Record donations and run Sadaqah Jariyah campaigns. <span className="text-stone-900 font-medium">{money(totalRaised)}</span> received{giftAidClaimable > 0 ? <> · <span className="text-brand-700 font-medium">{money(giftAidClaimable)}</span> Gift Aid claimable</> : null}.</p>
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
       {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={22} className="animate-spin" /></div> : (
@@ -91,8 +91,8 @@ const FinanceSadaqah = ({ mosqueId }) => {
           {/* Sadaqah Jariyah campaigns */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Sparkles size={16} className="text-emerald-700" /> Sadaqah Jariyah campaigns</h3>
-              {!showCamp && <button onClick={() => setShowCamp(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> New campaign</button>}
+              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Sparkles size={16} className="text-brand-700" /> Sadaqah Jariyah campaigns</h3>
+              {!showCamp && <button onClick={() => setShowCamp(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> New campaign</button>}
             </div>
             {showCamp && (
               <div className={cardCls + " mb-3"}>
@@ -104,7 +104,7 @@ const FinanceSadaqah = ({ mosqueId }) => {
                   </div>
                   <div><label className={labelCls}>Description</label><textarea rows={2} className={inputCls + " resize-none"} value={campForm.description} onChange={(e) => setCampForm({ ...campForm, description: e.target.value })} /></div>
                   <div className="flex gap-2">
-                    <button onClick={saveCamp} disabled={campBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{campBusy ? <Loader2 size={14} className="animate-spin" /> : campEditing ? <Check size={14} /> : <Plus size={14} />} {campEditing ? "Update" : "Create campaign"}</button>
+                    <button onClick={saveCamp} disabled={campBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{campBusy ? <Loader2 size={14} className="animate-spin" /> : campEditing ? <Check size={14} /> : <Plus size={14} />} {campEditing ? "Update" : "Create campaign"}</button>
                     <button onClick={() => { setCampForm(blankCamp); setCampEditing(null); setShowCamp(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2"><X size={14} className="inline" /> Cancel</button>
                   </div>
                 </div>
@@ -120,7 +120,7 @@ const FinanceSadaqah = ({ mosqueId }) => {
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold text-stone-900">{c.name}</p>
                         <div className="flex items-center gap-0.5 shrink-0">
-                          <button onClick={() => editCamp(c)} className="text-stone-400 hover:text-emerald-700 p-1"><Pencil size={13} /></button>
+                          <button onClick={() => editCamp(c)} className="text-stone-400 hover:text-brand-700 p-1"><Pencil size={13} /></button>
                           <button onClick={() => removeCamp(c.id)} className="text-stone-400 hover:text-rose-700 p-1"><Trash2 size={13} /></button>
                         </div>
                       </div>
@@ -130,7 +130,7 @@ const FinanceSadaqah = ({ mosqueId }) => {
                           <span className="font-medium text-stone-900">{money(raised)}</span>
                           {c.target_amount ? <span className="text-stone-400">of {money(c.target_amount)}</span> : <span className="text-stone-400">raised</span>}
                         </div>
-                        {pct != null && <div className="h-2 rounded-full bg-stone-100 overflow-hidden"><div className="h-full bg-emerald-600 rounded-full" style={{ width: `${pct}%` }} /></div>}
+                        {pct != null && <div className="h-2 rounded-full bg-stone-100 overflow-hidden"><div className="h-full bg-brand-600 rounded-full" style={{ width: `${pct}%` }} /></div>}
                         <div className="flex items-center justify-between text-[11px] text-stone-400 mt-1">{pct != null ? <span>{pct}%</span> : <span />}{c.deadline && <span>by {fmtDate(c.deadline)}</span>}</div>
                       </div>
                     </div>
@@ -143,8 +143,8 @@ const FinanceSadaqah = ({ mosqueId }) => {
           {/* Donations register */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><HandCoins size={16} className="text-emerald-700" /> Donations</h3>
-              {!showDon && <button onClick={() => setShowDon(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Record donation</button>}
+              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><HandCoins size={16} className="text-brand-700" /> Donations</h3>
+              {!showDon && <button onClick={() => setShowDon(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Record donation</button>}
             </div>
             {showDon && (
               <div className={cardCls + " mb-3"}>
@@ -157,9 +157,9 @@ const FinanceSadaqah = ({ mosqueId }) => {
                     <div><label className={labelCls}>Purpose</label><input className={inputCls} value={donForm.purpose} onChange={(e) => setDonForm({ ...donForm, purpose: e.target.value })} /></div>
                     <div><label className={labelCls}>Donor address (for Gift Aid)</label><input className={inputCls} value={donForm.donor_address} onChange={(e) => setDonForm({ ...donForm, donor_address: e.target.value })} /></div>
                   </div>
-                  <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={donForm.gift_aid_eligible} onChange={(e) => setDonForm({ ...donForm, gift_aid_eligible: e.target.checked })} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-200" /> Gift Aid eligible (donor is a UK taxpayer &amp; has declared)</label>
+                  <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={donForm.gift_aid_eligible} onChange={(e) => setDonForm({ ...donForm, gift_aid_eligible: e.target.checked })} className="rounded border-stone-300 text-brand-700 focus:ring-brand-200" /> Gift Aid eligible (donor is a UK taxpayer &amp; has declared)</label>
                   <div className="flex gap-2">
-                    <button onClick={saveDon} disabled={donBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{donBusy ? <Loader2 size={14} className="animate-spin" /> : donEditing ? <Check size={14} /> : <Plus size={14} />} {donEditing ? "Update" : "Record donation"}</button>
+                    <button onClick={saveDon} disabled={donBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{donBusy ? <Loader2 size={14} className="animate-spin" /> : donEditing ? <Check size={14} /> : <Plus size={14} />} {donEditing ? "Update" : "Record donation"}</button>
                     <button onClick={() => { setDonForm(blankDon); setDonEditing(null); setShowDon(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2"><X size={14} className="inline" /> Cancel</button>
                   </div>
                 </div>
@@ -169,15 +169,15 @@ const FinanceSadaqah = ({ mosqueId }) => {
               <div className="space-y-2">
                 {donations.map((d) => (
                   <div key={d.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0"><HandHeart size={15} /></span>
+                    <span className="w-9 h-9 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0"><HandHeart size={15} /></span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-900 flex items-center gap-2 flex-wrap">{money(d.amount)} <span className="text-stone-400 font-normal">· {d.donor_name || "Anonymous"}</span>
                         {d.campaign?.name && <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{d.campaign.name}</span>}
-                        {d.gift_aid_eligible && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Gift Aid +{money(Number(d.amount) * 0.25)}</span>}
+                        {d.gift_aid_eligible && <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">Gift Aid +{money(Number(d.amount) * 0.25)}</span>}
                       </p>
                       <p className="text-xs text-stone-500">{fmtDate(d.donation_date)}{d.purpose ? ` · ${d.purpose}` : ""}</p>
                     </div>
-                    <button onClick={() => editDon(d)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+                    <button onClick={() => editDon(d)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
                     <button onClick={() => removeDon(d.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
                   </div>
                 ))}
