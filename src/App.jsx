@@ -7426,7 +7426,7 @@ const ResetPassword = ({ onDone }) => {
 };
 
 // ==================== USER SIGN UP / LOGIN ====================
-const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToken = null, onBack, onComplete, onSwitchMode, onForgotPassword }) => {
+const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToken = null, onBack, onComplete, onSwitchMode, onForgotPassword, onAudience }) => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: "", email: initialEmail || "", password: "", confirmPassword: "", interest: "", interests: [] });
   const [error, setError] = useState(null);
@@ -7636,7 +7636,8 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
           {!isSignUp && (
             <>
               <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Welcome back</h2>
-              <p className="text-sm text-stone-500 mb-6">Sign in to manage your bookings and giving.</p>
+              {/* Job B — sign-in subcopy diverges by audience (the three flows). */}
+              <p className="text-sm text-stone-500 mb-6">{isMosque ? "Sign in to your mosque's Amanah workspace." : isScholar ? "Sign in to your staff portal." : "Sign in to your children's madrasah, community and giving."}</p>
               <div className="space-y-3">
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
                 <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
@@ -7661,6 +7662,19 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
           </div>
         </div>
 
+        {/* Job B — "wrong door": when rendered from a canonical /sign-in/* entry
+            (onAudience present), link DIRECTLY to the sibling audiences' sign-in
+            URLs — self-contained, no dependency on a landing chooser. The legacy
+            /auth entry (no onAudience) keeps the onBack hints. */}
+        {onAudience ? (
+          <div className="mt-5 text-center text-xs text-stone-500">
+            {isMosque
+              ? <>Not a mosque? <button onClick={() => onAudience("user")} className="text-emerald-800 font-medium hover:underline">Parent</button> or <button onClick={() => onAudience("scholar")} className="text-emerald-800 font-medium hover:underline">staff</button> sign-in.</>
+              : isScholar
+                ? <>Not staff? <button onClick={() => onAudience("mosque")} className="text-emerald-800 font-medium hover:underline">Mosque</button> or <button onClick={() => onAudience("user")} className="text-emerald-800 font-medium hover:underline">parent</button> sign-in.</>
+                : <>Are you a <button onClick={() => onAudience("mosque")} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={() => onAudience("scholar")} className="text-emerald-800 font-medium hover:underline">staff member</button>? Different sign-in.</>}
+          </div>
+        ) : (<>
         {!skipsInterest && (
           <div className="mt-5 text-center text-xs text-stone-500">
             Are you a <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">scholar</button>? Different sign-in.
@@ -7676,6 +7690,7 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
             Not a mosque? <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">Pick a different sign-in</button>.
           </div>
         )}
+        </>)}
       </div>
     </div>
   );
@@ -12979,23 +12994,34 @@ useEffect(() => {
 }, [routeQuery.payment, authedUser]);
 
 // Email deep-link for a linked scholar (migration 144 bridge): /?signin=scholar.
-// The public landing is mosque-only and exposes no scholar sign-in, so the
-// "you've been added as staff" email needs a URL that drops a scholar into their
-// sign-in. Once auth resolves we hand off to handleSignIn("scholar") — the SAME
-// router path the (buried) drawer entry uses — so there's no second copy of the
-// routing decision: authed -> routeAuthedScholar (-> staff portal if they hold an
-// active membership); unauthed -> scholar login (returnView scholarPostAuth) ->
-// same router after auth. handleSignIn navigates away, which strips the param; a
-// ref guards against a back-nav re-fire.
+// PERMANENT ALIAS (Job B) — redirects to the canonical /sign-in/staff entry, which
+// handles authed (auto-route to portal) vs unauthed (staff sign-in form). The
+// notification email links here and is intentionally NOT changed; this alias keeps
+// it working forever. `replace` so Back doesn't return to the ?signin URL; a ref
+// guards against a re-fire.
 const scholarSigninHandled = useRef(false);
 useEffect(() => {
-  if (authLoading) return;                          // wait for the session probe
   if (routeQuery.signin !== "scholar") return;
   if (scholarSigninHandled.current) return;
   scholarSigninHandled.current = true;
-  handleSignIn("scholar");
+  navigate("signInStaff", {}, {}, { replace: true });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [authLoading, routeQuery.signin]);
+}, [routeQuery.signin]);
+
+// Job B — an already-authed user landing on a canonical /sign-in/* entry (e.g. the
+// scholar notification email while still logged in) is routed straight to their
+// dashboard rather than shown a pointless sign-in form. handleSignIn's authed
+// branch does the role-correct routing; unauthed users fall through to the form.
+const signInAudienceHandled = useRef(false);
+useEffect(() => {
+  const roleFor = { signInMosque: "mosque", signInParent: "user", signInStaff: "scholar" }[view];
+  if (!roleFor) { signInAudienceHandled.current = false; return; }
+  if (authLoading || !authedUser) return;
+  if (signInAudienceHandled.current) return;
+  signInAudienceHandled.current = true;
+  handleSignIn(roleFor);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [view, authLoading, authedUser]);
 
 // Stripe subscription return (Session BP): a parent comes back to
 // /dashboard?tab=madrasa-fees&subscription=success|cancel&cs=<session>&m=<mosque>. On
@@ -13339,6 +13365,43 @@ const handleSignIn = (r) => {
     }
   };
 
+  // Job B — shared auth-form plumbing. authOnComplete routes a just-signed-in user
+  // by an EXPLICIT returnView, so the three canonical /sign-in/* entries each pass
+  // their own destination without threading it through state; it mirrors the /auth
+  // block exactly (admin bounce + scholar/mosque post-auth routing). renderAuthScreen
+  // wires the shared UserAuth once so /auth + the three canonical entries don't each
+  // duplicate the onComplete.
+  const AUDIENCE_VIEW = { mosque: "signInMosque", user: "signInParent", scholar: "signInStaff" };
+  const authOnComplete = (rv) => async () => {
+    const user = await getUser();
+    setAuthedUser(user);
+    let profile = null;
+    if (user) {
+      profile = await getProfile();
+      setAuthedProfile(profile);
+      if (profile?.role === "admin") {
+        await fullSignOut();
+        setView("publicHome");
+        showToast("Admin accounts must sign in via the Admin link.");
+        return;
+      }
+    }
+    if (rv === "scholarPostAuth" && user) { await routeAuthedScholar(user.id, { replace: true }); return; }
+    if (rv === "mosquePostAuth" && user) { await routeAuthedMosque(user.id, { replace: true }); return; }
+    if (rv === "acceptInvitePostAuth" && user && pendingInviteToken) {
+      const t = pendingInviteToken; setPendingInviteToken(null);
+      navigate("acceptInvite", {}, { token: t }, { replace: true }); return;
+    }
+    navigate(rv, {}, {}, { replace: true });
+  };
+  const renderAuthScreen = ({ role, returnViewName, onBack, onAudience }) => (
+    <UserAuth mode={userAuthMode} role={role} initialEmail={routeQuery.email || ""} inviteToken={pendingInviteToken}
+      onBack={onBack} onComplete={authOnComplete(returnViewName)}
+      onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")}
+      onForgotPassword={() => setView("forgotPassword")}
+      onAudience={onAudience} />
+  );
+
   // The view chain. Wrapped in a function so the App return can render
   // <GlobalToast> alongside whichever view is active without having to
   // mutate every individual return statement.
@@ -13418,45 +13481,15 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     onPublic={() => setView("publicHome")}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
   />;
-  if (view === "userAuth") return <UserAuth mode={userAuthMode} role={userAuthRole} initialEmail={routeQuery.email || ""} inviteToken={pendingInviteToken} onBack={() => goBack("publicHome")} onComplete={async () => {
-    const user = await getUser();
-    setAuthedUser(user);
-    let profile = null;
-    if (user) {
-      profile = await getProfile();
-      setAuthedProfile(profile);
-      // Cross-path admin sign-in is forbidden by product decision: an
-      // admin who submits credentials via the parent or scholar form
-      // is bounced back with a toast steering them to the dedicated
-      // /admin entry. Even valid admin credentials are rejected here.
-      if (profile?.role === "admin") {
-        await fullSignOut();
-        setView("publicHome");
-        showToast("Admin accounts must sign in via the Admin link.");
-        return;
-      }
-    }
-    if (returnView === "scholarPostAuth" && user) {
-      // Scholar entry point — look up scholar link and route accordingly.
-      // replace:true drops the /auth entry so back doesn't return to login.
-      await routeAuthedScholar(user.id, { replace: true });
-      return;
-    }
-    if (returnView === "mosquePostAuth" && user) {
-      // Mosque entry point — 5-branch tree mirroring scholar.
-      await routeAuthedMosque(user.id, { replace: true });
-      return;
-    }
-    if (returnView === "acceptInvitePostAuth" && user && pendingInviteToken) {
-      // RBAC invite — return to the accept page with the preserved token so the
-      // accept RPC runs now that a session exists.
-      const t = pendingInviteToken;
-      setPendingInviteToken(null);
-      navigate("acceptInvite", {}, { token: t }, { replace: true });
-      return;
-    }
-    navigate(returnView, {}, {}, { replace: true });
-  }} onSwitchMode={() => setUserAuthMode(userAuthMode === "login" ? "signup" : "login")} onForgotPassword={() => setView("forgotPassword")} />;
+  // Legacy shared entry — role + returnView come from state (set by handleSignIn).
+  if (view === "userAuth") return renderAuthScreen({ role: userAuthRole, returnViewName: returnView, onBack: () => goBack("publicHome") });
+  // Job B — three canonical, deep-linkable sign-in entries. Each configures the
+  // shared form for its audience (role + post-auth destination) and offers direct
+  // "wrong door" links to its siblings. The already-authed case is handled by the
+  // canonical auto-route effect above (routes straight to the dashboard).
+  if (view === "signInMosque") return renderAuthScreen({ role: "mosque", returnViewName: "mosquePostAuth", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
+  if (view === "signInParent") return renderAuthScreen({ role: "user", returnViewName: "userDashboard", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
+  if (view === "signInStaff") return renderAuthScreen({ role: "scholar", returnViewName: "scholarPostAuth", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
   if (view === "forgotPassword") return <ForgotPassword
     onBack={() => { setUserAuthMode("login"); setView("userAuth"); }}
     onDone={() => { setUserAuthMode("login"); setView("userAuth"); }}

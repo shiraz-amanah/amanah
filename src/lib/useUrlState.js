@@ -35,6 +35,13 @@ const ROUTES = [
 
   // Auth
   { view: 'userAuth',                    path: '/auth' },
+  // Job B — three canonical, deep-linkable sign-in entry points (mosque = the
+  // buyer, parent, staff/scholar). Each renders the shared UserAuth form
+  // configured for its audience. /?signin=scholar (the notification email link)
+  // is a permanent alias to /sign-in/staff.
+  { view: 'signInMosque',                path: '/sign-in/mosque' },
+  { view: 'signInParent',                path: '/sign-in/parent' },
+  { view: 'signInStaff',                 path: '/sign-in/staff' },
   { view: 'rolePicker',                  path: '/signin' },
   { view: 'login',                       path: '/login' },
   { view: 'forgotPassword',              path: '/forgot-password' },
