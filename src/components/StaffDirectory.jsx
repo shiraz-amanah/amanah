@@ -64,10 +64,16 @@ export const Avatar = ({ name, photoUrl, size = 40 }) => (
 );
 
 // ── badge derivation (safe fields only) ──────────────────────────────
+// COLOUR SPLIT (Job A): the POSITIVE-status greens below use the `success-*`
+// token, NOT the brand green — even though success-* == emerald-* today so this
+// renders identically. This is the compliance surface (DBS/RtW), so a later
+// brand retune must never accidentally recolour "Verified"/"Active". Non-positive
+// states (rose/amber/orange/stone) are semantic status colours in their own right
+// and stay as-is.
 export function deriveStatus(s) {
   if (s.status === "offboarded" || s.archived) return { label: "Offboarded", cls: "bg-stone-200 text-stone-600", dot: "bg-stone-500" };
   if (s.status === "suspended") return { label: "Suspended", cls: "bg-stone-100 text-stone-600", dot: "bg-stone-400" };
-  if (s.status === "active") return { label: "Active", cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" };
+  if (s.status === "active") return { label: "Active", cls: "bg-success-50 text-success-700", dot: "bg-success-500" };
   if (s.inviteStatus === "invited") return { label: "Invited", cls: "bg-sky-50 text-sky-700", dot: "bg-sky-500" };
   return { label: "Onboarding", cls: "bg-amber-50 text-amber-700", dot: "bg-amber-500" };
 }
@@ -77,7 +83,7 @@ function deriveRtw(s) {
   const d = daysUntil(s.rtwExpiryDate);
   if (d !== null && d < 0) return { label: "Expired", cls: "bg-rose-50 text-rose-700" };
   if (s.rtwVerified && d !== null && d <= 60) return { label: "Expiring", cls: "bg-orange-50 text-orange-700" };
-  if (s.rtwVerified) return { label: "Verified", cls: "bg-emerald-50 text-emerald-700" };
+  if (s.rtwVerified) return { label: "Verified", cls: "bg-success-50 text-success-700" };
   return { label: "Not verified", cls: "bg-amber-50 text-amber-700" };
 }
 export function deriveDbs(s) {
@@ -85,7 +91,7 @@ export function deriveDbs(s) {
   const d = daysUntil(s.dbsExpiryDate);
   if (s.dbsStatus === "expired" || (d !== null && d < 0)) return { label: "Expired", cls: "bg-rose-50 text-rose-700" };
   if (s.dbsStatus === "verified" && d !== null && d <= 60) return { label: "Expiring", cls: "bg-orange-50 text-orange-700" };
-  if (s.dbsStatus === "verified") return { label: "Verified", cls: "bg-emerald-50 text-emerald-700" };
+  if (s.dbsStatus === "verified") return { label: "Verified", cls: "bg-success-50 text-success-700" };
   return { label: "Pending", cls: "bg-amber-50 text-amber-700" };
 }
 const Pill = ({ label, cls, dot }) => (

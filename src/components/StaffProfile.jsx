@@ -800,7 +800,9 @@ const LEAVE_TYPES = [
   ["annual", "Annual"], ["sick", "Sick"], ["compassionate", "Compassionate"], ["unpaid", "Unpaid"],
   ["hajj", "Hajj"], ["maternity", "Maternity"], ["paternity", "Paternity"], ["other", "Other"],
 ];
-const LEAVE_STATUS_CLS = { pending: "bg-amber-50 text-amber-700", approved: "bg-emerald-50 text-emerald-700", declined: "bg-rose-50 text-rose-700", cancelled: "bg-stone-100 text-stone-500" };
+// Colour split (Job A): "approved" is a positive status -> success-* (== emerald-*
+// today). Other states keep their own semantic colours.
+const LEAVE_STATUS_CLS = { pending: "bg-amber-50 text-amber-700", approved: "bg-success-50 text-success-700", declined: "bg-rose-50 text-rose-700", cancelled: "bg-stone-100 text-stone-500" };
 const leaveLabel = (t) => LEAVE_TYPES.find(([v]) => v === t)?.[1] || t;
 function LeaveSection({ staffId, staffRow, authedUser }) {
   const blank = { leave_type: "annual", start_date: "", end_date: "", notes: "" };

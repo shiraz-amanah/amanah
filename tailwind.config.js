@@ -24,7 +24,32 @@ export default {
     "from-teal-400", "to-teal-700",
   ],
   theme: {
-    extend: {},
+    extend: {
+      // COLOUR SYSTEM SPLIT (Job A). `brand` (decorative: buttons, nav, logo,
+      // accents) and `success` (positive status signals: Active/Paid/Verified/
+      // Approved/Confirmed) are two DISTINCT tokens that render IDENTICALLY today
+      // — both are Tailwind's emerald scale verbatim, so pinning a status badge
+      // from emerald-* to success-* changes nothing visually. The point is that
+      // they are now separable: Job C can retune `brand` (e.g. toward the
+      // landing's #1a7a3c) without shifting every "Active" badge, and vice-versa.
+      // Do NOT collapse these back into one — that's the bug this split fixes.
+      colors: {
+        brand: {
+          50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
+          500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b', 950: '#022c22',
+        },
+        success: {
+          50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
+          500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b', 950: '#022c22',
+        },
+      },
+      // Serif heading token leads with Fraunces (loaded in index.html), then
+      // Georgia, then generic serif. Available as the `font-serif` utility for
+      // Job C to migrate the ~inline `'Fraunces', Georgia, serif` styles onto.
+      fontFamily: {
+        serif: ['Fraunces', 'Georgia', 'serif'],
+      },
+    },
   },
   plugins: [],
 }
