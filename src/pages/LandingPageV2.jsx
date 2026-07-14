@@ -237,10 +237,16 @@ const DemoModal = ({ onClose }) => {
   );
 };
 
-const LandingPageV2 = ({ onSignIn }) => {
+const LandingPageV2 = ({ onSignIn, onAudience }) => {
   const [showDemo, setShowDemo] = useState(false);
   const openDemo = () => setShowDemo(true);
-  const go = (role) => onSignIn?.(role);
+  // Job B — sign-in goes to the three canonical /sign-in/* URLs. Mosque is the
+  // primary (the buyer); parent + staff are a secondary line. onAudience takes the
+  // audience key (mosque|user|scholar); falls back to the legacy onSignIn dispatch.
+  const signIn = (audience) => onAudience
+    ? onAudience(audience)
+    : onSignIn?.(audience === "user" ? "user" : audience === "scholar" ? "imam" : "mosque");
+  const navLink = { fontSize: 13, color: T.w55, background: "none", border: "none", cursor: "pointer", padding: 0 };
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: L.white }}>
@@ -267,7 +273,12 @@ const LandingPageV2 = ({ onSignIn }) => {
             <a href="#pricing" style={{ fontSize: 13, color: T.w55 }}>Pricing</a>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <button onClick={() => go("mosque")} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 16px", background: "transparent", cursor: "pointer" }}>Sign in</button>
+            {/* Job B — secondary sign-in for parents + staff (mosque stays primary). */}
+            <div className="hidden sm:flex items-center" style={{ gap: 14, marginRight: 2 }}>
+              <button onClick={() => signIn("user")} style={navLink}>Parent sign-in</button>
+              <button onClick={() => signIn("scholar")} style={navLink}>Staff sign-in</button>
+            </div>
+            <button onClick={() => signIn("mosque")} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 16px", background: "transparent", cursor: "pointer" }}>Sign in</button>
             <button onClick={openDemo} style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: T.green, borderRadius: 8, padding: "8px 16px", border: "none", cursor: "pointer" }}>Book a demo →</button>
           </div>
         </div>
@@ -313,7 +324,7 @@ const LandingPageV2 = ({ onSignIn }) => {
           {/* CTAs */}
           <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 36 }}>
             <button onClick={openDemo} style={solidBtn}>Book a demo →</button>
-            <button onClick={() => go("mosque")} style={ghostBtn}>See it live →</button>
+            <button onClick={() => signIn("mosque")} style={ghostBtn}>See it live →</button>
           </div>
 
           {/* Proof bar */}
@@ -441,6 +452,13 @@ const LandingPageV2 = ({ onSignIn }) => {
           <div style={{ marginTop: 28 }}>
             <button onClick={openDemo} style={{ ...solidBtn, padding: "14px 32px" }}>Book a demo →</button>
           </div>
+          {/* Job B — mobile-safe secondary sign-in (the nav links are desktop-only). */}
+          <p style={{ fontSize: 13, color: T.w55, marginTop: 22 }}>
+            Already using Amanah at your mosque?{" "}
+            <button onClick={() => signIn("user")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Parent sign-in</button>
+            <span style={{ opacity: 0.4 }}> · </span>
+            <button onClick={() => signIn("scholar")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Staff sign-in</button>
+          </p>
         </div>
       </section>
 

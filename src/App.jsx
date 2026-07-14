@@ -13428,7 +13428,7 @@ const handleSignIn = (r) => {
   // <GlobalToast> alongside whichever view is active without having to
   // mutate every individual return statement.
   const renderView = () => {
-  if (view === "publicHome") return <LandingPageV2 onSignIn={handleSignIn} />;
+  if (view === "publicHome") return <LandingPageV2 onSignIn={handleSignIn} onAudience={(a) => navigate(AUDIENCE_VIEW[a])} />;
 if (view === "prayerHub") return <PrayerHub onBack={() => goBack("publicHome")} onSignIn={(r) => { setRole(r); navigate("login"); }} />;
 if (view === "privacyPolicy") return <PrivacyPolicy header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
 if (view === "termsOfService") return <TermsOfService header={<PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={() => setView("publicHome")} onSignIn={handleSignIn} />} />;
