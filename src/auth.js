@@ -1558,6 +1558,21 @@ export async function getMyStaffMembership() {
   return data || null
 }
 
+// Admin-initiated scholar -> staff bridge (migration 144). Links an existing
+// ACTIVE, CLAIMED marketplace scholar into a mosque as an ACTIVE mosque_staff
+// member so their login can resolve as staff (getMyStaffMembership). Owner-gated
+// + profile_id-forgery-proof inside the SECURITY DEFINER RPC — the client only
+// names the scholar; the RPC sets profile_id from the scholar's OWN user_id.
+// Idempotent. Returns { ok, staffId, alreadyLinked } / { ok:false, error }.
+export async function linkScholarToStaff({ mosqueId, scholarId, role }) {
+  if (!mosqueId || !scholarId) return { ok: false, error: 'mosqueId + scholarId required' }
+  const { data, error } = await supabase.rpc('mosque_link_scholar_to_staff', {
+    p_mosque_id: mosqueId, p_scholar_id: scholarId, p_role: role || 'Scholar',
+  })
+  if (error) { console.error('mosque_link_scholar_to_staff failed:', error); return { ok: false, error: error.message } }
+  return { ok: true, staffId: data?.staff_id, alreadyLinked: !!data?.already_linked }
+}
+
 // --- Safeguarding (migration 062) — all owner+admin only ---
 export async function getSafeguardingSettings(mosqueId) {
   if (!mosqueId) return null

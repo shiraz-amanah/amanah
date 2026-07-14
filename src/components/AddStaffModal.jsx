@@ -11,14 +11,26 @@
 // PATH B — In-house: createMosqueStaff (status=active) + upsertMosqueStaffEmployment
 //   for the pay/terms. Appears as "Active".
 // ====================================================================
-import { useState } from "react";
-import { X, ArrowRight, ArrowLeft, Send, UserPlus, Users, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, ArrowRight, ArrowLeft, Send, UserPlus, Users, Loader2, GraduationCap, Search, Check } from "lucide-react";
 import {
   createMosqueStaff, updateMosqueStaff, upsertMosqueStaffEmployment, createStaffWizardInvite,
+  getScholars, linkScholarToStaff,
 } from "../auth";
 import { sendStaffWizardEmail } from "../lib/resend";
 
 const ROLES = ["Teacher", "Coordinator", "Imam", "Administrator", "Receptionist", "Treasurer", "Other"];
+// Staff role a linked scholar takes on at the mosque (distinct from ROLES only
+// in defaulting to Scholar/Imam, the common cases for a marketplace scholar).
+const LINK_ROLES = ["Scholar", "Imam", "Teacher", "Coordinator", "Other"];
+// The RPC raises bare codes; map to admin-friendly copy. Unknown -> raw message.
+const LINK_ERRORS = {
+  not_mosque_owner: "You can only link scholars into a mosque you own.",
+  scholar_unclaimed: "That scholar hasn't claimed their Amanah account yet, so they can't be linked.",
+  scholar_not_active: "That scholar's listing isn't active, so they can't be linked.",
+  scholar_no_profile: "That scholar's account is incomplete. Ask them to sign in once, then retry.",
+  scholar_not_found: "That scholar could not be found.",
+};
 const EMP_TYPES = [
   ["employed_full_time", "Employed — full time"], ["employed_part_time", "Employed — part time"],
   ["self_employed", "Self-employed"], ["volunteer", "Volunteer"], ["contractor", "Contractor"],
@@ -28,9 +40,15 @@ const L = ({ label, children }) => (<label className="block"><span className="te
 
 export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, defaultEmploymentType }) { // eslint-disable-line no-unused-vars
   const [step, setStep] = useState(1);
-  const [path, setPath] = useState(null); // 'remote' | 'inhouse'
+  const [path, setPath] = useState(null); // 'remote' | 'inhouse' | 'link_scholar'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  // Link-existing-scholar path (migration 144).
+  const [scholars, setScholars] = useState(null); // null = not loaded yet
+  const [scholarsErr, setScholarsErr] = useState(false);
+  const [scholarQuery, setScholarQuery] = useState("");
+  const [selectedScholar, setSelectedScholar] = useState(null);
+  const [linkRole, setLinkRole] = useState("Scholar");
   // Set when the staff record was created but the invite email failed to send.
   // The record must NOT be re-created (no unique guard on the wizard row), so we
   // stop in a terminal state with a single "Done" instead of re-enabling submit.
@@ -42,14 +60,40 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
+  // Load claimable scholars once the admin picks the link path. Only ACTIVE +
+  // CLAIMED (user_id present) scholars can be linked — filter here so the picker
+  // never offers a scholar the RPC would reject with scholar_unclaimed.
+  useEffect(() => {
+    if (path !== "link_scholar" || scholars !== null) return;
+    let alive = true;
+    getScholars()
+      .then((rows) => { if (alive) setScholars((rows || []).filter((s) => s.user_id)); })
+      .catch(() => { if (alive) { setScholars([]); setScholarsErr(true); } });
+    return () => { alive = false; };
+  }, [path, scholars]);
+
   const basicValid = f.name.trim() && /\S+@\S+\.\S+/.test(f.email);
+  // Step-2 gate per path: link path needs a selected scholar, the others need name+email.
+  const step2Valid = path === "link_scholar" ? !!selectedScholar : basicValid;
   const lastStep = path === "inhouse" ? 4 : 3; // in-house has an extra employment step
   const next = () => setStep((s) => Math.min(lastStep, s + 1));
   const back = () => setStep((s) => Math.max(1, s - 1));
 
+  const q = scholarQuery.trim().toLowerCase();
+  const filteredScholars = (scholars || []).filter((s) => !q || (s.name || "").toLowerCase().includes(q));
+
   const create = async () => {
     setBusy(true); setErr(null);
     try {
+      if (path === "link_scholar") {
+        if (!selectedScholar) throw new Error("Pick a scholar to link.");
+        const { ok, error } = await linkScholarToStaff({
+          mosqueId, scholarId: selectedScholar.id, role: linkRole,
+        });
+        if (!ok) throw new Error(LINK_ERRORS[error] || error || "Could not link the scholar.");
+        onCreated?.();
+        return;
+      }
       const base = {
         role: f.role, job_title: f.jobTitle || null, department: f.department || null,
         employment_type: f.employmentType, start_date: f.startDate || null,
@@ -112,11 +156,52 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
                 <div className="flex items-center gap-2 font-medium text-stone-900"><UserPlus size={16} className="text-emerald-600" /> Onboard in-house</div>
                 <p className="text-sm text-stone-500 mt-1">Fill in their details now. Best for volunteers or less tech-savvy staff.</p>
               </button>
+              <button onClick={() => { setPath("link_scholar"); setStep(2); }} className={`w-full text-left border rounded-xl p-4 hover:border-emerald-300 ${path === "link_scholar" ? "border-emerald-400 bg-emerald-50/40" : "border-stone-200"}`}>
+                <div className="flex items-center gap-2 font-medium text-stone-900"><GraduationCap size={16} className="text-emerald-600" /> Link an existing Amanah scholar</div>
+                <p className="text-sm text-stone-500 mt-1">Bring a verified marketplace scholar onto your team. They get staff-portal access under their existing account — no invite needed.</p>
+              </button>
+            </div>
+          )}
+
+          {/* Step 2 (link scholar) — pick a scholar + staff role */}
+          {step === 2 && path === "link_scholar" && (
+            <div className="space-y-3">
+              <div className="relative">
+                <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input className={`${inputCls} mt-0 pl-8`} placeholder="Search scholars by name"
+                  value={scholarQuery} onChange={(e) => setScholarQuery(e.target.value)} />
+              </div>
+              <div className="border border-stone-200 rounded-lg divide-y divide-stone-100 max-h-60 overflow-y-auto">
+                {scholars === null ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-stone-400 py-6"><Loader2 size={15} className="animate-spin" /> Loading scholars…</div>
+                ) : scholarsErr ? (
+                  <p className="text-sm text-rose-600 py-6 px-3 text-center">Couldn't load scholars. Close and try again.</p>
+                ) : filteredScholars.length === 0 ? (
+                  <p className="text-sm text-stone-400 py-6 px-3 text-center">
+                    {scholars.length === 0 ? "No claimed active scholars to link yet." : "No scholars match that search."}
+                  </p>
+                ) : filteredScholars.map((s) => {
+                  const sel = selectedScholar?.id === s.id;
+                  return (
+                    <button key={s.id} onClick={() => setSelectedScholar(s)}
+                      className={`w-full text-left px-3 py-2.5 flex items-center justify-between hover:bg-stone-50 ${sel ? "bg-emerald-50/60" : ""}`}>
+                      <span className="text-sm text-stone-800">{s.name}{s.city ? <span className="text-stone-400"> · {s.city}</span> : null}</span>
+                      {sel && <Check size={16} className="text-emerald-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <L label="Staff role at your mosque">
+                <select className={inputCls} value={linkRole} onChange={(e) => setLinkRole(e.target.value)}>
+                  {LINK_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </L>
+              {!selectedScholar && <p className="text-xs text-stone-400">Select a scholar to continue.</p>}
             </div>
           )}
 
           {/* Step 2 — basic details */}
-          {step === 2 && (
+          {step === 2 && path !== "link_scholar" && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <L label="Full name"><input className={inputCls} value={f.name} onChange={(e) => set("name", e.target.value)} /></L>
@@ -142,8 +227,24 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
             </div>
           )}
 
-          {/* Review step (last) */}
-          {step === lastStep && (
+          {/* Review step (last) — link scholar */}
+          {step === lastStep && path === "link_scholar" && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-stone-700">Review</p>
+              <div className="text-sm text-stone-600 border border-stone-100 rounded-lg p-3 space-y-1">
+                <div><span className="text-stone-400">Scholar:</span> {selectedScholar?.name}</div>
+                <div><span className="text-stone-400">Staff role:</span> {linkRole}</div>
+                <div><span className="text-stone-400">Mosque:</span> {mosque?.name || "this mosque"}</div>
+              </div>
+              <p className="text-xs text-stone-500">
+                Links this scholar's existing Amanah account to your mosque as an active staff member. They keep their marketplace listing and gain staff-portal access — no email invite is sent.
+              </p>
+              {err && <p className="text-sm text-rose-600">{err}</p>}
+            </div>
+          )}
+
+          {/* Review step (last) — remote / in-house */}
+          {step === lastStep && path !== "link_scholar" && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-stone-700">Review</p>
               <div className="text-sm text-stone-600 border border-stone-100 rounded-lg p-3 space-y-1">
@@ -181,15 +282,15 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
             {step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}
           </button>
           {step === 1 ? <span /> : step < lastStep ? (
-            <button onClick={next} disabled={step === 2 && !basicValid}
+            <button onClick={next} disabled={step === 2 && !step2Valid}
               className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">
               Continue <ArrowRight size={15} />
             </button>
           ) : (
-            <button onClick={create} disabled={busy || !basicValid}
+            <button onClick={create} disabled={busy || !step2Valid}
               className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <Users size={15} />}
-              {path === "remote" ? "Create & send invite" : "Create staff member"}
+              {busy ? <Loader2 size={15} className="animate-spin" /> : path === "link_scholar" ? <GraduationCap size={15} /> : <Users size={15} />}
+              {path === "remote" ? "Create & send invite" : path === "link_scholar" ? "Link scholar" : "Create staff member"}
             </button>
           )}
           </>)}
