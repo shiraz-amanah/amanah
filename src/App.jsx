@@ -13014,12 +13014,16 @@ useEffect(() => {
 // branch does the role-correct routing; unauthed users fall through to the form.
 const signInAudienceHandled = useRef(false);
 useEffect(() => {
-  const roleFor = { signInMosque: "mosque", signInParent: "user", signInStaff: "scholar" }[view];
-  if (!roleFor) { signInAudienceHandled.current = false; return; }
+  const isSignInView = view === "signInMosque" || view === "signInParent" || view === "signInStaff";
+  if (!isSignInView) { signInAudienceHandled.current = false; return; }
   if (authLoading || !authedUser) return;
   if (signInAudienceHandled.current) return;
   signInAudienceHandled.current = true;
-  handleSignIn(roleFor);
+  // Staff door unifies plain employees + scholar-staff (commit 2) — route via
+  // routeAuthedStaff, not handleSignIn's scholar branch (which would send a plain
+  // employee to scholar onboarding).
+  if (view === "signInStaff") routeAuthedStaff(authedUser.id, { replace: true });
+  else handleSignIn(view === "signInMosque" ? "mosque" : "user");
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [view, authLoading, authedUser]);
 
@@ -13365,6 +13369,23 @@ const handleSignIn = (r) => {
     }
   };
 
+  // Job B (commit 2) — post-auth routing for the STAFF sign-in door (/sign-in/staff).
+  // Unifies BOTH audiences that door serves: a PLAIN EMPLOYEE (mosque_staff row, no
+  // scholars row — whose only prior path was a buried banner on the parent dashboard)
+  // AND a scholar-who-is-staff (144/145 bridge). Both hold an active staff membership
+  // -> straight to the portal. Anyone who used this door WITHOUT an active membership
+  // (e.g. a scholar not yet linked) falls back to the scholar router, so nobody
+  // dead-ends. This is entry-routing ONLY; the bridge logic is untouched.
+  const routeAuthedStaff = async (userId, opts = {}) => {
+    const membership = await getMyStaffMembership();
+    if (membership?.mosque) {
+      setMyStaffMembership(membership);
+      navigate("mosqueStaffPortal", {}, {}, { replace: !!opts.replace });
+      return;
+    }
+    await routeAuthedScholar(userId, opts);
+  };
+
   // Job B — shared auth-form plumbing. authOnComplete routes a just-signed-in user
   // by an EXPLICIT returnView, so the three canonical /sign-in/* entries each pass
   // their own destination without threading it through state; it mirrors the /auth
@@ -13386,6 +13407,7 @@ const handleSignIn = (r) => {
         return;
       }
     }
+    if (rv === "staffPostAuth" && user) { await routeAuthedStaff(user.id, { replace: true }); return; }
     if (rv === "scholarPostAuth" && user) { await routeAuthedScholar(user.id, { replace: true }); return; }
     if (rv === "mosquePostAuth" && user) { await routeAuthedMosque(user.id, { replace: true }); return; }
     if (rv === "acceptInvitePostAuth" && user && pendingInviteToken) {
@@ -13489,7 +13511,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   // canonical auto-route effect above (routes straight to the dashboard).
   if (view === "signInMosque") return renderAuthScreen({ role: "mosque", returnViewName: "mosquePostAuth", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
   if (view === "signInParent") return renderAuthScreen({ role: "user", returnViewName: "userDashboard", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
-  if (view === "signInStaff") return renderAuthScreen({ role: "scholar", returnViewName: "scholarPostAuth", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
+  if (view === "signInStaff") return renderAuthScreen({ role: "scholar", returnViewName: "staffPostAuth", onBack: () => setView("publicHome"), onAudience: (a) => navigate(AUDIENCE_VIEW[a]) });
   if (view === "forgotPassword") return <ForgotPassword
     onBack={() => { setUserAuthMode("login"); setView("userAuth"); }}
     onDone={() => { setUserAuthMode("login"); setView("userAuth"); }}
