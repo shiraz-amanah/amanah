@@ -7512,20 +7512,20 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
         <div className="w-full max-w-md">
           <div className="text-center mb-6 md:mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
-              <ShieldCheck className="text-emerald-50" size={22} />
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-900 mb-4 shadow-lg">
+              <ShieldCheck className="text-brand-50" size={22} />
             </div>
             <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
           </div>
           <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 shadow-sm text-center">
-            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto mb-4"><Mail size={24} /></div>
+            <div className="w-12 h-12 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center mx-auto mb-4"><Mail size={24} /></div>
             <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Check your email to confirm your account</h2>
             <p className="text-sm text-stone-600 mb-6 leading-relaxed">
               We've sent a confirmation link to <span className="font-medium text-stone-900">{form.email}</span>. Once confirmed, click the button below to complete joining the mosque.
             </p>
             <button
               onClick={() => window.location.assign(`/accept-invite?token=${encodeURIComponent(inviteToken)}`)}
-              className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] inline-flex items-center justify-center gap-2"
+              className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] inline-flex items-center justify-center gap-2"
             >
               I've confirmed my email <ArrowRight size={14} />
             </button>
@@ -7541,16 +7541,16 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
         <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back to Amanah</button>
 
         <div className="text-center mb-6 md:mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
-            <ShieldCheck className="text-emerald-50" size={22} />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-900 mb-4 shadow-lg">
+            <ShieldCheck className="text-brand-50" size={22} />
           </div>
           <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
 
         {isInvite && (
-          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <ShieldCheck className="text-emerald-700 shrink-0 mt-0.5" size={18} />
-            <p className="text-sm text-emerald-900 leading-relaxed">
+          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-4">
+            <ShieldCheck className="text-brand-700 shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-brand-900 leading-relaxed">
               <span className="font-semibold">You've been invited to join a mosque on Amanah.</span>{" "}
               Create an account or sign in to accept.
             </p>
@@ -7563,10 +7563,10 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
               <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isInvite ? "Create your account" : isScholar ? "Sign up as a scholar" : isMosque ? "List your mosque on Amanah" : "Create your account"}</h2>
               <p className="text-sm text-stone-500 mb-6">{isInvite ? "Set up your Amanah account to accept your invitation and join your mosque's workspace." : isScholar ? "Teach, get hired, build your profile on Amanah." : isMosque ? "Apply for verification and reach the Muslim community across the UK." : "Book scholars, track your giving, save favourites."}</p>
               <div className="space-y-3">
-                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={isMosque && !isInvite ? "Your name (the person applying)" : "Your name"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                {isInvite && <input type="password" value={form.confirmPassword} onChange={e => setForm({...form, confirmPassword: e.target.value})} placeholder="Confirm password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />}
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={isMosque && !isInvite ? "Your name (the person applying)" : "Your name"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                {isInvite && <input type="password" value={form.confirmPassword} onChange={e => setForm({...form, confirmPassword: e.target.value})} placeholder="Confirm password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />}
                 {skipsInterest && error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
                 <button
                   onClick={() => {
@@ -7587,7 +7587,7 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
                     }
                   }}
                   disabled={!form.name || !form.email || form.password.length < 6 || (isInvite && !form.confirmPassword) || loading}
-                  className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
+                  className="w-full bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
                 >
                   {skipsInterest
                     ? (loading ? "Creating account..." : <>Create account <CheckCircle2 size={14} /></>)
@@ -7617,17 +7617,17 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
                       key={opt.v}
                       onClick={() => setForm(f => ({ ...f, interests: f.interests.includes(opt.v) ? f.interests.filter(x => x !== opt.v) : [...f.interests, opt.v] }))}
                       aria-pressed={selected}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selected ? "bg-emerald-50 border-emerald-400" : "bg-white border-stone-200 hover:border-stone-400"}`}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selected ? "bg-brand-50 border-brand-400" : "bg-white border-stone-200 hover:border-stone-400"}`}
                     >
-                      <Icon size={18} className={selected ? "text-emerald-800" : "text-stone-500"} />
+                      <Icon size={18} className={selected ? "text-brand-800" : "text-stone-500"} />
                       <span className="text-sm text-stone-900 flex-1">{opt.l}</span>
-                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${selected ? "bg-emerald-600 border-emerald-600 text-white" : "border-stone-300 text-transparent"}`}><Check size={13} /></span>
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${selected ? "bg-brand-600 border-brand-600 text-white" : "border-stone-300 text-transparent"}`}><Check size={13} /></span>
                     </button>
                   );
                 })}
               </div>
               {error && <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
-              <button onClick={handleSignUp} disabled={form.interests.length === 0 || loading} className="w-full mt-5 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
+              <button onClick={handleSignUp} disabled={form.interests.length === 0 || loading} className="w-full mt-5 bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100 inline-flex items-center justify-center gap-2">
                 {loading ? "Creating account..." : <>Create account <CheckCircle2 size={14} /></>}
               </button>
             </>
@@ -7639,10 +7639,10 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
               {/* Job B — sign-in subcopy diverges by audience (the three flows). */}
               <p className="text-sm text-stone-500 mb-6">{isMosque ? "Sign in to your mosque's Amanah workspace." : isScholar ? "Sign in to your staff portal." : "Sign in to your children's madrasah, community and giving."}</p>
               <div className="space-y-3">
-                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
-                <button onClick={handleSignIn} disabled={loading || !form.email || !form.password} className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100">
+                <button onClick={handleSignIn} disabled={loading || !form.email || !form.password} className="w-full bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100">
                   {loading ? "Signing in..." : "Sign in"}
                 </button>
               </div>
@@ -7656,7 +7656,7 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
             <p className="text-sm text-stone-600 mb-2">
               {isSignUp ? "Already have an account?" : "New to Amanah?"}
             </p>
-            <button onClick={onSwitchMode} className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+            <button onClick={onSwitchMode} className="inline-flex items-center gap-1 text-sm text-brand-800 font-medium hover:gap-2 transition-all">
               {isSignUp ? "Sign in" : "Create an account"} <ArrowRight size={14} />
             </button>
           </div>
@@ -7669,25 +7669,25 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
         {onAudience ? (
           <div className="mt-5 text-center text-xs text-stone-500">
             {isMosque
-              ? <>Not a mosque? <button onClick={() => onAudience("user")} className="text-emerald-800 font-medium hover:underline">Parent</button> or <button onClick={() => onAudience("scholar")} className="text-emerald-800 font-medium hover:underline">staff</button> sign-in.</>
+              ? <>Not a mosque? <button onClick={() => onAudience("user")} className="text-brand-800 font-medium hover:underline">Parent</button> or <button onClick={() => onAudience("scholar")} className="text-brand-800 font-medium hover:underline">staff</button> sign-in.</>
               : isScholar
-                ? <>Not staff? <button onClick={() => onAudience("mosque")} className="text-emerald-800 font-medium hover:underline">Mosque</button> or <button onClick={() => onAudience("user")} className="text-emerald-800 font-medium hover:underline">parent</button> sign-in.</>
-                : <>Are you a <button onClick={() => onAudience("mosque")} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={() => onAudience("scholar")} className="text-emerald-800 font-medium hover:underline">staff member</button>? Different sign-in.</>}
+                ? <>Not staff? <button onClick={() => onAudience("mosque")} className="text-brand-800 font-medium hover:underline">Mosque</button> or <button onClick={() => onAudience("user")} className="text-brand-800 font-medium hover:underline">parent</button> sign-in.</>
+                : <>Are you a <button onClick={() => onAudience("mosque")} className="text-brand-800 font-medium hover:underline">mosque</button> or <button onClick={() => onAudience("scholar")} className="text-brand-800 font-medium hover:underline">staff member</button>? Different sign-in.</>}
           </div>
         ) : (<>
         {!skipsInterest && (
           <div className="mt-5 text-center text-xs text-stone-500">
-            Are you a <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">scholar</button>? Different sign-in.
+            Are you a <button onClick={onBack} className="text-brand-800 font-medium hover:underline">mosque</button> or <button onClick={onBack} className="text-brand-800 font-medium hover:underline">scholar</button>? Different sign-in.
           </div>
         )}
         {isScholar && (
           <div className="mt-5 text-center text-xs text-stone-500">
-            Not a scholar? <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">Pick a different sign-in</button>.
+            Not a scholar? <button onClick={onBack} className="text-brand-800 font-medium hover:underline">Pick a different sign-in</button>.
           </div>
         )}
         {isMosque && (
           <div className="mt-5 text-center text-xs text-stone-500">
-            Not a mosque? <button onClick={onBack} className="text-emerald-800 font-medium hover:underline">Pick a different sign-in</button>.
+            Not a mosque? <button onClick={onBack} className="text-brand-800 font-medium hover:underline">Pick a different sign-in</button>.
           </div>
         )}
         </>)}
