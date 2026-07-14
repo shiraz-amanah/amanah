@@ -179,7 +179,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
       {/* Header — shared across every section (name, pills, Edit, Message teacher) */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-base font-semibold shrink-0 shadow-sm">{initials(student.name)}</div>
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-base font-semibold shrink-0 shadow-sm">{initials(student.name)}</div>
           <div className="min-w-0">
             <h3 className="text-lg md:text-xl font-semibold text-stone-900 leading-tight truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{student.name}</h3>
             <p className="text-xs text-stone-500 truncate mt-0.5">
@@ -192,13 +192,13 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <div className="flex flex-wrap justify-end gap-1.5">
-            {attPct !== null && <span className={`${pill} bg-emerald-50 text-emerald-700 font-medium`}>{attPct}% attendance</span>}
+            {attPct !== null && <span className={`${pill} bg-brand-50 text-brand-700 font-medium`}>{attPct}% attendance</span>}
             {starCount > 0 && <span className={`${pill} bg-amber-50 text-amber-700 font-medium`}><Star size={11} className="fill-amber-400 text-amber-400" /> {starCount}</span>}
           </div>
           <div className="flex items-center gap-1.5">
-            {!editing && <button onClick={openEdit} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Pencil size={11} /> Edit</button>}
+            {!editing && <button onClick={openEdit} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-brand-300 hover:text-brand-700 inline-flex items-center gap-1"><Pencil size={11} /> Edit</button>}
             {onMessageTeacher && primary && pperms.message_teacher && (
-              <button onClick={() => onMessageTeacher({ classId: primary.class_id, className: primary.class?.name })} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><MessageCircle size={11} /> Message teacher</button>
+              <button onClick={() => onMessageTeacher({ classId: primary.class_id, className: primary.class?.name })} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-brand-300 hover:text-brand-700 inline-flex items-center gap-1"><MessageCircle size={11} /> Message teacher</button>
             )}
           </div>
         </div>
@@ -214,27 +214,27 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
               <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Full name</label>
-              <input autoFocus value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} placeholder="Child's full name" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              <input autoFocus value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} placeholder="Child's full name" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Date of birth</label>
-              <input type="date" max={new Date().toISOString().slice(0, 10)} value={editForm.dob} onChange={(e) => setEditForm((f) => ({ ...f, dob: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              <input type="date" max={new Date().toISOString().slice(0, 10)} value={editForm.dob} onChange={(e) => setEditForm((f) => ({ ...f, dob: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Gender</label>
-              <select value={editForm.gender} onChange={(e) => setEditForm((f) => ({ ...f, gender: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+              <select value={editForm.gender} onChange={(e) => setEditForm((f) => ({ ...f, gender: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm">
                 <option value="">—</option><option value="male">Male</option><option value="female">Female</option>
               </select>
             </div>
             <div className="sm:col-span-2">
               <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Relationship to you</label>
-              <input value={editForm.relation} onChange={(e) => setEditForm((f) => ({ ...f, relation: e.target.value }))} placeholder="e.g. son, daughter" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              <input value={editForm.relation} onChange={(e) => setEditForm((f) => ({ ...f, relation: e.target.value }))} placeholder="e.g. son, daughter" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
             </div>
           </div>
           {editError && <p className="text-xs text-rose-700 flex items-center gap-1.5"><AlertCircle size={13} /> {editError}</p>}
           <div className="flex justify-end gap-2">
             <button onClick={() => setEditing(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-            <button onClick={saveEdit} disabled={savingEdit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
+            <button onClick={saveEdit} disabled={savingEdit} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
           </div>
         </div>
       )}
@@ -248,7 +248,7 @@ const MadrasaChildProgress = ({ student, enrollments = [], section = "overview",
 
               {/* STATS ROW — attendance · homework · stars */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <StatTile icon={CalendarClock} tone="text-emerald-600" label="Attendance" value={attPct != null ? `${attPct}%` : "—"} />
+                <StatTile icon={CalendarClock} tone="text-brand-600" label="Attendance" value={attPct != null ? `${attPct}%` : "—"} />
                 <StatTile icon={ClipboardList} tone="text-sky-600" label="Homework" value={hwPct != null ? `${hwPct}%` : "—"} />
                 <StatTile icon={Star} tone="text-amber-500" label={starCount === 1 ? "Star" : "Stars"} value={starCount} />
               </div>
