@@ -8,7 +8,7 @@ import { money } from "./FinanceSadaqah";
 // Record-keeping only — no payments processing.
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 // Job A: "repaid" is a positive status -> success-* (== emerald-* today). Note
@@ -58,7 +58,7 @@ const FinanceQard = ({ mosqueId }) => {
         <p className="text-sm text-stone-600 inline-flex items-center gap-1.5"><Lock size={13} className="text-stone-400" /> Confidential benevolent-loan register (owner-only). <span className="text-stone-900 font-medium">{money(outstanding)}</span> outstanding.</p>
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
-      <div className="flex justify-end">{!showForm && <button onClick={() => setShowForm(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Record loan</button>}</div>
+      <div className="flex justify-end">{!showForm && <button onClick={() => setShowForm(true)} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Record loan</button>}</div>
 
       {showForm && (
         <div className={cardCls}>
@@ -73,7 +73,7 @@ const FinanceQard = ({ mosqueId }) => {
             </div>
             <div><label className={labelCls}>Notes</label><textarea rows={2} className={inputCls + " resize-none"} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Record loan"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Record loan"}</button>
               <button onClick={() => { setForm(blank); setEditing(null); setShowForm(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2"><X size={14} className="inline" /> Cancel</button>
             </div>
           </div>
@@ -86,12 +86,12 @@ const FinanceQard = ({ mosqueId }) => {
             const out = Number(l.amount) - Number(l.amount_repaid); const [lbl, cls] = STATUS[l.status] || STATUS.active;
             return (
               <div key={l.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-                <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0"><PiggyBank size={15} /></span>
+                <span className="w-9 h-9 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0"><PiggyBank size={15} /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-stone-900 flex items-center gap-2">{l.recipient_name} <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase tracking-wider ${cls}`}>{lbl}</span></p>
                   <p className="text-xs text-stone-500">{money(l.amount_repaid)} of {money(l.amount)} repaid{l.status === "active" && out > 0.001 ? ` · ${money(out)} outstanding` : ""}{l.repayment_schedule ? ` · ${l.repayment_schedule}` : ""}{l.loan_date ? ` · ${fmtDate(l.loan_date)}` : ""}</p>
                 </div>
-                <button onClick={() => startEdit(l)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+                <button onClick={() => startEdit(l)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
                 <button onClick={() => remove(l.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
               </div>
             );
