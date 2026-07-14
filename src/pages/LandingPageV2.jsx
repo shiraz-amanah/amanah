@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ShieldCheck, Sparkles, Check, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ShieldCheck, Sparkles, Check, X, ChevronDown } from "lucide-react";
 import LegalFooter from "../components/LegalFooter";
 import "../styles/amanahTheme.css";
 
@@ -240,13 +240,28 @@ const DemoModal = ({ onClose }) => {
 const LandingPageV2 = ({ onSignIn, onAudience }) => {
   const [showDemo, setShowDemo] = useState(false);
   const openDemo = () => setShowDemo(true);
+  // Nav sign-in dropdown: mosque stays a one-click primary (the bare "Sign in"),
+  // the caret reveals the parent + staff doors (Job B put these as equal-weight
+  // nav links → 6-item overcrowding; folding them behind one control fixes it and
+  // makes them reachable at every width, not desktop-only). Closes on outside-click
+  // / Escape.
+  const [signInOpen, setSignInOpen] = useState(false);
+  const signInRef = useRef(null);
+  useEffect(() => {
+    if (!signInOpen) return;
+    const onDoc = (e) => { if (signInRef.current && !signInRef.current.contains(e.target)) setSignInOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setSignInOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [signInOpen]);
   // Job B — sign-in goes to the three canonical /sign-in/* URLs. Mosque is the
-  // primary (the buyer); parent + staff are a secondary line. onAudience takes the
-  // audience key (mosque|user|scholar); falls back to the legacy onSignIn dispatch.
+  // primary (the buyer); parent + staff live behind the nav "Sign in" caret dropdown.
+  // onAudience takes the audience key (mosque|user|scholar); falls back to the legacy
+  // onSignIn dispatch.
   const signIn = (audience) => onAudience
     ? onAudience(audience)
     : onSignIn?.(audience === "user" ? "user" : audience === "scholar" ? "imam" : "mosque");
-  const navLink = { fontSize: 13, color: T.w55, background: "none", border: "none", cursor: "pointer", padding: 0 };
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: L.white }}>
@@ -257,6 +272,8 @@ const LandingPageV2 = ({ onSignIn, onAudience }) => {
         .lpv-pattern-rotate { animation: lpvSlowRotate 120s linear infinite; transform-origin: center; }
         .lpv-dark em { color: var(--amanah-green-bright); font-style: italic; }
         .lpv-light em { color: var(--amanah-green); font-style: italic; }
+        .lpv-signin-item { display:block; width:100%; text-align:left; font-size:13.5px; color: var(--amanah-white-90); background:none; border:none; cursor:pointer; padding:9px 12px; border-radius:7px; white-space:nowrap; }
+        .lpv-signin-item:hover { background: rgba(255,255,255,0.07); color:#fff; }
       `}</style>
 
       {/* ===== SECTION 1 — NAV ===== */}
@@ -273,12 +290,24 @@ const LandingPageV2 = ({ onSignIn, onAudience }) => {
             <a href="#pricing" style={{ fontSize: 13, color: T.w55 }}>Pricing</a>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            {/* Job B — secondary sign-in for parents + staff (mosque stays primary). */}
-            <div className="hidden sm:flex items-center" style={{ gap: 14, marginRight: 2 }}>
-              <button onClick={() => signIn("user")} style={navLink}>Parent sign-in</button>
-              <button onClick={() => signIn("scholar")} style={navLink}>Staff / Employee sign-in</button>
+            {/* Nav-fix — one sign-in control: "Sign in" one-clicks to mosque (the
+                primary buyer); the caret reveals the parent + staff doors. Replaces
+                the two equal-weight text links that overcrowded the row. */}
+            <div ref={signInRef} style={{ position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "center", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, overflow: "hidden" }}>
+                <button onClick={() => signIn("mosque")} style={{ fontSize: 14, color: "#fff", padding: "8px 14px", background: "transparent", border: "none", cursor: "pointer" }}>Sign in</button>
+                <button onClick={() => setSignInOpen((o) => !o)} aria-label="More sign-in options" aria-haspopup="true" aria-expanded={signInOpen} style={{ display: "flex", alignItems: "center", padding: "8px 8px", color: "#fff", background: "transparent", border: "none", borderLeft: "1px solid rgba(255,255,255,0.15)", cursor: "pointer" }}>
+                  <ChevronDown size={15} style={{ transition: "transform 0.15s ease", transform: signInOpen ? "rotate(180deg)" : "none" }} />
+                </button>
+              </div>
+              {signInOpen && (
+                <div role="menu" style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 214, background: T.dark2, border: `1px solid ${T.wBorder}`, borderRadius: 10, padding: 6, zIndex: 50 }}>
+                  <button role="menuitem" className="lpv-signin-item" onClick={() => { setSignInOpen(false); signIn("mosque"); }}>Mosque sign-in</button>
+                  <button role="menuitem" className="lpv-signin-item" onClick={() => { setSignInOpen(false); signIn("user"); }}>Parent sign-in</button>
+                  <button role="menuitem" className="lpv-signin-item" onClick={() => { setSignInOpen(false); signIn("scholar"); }}>Staff / Employee sign-in</button>
+                </div>
+              )}
             </div>
-            <button onClick={() => signIn("mosque")} style={{ fontSize: 14, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 16px", background: "transparent", cursor: "pointer" }}>Sign in</button>
             <button onClick={openDemo} style={{ fontSize: 14, fontWeight: 500, color: "#fff", background: T.green, borderRadius: 8, padding: "8px 16px", border: "none", cursor: "pointer" }}>Book a demo →</button>
           </div>
         </div>
@@ -452,13 +481,6 @@ const LandingPageV2 = ({ onSignIn, onAudience }) => {
           <div style={{ marginTop: 28 }}>
             <button onClick={openDemo} style={{ ...solidBtn, padding: "14px 32px" }}>Book a demo →</button>
           </div>
-          {/* Job B — mobile-safe secondary sign-in (the nav links are desktop-only). */}
-          <p style={{ fontSize: 13, color: T.w55, marginTop: 22 }}>
-            Already using Amanah at your mosque?{" "}
-            <button onClick={() => signIn("user")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Parent sign-in</button>
-            <span style={{ opacity: 0.4 }}> · </span>
-            <button onClick={() => signIn("scholar")} style={{ ...navLink, textDecoration: "underline", color: T.w90 }}>Staff / Employee sign-in</button>
-          </p>
         </div>
       </section>
 
