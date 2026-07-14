@@ -39,8 +39,8 @@ const FinanceAI = ({ mosqueId }) => {
 
   return (
     <div className="space-y-3">
-      <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 mb-2"><Sparkles size={16} /> AI Finance Brief</div>
+      <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-brand-900 mb-2"><Sparkles size={16} /> AI Finance Brief</div>
         {briefLoading ? <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Reviewing your finances…</div>
           : briefError ? <p className="text-sm text-stone-500">{briefError}</p>
           : brief ? <Markdown text={brief} />
@@ -51,9 +51,9 @@ const FinanceAI = ({ mosqueId }) => {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && ask()}
             placeholder="e.g. Which pledges are overdue? How much Gift Aid can we claim?"
-            className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+            className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
           />
-          <button onClick={ask} disabled={asking || !q.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{asking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
+          <button onClick={ask} disabled={asking || !q.trim()} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{asking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
         </div>
         {error && <p className="text-sm text-rose-700 mt-2">{error}</p>}
         {answer && <div className="bg-white border border-stone-200 rounded-xl p-3 mt-2"><Markdown text={answer} /></div>}

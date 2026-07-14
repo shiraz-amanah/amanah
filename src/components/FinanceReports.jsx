@@ -92,7 +92,7 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Finance Reports</h2>
           <p className="text-sm text-stone-600">Income by category, Waqf, pledges and the Gift Aid (HMRC) claim.</p>
         </div>
-        <select value={period} onChange={(e) => setPeriod(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none focus:border-emerald-700">
+        <select value={period} onChange={(e) => setPeriod(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none focus:border-brand-700">
           {PERIODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
@@ -106,7 +106,7 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
           <Stat label="Sadaqah (general)" value={money(r.sadGeneral)} icon={HandHeart} />
           <Stat label="Sadaqah Jariyah" value={money(r.sadJariyah)} icon={HandHeart} sub="campaign-tied" />
           <Stat label="Pledges received" value={money(r.received)} icon={HandCoins} />
-          <Stat label="Total income" value={money(r.totalIncome)} accent="text-emerald-700" icon={BarChart3} />
+          <Stat label="Total income" value={money(r.totalIncome)} accent="text-brand-700" icon={BarChart3} />
         </div>
       </div>
 
@@ -116,7 +116,7 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
           <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Gem size={13} /> Waqf summary</h3>
           <div className="grid grid-cols-2 gap-3">
             <Stat label="Principal protected" value={money(r.principal)} icon={ShieldCheck} sub="never spent" />
-            <Stat label="Yield available" value={money(r.yieldGen - r.yieldDist)} accent="text-emerald-700" sub={`${money(r.yieldGen)} gen · ${money(r.yieldDist)} dist`} />
+            <Stat label="Yield available" value={money(r.yieldGen - r.yieldDist)} accent="text-brand-700" sub={`${money(r.yieldGen)} gen · ${money(r.yieldDist)} dist`} />
           </div>
         </div>
         <div>
@@ -132,12 +132,12 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
       <div>
         <div className="flex items-center justify-between gap-3 mb-2">
           <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wider flex items-center gap-1.5"><ShieldCheck size={13} /> Gift Aid — HMRC claim</h3>
-          {r.gaRows.length > 0 && <button onClick={exportGiftAid} className="text-sm bg-emerald-900 hover:bg-emerald-800 text-white font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={13} /> Export CSV</button>}
+          {r.gaRows.length > 0 && <button onClick={exportGiftAid} className="text-sm bg-brand-900 hover:bg-brand-800 text-white font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={13} /> Export CSV</button>}
         </div>
         <div className={cardCls}>
           <div className="flex items-center gap-6 mb-3">
             <div><p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium">Eligible donations</p><p className="text-xl font-semibold text-stone-900">{money(r.gaTotal)}</p></div>
-            <div><p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Claimable (25%)</p><p className="text-xl font-semibold text-emerald-700">{money(r.gaClaim)}</p></div>
+            <div><p className="text-[10px] uppercase tracking-wider text-brand-700 font-medium">Claimable (25%)</p><p className="text-xl font-semibold text-brand-700">{money(r.gaClaim)}</p></div>
             <div><p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium">Records</p><p className="text-xl font-semibold text-stone-900">{r.gaRows.length}</p></div>
           </div>
           {r.gaRows.length ? (
@@ -153,7 +153,7 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
                       <td className="py-1.5 pr-3 text-stone-500 max-w-[180px] truncate">{x.address || <span className="text-amber-600">missing</span>}</td>
                       <td className="py-1.5 pr-3 text-stone-500">{x.date ? new Date(x.date).toLocaleDateString("en-GB") : "—"}</td>
                       <td className="py-1.5 pr-3 text-right text-stone-800">{money(x.amount)}</td>
-                      <td className="py-1.5 text-right text-emerald-700">{money(x.amount * 0.25)}</td>
+                      <td className="py-1.5 text-right text-brand-700">{money(x.amount * 0.25)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -166,7 +166,7 @@ const FinanceReports = ({ mosqueId, mosqueName }) => {
                       <p className="text-sm font-medium text-stone-800 truncate">{x.donor}</p>
                       <div className="text-right shrink-0">
                         <p className="text-sm text-stone-800">{money(x.amount)}</p>
-                        <p className="text-[11px] text-emerald-700">+{money(x.amount * 0.25)} GA</p>
+                        <p className="text-[11px] text-brand-700">+{money(x.amount * 0.25)} GA</p>
                       </div>
                     </div>
                     <p className="text-[11px] text-stone-500 mt-0.5 truncate">{x.date ? new Date(x.date).toLocaleDateString("en-GB") : "—"} · {x.address || <span className="text-amber-600">address missing</span>}</p>
