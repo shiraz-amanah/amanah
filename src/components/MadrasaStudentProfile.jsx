@@ -37,12 +37,12 @@ const REWARD_EMOJI = Object.fromEntries(REWARD_TYPES.map((t) => [t.v, t.emoji]))
 const initials = (name) => (name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 const fmtDate = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const fmtShort = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
-const attColor = (r) => r == null ? "text-stone-400" : r > 80 ? "text-emerald-600" : r >= 60 ? "text-amber-600" : "text-rose-600";
+const attColor = (r) => r == null ? "text-stone-400" : r > 80 ? "text-success-600" : r >= 60 ? "text-amber-600" : "text-rose-600";
 const ATT_BADGE = {
-  present: "bg-emerald-50 border-emerald-200 text-emerald-700", late: "bg-amber-50 border-amber-200 text-amber-700",
+  present: "bg-success-50 border-success-200 text-success-700", late: "bg-amber-50 border-amber-200 text-amber-700",
   absent: "bg-rose-50 border-rose-200 text-rose-700", excused: "bg-stone-50 border-stone-200 text-stone-600",
 };
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 
 const Empty = ({ icon: Icon, text }) => (
@@ -72,7 +72,7 @@ const feeStatus = (r) => {
   return r.status; // outstanding | partial
 };
 const FEE_BADGE = {
-  paid: ["Paid", "bg-emerald-50 border-emerald-200 text-emerald-700"],
+  paid: ["Paid", "bg-success-50 border-success-200 text-success-700"],
   partial: ["Partial", "bg-amber-50 border-amber-200 text-amber-700"],
   outstanding: ["Outstanding", "bg-rose-50 border-rose-200 text-rose-700"],
   overdue: ["Overdue", "bg-rose-100 border-rose-300 text-rose-800"],
@@ -325,7 +325,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
       <div className="bg-white border border-stone-200 rounded-2xl shadow-sm p-5 flex items-start gap-4 flex-wrap">
         {/* Fix 2 — clickable avatar (admin upload to private bucket) */}
         <button type="button" onClick={() => !avatarBusy && avatarRef.current?.click()} title="Change photo"
-          className="group relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-xl font-semibold shrink-0 shadow-sm overflow-hidden">
+          className="group relative w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-xl font-semibold shrink-0 shadow-sm overflow-hidden">
           {(avatarPreview || avatarUrl)
             ? <img src={avatarPreview || avatarUrl} alt={student.name || "Student"} className="w-full h-full object-cover" />
             : initials(student.name)}
@@ -337,8 +337,8 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
         <div className="min-w-0 flex-1">
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{student.name || "Student"}</h2>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            {classObj?.name && <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">{classObj.name}</span>}
-            <span className={`text-[11px] px-2.5 py-1 rounded-full border inline-flex items-center gap-1 ${status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
+            {classObj?.name && <span className="text-[11px] px-2.5 py-1 rounded-full bg-brand-50 border border-brand-200 text-brand-700">{classObj.name}</span>}
+            <span className={`text-[11px] px-2.5 py-1 rounded-full border inline-flex items-center gap-1 ${status === "active" ? "bg-success-50 border-success-200 text-success-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
               {status === "active" ? <UserCheck size={12} /> : <UserX size={12} />} {status === "active" ? "Active" : "Inactive"}
             </span>
           </div>
@@ -362,11 +362,11 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
         </div>
       </div>
 
-      {(actMsg || actErr || avatarErr) && <p className={`text-sm mt-3 inline-flex items-center gap-1.5 ${(actErr || avatarErr) ? "text-rose-700" : "text-emerald-700"}`}>{(actErr || avatarErr) ? <AlertCircle size={14} /> : <Check size={14} />} {avatarErr || actErr || actMsg}</p>}
+      {(actMsg || actErr || avatarErr) && <p className={`text-sm mt-3 inline-flex items-center gap-1.5 ${(actErr || avatarErr) ? "text-rose-700" : "text-brand-700"}`}>{(actErr || avatarErr) ? <AlertCircle size={14} /> : <Check size={14} />} {avatarErr || actErr || actMsg}</p>}
 
       {/* Edit form (from the actions menu) */}
       {editing && (
-        <div className="bg-white border border-emerald-200 ring-1 ring-emerald-100 rounded-2xl p-5 space-y-3 mt-4">
+        <div className="bg-white border border-brand-200 ring-1 ring-brand-100 rounded-2xl p-5 space-y-3 mt-4">
           <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Edit student details</p>
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2"><label className={labelCls}>Full name</label><input autoFocus className={inputCls} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
@@ -379,7 +379,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
           {actErr && <p className="text-xs text-rose-700 flex items-center gap-1.5"><AlertCircle size={13} /> {actErr}</p>}
           <div className="flex justify-end gap-2">
             <button onClick={() => setEditing(false)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-            <button onClick={saveEdit} disabled={savingEdit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
+            <button onClick={saveEdit} disabled={savingEdit} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
           </div>
         </div>
       )}
@@ -387,7 +387,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
       {/* Tab bar — horizontal scroll, hidden scrollbar so it never overflows on mobile (Fix 3) */}
       <div className="border-b border-stone-200 flex gap-1 overflow-x-auto scrollbar-hide -mb-px mt-5">
         {TABS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
+          <button key={v} onClick={() => setTab(v)} className={`px-3 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${tab === v ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
         ))}
       </div>
 
@@ -416,8 +416,8 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
                 </div>
               )}
               <div className="flex flex-wrap gap-2 mt-4">
-                <button onClick={() => setShowMessage(true)} disabled={!parentUserId} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message parent</button>
-                <button onClick={resetLogin} disabled={busyAct === "reset"} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50 px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busyAct === "reset" ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send login link</button>
+                <button onClick={() => setShowMessage(true)} disabled={!parentUserId} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 disabled:opacity-40 px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message parent</button>
+                <button onClick={resetLogin} disabled={busyAct === "reset"} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 disabled:opacity-50 px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busyAct === "reset" ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send login link</button>
               </div>
             </div>
             {/* Fees — this student's fee history across all terms (record-keeping) */}
@@ -445,7 +445,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <StatTile icon={CalendarCheck} tone={attColor(attRate)} label="Attendance" value={attRate == null ? "—" : `${attRate}%`} />
-              <StatTile icon={BookOpen} tone="text-emerald-600" label="Hifz" value={`${memorized}`} sub={`of 114 · ${hifzPct}%`} />
+              <StatTile icon={BookOpen} tone="text-brand-600" label="Hifz" value={`${memorized}`} sub={`of 114 · ${hifzPct}%`} />
               <StatTile icon={ClipboardList} tone="text-sky-600" label="Homework" value={hwPct == null ? "—" : `${hwPct}%`} />
               <StatTile icon={Star} tone="text-amber-500" label={starCount === 1 ? "Star" : "Stars"} value={`${starCount}`} />
             </div>
@@ -453,9 +453,9 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
               <div className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Latest report</p>
-                  <p className="text-sm font-medium text-stone-900 truncate">{latestReport.term} <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full border ${latestReport.published_at ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{latestReport.published_at ? "Published" : "Draft"}</span></p>
+                  <p className="text-sm font-medium text-stone-900 truncate">{latestReport.term} <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full border ${latestReport.published_at ? "bg-success-50 border-success-200 text-success-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{latestReport.published_at ? "Published" : "Draft"}</span></p>
                 </div>
-                <button onClick={() => setTab("reports")} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 shrink-0">View</button>
+                <button onClick={() => setTab("reports")} className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-brand-300 hover:text-brand-700 shrink-0">View</button>
               </div>
             )}
             <div className="bg-white border border-stone-200 rounded-2xl p-4">
@@ -491,7 +491,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end mb-2">{attTotal > 0 && <button onClick={exportAttendance} className="text-[12px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Download size={12} /> Export CSV</button>}</div>
+              <div className="flex justify-end mb-2">{attTotal > 0 && <button onClick={exportAttendance} className="text-[12px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-brand-300 hover:text-brand-700 inline-flex items-center gap-1"><Download size={12} /> Export CSV</button>}</div>
               {attTotal === 0 ? <Empty icon={CalendarCheck} text="No attendance recorded yet." /> : (
                 <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
                   {attendance.map((a) => (
@@ -515,8 +515,8 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
         <div className="mt-5 space-y-4">
           {/* Progress summary */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatTile icon={BookOpen} tone="text-emerald-600" label="Memorised" value={`${memorized}`} sub="of 114 surahs" />
-            <StatTile icon={GraduationCap} tone="text-emerald-700" label="Progress" value={`${hifzPct}%`} />
+            <StatTile icon={BookOpen} tone="text-brand-600" label="Memorised" value={`${memorized}`} sub="of 114 surahs" />
+            <StatTile icon={GraduationCap} tone="text-brand-700" label="Progress" value={`${hifzPct}%`} />
             <StatTile icon={BookOpen} tone="text-stone-700" label="Current Juz" value={currentSurah ? `${juzOfSurah(currentSurah)}` : "—"} sub={currentSurah ? surahName(currentSurah) : null} />
             <StatTile icon={CalendarCheck} tone="text-stone-700" label="Est. finish" value={estCompletion || "—"} sub="at current pace" />
           </div>
@@ -525,9 +525,9 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
           <div className="rounded-2xl p-[2px] bg-gradient-to-br from-emerald-300 via-emerald-100 to-amber-200">
             <div className="bg-white rounded-[15px] p-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><BookOpen size={15} className="text-emerald-700" /> Qur'an progress map</p>
+                <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><BookOpen size={15} className="text-brand-700" /> Qur'an progress map</p>
                 <div className="flex items-center gap-3 text-[10px] text-stone-500">
-                  <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Memorised</span>
+                  <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-success-500" /> Memorised</span>
                   <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> In progress</span>
                   <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-stone-200" /> Not started</span>
                 </div>
@@ -535,7 +535,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
               <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-1.5">
                 {Array.from({ length: 114 }, (_, i) => i + 1).map((n) => {
                   const state = memorizedSet.has(n) ? "memorised" : touchedSet.has(n) ? "in progress" : "not started";
-                  const cls = memorizedSet.has(n) ? "bg-emerald-500 text-white border-emerald-600" : touchedSet.has(n) ? "bg-amber-400 text-amber-950 border-amber-500" : "bg-stone-100 text-stone-400 border-stone-200";
+                  const cls = memorizedSet.has(n) ? "bg-success-500 text-white border-success-600" : touchedSet.has(n) ? "bg-amber-400 text-amber-950 border-amber-500" : "bg-stone-100 text-stone-400 border-stone-200";
                   return (
                     <div key={n} title={`${n}. ${surahName(n)} — ${state}`} className={`aspect-square rounded-md border flex flex-col items-center justify-center leading-none cursor-default ${cls}`}>
                       <span className="text-[10px] font-semibold">{n}</span>
@@ -561,7 +561,7 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
                 <div><p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Homework completion</p><p className="text-xs text-stone-400">{hwDone}/{hwForStudent.length} submitted</p></div>
                 <p className="text-3xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{hwPct == null ? "—" : `${hwPct}%`}</p>
               </div>
-              <div className="flex justify-end mb-2">{hwForStudent.length > 0 && <button onClick={exportHomework} className="text-[12px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-emerald-300 hover:text-emerald-700 inline-flex items-center gap-1"><Download size={12} /> Export CSV</button>}</div>
+              <div className="flex justify-end mb-2">{hwForStudent.length > 0 && <button onClick={exportHomework} className="text-[12px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-brand-300 hover:text-brand-700 inline-flex items-center gap-1"><Download size={12} /> Export CSV</button>}</div>
               {hwForStudent.length === 0 ? <Empty icon={ClipboardList} text="No homework set for this class yet." /> : (
                 <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">
                   {hwForStudent.map((h) => {
@@ -572,11 +572,11 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
                       <li key={h.id} className="px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0"><p className="text-sm text-stone-800 truncate">{h.title}</p>{h.due_date && <p className="text-[11px] text-stone-400">due {fmtDate(h.due_date)}</p>}</div>
-                          {done ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 inline-flex items-center gap-1 shrink-0"><Check size={11} /> Submitted{subAt[h.id] ? ` · ${fmtShort(subAt[h.id])}` : ""}</span>
+                          {done ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-success-50 border-success-200 text-success-700 inline-flex items-center gap-1 shrink-0"><Check size={11} /> Submitted{subAt[h.id] ? ` · ${fmtShort(subAt[h.id])}` : ""}</span>
                             : overdue ? <span className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-50 border-rose-200 text-rose-700 shrink-0">Overdue</span>
                             : <span className="text-[11px] px-2 py-0.5 rounded-full border bg-stone-50 border-stone-200 text-stone-500 shrink-0">Pending</span>}
                         </div>
-                        {files.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1.5">{files.map((f, i) => <button key={i} onClick={() => openFile(f.path)} className="text-[11px] text-emerald-700 hover:underline inline-flex items-center gap-1"><Paperclip size={10} /> {f.name}</button>)}</div>}
+                        {files.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1.5">{files.map((f, i) => <button key={i} onClick={() => openFile(f.path)} className="text-[11px] text-brand-700 hover:underline inline-flex items-center gap-1"><Paperclip size={10} /> {f.name}</button>)}</div>}
                       </li>
                     );
                   })}
@@ -599,12 +599,12 @@ const MadrasaStudentProfile = ({ enrollment, classObj, mosqueId, mosqueName, onB
             <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-2 inline-flex items-center gap-1.5"><Plus size={12} /> Add reward</p>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {REWARD_TYPES.map((t) => (
-                <button key={t.v} onClick={() => setRwType(t.v)} className={`text-xs px-2.5 py-1.5 rounded-full border ${rwType === t.v ? "border-emerald-400 bg-emerald-50 text-emerald-800 font-medium" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>{t.emoji} {t.label}</button>
+                <button key={t.v} onClick={() => setRwType(t.v)} className={`text-xs px-2.5 py-1.5 rounded-full border ${rwType === t.v ? "border-brand-400 bg-brand-50 text-brand-800 font-medium" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>{t.emoji} {t.label}</button>
               ))}
             </div>
             <div className="flex gap-2 flex-wrap">
               <input value={rwNote} onChange={(e) => setRwNote(e.target.value)} placeholder="Note (optional)" className={`${inputCls} flex-1 min-w-[160px]`} />
-              <button onClick={submitReward} disabled={rwBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{rwBusy ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />} Award</button>
+              <button onClick={submitReward} disabled={rwBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{rwBusy ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />} Award</button>
             </div>
             <p className="text-[11px] text-stone-400 mt-2">{isPositiveReward(rwType) ? "The parent is emailed for positive rewards." : "Warnings and concerns are not emailed to the parent."}</p>
           </div>
