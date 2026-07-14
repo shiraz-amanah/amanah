@@ -24,14 +24,14 @@ const fmtShort = (d) => d ? new Date(d.length <= 10 ? d + "T00:00:00" : d).toLoc
 // Attendance colour bands: green >80, amber 60–80, red <60.
 const attColors = (r) => {
   if (r == null) return { text: "text-stone-400", bar: "bg-stone-300" };
-  if (r > 80) return { text: "text-emerald-700", bar: "bg-emerald-500" };
+  if (r > 80) return { text: "text-success-700", bar: "bg-success-500" };
   if (r >= 60) return { text: "text-amber-600", bar: "bg-amber-500" };
   return { text: "text-rose-600", bar: "bg-rose-500" };
 };
 
 const HifzBar = ({ pct, className = "" }) => (
   <div className={`h-1.5 bg-stone-100 rounded-full overflow-hidden ${className}`}>
-    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, pct || 0)}%` }} />
+    <div className="h-full bg-brand-500 rounded-full" style={{ width: `${Math.min(100, pct || 0)}%` }} />
   </div>
 );
 
@@ -163,9 +163,9 @@ const MadrasaStudents = ({ mosqueId, classes = [], mosqueName, onOpenStudent, on
           <p className="text-sm text-stone-600">{loading ? "Every enrolled child across your classes." : `${studentRows.length} enrolled ${studentRows.length === 1 ? "child" : "children"} across your classes.`}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowBulk(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
-          <button onClick={() => setShowImport(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileSpreadsheet size={14} /> Import students</button>
-          <button onClick={() => onAddStudent?.()} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
+          <button onClick={() => setShowBulk(true)} className="border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message all parents</button>
+          <button onClick={() => setShowImport(true)} className="border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileSpreadsheet size={14} /> Import students</button>
+          <button onClick={() => onAddStudent?.()} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
         </div>
       </div>
 
@@ -177,9 +177,9 @@ const MadrasaStudents = ({ mosqueId, classes = [], mosqueName, onOpenStudent, on
       <div className="flex gap-2 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-[180px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search students or classes…" className="w-full pl-9 pr-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search students or classes…" className="w-full pl-9 pr-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
         </div>
-        <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none focus:border-emerald-700">
+        <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none focus:border-brand-700">
           <option value="">All classes</option>
           {classes.filter((c) => c.status !== "archived").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -194,8 +194,8 @@ const MadrasaStudents = ({ mosqueId, classes = [], mosqueName, onOpenStudent, on
           <p className="text-stone-500 text-sm mb-4 max-w-sm mx-auto">{q || classFilter ? "Try a different name or class filter." : "Add a child directly or import your whole intake from a spreadsheet."}</p>
           {!q && !classFilter && (
             <div className="flex items-center justify-center gap-2">
-              <button onClick={() => setShowImport(true)} className="border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileSpreadsheet size={14} /> Import students</button>
-              <button onClick={() => onAddStudent?.()} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
+              <button onClick={() => setShowImport(true)} className="border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><FileSpreadsheet size={14} /> Import students</button>
+              <button onClick={() => onAddStudent?.()} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><UserPlus size={14} /> Add student</button>
             </div>
           )}
         </div>
@@ -211,10 +211,10 @@ const MadrasaStudents = ({ mosqueId, classes = [], mosqueName, onOpenStudent, on
             const hw = hwByStudent[s.sid] || {};
             const stars = starByStudent[s.sid] || 0;
             return (
-              <button key={s.sid} onClick={() => openProfile(s)} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-md transition-all">
+              <button key={s.sid} onClick={() => openProfile(s)} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-brand-300 hover:shadow-md transition-all">
                 {/* Header */}
                 <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-sm font-semibold shrink-0 shadow-sm">{initials(st.name)}</div>
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-sm font-semibold shrink-0 shadow-sm">{initials(st.name)}</div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-stone-900 truncate flex items-center gap-1.5">
                       {st.name || "Student"}
@@ -232,7 +232,7 @@ const MadrasaStudents = ({ mosqueId, classes = [], mosqueName, onOpenStudent, on
                 {/* Hifz progress */}
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-[11px] mb-1">
-                    <span className="text-stone-500 inline-flex items-center gap-1"><BookOpen size={11} className="text-emerald-600" /> {hz.last ? surahName(hz.last.surah_number) : "No Hifz yet"}</span>
+                    <span className="text-stone-500 inline-flex items-center gap-1"><BookOpen size={11} className="text-brand-600" /> {hz.last ? surahName(hz.last.surah_number) : "No Hifz yet"}</span>
                     <span className="text-stone-400">{mem}/114</span>
                   </div>
                   <HifzBar pct={hifzPct} />
