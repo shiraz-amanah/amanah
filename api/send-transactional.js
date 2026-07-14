@@ -809,6 +809,33 @@ ${ePara('<span style="font-size:13px;color:#9ca3af;">This link is personal to yo
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
+// Migration 144/145 bridge — a mosque linked an existing marketplace scholar as
+// ACTIVE staff. Emails the scholar their sign-in link. Owner-authed: resolves the
+// recipient email + mosque name + role SERVER-SIDE from the staff row (the client
+// passes only staffId), so mosque name / role are always the real linked values.
+// The scholar already has a claimed account, so this is a sign-in link, NOT a
+// password/wizard invite. The deep-link /?signin=scholar drops them into the
+// scholar sign-in (the public landing is mosque-only), landing them on the portal.
+async function handleScholarLinkedToStaff(env, caller, staffId) {
+  const rows = await sbGet(env, `mosque_staff?id=eq.${staffId}&select=role,email,name,mosque_id,mosque:mosques(name,user_id)`);
+  const s = Array.isArray(rows) ? rows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+  const ownerOk = s.mosque?.user_id === caller.id || (await isAdmin(env, caller.id));
+  if (!ownerOk) return { status: 403, body: { ok: false, error: 'forbidden' } };
+  if (!s.email) return { status: 404, body: { ok: false, error: 'no_recipient' } };
+
+  const mosqueName = s.mosque?.name || 'a mosque';
+  const role = s.role || 'Scholar';
+  const link = `${env.PUBLIC_APP_URL}/?signin=scholar`;
+  const inner = `${eGreeting(firstName(s.name))}${eHeading("You've been added to the team")}
+${ePara(`<strong>${escapeHtml(mosqueName)}</strong> has added you as <strong>${escapeHtml(role)}</strong> on their Amanah team.`)}
+${ePara('You now have access to the staff portal — view your rota, timesheets and messages. Sign in with this email address and your existing Amanah password.')}
+${ctaButton('Sign in to Amanah', link)}
+${ePara(`<span style="font-size:13px;color:#9ca3af;">If you weren't expecting this, you can ignore this email, or contact us at <a href="mailto:support@youramanah.co.uk" style="color:#9ca3af;">support@youramanah.co.uk</a>.</span>`)}${eSignoff}`;
+  const id = await sendEmail(env, { to: s.email, subject: `You've been added to ${mosqueName} on Amanah`, html: wrapEmail("You've been added to the team", inner) });
+  return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
+}
+
 // Path A enrolment (089): a mosque admin enrolled a child on a parent's behalf.
 // Email the parent a sign-in link. Recipient is the linked profile's email, or
 // the pending_parent_email held on the student when they have no account yet.
@@ -2330,6 +2357,11 @@ export default async function handler(req, res) {
       return res.status(out.status).json(out.body);
     }
 
+    if (body.intent === 'scholar_linked_to_staff') {
+      if (!isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_staffId' });
+      const out = await handleScholarLinkedToStaff(env, caller, body.staffId);
+      return res.status(out.status).json(out.body);
+    }
     if (body.intent === 'booking_confirmed') {
       if (!isUuid(body.bookingId)) return res.status(400).json({ ok: false, error: 'invalid_bookingId' });
       const out = await handleBookingConfirmed(env, caller, body.bookingId);

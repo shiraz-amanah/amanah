@@ -48,6 +48,15 @@ export function sendBookingConfirmedEmail(bookingId) {
   return postTransactional({ intent: 'booking_confirmed', bookingId });
 }
 
+// Scholar linked to a mosque as ACTIVE staff (migration 144/145 bridge) → emails
+// the scholar their sign-in link. `staffId` is the mosque_staff row id returned by
+// linkScholarToStaff. Owner-authed server-side; the mosque name + role in the
+// email are resolved from the staff row, not passed here.
+export function sendScholarLinkedToStaffEmail(staffId) {
+  if (!staffId) return Promise.resolve({ ok: false, error: 'missing_staffId' });
+  return postTransactional({ intent: 'scholar_linked_to_staff', staffId });
+}
+
 // Community member invite → emails a congregation member their signup link.
 // Owner-gated server-side; recipient resolved from the community_members row.
 // `message` is an optional personal note (escaped + capped server-side).

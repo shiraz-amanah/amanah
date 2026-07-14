@@ -12969,6 +12969,25 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [routeQuery.payment, authedUser]);
 
+// Email deep-link for a linked scholar (migration 144 bridge): /?signin=scholar.
+// The public landing is mosque-only and exposes no scholar sign-in, so the
+// "you've been added as staff" email needs a URL that drops a scholar into their
+// sign-in. Once auth resolves we hand off to handleSignIn("scholar") — the SAME
+// router path the (buried) drawer entry uses — so there's no second copy of the
+// routing decision: authed -> routeAuthedScholar (-> staff portal if they hold an
+// active membership); unauthed -> scholar login (returnView scholarPostAuth) ->
+// same router after auth. handleSignIn navigates away, which strips the param; a
+// ref guards against a back-nav re-fire.
+const scholarSigninHandled = useRef(false);
+useEffect(() => {
+  if (authLoading) return;                          // wait for the session probe
+  if (routeQuery.signin !== "scholar") return;
+  if (scholarSigninHandled.current) return;
+  scholarSigninHandled.current = true;
+  handleSignIn("scholar");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [authLoading, routeQuery.signin]);
+
 // Stripe subscription return (Session BP): a parent comes back to
 // /dashboard?tab=madrasa-fees&subscription=success|cancel&cs=<session>&m=<mosque>. On
 // success we call confirm-subscription (belt-and-braces vs the async webhook) to sync

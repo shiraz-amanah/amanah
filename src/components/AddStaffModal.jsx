@@ -18,6 +18,7 @@ import {
   getScholars, linkScholarToStaff,
 } from "../auth";
 import { sendStaffWizardEmail } from "../lib/resend";
+import { sendScholarLinkedToStaffEmail } from "../lib/email";
 
 const ROLES = ["Teacher", "Coordinator", "Imam", "Administrator", "Receptionist", "Treasurer", "Other"];
 // Staff role a linked scholar takes on at the mosque (distinct from ROLES only
@@ -87,10 +88,19 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
     try {
       if (path === "link_scholar") {
         if (!selectedScholar) throw new Error("Pick a scholar to link.");
-        const { ok, error } = await linkScholarToStaff({
+        const { ok, error, staffId, alreadyLinked } = await linkScholarToStaff({
           mosqueId, scholarId: selectedScholar.id, role: linkRole,
         });
         if (!ok) throw new Error(LINK_ERRORS[error] || error || "Could not link the scholar.");
+        // First link only: email the scholar their sign-in link (idempotent
+        // re-links don't re-notify; the RPC likewise skips the in-app notification).
+        // Fire-and-forget — the link already succeeded, so a mail hiccup must not
+        // fail the flow.
+        if (!alreadyLinked && staffId) {
+          sendScholarLinkedToStaffEmail(staffId).then((r) => {
+            if (!r.ok) console.error("scholar link email failed:", r.error);
+          });
+        }
         onCreated?.();
         return;
       }
