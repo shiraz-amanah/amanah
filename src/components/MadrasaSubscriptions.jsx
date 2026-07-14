@@ -13,7 +13,8 @@ const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day:
 const CADENCE_LABEL = { free_trial: "Free trial", monthly: "Monthly", termly: "Termly" };
 const STATUS_META = {
   trialing: { label: "Trialing", cls: "bg-sky-50 text-sky-700 border-sky-200" },
-  active: { label: "Active", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  active: { label: "Active", cls: "bg-success-50 text-success-700 border-success-200" }, // Job A: positive status -> success-*
+
   past_due: { label: "Past due", cls: "bg-rose-50 text-rose-700 border-rose-200" },
   paused: { label: "Paused", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   canceled: { label: "Canceled", cls: "bg-stone-100 text-stone-500 border-stone-200" },

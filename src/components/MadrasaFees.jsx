@@ -30,7 +30,8 @@ const displayStatus = (r) => {
   return r.status; // outstanding | partial
 };
 const STATUS_META = {
-  paid:        { label: "Paid", emoji: "✅", cls: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+  paid:        { label: "Paid", emoji: "✅", cls: "bg-success-50 border-success-200 text-success-700" }, // Job A: positive status -> success-*
+
   partial:     { label: "Partial", emoji: "🟡", cls: "bg-amber-50 border-amber-200 text-amber-700" },
   outstanding: { label: "Outstanding", emoji: "🔴", cls: "bg-rose-50 border-rose-200 text-rose-700" },
   overdue:     { label: "Overdue", emoji: "⚠️", cls: "bg-rose-100 border-rose-300 text-rose-800" },

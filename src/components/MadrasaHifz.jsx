@@ -10,7 +10,8 @@ import { SURAHS, surahName } from "../data/surahs";
 const LESSON_TYPES = [["sabaq", "Sabaq (new)"], ["sabqi", "Sabqi (recent)"], ["manzil", "Manzil (old)"], ["other", "Other"]];
 const STATUSES = [["in_progress", "In progress"], ["memorized", "Memorized"], ["revising", "Revising"]];
 const QUALITIES = [["", "—"], ["excellent", "Excellent"], ["good", "Good"], ["fair", "Fair"], ["needs_work", "Needs work"]];
-const STATUS_CLS = { memorized: "bg-emerald-50 border-emerald-200 text-emerald-700", revising: "bg-amber-50 border-amber-200 text-amber-700", in_progress: "bg-stone-50 border-stone-200 text-stone-500" };
+// Job A: "memorized" is a positive status -> success-* (== emerald-* today).
+const STATUS_CLS = { memorized: "bg-success-50 border-success-200 text-success-700", revising: "bg-amber-50 border-amber-200 text-amber-700", in_progress: "bg-stone-50 border-stone-200 text-stone-500" };
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";

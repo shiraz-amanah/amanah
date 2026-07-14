@@ -27,9 +27,11 @@ export function serializeReportComment({ sections, overall, ai_summary }) {
   return JSON.stringify({ sections: sections || {}, overall: overall || "", ai_summary: ai_summary || "" });
 }
 
+// Job A: positive ratings (Excellent/Good) -> success-* (== emerald-* today).
+// Shared/exported via ratingStyle(); consumed by the report screens + PDF.
 const RATING_STYLE = {
-  "Excellent": "bg-emerald-50 border-emerald-200 text-emerald-700",
-  "Good": "bg-emerald-50 border-emerald-200 text-emerald-700",
+  "Excellent": "bg-success-50 border-success-200 text-success-700",
+  "Good": "bg-success-50 border-success-200 text-success-700",
   "Satisfactory": "bg-amber-50 border-amber-200 text-amber-700",
   "Needs improvement": "bg-rose-50 border-rose-200 text-rose-700",
 };

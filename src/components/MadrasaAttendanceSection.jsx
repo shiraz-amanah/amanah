@@ -4,7 +4,8 @@ import { CalendarClock } from "lucide-react";
 // fetched attendance array (getStudentAttendance, session_date desc, ≤60 rows) —
 // no new fetch. Status → coloured badge.
 const STATUS = {
-  present: { label: "Present", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  present: { label: "Present", cls: "bg-success-50 text-success-700 border-success-200" }, // Job A: positive status -> success-*
+
   late: { label: "Late", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   excused: { label: "Excused", cls: "bg-sky-50 text-sky-700 border-sky-200" },
   absent: { label: "Absent", cls: "bg-rose-50 text-rose-700 border-rose-200" },
