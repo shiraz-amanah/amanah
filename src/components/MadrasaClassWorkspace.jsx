@@ -69,7 +69,7 @@ const fmtSchedule = (schedule) => {
   }).filter(Boolean).join(" · ");
 };
 
-const Section = ({ icon: Icon, title, subtitle, accent = "text-emerald-700", children }) => (
+const Section = ({ icon: Icon, title, subtitle, accent = "text-brand-700", children }) => (
   <section className="scroll-mt-4">
     <div className="flex items-center gap-2 mb-3">
       <Icon size={18} className={accent} />
@@ -103,8 +103,8 @@ const DeliveryModeSelector = ({ value, onChange, busy, error }) => (
         return (
           <button key={v} onClick={() => onChange(v)} disabled={busy} aria-pressed={on}
             className={`rounded-lg px-2 py-2 text-center transition-colors disabled:opacity-60 ${on ? "bg-white shadow-sm" : "hover:bg-white/50"}`}>
-            <span className={`flex items-center justify-center gap-1.5 text-[12px] sm:text-sm font-medium ${on ? "text-emerald-800" : "text-stone-600"}`}>
-              <Icon size={14} className={on ? "text-emerald-700" : "text-stone-400"} /> {l}
+            <span className={`flex items-center justify-center gap-1.5 text-[12px] sm:text-sm font-medium ${on ? "text-brand-800" : "text-stone-600"}`}>
+              <Icon size={14} className={on ? "text-brand-700" : "text-stone-400"} /> {l}
             </span>
             <span className="hidden sm:block text-[10px] text-stone-400 mt-0.5">{hint}</span>
           </button>
@@ -117,7 +117,7 @@ const DeliveryModeSelector = ({ value, onChange, busy, error }) => (
 
 const HifzBar = ({ memorized }) => (
   <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden mt-1.5" title={`${memorized}/114 surahs`}>
-    <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, Math.round((memorized / 114) * 100))}%` }} />
+    <div className="h-full bg-brand-600 rounded-full" style={{ width: `${Math.min(100, Math.round((memorized / 114) * 100))}%` }} />
   </div>
 );
 
@@ -148,20 +148,20 @@ const StudentAvatar = ({ student, rate }) => {
         <circle cx="32" cy="32" r={R} fill="none" stroke="#f5f5f4" strokeWidth="4" />
         <circle cx="32" cy="32" r={R} fill="none" stroke={ringTone(rate)} strokeWidth="4" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct)} />
       </svg>
-      <div className="absolute inset-[6px] rounded-full overflow-hidden bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center text-sm font-semibold">
+      <div className="absolute inset-[6px] rounded-full overflow-hidden bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center text-sm font-semibold">
         {url ? <img src={url} alt={student.name || "Student"} className="w-full h-full object-cover" /> : initials(student.name)}
       </div>
     </div>
   );
 };
 // Class Hifz heatmap — students as rows, 114 surahs as columns, colour = status.
-const HIFZ_CELL = { memorized: "bg-emerald-500", revising: "bg-teal-400", in_progress: "bg-amber-400" };
+const HIFZ_CELL = { memorized: "bg-success-500", revising: "bg-teal-400", in_progress: "bg-amber-400" };
 const ClassHifzHeatmap = ({ roster, statusByStudent }) => (
   <div className="bg-white border border-stone-200 rounded-2xl p-4">
     <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-      <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><GraduationCap size={15} className="text-emerald-700" /> Class Qur'an map</p>
+      <p className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><GraduationCap size={15} className="text-brand-700" /> Class Qur'an map</p>
       <div className="flex items-center gap-3 text-[10px] text-stone-500 flex-wrap">
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Memorised</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-success-500" /> Memorised</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-teal-400" /> Revising</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> In progress</span>
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-stone-200" /> Not started</span>
@@ -193,7 +193,7 @@ const ClassHifzHeatmap = ({ roster, statusByStudent }) => (
 );
 
 // 8-week class attendance trend — pure CSS/flex bars, no chart library.
-const barTone = (r) => r == null ? "bg-stone-200" : r >= 90 ? "bg-emerald-500" : r >= 75 ? "bg-amber-400" : "bg-rose-500";
+const barTone = (r) => r == null ? "bg-stone-200" : r >= 90 ? "bg-success-500" : r >= 75 ? "bg-amber-400" : "bg-rose-500";
 const wLabel = (ts) => new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 const AttendanceTrend = ({ data }) => {
   const rated = data.filter((d) => d.rate != null);
@@ -585,33 +585,33 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
               )}
             </div>
             {metaBits.length > 0 && <p className="text-sm text-stone-500 mt-1 capitalize">{metaBits.join(" · ")}</p>}
-            <p className="text-sm font-medium text-emerald-800 mt-1.5">{headerStat()}</p>
+            <p className="text-sm font-medium text-brand-800 mt-1.5">{headerStat()}</p>
             {/* AI class brief — one line, tap to open the Q&A panel (P5) */}
             <div className="mt-2">
               {aiLoading ? (
                 <span className="text-xs text-stone-400 inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Preparing class brief…</span>
               ) : aiBrief ? (
                 <button onClick={() => setAiPanelOpen((o) => !o)} className="flex items-start gap-1.5 text-left group max-w-2xl">
-                  <Sparkles size={13} className="text-emerald-600 mt-0.5 shrink-0" />
+                  <Sparkles size={13} className="text-brand-600 mt-0.5 shrink-0" />
                   <span className="text-xs text-stone-600 group-hover:text-stone-900">{aiBrief}</span>
                   {aiPanelOpen ? <ChevronUp size={13} className="text-stone-400 mt-0.5 shrink-0" /> : <ChevronDown size={13} className="text-stone-400 mt-0.5 shrink-0" />}
                 </button>
               ) : (
-                <button onClick={() => setAiPanelOpen((o) => !o)} className="text-xs font-medium text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"><Sparkles size={13} /> Ask about this class</button>
+                <button onClick={() => setAiPanelOpen((o) => !o)} className="text-xs font-medium text-brand-700 hover:text-brand-900 inline-flex items-center gap-1"><Sparkles size={13} /> Ask about this class</button>
               )}
             </div>
           </div>
           {onMessageParent && (
-            <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 shrink-0"><MessageCircle size={14} /> Message all parents</button>
+            <button onClick={() => setShowBulk(true)} disabled={parentIds.length === 0} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 disabled:opacity-40 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 shrink-0"><MessageCircle size={14} /> Message all parents</button>
           )}
         </div>
 
         {/* AI Q&A panel */}
         {aiPanelOpen && (
-          <div className="mt-3 bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4">
+          <div className="mt-3 bg-brand-50/50 border border-brand-100 rounded-2xl p-4">
             <div className="flex gap-2">
-              <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askAi()} placeholder="Ask about attendance, hifz, homework, welfare…" className="flex-1 text-sm px-3 py-2 rounded-lg border border-stone-200 outline-none focus:border-emerald-500" />
-              <button onClick={askAi} disabled={aiAsking || !aiQ.trim()} className="bg-emerald-900 hover:bg-emerald-800 text-white px-3 py-2 rounded-lg disabled:opacity-40 inline-flex items-center gap-1.5">{aiAsking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
+              <input value={aiQ} onChange={(e) => setAiQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askAi()} placeholder="Ask about attendance, hifz, homework, welfare…" className="flex-1 text-sm px-3 py-2 rounded-lg border border-stone-200 outline-none focus:border-brand-500" />
+              <button onClick={askAi} disabled={aiAsking || !aiQ.trim()} className="bg-brand-900 hover:bg-brand-800 text-white px-3 py-2 rounded-lg disabled:opacity-40 inline-flex items-center gap-1.5">{aiAsking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
             </div>
             {aiAnswer && <p className="text-sm text-stone-700 mt-3 whitespace-pre-wrap">{aiAnswer}</p>}
             <p className="text-[10px] text-stone-400 mt-2">AI can make mistakes — verify important details. Answers use this class's data only.</p>
@@ -622,7 +622,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
       {/* Desktop tab bar (md+); mobile uses the fixed bottom nav below */}
       <div className="hidden md:flex border-b border-stone-200 gap-1 mb-6">
         {visibleTabs.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => setTab(v)} className={`px-4 py-2.5 text-sm font-medium border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
+          <button key={v} onClick={() => setTab(v)} className={`px-4 py-2.5 text-sm font-medium border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={15} /> {l}</button>
         ))}
       </div>
 
@@ -678,7 +678,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                 <>
                   <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-4">
                     {FILTERS.map(([v, l, n]) => (
-                      <button key={v} onClick={() => setStudentFilter(v)} className={`text-[12px] font-medium px-3 py-1.5 rounded-full border whitespace-nowrap inline-flex items-center gap-1.5 ${studentFilter === v ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>
+                      <button key={v} onClick={() => setStudentFilter(v)} className={`text-[12px] font-medium px-3 py-1.5 rounded-full border whitespace-nowrap inline-flex items-center gap-1.5 ${studentFilter === v ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-200 text-stone-600 hover:border-stone-300"}`}>
                         {v === "atrisk" && <AlertTriangle size={12} className={studentFilter === v ? "text-amber-500" : "text-stone-400"} />}
                         {v === "starred" && <Star size={12} className={studentFilter === v ? "text-amber-500" : "text-stone-400"} />}
                         {l} <span className="text-stone-400">{n}</span>
@@ -697,7 +697,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                         const mem = (hifzByStudent[sid]?.memorized.size) || 0;
                         const atRisk = rate != null && rate < 75;
                         return (
-                          <div key={e.id} className="relative overflow-hidden bg-white border border-stone-200 rounded-2xl hover:border-emerald-300 hover:shadow-sm transition-all">
+                          <div key={e.id} className="relative overflow-hidden bg-white border border-stone-200 rounded-2xl hover:border-brand-300 hover:shadow-sm transition-all">
                             <CardWatermark id={`wm-${sid}`} />
                             <button onClick={() => openProfile(e)} className="relative block w-full text-left p-4">
                             <div className="relative flex items-start gap-3">
@@ -709,7 +709,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                                 </div>
                                 <p className="text-[11px] text-stone-500 truncate">{[st.age ? `age ${st.age}` : null, st.relation].filter(Boolean).join(" · ") || "—"}</p>
                                 <div className="flex items-center gap-2 mt-1.5">
-                                  <span className={`text-[11px] font-semibold ${rate == null ? "text-stone-400" : rate >= 90 ? "text-emerald-700" : rate >= 75 ? "text-amber-600" : "text-rose-600"}`}>{rate == null ? "— " : `${rate}%`} att.</span>
+                                  <span className={`text-[11px] font-semibold ${rate == null ? "text-stone-400" : rate >= 90 ? "text-success-700" : rate >= 75 ? "text-amber-600" : "text-rose-600"}`}>{rate == null ? "— " : `${rate}%`} att.</span>
                                   {s.stars > 0 && <span className="text-[11px] text-amber-600 inline-flex items-center gap-0.5"><Star size={11} /> {s.stars}</span>}
                                   {absentTodaySet.has(sid) && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700">Absent today</span>}
                                 </div>
@@ -730,7 +730,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                                 <span className="text-[11px] text-stone-600 inline-flex items-center gap-1.5 mb-1.5"><Video size={12} className="text-stone-400" /> Attendance mode</span>
                                 <div className="flex items-center gap-0.5 bg-stone-100 rounded-lg p-0.5">
                                   {[["in_person", "In-person"], ["remote", "Remote"], ["hybrid", "Hybrid"]].map(([v, l]) => (
-                                    <button key={v} onClick={() => setMode(e, v)} className={`flex-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${(e.attendance_mode || "in_person") === v ? "bg-white text-emerald-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{l}</button>
+                                    <button key={v} onClick={() => setMode(e, v)} className={`flex-1 text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${(e.attendance_mode || "in_person") === v ? "bg-white text-brand-800 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}>{l}</button>
                                   ))}
                                 </div>
                               </div>
@@ -766,18 +766,18 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                   const month = h.memorizedMonth.size;
                   const ready = readyForNext(sid);
                   return (
-                    <button key={e.id} onClick={() => openProfile(e)} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                    <button key={e.id} onClick={() => openProfile(e)} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-brand-300 hover:shadow-sm transition-all">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <p className="text-sm font-semibold text-stone-900 truncate">{st.name || "Student"}</p>
-                            {ready && <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 whitespace-nowrap">Ready for next</span>}
+                            {ready && <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-success-50 border border-success-200 text-success-700 whitespace-nowrap">Ready for next</span>}
                           </div>
                           <p className="text-xs text-stone-500 truncate mt-0.5">
                             {h.last ? <>{surahName(h.last.surah_number)}{ayahText(h.last)} · {fmtDate(h.last.session_date)}</> : "No Hifz logged yet"}
                           </p>
                         </div>
-                        <span className="shrink-0 text-[11px] font-medium text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1 inline-flex items-center gap-1"><BookOpen size={12} /> Log</span>
+                        <span className="shrink-0 text-[11px] font-medium text-brand-800 border border-brand-200 rounded-lg px-2.5 py-1 inline-flex items-center gap-1"><BookOpen size={12} /> Log</span>
                       </div>
                       <HifzBar memorized={mem} />
                       <p className="text-[11px] text-stone-400 mt-1">{mem}/114 surahs memorised{month > 0 ? ` · +${month} this month` : ""}</p>
@@ -833,9 +833,9 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
             <>
               <div className="grid sm:grid-cols-2 gap-4">
                 {/* Fee summary — read-only; links to the universal Fees page */}
-                <button onClick={() => onNavigateSection("fees")} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                <button onClick={() => onNavigateSection("fees")} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-brand-300 hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Wallet size={15} className="text-emerald-700" /> Fees</span>
+                    <span className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Wallet size={15} className="text-brand-700" /> Fees</span>
                     <ExternalLink size={13} className="text-stone-400" />
                   </div>
                   {feeSummary == null ? (
@@ -844,14 +844,14 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                     <p className="text-xs text-stone-500">No fees set for this class yet. Open Fees to add a fee structure.</p>
                   ) : (
                     <div className="flex items-baseline gap-3 flex-wrap">
-                      <span className="text-lg font-semibold text-emerald-800">{money(feeSummary.collected)}</span>
+                      <span className="text-lg font-semibold text-success-800">{money(feeSummary.collected)}</span>
                       <span className="text-xs text-stone-500">collected of {money(feeSummary.due)}</span>
                       {feeSummary.outstanding > 0 && <span className="text-xs font-medium text-rose-600">{money(feeSummary.outstanding)} outstanding</span>}
                     </div>
                   )}
                 </button>
                 {/* Waiting-list count — links to the universal Waiting list page */}
-                <button onClick={() => onNavigateSection("waitinglist")} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-sm transition-all">
+                <button onClick={() => onNavigateSection("waitinglist")} className="text-left bg-white border border-stone-200 rounded-2xl p-4 hover:border-brand-300 hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Hourglass size={15} className="text-stone-500" /> Waiting list</span>
                     <ExternalLink size={13} className="text-stone-400" />
@@ -873,15 +873,15 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                     <div className="grid md:grid-cols-3 gap-3">
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Class name</label>
-                        <input value={settingsForm.name} onChange={(e) => setSettingsForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <input value={settingsForm.name} onChange={(e) => setSettingsForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                       </div>
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Capacity</label>
-                        <input type="number" min="0" value={settingsForm.capacity} onChange={(e) => setSettingsForm((f) => ({ ...f, capacity: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" placeholder="No cap" />
+                        <input type="number" min="0" value={settingsForm.capacity} onChange={(e) => setSettingsForm((f) => ({ ...f, capacity: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" placeholder="No cap" />
                       </div>
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Teacher</label>
-                        <select value={settingsForm.teacher_staff_id} onChange={(e) => setSettingsForm((f) => ({ ...f, teacher_staff_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+                        <select value={settingsForm.teacher_staff_id} onChange={(e) => setSettingsForm((f) => ({ ...f, teacher_staff_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm">
                           <option value="">Unassigned</option>
                           {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
@@ -889,7 +889,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                     </div>
                     <div>
                       <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Delivery mode</label>
-                      <select value={settingsForm.delivery_mode} onChange={(e) => setSettingsForm((f) => ({ ...f, delivery_mode: e.target.value }))} className="w-full sm:w-72 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm">
+                      <select value={settingsForm.delivery_mode} onChange={(e) => setSettingsForm((f) => ({ ...f, delivery_mode: e.target.value }))} className="w-full sm:w-72 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 outline-none text-sm">
                         <option value="in_person">In-person only</option>
                         <option value="remote">Remote only</option>
                         <option value="hybrid">Hybrid</option>
@@ -897,12 +897,12 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                       <p className="text-[11px] text-stone-400 mt-1">{settingsForm.delivery_mode === "in_person" ? "No live lesson button." : settingsForm.delivery_mode === "remote" ? "Live lesson is the primary interface." : "Live lesson available as an option."}</p>
                     </div>
                     <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
-                      <input type="checkbox" checked={!!settingsForm.has_hifz} onChange={(e) => setSettingsForm((f) => ({ ...f, has_hifz: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />
+                      <input type="checkbox" checked={!!settingsForm.has_hifz} onChange={(e) => setSettingsForm((f) => ({ ...f, has_hifz: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-brand-700 focus:ring-brand-500" />
                       <span className="text-sm text-stone-700">This class includes Hifz (Qur'an memorisation)<span className="block text-[11px] text-stone-400">Shows the Hifz tab and per-student memorisation progress. Turn off for non-memorisation classes.</span></span>
                     </label>
                     <div className="flex items-center gap-3">
-                      <button onClick={saveSettings} disabled={savingSettings} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
-                      {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-emerald-700" : "text-rose-600"}`}>{settingsMsg}</span>}
+                      <button onClick={saveSettings} disabled={savingSettings} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
+                      {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-brand-700" : "text-rose-600"}`}>{settingsMsg}</span>}
                     </div>
                     <p className="text-[11px] text-stone-400">Subject, room and schedule are edited from the class list.</p>
                   </div>
@@ -918,7 +918,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Billing</label>
-                        <select value={settingsForm.fee_cadence} onChange={(e) => setSettingsForm((f) => ({ ...f, fee_cadence: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm">
+                        <select value={settingsForm.fee_cadence} onChange={(e) => setSettingsForm((f) => ({ ...f, fee_cadence: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm">
                           <option value="none">No subscription</option>
                           <option value="free_trial">Free trial, then monthly</option>
                           <option value="monthly">Monthly</option>
@@ -928,26 +928,26 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                       {settingsForm.fee_cadence !== "none" && settingsForm.fee_cadence !== "termly" && (
                         <div>
                           <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Amount (£ / month)</label>
-                          <input type="number" min="0" step="0.01" value={settingsForm.fee_amount_pounds} onChange={(e) => setSettingsForm((f) => ({ ...f, fee_amount_pounds: e.target.value }))} placeholder="e.g. 30.00" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                          <input type="number" min="0" step="0.01" value={settingsForm.fee_amount_pounds} onChange={(e) => setSettingsForm((f) => ({ ...f, fee_amount_pounds: e.target.value }))} placeholder="e.g. 30.00" className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                         </div>
                       )}
                     </div>
                     {settingsForm.fee_cadence === "free_trial" && (
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Free trial length (days)</label>
-                        <input type="number" min="1" max="90" value={settingsForm.trial_duration_days} onChange={(e) => setSettingsForm((f) => ({ ...f, trial_duration_days: e.target.value }))} className="w-full sm:w-48 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <input type="number" min="1" max="90" value={settingsForm.trial_duration_days} onChange={(e) => setSettingsForm((f) => ({ ...f, trial_duration_days: e.target.value }))} className="w-full sm:w-48 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                         <p className="text-[11px] text-stone-400 mt-1">The card is collected at enrolment; the parent isn't charged until the trial ends (auto-converts). 1–90 days.</p>
                       </div>
                     )}
                     {settingsForm.fee_cadence !== "none" && (
                       <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
-                        <input type="checkbox" checked={!!settingsForm.subscription_pause_enabled} onChange={(e) => setSettingsForm((f) => ({ ...f, subscription_pause_enabled: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500" />
+                        <input type="checkbox" checked={!!settingsForm.subscription_pause_enabled} onChange={(e) => setSettingsForm((f) => ({ ...f, subscription_pause_enabled: e.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-brand-700 focus:ring-brand-500" />
                         <span className="text-sm text-stone-700">Allow pausing this subscription<span className="block text-[11px] text-stone-400">You can pause a family's billing (e.g. over a long holiday) from the Fees tab.</span></span>
                       </label>
                     )}
                     <div className="flex items-center gap-3 flex-wrap">
-                      <button onClick={saveSettings} disabled={savingSettings} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
-                      {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-emerald-700" : "text-rose-600"}`}>{settingsMsg}</span>}
+                      <button onClick={saveSettings} disabled={savingSettings} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save settings</button>
+                      {settingsMsg && <span className={`text-xs ${settingsMsg === "Saved." ? "text-brand-700" : "text-rose-600"}`}>{settingsMsg}</span>}
                     </div>
                     <p className="text-[11px] text-stone-400">Amanah keeps a 2.5% platform fee per payment; the rest goes to your connected Stripe account. This is separate from the one-off fees below.</p>
                   </div>
@@ -962,7 +962,7 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                   <div className="grid md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Fee type</label>
-                      <select value={feeForm.feeType} onChange={(e) => setFeeForm((f) => ({ ...f, feeType: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm">
+                      <select value={feeForm.feeType} onChange={(e) => setFeeForm((f) => ({ ...f, feeType: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 outline-none text-sm">
                         <option value="free">Free</option>
                         <option value="per_term">Per term</option>
                         <option value="per_month">Per month</option>
@@ -971,26 +971,26 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                     </div>
                     <div>
                       <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Amount (£)</label>
-                      <input type="number" min="0" step="0.01" value={feeForm.feeType === "free" ? "" : feeForm.amount} disabled={feeForm.feeType === "free"} onChange={(e) => setFeeForm((f) => ({ ...f, amount: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm disabled:bg-stone-50 disabled:text-stone-400" placeholder={feeForm.feeType === "free" ? "£0" : "e.g. 40"} />
+                      <input type="number" min="0" step="0.01" value={feeForm.feeType === "free" ? "" : feeForm.amount} disabled={feeForm.feeType === "free"} onChange={(e) => setFeeForm((f) => ({ ...f, amount: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 outline-none text-sm disabled:bg-stone-50 disabled:text-stone-400" placeholder={feeForm.feeType === "free" ? "£0" : "e.g. 40"} />
                     </div>
                     <div>
                       <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Term label</label>
-                      <input value={feeForm.termLabel} onChange={(e) => setFeeForm((f) => ({ ...f, termLabel: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm" placeholder="e.g. Autumn 2026" />
+                      <input value={feeForm.termLabel} onChange={(e) => setFeeForm((f) => ({ ...f, termLabel: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 outline-none text-sm" placeholder="e.g. Autumn 2026" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Due date</label>
-                        <input type="date" value={feeForm.dueDate} onChange={(e) => setFeeForm((f) => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm" />
+                        <input type="date" value={feeForm.dueDate} onChange={(e) => setFeeForm((f) => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 outline-none text-sm" />
                       </div>
                       <div>
                         <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Grace (days)</label>
-                        <input type="number" min="0" value={feeForm.gracePeriodDays} onChange={(e) => setFeeForm((f) => ({ ...f, gracePeriodDays: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 outline-none text-sm" />
+                        <input type="number" min="0" value={feeForm.gracePeriodDays} onChange={(e) => setFeeForm((f) => ({ ...f, gracePeriodDays: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 outline-none text-sm" />
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button onClick={createFee} disabled={creatingFee || activeRoster.length === 0} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{creatingFee ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />} Create fee &amp; bill students</button>
-                    {feeMsg && <span className={`text-xs ${feeMsg.startsWith("Fee created") ? "text-emerald-700" : "text-rose-600"}`}>{feeMsg}</span>}
+                    <button onClick={createFee} disabled={creatingFee || activeRoster.length === 0} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{creatingFee ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />} Create fee &amp; bill students</button>
+                    {feeMsg && <span className={`text-xs ${feeMsg.startsWith("Fee created") ? "text-brand-700" : "text-rose-600"}`}>{feeMsg}</span>}
                   </div>
                   <p className="text-[11px] text-stone-400">{activeRoster.length === 0 ? "Enrol students first — a fee bills the enrolled roster." : `Creating a fee bills all ${activeRoster.length} enrolled student${activeRoster.length === 1 ? "" : "s"}. Manage payments on the Fees page.`}</p>
                 </div>
@@ -1014,8 +1014,8 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
                 <div className="absolute bottom-[68px] inset-x-3 bg-white border border-stone-200 rounded-2xl shadow-lg p-2" onClick={(e) => e.stopPropagation()}>
                   <p className="text-[10px] uppercase tracking-wider text-stone-400 px-2 py-1">More</p>
                   {more.map(([v, l, Icon]) => (
-                    <button key={v} onClick={() => { setTab(v); setMoreOpen(false); window.scrollTo({ top: 0 }); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm ${tab === v ? "bg-emerald-50 text-emerald-800 font-medium" : "text-stone-700 hover:bg-stone-50"}`}>
-                      <Icon size={16} className={tab === v ? "text-emerald-700" : "text-stone-400"} /> {l}
+                    <button key={v} onClick={() => { setTab(v); setMoreOpen(false); window.scrollTo({ top: 0 }); }} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm ${tab === v ? "bg-brand-50 text-brand-800 font-medium" : "text-stone-700 hover:bg-stone-50"}`}>
+                      <Icon size={16} className={tab === v ? "text-brand-700" : "text-stone-400"} /> {l}
                     </button>
                   ))}
                 </div>
@@ -1023,13 +1023,13 @@ const MadrasaClassWorkspace = ({ classObj, onMessageParent, mosqueName, onNaviga
             )}
             <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-stone-200 flex">
               {primary.map(([v, l, Icon]) => (
-                <button key={v} onClick={() => { setTab(v); setMoreOpen(false); window.scrollTo({ top: 0 }); }} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${tab === v ? "text-emerald-800" : "text-stone-500"}`}>
-                  <Icon size={20} className={tab === v ? "text-emerald-700" : "text-stone-400"} />
+                <button key={v} onClick={() => { setTab(v); setMoreOpen(false); window.scrollTo({ top: 0 }); }} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${tab === v ? "text-brand-800" : "text-stone-500"}`}>
+                  <Icon size={20} className={tab === v ? "text-brand-700" : "text-stone-400"} />
                   <span className="text-[10px] font-medium">{l}</span>
                 </button>
               ))}
-              <button onClick={() => setMoreOpen((o) => !o)} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${inMore || moreOpen ? "text-emerald-800" : "text-stone-500"}`}>
-                <MoreHorizontal size={20} className={inMore || moreOpen ? "text-emerald-700" : "text-stone-400"} />
+              <button onClick={() => setMoreOpen((o) => !o)} className={`flex-1 flex flex-col items-center gap-0.5 py-2 ${inMore || moreOpen ? "text-brand-800" : "text-stone-500"}`}>
+                <MoreHorizontal size={20} className={inMore || moreOpen ? "text-brand-700" : "text-stone-400"} />
                 <span className="text-[10px] font-medium">More</span>
               </button>
             </nav>
