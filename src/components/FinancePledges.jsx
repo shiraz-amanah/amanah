@@ -25,7 +25,8 @@ const statusOf = (p) => {
   if (paid > 0) return "partial";
   return "outstanding";
 };
-const STATUS = { fulfilled: ["Fulfilled", "bg-emerald-50 text-emerald-800 border-emerald-200"], partial: ["Partial", "bg-amber-50 text-amber-700 border-amber-200"], outstanding: ["Outstanding", "bg-stone-100 text-stone-600 border-stone-200"], overdue: ["Overdue", "bg-rose-50 text-rose-700 border-rose-200"] };
+// Job A: "fulfilled" is a positive status -> success-* (== emerald-* today).
+const STATUS = { fulfilled: ["Fulfilled", "bg-success-50 text-success-800 border-success-200"], partial: ["Partial", "bg-amber-50 text-amber-700 border-amber-200"], outstanding: ["Outstanding", "bg-stone-100 text-stone-600 border-stone-200"], overdue: ["Overdue", "bg-rose-50 text-rose-700 border-rose-200"] };
 const isOpen = (s) => !s.closed_at && (!s.closes_at || new Date(s.closes_at) > new Date());
 
 // ---- Pledge Night live dashboard (QR + realtime running total + feed) ----

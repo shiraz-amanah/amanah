@@ -9,7 +9,8 @@ import { getCoverRequestsForScholar, updateCoverRequestStatus } from "../auth";
 
 const STATUS_CLS = {
   requested: "bg-amber-50 border-amber-200 text-amber-700",
-  confirmed: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  confirmed: "bg-success-50 border-success-200 text-success-700", // Job A: positive status -> success-*
+
   declined: "bg-stone-50 border-stone-200 text-stone-500",
 };
 

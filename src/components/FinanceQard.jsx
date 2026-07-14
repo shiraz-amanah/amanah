@@ -11,7 +11,9 @@ const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-mediu
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
-const STATUS = { active: ["Active", "bg-amber-50 text-amber-700 border-amber-200"], repaid: ["Repaid", "bg-emerald-50 text-emerald-800 border-emerald-200"], written_off: ["Written off", "bg-stone-100 text-stone-500 border-stone-200"] };
+// Job A: "repaid" is a positive status -> success-* (== emerald-* today). Note
+// "active" here means an OUTSTANDING loan (amber), not a positive state — untouched.
+const STATUS = { active: ["Active", "bg-amber-50 text-amber-700 border-amber-200"], repaid: ["Repaid", "bg-success-50 text-success-800 border-success-200"], written_off: ["Written off", "bg-stone-100 text-stone-500 border-stone-200"] };
 const blank = { recipient_name: "", amount: "", loan_date: "", repayment_schedule: "", amount_repaid: "", status: "active", notes: "" };
 
 const FinanceQard = ({ mosqueId }) => {

@@ -17,7 +17,8 @@ const fmtDay = (iso) => new Date(iso).toLocaleDateString("en-GB", { weekday: "sh
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const STATUS = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
-  approved: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  approved: "bg-success-50 text-success-800 border-success-200", // Job A: positive status -> success-*
+
   rejected: "bg-rose-50 text-rose-700 border-rose-200",
   cancelled: "bg-stone-100 text-stone-500 border-stone-200",
 };
