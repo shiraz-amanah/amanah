@@ -8,7 +8,7 @@ import { sendMadrasaAbsenceNotifications } from "../lib/email";
 // or class teacher). Pick a session date, mark each enrolled student, save.
 
 const STATUSES = [
-  ["present", "Present", "bg-emerald-600 border-emerald-600 text-white", "border-stone-300 text-stone-600"],
+  ["present", "Present", "bg-success-600 border-success-600 text-white", "border-stone-300 text-stone-600"],
   ["late", "Late", "bg-amber-500 border-amber-500 text-white", "border-stone-300 text-stone-600"],
   ["absent", "Absent", "bg-rose-600 border-rose-600 text-white", "border-stone-300 text-stone-600"],
   ["excused", "Excused", "bg-stone-500 border-stone-500 text-white", "border-stone-300 text-stone-600"],
@@ -86,7 +86,7 @@ const MadrasaAttendance = ({ classObj, welfareFlags, deliveryMode = "in_person" 
             {welfareFlags?.has(sid) && <AlertTriangle size={13} className="text-amber-500 shrink-0" title="Missed 3+ of last 4 sessions — consider a welfare check" />}
           </p>
           {joined ? (
-            <span className="text-[11px] font-medium text-emerald-700 inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Joined — auto-marked present</span>
+            <span className="text-[11px] font-medium text-success-700 inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-success-500" /> Joined — auto-marked present</span>
           ) : (
             <div className="flex gap-1.5 flex-wrap">
               {STATUSES.map(([v, l, onCls, offCls]) => (
@@ -96,7 +96,7 @@ const MadrasaAttendance = ({ classObj, welfareFlags, deliveryMode = "in_person" 
           )}
         </div>
         {!joined && (m.status === "absent" || m.status === "excused" || m.notes) && (
-          <input value={m.notes} onChange={(e2) => setMark(sid, "notes", e2.target.value)} placeholder="Note (optional)" className="mt-2 w-full text-xs px-3 py-1.5 rounded-lg border border-stone-200 outline-none focus:border-emerald-600" />
+          <input value={m.notes} onChange={(e2) => setMark(sid, "notes", e2.target.value)} placeholder="Note (optional)" className="mt-2 w-full text-xs px-3 py-1.5 rounded-lg border border-stone-200 outline-none focus:border-brand-600" />
         )}
       </li>
     );
@@ -107,10 +107,10 @@ const MadrasaAttendance = ({ classObj, welfareFlags, deliveryMode = "in_person" 
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div>
           <label className="text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1">Session date</label>
-          <input type="date" value={sessionDate} max={todayStr()} onChange={(e) => setSessionDate(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none focus:border-emerald-700" />
+          <input type="date" value={sessionDate} max={todayStr()} onChange={(e) => setSessionDate(e.target.value)} className="px-3 py-2 rounded-lg border border-stone-300 text-sm outline-none focus:border-brand-700" />
         </div>
         {roster.length > 0 && (
-          <button onClick={save} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5 self-end">{saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null} {saved ? "Saved" : "Save attendance"}</button>
+          <button onClick={save} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5 self-end">{saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null} {saved ? "Saved" : "Save attendance"}</button>
         )}
       </div>
 
