@@ -144,17 +144,17 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
                 const active = roomFor?.session?.id === session.id && roomFor?.student?.id === enrollment.student?.id;
                 return (
                   <div key={`${session.id}-${enrollment.id}`}>
-                    <div className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 shadow-sm ring-2 ring-emerald-300/50 p-4 sm:p-5">
+                    <div className="rounded-2xl border-2 border-brand-500 bg-brand-50 shadow-sm ring-2 ring-brand-300/50 p-4 sm:p-5">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm sm:text-base font-bold text-emerald-900 inline-flex items-center gap-2">
-                            <span className="relative flex h-2.5 w-2.5 shrink-0"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" /></span>
+                          <p className="text-sm sm:text-base font-bold text-brand-900 inline-flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5 shrink-0"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-600" /></span>
                             LIVE — {enrollment.class?.name || "your class"} is happening now
                           </p>
                           <p className="text-sm text-stone-700 mt-1">{enrollment.student?.name || "Your child"}{enrollment.class?.mosque?.name ? ` · ${enrollment.class.mosque.name}` : ""}</p>
                         </div>
                         <button onClick={() => setRoomFor(active ? null : { session, student: enrollment.student, className: enrollment.class?.name })} disabled={!session.room_url}
-                          className="bg-emerald-900 hover:bg-emerald-800 disabled:opacity-50 text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2 shrink-0">
+                          className="bg-brand-900 hover:bg-brand-800 disabled:opacity-50 text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center justify-center gap-2 shrink-0">
                           <Video size={17} /> {active ? "Hide lesson" : "Join lesson now"}
                         </button>
                       </div>
@@ -181,7 +181,7 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
             <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4">
               {enrolledChildren.map((c) => (
                 <button key={c.id} onClick={() => setSelectedChildId(c.id)}
-                  className={`shrink-0 px-3.5 py-2 rounded-xl text-sm font-medium border ${selectedChild?.id === c.id ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-200 hover:border-emerald-300"}`}>
+                  className={`shrink-0 px-3.5 py-2 rounded-xl text-sm font-medium border ${selectedChild?.id === c.id ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-200 hover:border-brand-300"}`}>
                   {(c.name || "Child").split(" ")[0]}
                 </button>
               ))}
@@ -239,14 +239,14 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
                   <ul className="space-y-2">
                     {/* Live offer — prominent, time-boxed Accept card */}
                     {offered.map((r) => (
-                      <li key={r.id} className="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4">
-                        <p className="text-sm font-semibold text-emerald-900 inline-flex items-center gap-1.5"><PartyPopper size={15} className="text-emerald-700" /> A place has been offered!</p>
+                      <li key={r.id} className="bg-brand-50 border-2 border-brand-300 rounded-xl p-4">
+                        <p className="text-sm font-semibold text-brand-900 inline-flex items-center gap-1.5"><PartyPopper size={15} className="text-brand-700" /> A place has been offered!</p>
                         <p className="text-sm text-stone-800 mt-1">A place is available for <strong>{r.student?.name || "your child"}</strong> in <strong>{r.class?.name || "a class"}</strong>{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}.</p>
                         {r.offer_expires_at && (
                           <p className="text-[12px] font-medium text-amber-700 mt-1.5 inline-flex items-center gap-1"><Clock size={12} /> Accept before {offerExpiryAbs(r.offer_expires_at)} — {offerCountdown(r.offer_expires_at)}</p>
                         )}
                         <div className="flex items-center gap-2 mt-3">
-                          <button onClick={() => accept(r.id)} disabled={acting === r.id} className="text-sm font-medium bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{acting === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Accept place</button>
+                          <button onClick={() => accept(r.id)} disabled={acting === r.id} className="text-sm font-medium bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{acting === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Accept place</button>
                           <button onClick={() => decline(r.id)} disabled={acting === r.id} className="text-sm font-medium border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 px-3 py-2 rounded-lg disabled:opacity-50">Decline</button>
                         </div>
                       </li>
@@ -255,13 +255,13 @@ const MadrasaParent = ({ section = "madrasa", onBrowse, onMessageTeacher, onNavi
                     {waiting.map((r) => {
                       const next = r.position === 1;
                       return (
-                        <li key={r.id} className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 border ${next ? "bg-emerald-50 border-emerald-200" : "border-stone-100"}`}>
+                        <li key={r.id} className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 border ${next ? "bg-brand-50 border-brand-200" : "border-stone-100"}`}>
                           <div className="min-w-0">
                             <p className="text-sm text-stone-900">
                               <span className="font-semibold">You're #{r.position}</span> on the waiting list for {r.class?.name || "a class"}{r.class?.mosque?.name ? ` at ${r.class.mosque.name}` : ""}
                             </p>
                             <p className="text-[11px] text-stone-500 mt-0.5">{r.student?.name || "Child"}</p>
-                            {next && <p className="text-[11px] font-medium text-emerald-700 mt-1 inline-flex items-center gap-1"><ArrowUpCircle size={12} /> You're next in line — a place could be offered soon.</p>}
+                            {next && <p className="text-[11px] font-medium text-brand-700 mt-1 inline-flex items-center gap-1"><ArrowUpCircle size={12} /> You're next in line — a place could be offered soon.</p>}
                           </div>
                           <button onClick={() => leave(r.id)} disabled={acting === r.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:border-rose-300 hover:text-rose-700 inline-flex items-center gap-1 disabled:opacity-50 shrink-0">{acting === r.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />} Leave waiting list</button>
                         </li>
