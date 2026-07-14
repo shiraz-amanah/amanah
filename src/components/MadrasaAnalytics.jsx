@@ -15,7 +15,7 @@ import MadrasaAcademicCalendar from "./MadrasaAcademicCalendar";
 
 const MS_30D = 30 * 24 * 60 * 60 * 1000;
 const fmtShort = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-const Card = ({ icon: Icon, title, accent = "text-emerald-700", children, right }) => (
+const Card = ({ icon: Icon, title, accent = "text-brand-700", children, right }) => (
   <div className="bg-white border border-stone-200 rounded-2xl p-5">
     <div className="flex items-center justify-between gap-2 mb-3">
       <h4 className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5"><Icon size={15} className={accent} /> {title}</h4>
@@ -128,7 +128,7 @@ const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass, mosque, onMosqu
             <div className="flex items-end gap-1 h-16" title="Present-rate per recent session">
               {att.trend.map(({ d, rate }) => (
                 <div key={d} className="flex-1 flex flex-col items-center justify-end" title={`${fmtShort(d)} · ${rate}%`}>
-                  <div className="w-full bg-emerald-500/80 rounded-t" style={{ height: `${Math.max(4, rate)}%` }} />
+                  <div className="w-full bg-brand-500/80 rounded-t" style={{ height: `${Math.max(4, rate)}%` }} />
                 </div>
               ))}
             </div>
@@ -168,15 +168,15 @@ const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass, mosque, onMosqu
       </div>
 
       {/* Star students / at-risk — computed from records (item 6); the assistant narrates */}
-      <Card icon={Sparkles} title="This month — who to celebrate, who to support" accent="text-emerald-700"
+      <Card icon={Sparkles} title="This month — who to celebrate, who to support" accent="text-brand-700"
         right={<span className="text-[11px] text-stone-400">tap a name to open</span>}>
         <div className="grid sm:grid-cols-2 gap-3">
-          <div className="border border-emerald-100 bg-emerald-50/50 rounded-xl p-3">
-            <p className="text-xs font-semibold text-emerald-900 inline-flex items-center gap-1.5 mb-2"><Star size={13} className="text-amber-500" /> Star students</p>
+          <div className="border border-success-100 bg-success-50/50 rounded-xl p-3">
+            <p className="text-xs font-semibold text-success-900 inline-flex items-center gap-1.5 mb-2"><Star size={13} className="text-amber-500" /> Star students</p>
             {stars.length === 0 ? <p className="text-xs text-stone-500">Not enough activity yet to rank.</p> : (
               <ul className="space-y-1">{stars.map((s, i) => (
                 <li key={s.sid}>
-                  <button onClick={() => onOpenClass?.(s.classId)} className="w-full text-left text-sm text-stone-800 hover:text-emerald-800 inline-flex items-center gap-1.5"><Star size={12} className={i === 0 ? "text-amber-500" : "text-stone-300"} /> {s.name}</button>
+                  <button onClick={() => onOpenClass?.(s.classId)} className="w-full text-left text-sm text-stone-800 hover:text-success-800 inline-flex items-center gap-1.5"><Star size={12} className={i === 0 ? "text-amber-500" : "text-stone-300"} /> {s.name}</button>
                 </li>
               ))}</ul>
             )}
