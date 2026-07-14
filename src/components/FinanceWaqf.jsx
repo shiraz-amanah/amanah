@@ -14,7 +14,7 @@ import { roleLabel } from "./GovernanceCommittee";
 // the Governance committee. Owner-only.
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
@@ -84,7 +84,7 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Waqf</h2>
-        <p className="text-sm text-stone-600"><span className="text-stone-900 font-medium">{money(totalPrincipal)}</span> endowed (protected) · <span className="text-emerald-700 font-medium">{money(totalAvailable)}</span> yield available for distribution.</p>
+        <p className="text-sm text-stone-600"><span className="text-stone-900 font-medium">{money(totalPrincipal)}</span> endowed (protected) · <span className="text-brand-700 font-medium">{money(totalAvailable)}</span> yield available for distribution.</p>
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
       {loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={22} className="animate-spin" /></div> : (
@@ -92,8 +92,8 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
           {/* Asset register */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Gem size={16} className="text-emerald-700" /> Waqf asset register</h3>
-              {!showA && <button onClick={() => setShowA(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Add asset</button>}
+              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Gem size={16} className="text-brand-700" /> Waqf asset register</h3>
+              {!showA && <button onClick={() => setShowA(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Add asset</button>}
             </div>
             {showA && (
               <div className={cardCls + " mb-3"}>
@@ -110,7 +110,7 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
                   </div>
                   <div><label className={labelCls}>Description / yield notes</label><textarea rows={2} className={inputCls + " resize-none"} value={af.description} onChange={(e) => setAf({ ...af, description: e.target.value })} /></div>
                   <div className="flex gap-2">
-                    <button onClick={saveAsset} disabled={aBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{aBusy ? <Loader2 size={14} className="animate-spin" /> : aEditing ? <Check size={14} /> : <Plus size={14} />} {aEditing ? "Update" : "Add asset"}</button>
+                    <button onClick={saveAsset} disabled={aBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{aBusy ? <Loader2 size={14} className="animate-spin" /> : aEditing ? <Check size={14} /> : <Plus size={14} />} {aEditing ? "Update" : "Add asset"}</button>
                     <button onClick={() => { setAf(blankAsset); setAEditing(null); setShowA(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2"><X size={14} className="inline" /> Cancel</button>
                   </div>
                 </div>
@@ -130,16 +130,16 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
                           {a.purpose && <p className="text-xs text-stone-500 mt-0.5">{a.purpose}{a.donor_name ? ` · endowed by ${a.donor_name}` : ""}{a.endowed_date ? ` · ${fmtDate(a.endowed_date)}` : ""}</p>}
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
-                          <button onClick={() => downloadWaqfCertificate({ donorName: a.donor_name, amount: a.principal_amount, purpose: a.purpose, mosqueName, date: a.endowed_date })} title="Waqf certificate (PDF)" className="text-stone-400 hover:text-emerald-700 p-1"><Award size={14} /></button>
-                          <button onClick={() => editAsset(a)} className="text-stone-400 hover:text-emerald-700 p-1"><Pencil size={13} /></button>
+                          <button onClick={() => downloadWaqfCertificate({ donorName: a.donor_name, amount: a.principal_amount, purpose: a.purpose, mosqueName, date: a.endowed_date })} title="Waqf certificate (PDF)" className="text-stone-400 hover:text-brand-700 p-1"><Award size={14} /></button>
+                          <button onClick={() => editAsset(a)} className="text-stone-400 hover:text-brand-700 p-1"><Pencil size={13} /></button>
                           <button onClick={() => removeAsset(a.id)} className="text-stone-400 hover:text-rose-700 p-1"><Trash2 size={13} /></button>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mt-3">
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
-                          <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium flex items-center gap-1"><ShieldCheck size={11} /> Principal</p>
+                        <div className="bg-brand-50 border border-brand-100 rounded-lg p-2.5">
+                          <p className="text-[10px] uppercase tracking-wider text-brand-700 font-medium flex items-center gap-1"><ShieldCheck size={11} /> Principal</p>
                           <p className="text-base font-semibold text-stone-900 mt-0.5">{money(a.principal_amount)}</p>
-                          <p className="text-[10px] text-emerald-700">protected · never spent</p>
+                          <p className="text-[10px] text-brand-700">protected · never spent</p>
                         </div>
                         <div className="bg-stone-50 border border-stone-100 rounded-lg p-2.5">
                           <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium">Yield generated</p>
@@ -148,7 +148,7 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
                         </div>
                         <div className="bg-white border border-stone-200 rounded-lg p-2.5">
                           <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium">Available</p>
-                          <p className="text-base font-semibold text-emerald-700 mt-0.5">{money(available)}</p>
+                          <p className="text-base font-semibold text-brand-700 mt-0.5">{money(available)}</p>
                           <p className="text-[10px] text-stone-400">for distribution</p>
                         </div>
                       </div>
@@ -162,8 +162,8 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
           {/* Waqf campaigns */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Sparkles size={16} className="text-emerald-700" /> Waqf campaigns</h3>
-              {!showC && <button onClick={() => setShowC(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> New campaign</button>}
+              <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Sparkles size={16} className="text-brand-700" /> Waqf campaigns</h3>
+              {!showC && <button onClick={() => setShowC(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> New campaign</button>}
             </div>
             {showC && (
               <div className={cardCls + " mb-3"}>
@@ -175,7 +175,7 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
                   </div>
                   <div><label className={labelCls}>Description</label><textarea rows={2} className={inputCls + " resize-none"} value={cf.description} onChange={(e) => setCf({ ...cf, description: e.target.value })} /></div>
                   <div className="flex gap-2">
-                    <button onClick={saveCamp} disabled={cBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{cBusy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} {cEditing ? "Update" : "Create campaign"}</button>
+                    <button onClick={saveCamp} disabled={cBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{cBusy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} {cEditing ? "Update" : "Create campaign"}</button>
                     <button onClick={() => { setCf(blankCamp); setCEditing(null); setShowC(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2"><X size={14} className="inline" /> Cancel</button>
                   </div>
                 </div>
@@ -185,12 +185,12 @@ const FinanceWaqf = ({ mosqueId, mosqueName }) => {
               <div className="space-y-2">
                 {campaigns.map((c) => (
                   <div key={c.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0"><Gem size={15} /></span>
+                    <span className="w-9 h-9 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0"><Gem size={15} /></span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-900 truncate">{c.name}{c.target_amount ? <span className="text-stone-400 font-normal"> · target {money(c.target_amount)}</span> : ""}</p>
                       {c.description && <p className="text-xs text-stone-500 line-clamp-1">{c.description}</p>}
                     </div>
-                    <button onClick={() => { setCEditing(c.id); setCf({ name: c.name, description: c.description || "", target_amount: c.target_amount ?? "", deadline: c.deadline || "" }); setShowC(true); }} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+                    <button onClick={() => { setCEditing(c.id); setCf({ name: c.name, description: c.description || "", target_amount: c.target_amount ?? "", deadline: c.deadline || "" }); setShowC(true); }} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
                     <button onClick={async () => { const { error } = await deleteFinanceCampaign(c.id); if (error) setErr(error.message); else refresh(); }} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
                   </div>
                 ))}
