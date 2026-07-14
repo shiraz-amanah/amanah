@@ -116,7 +116,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
           <ShieldCheck className="mx-auto text-stone-300 mb-4" size={36} />
           <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No active staff record</h2>
           <p className="text-sm text-stone-600 mb-5">Your staff access isn't active yet. Ask your mosque admin to send or re-send your invite.</p>
-          <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
+          <button onClick={onPublic} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
         </div>
       </div>
     );
@@ -127,8 +127,8 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between gap-3">
           <button onClick={onPublic} className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md">
-              <ShieldCheck className="text-emerald-50" size={18} />
+            <div className="w-9 h-9 rounded-xl bg-brand-700 flex items-center justify-center shadow-md">
+              <ShieldCheck className="text-brand-50" size={18} />
             </div>
             <div className="text-left">
               <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
@@ -143,7 +143,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
             const active = tab === t.v;
             return (
               <button key={t.v} onClick={() => setTab(t.v)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${active ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${active ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
                 <span className="flex items-center gap-1.5"><Icon size={14} /> {t.l}</span>
               </button>
             );
@@ -170,7 +170,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
               <h3 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><CalendarDays size={15} /> This week's shifts</h3>
               {rotaLoading ? <div className="flex justify-center py-4 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>
                 : myShifts.length === 0 ? <p className="text-sm text-stone-500">No shifts assigned to you this week.</p>
-                : <ul className="text-sm text-stone-700 space-y-1">{myShifts.map((s, i) => <li key={i} className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-600" /> {s.dayLabel} — {s.slotLabel}</li>)}</ul>}
+                : <ul className="text-sm text-stone-700 space-y-1">{myShifts.map((s, i) => <li key={i} className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-brand-600" /> {s.dayLabel} — {s.slotLabel}</li>)}</ul>}
             </div>
             <p className="text-xs text-stone-400">A personalised daily briefing arrives here soon.</p>
           </div>
@@ -211,7 +211,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
               <div className="space-y-2">
                 {teacherClasses.map((c) => (
                   <button key={c.id} onClick={() => setSelectedClass(c)} className="w-full flex items-center gap-3 bg-white border border-stone-200 hover:border-stone-300 rounded-2xl p-4 text-left">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-emerald-700" /></div>
+                    <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0"><GraduationCap size={18} className="text-brand-700" /></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-900 truncate">{c.name}</p>
                       <p className="text-xs text-stone-500 capitalize">{c.subject}{c.room ? ` · ${c.room}` : ""}</p>
@@ -237,7 +237,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
                     <li key={t.id} className="py-2.5 flex items-center justify-between text-sm gap-3">
                       <span className="font-medium text-stone-800">Week of {t.week_start}</span>
                       <span className="text-stone-600">{t.hours ?? "—"} hrs</span>
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full border ${t.status === "approved" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{t.status || "pending"}</span>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full border ${t.status === "approved" ? "bg-success-50 border-success-200 text-success-700" : "bg-stone-50 border-stone-200 text-stone-500"}`}>{t.status || "pending"}</span>
                     </li>
                   ))}</ul>}
             </div>
