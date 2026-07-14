@@ -7669,10 +7669,10 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
         {onAudience ? (
           <div className="mt-5 text-center text-xs text-stone-500">
             {isMosque
-              ? <>Not a mosque? <button onClick={() => onAudience("user")} className="text-brand-800 font-medium hover:underline">Parent</button> or <button onClick={() => onAudience("scholar")} className="text-brand-800 font-medium hover:underline">staff</button> sign-in.</>
+              ? <>Not a mosque? <button onClick={() => onAudience("user")} className="text-brand-800 font-medium hover:underline">Parent</button> or <button onClick={() => onAudience("scholar")} className="text-brand-800 font-medium hover:underline">Staff / Employee</button> sign-in.</>
               : isScholar
-                ? <>Not staff? <button onClick={() => onAudience("mosque")} className="text-brand-800 font-medium hover:underline">Mosque</button> or <button onClick={() => onAudience("user")} className="text-brand-800 font-medium hover:underline">parent</button> sign-in.</>
-                : <>Are you a <button onClick={() => onAudience("mosque")} className="text-brand-800 font-medium hover:underline">mosque</button> or <button onClick={() => onAudience("scholar")} className="text-brand-800 font-medium hover:underline">staff member</button>? Different sign-in.</>}
+                ? <>Not Staff / Employee? <button onClick={() => onAudience("mosque")} className="text-brand-800 font-medium hover:underline">Mosque</button> or <button onClick={() => onAudience("user")} className="text-brand-800 font-medium hover:underline">parent</button> sign-in.</>
+                : <>Are you a <button onClick={() => onAudience("mosque")} className="text-brand-800 font-medium hover:underline">mosque</button> or <button onClick={() => onAudience("scholar")} className="text-brand-800 font-medium hover:underline">Staff / Employee</button>? Different sign-in.</>}
           </div>
         ) : (<>
         {!skipsInterest && (
