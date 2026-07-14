@@ -134,7 +134,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
           <Building2 className="mx-auto text-stone-300 mb-4" size={36} />
           <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No mosque linked</h2>
           <p className="text-sm text-stone-600 mb-5">Sign in via the Mosque path on the audience drawer to apply or access your mosque dashboard.</p>
-          <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
+          <button onClick={onPublic} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
             Browse Amanah
           </button>
         </div>
@@ -181,14 +181,14 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3.5 md:py-4 flex items-center justify-between gap-3">
           <button onClick={onPublic} className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md">
-              <ShieldCheck className="text-emerald-50" size={18} />
+            <div className="w-9 h-9 rounded-xl bg-brand-700 flex items-center justify-center shadow-md">
+              <ShieldCheck className="text-brand-50" size={18} />
             </div>
             <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
           </button>
           <div className="flex items-center gap-1.5">
             {mosque.status === "active" ? (
-              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-success-50 border border-success-200 text-success-800 rounded-full font-medium uppercase tracking-wider">
                 <CheckCircle2 size={10} /> Live
               </span>
             ) : mosque.status === "pending_verification" ? (
@@ -214,7 +214,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
 
         <main className="flex-1 min-w-0">
           {gated && perms.loading ? (
-            <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-emerald-700" size={26} /></div>
+            <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-brand-700" size={26} /></div>
           ) : !tabAllowed ? (
             <AccessDeniedPanel />
           ) : (

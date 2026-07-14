@@ -105,17 +105,17 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0, groups = M
             return (
               <div key={g.tab}>
                 <button onClick={() => headerClick(g)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${active && !hasItems ? "bg-emerald-50 text-emerald-800" : active ? "text-emerald-800" : "text-stone-700 hover:bg-stone-100"}`}>
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${active && !hasItems ? "bg-brand-50 text-brand-800" : active ? "text-brand-800" : "text-stone-700 hover:bg-stone-100"}`}>
                   <Icon size={16} className="shrink-0" />
                   <span className="flex-1 text-left">{g.label}</span>
-                  {g.tab === "messages" && unread > 0 && <span className="shrink-0 bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{unread > 9 ? "9+" : unread}</span>}
+                  {g.tab === "messages" && unread > 0 && <span className="shrink-0 bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{unread > 9 ? "9+" : unread}</span>}
                   {hasItems && <ChevronDown size={14} onClick={(e) => { e.stopPropagation(); toggle(g.tab); }} className={`shrink-0 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />}
                 </button>
                 {hasItems && isOpen && (
                   <div className="mt-0.5 mb-1 ml-3 pl-3 border-l border-stone-200 space-y-0.5">
                     {g.items.map(([v, l, ItemIcon]) => (
                       <button key={v} onClick={() => onSelect(g.tab, v)}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${leafActive(g, v) ? "bg-emerald-50 text-emerald-800 font-medium" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"}`}>
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${leafActive(g, v) ? "bg-brand-50 text-brand-800 font-medium" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"}`}>
                         <ItemIcon size={14} className="shrink-0" /> {l}
                       </button>
                     ))}
@@ -141,10 +141,10 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0, groups = M
             const active = groupActive(g);
             return (
               <button key={g.tab} onClick={() => headerClick(g)} title={g.label}
-                className={`relative shrink-0 flex flex-col items-center gap-1 w-[68px] px-2 py-2 rounded-lg ${active ? "bg-emerald-50 text-emerald-800" : "text-stone-500 hover:bg-stone-100"}`}>
+                className={`relative shrink-0 flex flex-col items-center gap-1 w-[68px] px-2 py-2 rounded-lg ${active ? "bg-brand-50 text-brand-800" : "text-stone-500 hover:bg-stone-100"}`}>
                 <Icon size={18} />
                 <span className="text-[10px] font-medium">{g.label}</span>
-                {g.tab === "messages" && unread > 0 && <span className="absolute top-1 right-2 bg-emerald-600 text-white text-[9px] font-semibold min-w-[15px] h-[15px] px-1 rounded-full flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
+                {g.tab === "messages" && unread > 0 && <span className="absolute top-1 right-2 bg-brand-600 text-white text-[9px] font-semibold min-w-[15px] h-[15px] px-1 rounded-full flex items-center justify-center">{unread > 9 ? "9+" : unread}</span>}
               </button>
             );
           })}
@@ -157,7 +157,7 @@ const MosqueSidebar = ({ nav, onSelect, onLogout, mosque, unread = 0, groups = M
           <div className="flex gap-1 overflow-x-auto scrollbar-hide py-1 mt-1 border-t border-stone-100">
             {activeGroup.items.map(([v, l, ItemIcon]) => (
               <button key={v} onClick={() => onSelect(activeGroup.tab, v)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ${leafActive(activeGroup, v) ? "bg-emerald-50 text-emerald-800 font-medium" : "text-stone-600 hover:bg-stone-100"}`}>
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ${leafActive(activeGroup, v) ? "bg-brand-50 text-brand-800 font-medium" : "text-stone-600 hover:bg-stone-100"}`}>
                 <ItemIcon size={14} /> {l}
               </button>
             ))}
