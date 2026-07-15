@@ -141,7 +141,7 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider">Bulk import staff (remote onboarding)</h3>
         <div className="flex items-center gap-2">
-          <button onClick={downloadTemplate} className="text-xs text-emerald-800 hover:underline inline-flex items-center gap-1"><Download size={12} /> Template</button>
+          <button onClick={downloadTemplate} className="text-xs text-brand-800 hover:underline inline-flex items-center gap-1"><Download size={12} /> Template</button>
           {onClose && <button onClick={onClose} className="text-stone-400 hover:text-stone-700"><X size={16} /></button>}
         </div>
       </div>
@@ -149,7 +149,7 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
 
       {!result && (
         <>
-          <label className="flex items-center justify-center gap-2 border border-dashed border-stone-300 hover:border-emerald-500 rounded-xl py-4 cursor-pointer text-sm text-stone-600">
+          <label className="flex items-center justify-center gap-2 border border-dashed border-stone-300 hover:border-brand-500 rounded-xl py-4 cursor-pointer text-sm text-stone-600">
             <Upload size={16} /> Choose a CSV file
             <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
           </label>
@@ -192,7 +192,7 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
                 </div>
               </div>
               {rows.length > 6 && <p className="text-xs text-stone-400">+ {rows.length - 6} more rows</p>}
-              <button onClick={doImport} disabled={importing || validRows.length === 0} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Import {validRows.length} staff</button>
+              <button onClick={doImport} disabled={importing || validRows.length === 0} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Import {validRows.length} staff</button>
             </div>
           )}
         </>
@@ -203,10 +203,10 @@ const MosqueBulkImport = ({ mosqueId, onDone, onClose }) => {
           <p className="text-sm text-stone-800"><strong>{result.created.length} imported</strong>{result.skipped.length ? `, ${result.skipped.length} skipped` : ""}.</p>
           {result.skipped.length > 0 && <ul className="text-xs text-stone-500 list-disc pl-5">{result.skipped.slice(0, 8).map((s, i) => <li key={i}>{s.name} — {s.reason}</li>)}</ul>}
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={inviteAll} disabled={inviteBusy || result.created.length === 0} className="border border-emerald-300 text-emerald-800 hover:bg-emerald-50 disabled:opacity-50 text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1.5">{inviteBusy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send onboarding links</button>
+            <button onClick={inviteAll} disabled={inviteBusy || result.created.length === 0} className="border border-brand-300 text-brand-800 hover:bg-brand-50 disabled:opacity-50 text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1.5">{inviteBusy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Send onboarding links</button>
             {onClose && <button onClick={onClose} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Done</button>}
           </div>
-          {inviteMsg && <p className={`text-sm ${inviteTone === "warn" ? "text-amber-700" : "text-emerald-700"}`}>{inviteMsg}</p>}
+          {inviteMsg && <p className={`text-sm ${inviteTone === "warn" ? "text-amber-700" : "text-brand-700"}`}>{inviteMsg}</p>}
         </div>
       )}
     </div>
