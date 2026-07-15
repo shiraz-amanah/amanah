@@ -15,7 +15,7 @@ import { sendFacilityBookingConfirmed, sendFacilityBookingCancelled } from "../l
 // as a friendly message. Emails fire client-side (send-transactional intents).
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const money = (v) => (v == null ? null : `£${Number(v).toFixed(2)}`);
 const fmtDay = (iso) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -112,8 +112,8 @@ const MosqueBookings = ({ mosqueId }) => {
   const approvedByDay = approved.reduce((acc, b) => { (acc[dayKey(b.start_at)] ||= []).push(b); return acc; }, {});
 
   const Tab = ({ id, label, icon: Icon, count }) => (
-    <button onClick={() => setSection(id)} className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium ${section === id ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "text-stone-600 hover:bg-stone-100"}`}>
-      <Icon size={15} /> {label}{count > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{count}</span>}
+    <button onClick={() => setSection(id)} className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium ${section === id ? "bg-brand-50 text-brand-800 border border-brand-200" : "text-stone-600 hover:bg-stone-100"}`}>
+      <Icon size={15} /> {label}{count > 0 && <span className="bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{count}</span>}
     </button>
   );
 
@@ -162,7 +162,7 @@ const MosqueBookings = ({ mosqueId }) => {
                     </div>
                   ) : (
                     <div className="flex gap-2 mt-3">
-                      <button onClick={() => approve(b)} disabled={busyId === b.id} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busyId === b.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve</button>
+                      <button onClick={() => approve(b)} disabled={busyId === b.id} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busyId === b.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve</button>
                       <button onClick={() => { setRejecting(b.id); setRejectNote(""); }} className="border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><X size={14} /> Reject</button>
                     </div>
                   )}
@@ -186,7 +186,7 @@ const MosqueBookings = ({ mosqueId }) => {
                   <div className="space-y-2">
                     {list.map((b) => (
                       <div key={b.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-                        <div className="w-1.5 h-10 rounded-full bg-emerald-500 shrink-0" />
+                        <div className="w-1.5 h-10 rounded-full bg-brand-500 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-stone-900 truncate">{b.facility?.name} <span className="text-stone-400 font-normal">· {b.purpose}</span></p>
                           <p className="text-xs text-stone-500">{fmtTime(b.start_at)}–{fmtTime(b.end_at)} · {b.requester_name}{b.attendees ? ` · ${b.attendees} attending` : ""}</p>
@@ -203,7 +203,7 @@ const MosqueBookings = ({ mosqueId }) => {
           {/* ---- Facilities ---- */}
           {section === "facilities" && (
             <div className="space-y-4">
-              {!showFac && <button onClick={() => setShowFac(true)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add facility</button>}
+              {!showFac && <button onClick={() => setShowFac(true)} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add facility</button>}
               {showFac && (
                 <div className={cardCls}>
                   <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">{facEditing ? "Edit facility" : "New facility"}</h3>
@@ -215,7 +215,7 @@ const MosqueBookings = ({ mosqueId }) => {
                       <div><label className={labelCls}>Hourly rate (£, blank = free)</label><input type="number" min="0" step="0.01" className={inputCls} value={fac.hourly_rate} onChange={(e) => setFac({ ...fac, hourly_rate: e.target.value })} /></div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={saveFac} disabled={facBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{facBusy ? <Loader2 size={14} className="animate-spin" /> : facEditing ? <Check size={14} /> : <Plus size={14} />} {facEditing ? "Update" : "Add facility"}</button>
+                      <button onClick={saveFac} disabled={facBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{facBusy ? <Loader2 size={14} className="animate-spin" /> : facEditing ? <Check size={14} /> : <Plus size={14} />} {facEditing ? "Update" : "Add facility"}</button>
                       <button onClick={() => { setFac(blankFac); setFacEditing(null); setShowFac(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
                     </div>
                   </div>
@@ -231,7 +231,7 @@ const MosqueBookings = ({ mosqueId }) => {
                         {f.description && <p className="text-xs text-stone-500 mt-0.5 line-clamp-1">{f.description}</p>}
                       </div>
                       <button onClick={() => toggleFacActive(f)} title={f.active ? "Archive" : "Restore"} className="text-stone-400 hover:text-stone-700 p-1.5">{f.active ? <Archive size={14} /> : <ArchiveRestore size={14} />}</button>
-                      <button onClick={() => editFac(f)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+                      <button onClick={() => editFac(f)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
                       <button onClick={() => removeFac(f)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
                     </div>
                   ))}
