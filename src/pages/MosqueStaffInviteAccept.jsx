@@ -175,7 +175,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
     return (
       <Frame>
         <div className="text-center">
-          <Loader2 className="mx-auto text-emerald-700 animate-spin mb-4" size={36} />
+          <Loader2 className="mx-auto text-brand-700 animate-spin mb-4" size={36} />
           <p className="text-sm text-stone-600">{labels[phase]}</p>
         </div>
       </Frame>
@@ -191,7 +191,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
           <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Invite unavailable</h2>
           <p className="text-sm text-stone-600 mb-2">{reasonText(reason, 'This invite link isn’t valid.')}</p>
           <p className="text-[11px] text-stone-400 font-mono break-all mb-5">Reason: {reason}</p>
-          <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
+          <button onClick={onBrowse} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
         </div>
       </Frame>
     );
@@ -201,7 +201,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
     return (
       <Frame>
         <div className="text-center">
-          <Mail className="mx-auto text-emerald-700 mb-4" size={36} />
+          <Mail className="mx-auto text-brand-700 mb-4" size={36} />
           <h2 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Check your email</h2>
           <p className="text-sm text-stone-600 mb-2">
             We've sent a verification email to <strong className="text-stone-900">{invite?.invitee_email}</strong>.
@@ -224,7 +224,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
             You're signed in as <strong className="text-stone-900">{session?.user?.email}</strong>, but this invite is for <strong className="text-stone-900">{invite?.invitee_email}</strong>.
           </p>
           <p className="text-sm text-stone-600 mb-5">Sign out and try again with the invited email address.</p>
-          <button onClick={handleSignOutAndRetry} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Sign out and continue</button>
+          <button onClick={handleSignOutAndRetry} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Sign out and continue</button>
         </div>
       </Frame>
     );
@@ -242,7 +242,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
             {acceptResult?.code && <p className="text-[11px] text-stone-400 font-mono break-all">Code: {acceptResult.code}</p>}
             {acceptResult?.message && <p className="text-[11px] text-stone-500 font-mono break-all">{acceptResult.message}</p>}
           </div>
-          <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
+          <button onClick={onBrowse} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
         </div>
       </Frame>
     );
@@ -252,7 +252,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
     return (
       <Frame>
         <div className="text-center">
-          <CheckCircle2 className="mx-auto text-emerald-700 mb-4" size={40} />
+          <CheckCircle2 className="mx-auto text-brand-700 mb-4" size={40} />
           <h2 className="text-xl md:text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>You're in</h2>
           <p className="text-sm text-stone-600 mb-4">
             Welcome to <strong className="text-stone-900">{invite?.mosque_name}</strong>. You've joined as <strong>{invite?.role}</strong>.
@@ -263,7 +263,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
               Your status is set to <code className="font-mono text-[11px]">pending_rtw</code>. The RTW form ships in the next release; your mosque admin will let you know when it's live.
             </p>
           </div>
-          <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
+          <button onClick={onBrowse} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
         </div>
       </Frame>
     );
@@ -273,7 +273,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
   return (
     <Frame wide>
       <div className="text-center mb-5">
-        <ShieldCheck className="mx-auto text-emerald-700 mb-3" size={32} />
+        <ShieldCheck className="mx-auto text-brand-700 mb-3" size={32} />
         <h2 className="text-xl md:text-2xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>You've been invited</h2>
         <p className="text-sm text-stone-600">
           to join <strong className="text-stone-900">{invite?.mosque_name}</strong> as <strong>{invite?.role}</strong>.
@@ -305,7 +305,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Yusuf Ali"
-            className="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:border-transparent"
+            className="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 focus:border-transparent"
           />
         </Field>
 
@@ -317,7 +317,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:border-transparent"
+            className="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-700 focus:border-transparent"
           />
         </Field>
 
@@ -330,7 +330,7 @@ export default function MosqueStaffInviteAccept({ token, onBrowse }) {
 
         <button
           type="submit"
-          className="w-full bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium"
+          className="w-full bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium"
         >
           Create account & accept invite
         </button>
