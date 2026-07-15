@@ -73,10 +73,10 @@ const GeofenceCard = ({ mosque, onCheckedIn }) => {
   const enable = () => { try { localStorage.setItem(GEO_OPTIN_KEY, "1"); } catch {} setOptIn(true); requestLocation(); };
   const retry = () => { fired.current = false; setResult(null); requestLocation(); };
 
-  const wrap = "bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-5";
+  const wrap = "bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-5";
   const heading = (
-    <p className="text-sm font-semibold text-emerald-900 flex items-center gap-1.5">
-      <Radio size={15} className="text-emerald-600" /> {session.name} is open at {mosque.name}
+    <p className="text-sm font-semibold text-brand-900 flex items-center gap-1.5">
+      <Radio size={15} className="text-brand-600" /> {session.name} is open at {mosque.name}
     </p>
   );
 
@@ -84,7 +84,7 @@ const GeofenceCard = ({ mosque, onCheckedIn }) => {
   if (result === "checked" || result === "already") return (
     <div className={wrap}>
       {heading}
-      <p className="text-sm text-emerald-800 mt-2 inline-flex items-center gap-1.5"><CheckCircle2 size={15} /> {result === "already" ? "You're already checked in." : "You're checked in via your location."}</p>
+      <p className="text-sm text-brand-800 mt-2 inline-flex items-center gap-1.5"><CheckCircle2 size={15} /> {result === "already" ? "You're already checked in." : "You're checked in via your location."}</p>
     </div>
   );
 
@@ -94,18 +94,18 @@ const GeofenceCard = ({ mosque, onCheckedIn }) => {
       {!optIn ? (
         <>
           <p className="text-xs text-stone-600 mt-1 mb-3">Enable location to check in automatically when you arrive — no need to scan.</p>
-          <button onClick={enable} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Navigation size={14} /> Enable location check-in</button>
+          <button onClick={enable} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Navigation size={14} /> Enable location check-in</button>
         </>
       ) : status === "requesting" || busy ? (
         <p className="text-sm text-stone-500 mt-2 inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Checking your location…</p>
       ) : status === "denied" ? (
-        <p className="text-xs text-stone-600 mt-2">Location access is blocked. Enable it in your browser settings, then <button onClick={retry} className="text-emerald-800 hover:underline">try again</button>. You can still check in by scanning the QR at the entrance.</p>
+        <p className="text-xs text-stone-600 mt-2">Location access is blocked. Enable it in your browser settings, then <button onClick={retry} className="text-brand-800 hover:underline">try again</button>. You can still check in by scanning the QR at the entrance.</p>
       ) : status === "unsupported" ? (
         <p className="text-xs text-stone-600 mt-2">Your device doesn't support location. Scan the QR at the entrance to check in.</p>
       ) : result === "far" ? (
-        <p className="text-xs text-stone-600 mt-2">You're about {distance}m away — you'll be checked in automatically when you're within {GEOFENCE_METRES}m. <button onClick={retry} className="text-emerald-800 hover:underline">Check again</button></p>
+        <p className="text-xs text-stone-600 mt-2">You're about {distance}m away — you'll be checked in automatically when you're within {GEOFENCE_METRES}m. <button onClick={retry} className="text-brand-800 hover:underline">Check again</button></p>
       ) : result === "error" ? (
-        <p className="text-xs text-rose-700 mt-2">Couldn't check you in. <button onClick={retry} className="text-emerald-800 hover:underline">Try again</button></p>
+        <p className="text-xs text-rose-700 mt-2">Couldn't check you in. <button onClick={retry} className="text-brand-800 hover:underline">Try again</button></p>
       ) : (
         <p className="text-sm text-stone-500 mt-2 inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Locating…</p>
       )}
@@ -181,7 +181,7 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
       {memberships.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
           {memberships.map((m) => (
-            <button key={m.id} onClick={() => setActiveId(m.mosque_id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium ${m.mosque_id === activeId ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "text-stone-600 hover:bg-stone-100"}`}>
+            <button key={m.id} onClick={() => setActiveId(m.mosque_id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium ${m.mosque_id === activeId ? "bg-brand-50 text-brand-800 border border-brand-200" : "text-stone-600 hover:bg-stone-100"}`}>
               {m.mosque?.name || "Mosque"}
             </button>
           ))}
@@ -192,13 +192,13 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
       <div className={cardCls}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wider text-emerald-700 font-semibold inline-flex items-center gap-1"><CheckCircle2 size={12} /> Community member</p>
+            <p className="text-[11px] uppercase tracking-wider text-brand-700 font-semibold inline-flex items-center gap-1"><CheckCircle2 size={12} /> Community member</p>
             <h2 className="text-xl md:text-2xl font-semibold text-stone-900 tracking-tight mt-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{active.mosque?.name || "Your mosque"}</h2>
             {active.mosque?.city && <p className="text-sm text-stone-500 mt-0.5 inline-flex items-center gap-1"><MapPin size={13} /> {active.mosque.city}</p>}
             <p className="text-xs text-stone-400 mt-1">Member since {fmtDate(active.joined_at)}</p>
           </div>
           {active.mosque?.slug && onViewMosque && (
-            <button onClick={() => onViewMosque(active.mosque.slug)} className="shrink-0 text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1">View profile <ExternalLink size={13} /></button>
+            <button onClick={() => onViewMosque(active.mosque.slug)} className="shrink-0 text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1">View profile <ExternalLink size={13} /></button>
           )}
         </div>
       </div>
@@ -216,7 +216,7 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Upcoming events (read-only) */}
             <div className={cardCls}>
-              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Calendar size={15} className="text-emerald-700" /> Upcoming events</p>
+              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Calendar size={15} className="text-brand-700" /> Upcoming events</p>
               {events.length ? (
                 <div className="space-y-3">
                   {events.map((e) => (
@@ -228,7 +228,7 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
                       <div className="flex gap-1 mt-1.5 ml-16">
                         {RSVP_OPTS.map(([val, label]) => (
                           <button key={val} onClick={() => onRsvp(e.id, val)}
-                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${rsvps[e.id] === val ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-stone-600 border-stone-300 hover:border-emerald-400"}`}>
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${rsvps[e.id] === val ? "bg-brand-600 text-white border-brand-600" : "bg-white text-stone-600 border-stone-300 hover:border-brand-400"}`}>
                             {label}
                           </button>
                         ))}
@@ -241,7 +241,7 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
 
             {/* Announcements */}
             <div className={cardCls}>
-              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Megaphone size={15} className="text-emerald-700" /> Announcements</p>
+              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Megaphone size={15} className="text-brand-700" /> Announcements</p>
               {announcements.length ? (
                 <div className="space-y-2">
                   {announcements.slice(0, 4).map((a) => (
@@ -256,7 +256,7 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
 
             {/* Your attendance */}
             <div className={cardCls}>
-              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><QrCode size={15} className="text-emerald-700" /> Your attendance ({myAttendance.length})</p>
+              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><QrCode size={15} className="text-brand-700" /> Your attendance ({myAttendance.length})</p>
               {myAttendance.length ? (
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {myAttendance.map((a) => {
@@ -275,7 +275,7 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
 
             {/* Your groups */}
             <div className={cardCls}>
-              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><UsersRound size={15} className="text-emerald-700" /> Your groups</p>
+              <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><UsersRound size={15} className="text-brand-700" /> Your groups</p>
               {myGroups.length ? (
                 <div className="flex flex-wrap gap-1.5">
                   {myGroups.map((g) => <span key={g.group_id} className="text-xs px-2.5 py-1 rounded-full bg-stone-100 text-stone-700">{g.group_name}</span>)}
@@ -291,10 +291,10 @@ const CommunityMember = ({ onBrowse, onViewMosque }) => {
 
       {/* Marketplace CTA + donations placeholder */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button onClick={onBrowse} className="bg-emerald-900 hover:bg-emerald-800 text-white rounded-2xl p-5 text-left flex items-center justify-between gap-3">
+        <button onClick={onBrowse} className="bg-brand-900 hover:bg-brand-800 text-white rounded-2xl p-5 text-left flex items-center justify-between gap-3">
           <span>
             <span className="block text-sm font-semibold">Book a scholar</span>
-            <span className="block text-xs text-emerald-100 mt-0.5">Find a verified scholar for yourself or your family.</span>
+            <span className="block text-xs text-brand-100 mt-0.5">Find a verified scholar for yourself or your family.</span>
           </span>
           <ArrowRight size={18} className="shrink-0" />
         </button>
