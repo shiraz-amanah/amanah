@@ -18,10 +18,10 @@ const SESSIONS = [
 ];
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1.5";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 
 const Chip = ({ active, onClick, children }) => (
-  <button type="button" onClick={onClick} className={`text-xs px-2.5 py-1 rounded-full border ${active ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>{children}</button>
+  <button type="button" onClick={onClick} className={`text-xs px-2.5 py-1 rounded-full border ${active ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>{children}</button>
 );
 
 const MosqueCoverRequest = ({ scholar, mosqueId, onClose, onSent }) => {
@@ -75,7 +75,7 @@ const MosqueCoverRequest = ({ scholar, mosqueId, onClose, onSent }) => {
 
         <div className="flex items-center justify-end gap-2 mt-5">
           <button onClick={onClose} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2">Cancel</button>
-          <button onClick={submit} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send request</button>
+          <button onClick={submit} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send request</button>
         </div>
       </div>
     </div>
