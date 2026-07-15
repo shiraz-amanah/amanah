@@ -87,7 +87,7 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
           <button onClick={copyLastWeek} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Copy size={13} /> Copy last week</button>
           <button onClick={() => window.print()} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Printer size={13} /> Print</button>
           <button onClick={notifyStaff} disabled={notifyBusy} className="text-sm text-stone-700 border border-stone-300 hover:border-stone-400 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{notifyBusy ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />} Notify staff</button>
-          <button onClick={save} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-1.5 rounded-lg inline-flex items-center gap-1.5">{saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null} {saved ? "Saved" : "Save rota"}</button>
+          <button onClick={save} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-1.5 rounded-lg inline-flex items-center gap-1.5">{saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : null} {saved ? "Saved" : "Save rota"}</button>
         </div>
       </div>
       {msg && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {msg}</p>}
@@ -107,7 +107,7 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
                   <td className="px-3 py-1.5 font-medium text-stone-700 whitespace-nowrap sticky left-0 bg-white">{slotL}</td>
                   {DAYS.map(([day]) => (
                     <td key={day} className="px-1.5 py-1.5">
-                      <select value={slots[day]?.[slot] || ""} onChange={(e) => setCell(day, slot, e.target.value)} className="w-full text-xs px-1.5 py-1 rounded border border-stone-200 focus:border-emerald-600 outline-none bg-white max-w-[120px]">
+                      <select value={slots[day]?.[slot] || ""} onChange={(e) => setCell(day, slot, e.target.value)} className="w-full text-xs px-1.5 py-1 rounded border border-stone-200 focus:border-brand-600 outline-none bg-white max-w-[120px]">
                         <option value="">—</option>
                         {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
@@ -127,7 +127,7 @@ const MosqueRotaBuilder = ({ mosqueId }) => {
                 {SLOTS.map(([slot, slotL]) => (
                   <label key={slot} className="flex items-center gap-2">
                     <span className="text-xs text-stone-600 w-20 shrink-0">{slotL}</span>
-                    <select value={slots[day]?.[slot] || ""} onChange={(e) => setCell(day, slot, e.target.value)} className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-stone-200 focus:border-emerald-600 outline-none bg-white">
+                    <select value={slots[day]?.[slot] || ""} onChange={(e) => setCell(day, slot, e.target.value)} className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-stone-200 focus:border-brand-600 outline-none bg-white">
                       <option value="">—</option>
                       {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
