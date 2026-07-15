@@ -20,14 +20,14 @@ const SUBS = [
   ["financial", "Financial", Banknote], ["madrasah", "Madrasah", GraduationCap], ["expiry", "Document Expiry", CalendarClock],
 ];
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
 const Card = ({ children }) => <div className="bg-white border border-stone-200 rounded-2xl p-5 space-y-3">{children}</div>;
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const in30Str = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); };
 const tone = (iso) => !iso ? "stone" : iso < todayStr() ? "rose" : iso <= in30Str() ? "amber" : "emerald";
-const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-amber-50 border-amber-200 text-amber-700", emerald: "bg-emerald-50 border-emerald-200 text-emerald-700", stone: "bg-stone-50 border-stone-200 text-stone-500" };
+const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-amber-50 border-amber-200 text-amber-700", emerald: "bg-success-50 border-success-200 text-success-700", stone: "bg-stone-50 border-stone-200 text-stone-500" };
 
 const MosqueCompliance = ({ mosqueId }) => {
   const [sub, setSub] = useState("charity");
@@ -85,16 +85,16 @@ const MosqueCompliance = ({ mosqueId }) => {
         {list.length > 0 && <ul className="divide-y divide-stone-100">{list.map((d) => (
           <li key={d.id} className="py-2 flex items-center justify-between gap-2 text-sm">
             <span className="text-stone-700 truncate flex items-center gap-1.5"><FileText size={13} /> {d.label}{d.provider ? ` · ${d.provider}` : ""}{d.expiry_date ? ` · exp ${d.expiry_date}` : ""}</span>
-            {d.file_path && <button onClick={() => viewDoc(d.file_path)} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">View</button>}
+            {d.file_path && <button onClick={() => viewDoc(d.file_path)} className="text-xs font-medium text-brand-800 hover:text-brand-900">View</button>}
           </li>
         ))}</ul>}
         <div className={`grid ${withProvider ? "md:grid-cols-4" : "md:grid-cols-3"} gap-2`}>
           <Field label="Label"><input className={inputCls} value={up.label} onChange={(e) => setUp({ ...up, label: e.target.value })} /></Field>
           {withProvider && <Field label="Provider"><input className={inputCls} value={up.provider} onChange={(e) => setUp({ ...up, provider: e.target.value })} /></Field>}
           <Field label="Expiry"><input type="date" className={inputCls} value={up.expiry} onChange={(e) => setUp({ ...up, expiry: e.target.value })} /></Field>
-          <Field label="File"><label className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-2 cursor-pointer transition-colors"><Paperclip size={14} /> {up.file ? up.file.name.slice(0, 12) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setUp({ ...up, file: e.target.files?.[0] || null })} /></label></Field>
+          <Field label="File"><label className="inline-flex items-center gap-2 text-sm font-semibold text-brand-800 bg-brand-50 border border-brand-200 hover:bg-brand-100 rounded-lg px-3 py-2 cursor-pointer transition-colors"><Paperclip size={14} /> {up.file ? up.file.name.slice(0, 12) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setUp({ ...up, file: e.target.files?.[0] || null })} /></label></Field>
         </div>
-        <div className="flex justify-end"><button onClick={() => uploadFor(category)} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add document</button></div>
+        <div className="flex justify-end"><button onClick={() => uploadFor(category)} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add document</button></div>
       </Card>
     );
   };
@@ -116,7 +116,7 @@ const MosqueCompliance = ({ mosqueId }) => {
 
   const sendDbsReminders = async () => { setToast(null); const r = await sendDbsReminderEmail(mosqueId); setToast(r?.ok ? `Reminder emailed to you${r.count ? ` (${r.count} staff)` : ""}.` : "Couldn't send the reminder."); };
 
-  const SaveBtn = () => <div className="flex justify-end"><button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null} {saved ? "Saved" : "Save"}</button></div>;
+  const SaveBtn = () => <div className="flex justify-end"><button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null} {saved ? "Saved" : "Save"}</button></div>;
 
   return (
     <div>
@@ -127,7 +127,7 @@ const MosqueCompliance = ({ mosqueId }) => {
 
       <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
         {SUBS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => { setSub(v); setError(null); setSaved(false); }} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+          <button key={v} onClick={() => { setSub(v); setError(null); setSaved(false); }} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === v ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
         ))}
       </div>
 
@@ -152,7 +152,7 @@ const MosqueCompliance = ({ mosqueId }) => {
                 <input className={inputCls} placeholder="Role" value={tForm.role} onChange={(e) => setTForm({ ...tForm, role: e.target.value })} />
                 <input type="date" className={inputCls} value={tForm.appointed} onChange={(e) => setTForm({ ...tForm, appointed: e.target.value })} />
               </div>
-              <button onClick={() => { if (tForm.name) { set("trustees", [...trustees, tForm]); setTForm({ name: "", role: "", appointed: "" }); } }} className="mt-2 text-xs font-medium text-emerald-800 hover:text-emerald-900">+ Add trustee</button>
+              <button onClick={() => { if (tForm.name) { set("trustees", [...trustees, tForm]); setTForm({ name: "", role: "", appointed: "" }); } }} className="mt-2 text-xs font-medium text-brand-800 hover:text-brand-900">+ Add trustee</button>
             </div>
             <SaveBtn />
           </Card>
@@ -177,7 +177,7 @@ const MosqueCompliance = ({ mosqueId }) => {
                 <input className={inputCls} placeholder="Nature of breach" value={bForm.nature} onChange={(e) => setBForm({ ...bForm, nature: e.target.value })} />
                 <label className="text-xs text-stone-600 inline-flex items-center gap-1.5 whitespace-nowrap"><input type="checkbox" checked={bForm.reported_ico} onChange={(e) => setBForm({ ...bForm, reported_ico: e.target.checked })} /> ICO</label>
               </div>
-              <button onClick={() => { if (bForm.nature) { set("breach_log", [...breaches, bForm]); setBForm({ date: "", nature: "", reported_ico: false }); } }} className="mt-2 text-xs font-medium text-emerald-800 hover:text-emerald-900">+ Log breach</button>
+              <button onClick={() => { if (bForm.nature) { set("breach_log", [...breaches, bForm]); setBForm({ date: "", nature: "", reported_ico: false }); } }} className="mt-2 text-xs font-medium text-brand-800 hover:text-brand-900">+ Log breach</button>
             </div>
             <SaveBtn />
           </Card>
@@ -219,7 +219,7 @@ const MosqueCompliance = ({ mosqueId }) => {
 
         {sub === "expiry" && (
           <div className="space-y-3">
-            {toast && <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{toast}</p>}
+            {toast && <p className="text-sm text-brand-800 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">{toast}</p>}
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-sm text-stone-600">All expiring documents across HR, Safeguarding and Compliance, soonest first.</p>
               <button onClick={sendDbsReminders} className="text-xs font-medium border border-stone-300 hover:border-stone-400 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Mail size={13} /> Email me the DBS summary</button>
@@ -229,7 +229,7 @@ const MosqueCompliance = ({ mosqueId }) => {
                 <li key={i} className="px-4 py-2.5 flex items-center justify-between gap-2 text-sm">
                   <span className="text-stone-700 truncate"><span className="text-[10px] uppercase tracking-wider text-stone-400 mr-2">{r.category}</span>{r.label}</span>
                   <div className="flex items-center gap-2">
-                    {r.path && <button onClick={() => viewDoc(r.path)} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">View</button>}
+                    {r.path && <button onClick={() => viewDoc(r.path)} className="text-xs font-medium text-brand-800 hover:text-brand-900">View</button>}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${toneCls[tone(r.expiry)]}`}>{r.expiry}</span>
                   </div>
                 </li>
