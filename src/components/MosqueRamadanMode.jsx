@@ -45,8 +45,8 @@ const MosqueRamadanMode = ({ mosque, onSaved }) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider inline-flex items-center gap-1.5"><Moon size={13} className="text-emerald-700" /> Ramadan mode &amp; times</h3>
-        <button onClick={save} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+        <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider inline-flex items-center gap-1.5"><Moon size={13} className="text-brand-700" /> Ramadan mode &amp; times</h3>
+        <button onClick={save} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
           {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : saved ? <><Check size={14} /> Saved</> : <><Save size={14} /> Save Ramadan times</>}
         </button>
       </div>
@@ -54,8 +54,8 @@ const MosqueRamadanMode = ({ mosque, onSaved }) => {
 
       <div className={cardCls}>
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-medium text-stone-500 uppercase tracking-wider inline-flex items-center gap-1.5"><Moon size={13} className="text-emerald-700" /> Ramadan mode</h4>
-          <button onClick={() => { setRamadanActive((v) => !v); setSaved(false); }} className={`relative w-11 h-6 rounded-full transition-colors ${ramadanActive ? "bg-emerald-600" : "bg-stone-300"}`}><span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${ramadanActive ? "translate-x-5" : "translate-x-0.5"}`} /></button>
+          <h4 className="text-xs font-medium text-stone-500 uppercase tracking-wider inline-flex items-center gap-1.5"><Moon size={13} className="text-brand-700" /> Ramadan mode</h4>
+          <button onClick={() => { setRamadanActive((v) => !v); setSaved(false); }} className={`relative w-11 h-6 rounded-full transition-colors ${ramadanActive ? "bg-brand-600" : "bg-stone-300"}`}><span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${ramadanActive ? "translate-x-5" : "translate-x-0.5"}`} /></button>
         </div>
         <p className="text-xs text-stone-500 mt-2">When on, your public profile shows these Ramadan times, a green Ramadan banner, and your 30-day calendar (below).</p>
         {ramadanActive && (
