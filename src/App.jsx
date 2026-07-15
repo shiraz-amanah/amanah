@@ -5590,8 +5590,8 @@ const ApplicationSubmitted = ({ application, onJobs, onHome }) => (
   <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center" style={{ animation: "bounceIn 0.6s ease-out" }}>
       <div className="relative inline-block mb-5">
-        <div className="absolute inset-0 bg-emerald-300 rounded-full blur-xl opacity-40"></div>
-        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-700 shadow-lg">
+        <div className="absolute inset-0 bg-brand-300 rounded-full blur-xl opacity-40"></div>
+        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-700 shadow-lg">
           <Send className="text-white" size={28} strokeWidth={2} />
         </div>
       </div>
@@ -5602,7 +5602,7 @@ const ApplicationSubmitted = ({ application, onJobs, onHome }) => (
         <div className="flex justify-between"><span className="text-stone-500">Application ID</span><span className="text-stone-900 font-mono text-xs">APP-{Date.now().toString().slice(-6)}</span></div>
       </div>
       <p className="text-xs text-stone-600 mb-5">You'll get a notification when the mosque views your application and when they respond.</p>
-      <button onClick={onJobs} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium mb-2 transition-all hover:scale-[1.02]">
+      <button onClick={onJobs} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium mb-2 transition-all hover:scale-[1.02]">
         Browse more jobs
       </button>
       <button onClick={onHome} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium">
@@ -6635,7 +6635,7 @@ const ScholarApplicationSubmitted = ({ authedUser, application, onPublic, onLogo
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+          <button onClick={onPublic} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
             Browse Amanah while you wait
           </button>
           <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
@@ -6670,7 +6670,7 @@ const ScholarApplicationRejected = ({ application, onReapply, onLogout, onPublic
       )}
       <p className="text-xs text-stone-500 leading-relaxed mb-5">You're welcome to update your details and resubmit. Your previous answers are kept as a starting point.</p>
       <div className="flex flex-col gap-2">
-        <button onClick={onReapply} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+        <button onClick={onReapply} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
           Edit and resubmit
         </button>
         <button onClick={onPublic} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors">
@@ -7170,7 +7170,7 @@ const MosqueApplicationSubmitted = ({ application, onPublic, onLogout }) => {
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+          <button onClick={onPublic} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
             Browse Amanah while you wait
           </button>
           <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
@@ -7202,7 +7202,7 @@ const MosqueApplicationRejected = ({ application, onReapply, onLogout, onPublic 
       )}
       <p className="text-xs text-stone-500 leading-relaxed mb-5">You're welcome to update your details and resubmit. A fresh application starts from the wizard.</p>
       <div className="flex flex-col gap-2">
-        <button onClick={onReapply} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+        <button onClick={onReapply} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
           Edit and resubmit
         </button>
         <button onClick={onPublic} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors">
@@ -9988,8 +9988,8 @@ const AdminCampaignQueue = ({ apps, onAction }) => (
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{app.title}</h3>
-                {app.creatorVerified && <ShieldCheck size={13} className="text-emerald-700" />}
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${app.riskScore === "low" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : app.riskScore === "medium" ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-rose-50 text-rose-800 border border-rose-200"}`}>
+                {app.creatorVerified && <ShieldCheck size={13} className="text-success-700" />}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${app.riskScore === "low" ? "bg-success-50 text-success-800 border border-success-200" : app.riskScore === "medium" ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-rose-50 text-rose-800 border border-rose-200"}`}>
                   {app.riskScore} risk
                 </span>
               </div>
@@ -10009,12 +10009,12 @@ const AdminCampaignQueue = ({ apps, onAction }) => (
             </div>
             <div className="bg-stone-50 rounded-lg p-3">
               <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-0.5">Creator verified</p>
-              <p className="text-sm text-emerald-800 font-medium mt-1.5 flex items-center gap-1"><CheckCircle2 size={13} /> Yes</p>
+              <p className="text-sm text-success-800 font-medium mt-1.5 flex items-center gap-1"><CheckCircle2 size={13} /> Yes</p>
             </div>
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            <button onClick={() => onAction("approve", app)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
+            <button onClick={() => onAction("approve", app)} className="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
               <CheckCircle2 size={14} /> Approve & launch
             </button>
             <button onClick={() => onAction("request", app)} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
@@ -10180,7 +10180,7 @@ const AdminFlags = ({ authedProfile }) => {
   const statusPill = (status) => {
     const cfg = {
       open:      { bg: "bg-amber-50",   text: "text-amber-800",   border: "border-amber-200",   label: "Open" },
-      resolved:  { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", label: "Resolved" },
+      resolved:  { bg: "bg-success-50", text: "text-success-800", border: "border-success-200", label: "Resolved" },
       dismissed: { bg: "bg-stone-100",  text: "text-stone-700",   border: "border-stone-200",   label: "Dismissed" },
     }[status] || { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-200", label: status };
     return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
@@ -10342,7 +10342,7 @@ const AdminFlags = ({ authedProfile }) => {
                 <button
                   onClick={() => handleResolveWithAction(selectedFlag)}
                   disabled={!!actionInFlight}
-                  className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
+                  className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
                 >
                   {actionInFlight === "action" ? "Working…" : <><CheckSquare size={14} /> Resolve + {actionLabels[selectedFlag.subject_type]}</>}
                 </button>
@@ -10357,7 +10357,7 @@ const AdminFlags = ({ authedProfile }) => {
 
         {toast && (
           <div className={`fixed bottom-6 right-6 ${toast.type === "error" ? "bg-rose-700" : "bg-stone-900"} text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50`}>
-            {toast.type === "error" ? <AlertCircle size={16} /> : <CheckCircle2 className="text-emerald-400" size={16} />}
+            {toast.type === "error" ? <AlertCircle size={16} /> : <CheckCircle2 className="text-brand-400" size={16} />}
             <span className="text-sm font-medium">{toast.message}</span>
           </div>
         )}
@@ -10389,7 +10389,7 @@ const AdminFlags = ({ authedProfile }) => {
           <button
             key={f.v}
             onClick={() => setStatusFilter(f.v)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${statusFilter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${statusFilter === f.v ? "bg-brand-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
           >
             {f.l}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${statusFilter === f.v ? "bg-white/20" : "bg-stone-100"}`}>{f.c}</span>
@@ -10471,7 +10471,7 @@ const AdminFlags = ({ authedProfile }) => {
 
       {toast && (
         <div className={`fixed bottom-6 right-6 ${toast.type === "error" ? "bg-rose-700" : "bg-stone-900"} text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50`}>
-          {toast.type === "error" ? <AlertCircle size={16} /> : <CheckCircle2 className="text-emerald-400" size={16} />}
+          {toast.type === "error" ? <AlertCircle size={16} /> : <CheckCircle2 className="text-brand-400" size={16} />}
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
@@ -10978,7 +10978,7 @@ const AdminReviewsModeration = () => {
 
   const statusPill = (status) => {
     const cfg = {
-      published: { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", label: "Published" },
+      published: { bg: "bg-success-50", text: "text-success-800", border: "border-success-200", label: "Published" },
       hidden:    { bg: "bg-rose-50",    text: "text-rose-800",    border: "border-rose-200",    label: "Hidden" },
       pending:   { bg: "bg-amber-50",   text: "text-amber-800",   border: "border-amber-200",   label: "Pending" },
     }[status] || { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-200", label: status };
@@ -11004,7 +11004,7 @@ const AdminReviewsModeration = () => {
           <button
             key={f.v}
             onClick={() => setFilter(f.v)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f.v ? "bg-brand-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
           >
             {f.l}
           </button>
@@ -11035,7 +11035,7 @@ const AdminReviewsModeration = () => {
                       <StarRating rating={r.rating} size={11} />
                       {statusPill(r.status)}
                       {r.bookingId && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-success-50 text-success-700 border border-success-200 inline-flex items-center gap-1">
                           <CheckCircle2 size={9} /> Verified
                         </span>
                       )}
@@ -11049,7 +11049,7 @@ const AdminReviewsModeration = () => {
                     >
                       {isExpanded ? r.body : truncate(r.body, 200)}
                       {!isExpanded && r.body.length > 200 && (
-                        <span className="ml-1 text-emerald-700 font-medium">expand</span>
+                        <span className="ml-1 text-brand-700 font-medium">expand</span>
                       )}
                     </button>
                   </div>
@@ -11058,7 +11058,7 @@ const AdminReviewsModeration = () => {
                       <button
                         onClick={() => handleStatusChange(r, "published")}
                         disabled={isPending}
-                        className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-xs font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1"
+                        className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-xs font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1"
                       >
                         <CheckCircle2 size={12} /> Publish
                       </button>
@@ -11352,9 +11352,9 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
           )}
 
           {selected.status === "approved" && selected.createdScholarId && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-              <p className="text-xs font-medium text-emerald-900 uppercase tracking-wider mb-1">Scholar listing created</p>
-              <p className="text-sm text-emerald-800 font-mono break-all">{selected.createdScholarId}</p>
+            <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4">
+              <p className="text-xs font-medium text-brand-900 uppercase tracking-wider mb-1">Scholar listing created</p>
+              <p className="text-sm text-brand-800 font-mono break-all">{selected.createdScholarId}</p>
             </div>
           )}
 
@@ -11377,7 +11377,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
                   </p>
                 </div>
                 {selectedScholar.status === "active" ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-success-50 border border-success-200 text-success-800 rounded-full font-medium uppercase tracking-wider">
                     <CheckCircle2 size={10} /> Published
                   </span>
                 ) : (
@@ -11403,7 +11403,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
                     </p>
                     <button
                       onClick={() => onOpenDBSOrder?.(latestDBSOrder.id)}
-                      className="text-xs font-medium text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1"
+                      className="text-xs font-medium text-brand-700 hover:text-brand-800 inline-flex items-center gap-1"
                     >
                       View order <ArrowRight size={12} />
                     </button>
@@ -11421,13 +11421,13 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
                   const checked = !!selectedScholar[flag];
                   const saving = !!flagSaving[flag];
                   return (
-                    <label key={flag} className={`flex items-start gap-3 p-3 rounded-xl border ${checked ? "bg-emerald-50/40 border-emerald-200" : "bg-stone-50 border-stone-200"} ${saving ? "opacity-60" : ""}`}>
+                    <label key={flag} className={`flex items-start gap-3 p-3 rounded-xl border ${checked ? "bg-success-50/40 border-success-200" : "bg-stone-50 border-stone-200"} ${saving ? "opacity-60" : ""}`}>
                       <input
                         type="checkbox"
                         checked={checked}
                         disabled={saving}
                         onChange={() => handleFlagToggle(flag)}
-                        className="mt-0.5 w-4 h-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500 cursor-pointer disabled:cursor-wait"
+                        className="mt-0.5 w-4 h-4 rounded border-stone-300 text-success-700 focus:ring-success-500 cursor-pointer disabled:cursor-wait"
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-stone-900">{label}</p>
@@ -11446,7 +11446,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
                     <button
                       onClick={handlePublish}
                       disabled={!allTrue || publishLoading}
-                      className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
+                      className="w-full bg-brand-700 hover:bg-brand-800 disabled:bg-stone-200 disabled:text-stone-500 text-white text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
                     >
                       {publishLoading ? (
                         "Publishing..."
@@ -11466,7 +11466,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
 
         {selected.status === "pending" && (
           <div className="flex gap-2 flex-wrap pt-4 border-t border-stone-200">
-            <button onClick={() => setShowApproveModal(true)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
+            <button onClick={() => setShowApproveModal(true)} className="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
               <CheckCircle2 size={14} /> Approve
             </button>
             <button onClick={() => setShowRejectModal(true)} className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
@@ -11484,7 +11484,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
               {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowApproveModal(false)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
-                <button onClick={handleApprove} disabled={actionLoading} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                <button onClick={handleApprove} disabled={actionLoading} className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
                   {actionLoading ? "Approving..." : <><CheckCircle2 size={14} /> Confirm approval</>}
                 </button>
               </div>
@@ -11503,7 +11503,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
                 onChange={e => setRejectReason(e.target.value)}
                 rows={4}
                 placeholder="e.g. Couldn't verify your DBS — please attach a document next time."
-                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none mb-2"
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none mb-2"
               />
               <p className="text-xs text-stone-500 mb-3">{rejectReason.length} chars</p>
               {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
@@ -11519,7 +11519,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
 
         {toast && (
           <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
-            <CheckCircle2 className="text-emerald-400" size={18} />
+            <CheckCircle2 className="text-brand-400" size={18} />
             <span className="text-sm font-medium">{toast}</span>
           </div>
         )}
@@ -11545,7 +11545,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
           <button
             key={f.v}
             onClick={() => setFilter(f.v)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${filter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${filter === f.v ? "bg-brand-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
           >
             {f.l}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${filter === f.v ? "bg-white/20" : "bg-stone-100"}`}>{f.c}</span>
@@ -11583,7 +11583,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
 
       {toast && (
         <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
-          <CheckCircle2 className="text-emerald-400" size={18} />
+          <CheckCircle2 className="text-brand-400" size={18} />
           <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
@@ -11826,9 +11826,9 @@ const AdminMosqueApplications = () => {
           )}
 
           {selected.status === "approved" && selected.createdMosqueId && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
-              <p className="text-xs font-medium text-emerald-900 uppercase tracking-wider mb-1">Mosque listing created</p>
-              <p className="text-sm text-emerald-800 font-mono break-all">{selected.createdMosqueId}</p>
+            <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4">
+              <p className="text-xs font-medium text-brand-900 uppercase tracking-wider mb-1">Mosque listing created</p>
+              <p className="text-sm text-brand-800 font-mono break-all">{selected.createdMosqueId}</p>
             </div>
           )}
 
@@ -11851,7 +11851,7 @@ const AdminMosqueApplications = () => {
                   </p>
                 </div>
                 {selectedMosque.status === "active" ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full font-medium uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-success-50 border border-success-200 text-success-800 rounded-full font-medium uppercase tracking-wider">
                     <CheckCircle2 size={10} /> Published
                   </span>
                 ) : (
@@ -11870,13 +11870,13 @@ const AdminMosqueApplications = () => {
                   const checked = !!selectedMosque[flag];
                   const saving = !!flagSaving[flag];
                   return (
-                    <label key={flag} className={`flex items-start gap-3 p-3 rounded-xl border ${checked ? "bg-emerald-50/40 border-emerald-200" : "bg-stone-50 border-stone-200"} ${saving ? "opacity-60" : ""}`}>
+                    <label key={flag} className={`flex items-start gap-3 p-3 rounded-xl border ${checked ? "bg-success-50/40 border-success-200" : "bg-stone-50 border-stone-200"} ${saving ? "opacity-60" : ""}`}>
                       <input
                         type="checkbox"
                         checked={checked}
                         disabled={saving}
                         onChange={() => handleFlagToggle(flag)}
-                        className="mt-0.5 w-4 h-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500 cursor-pointer disabled:cursor-wait"
+                        className="mt-0.5 w-4 h-4 rounded border-stone-300 text-success-700 focus:ring-success-500 cursor-pointer disabled:cursor-wait"
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-stone-900">{label}</p>
@@ -11895,7 +11895,7 @@ const AdminMosqueApplications = () => {
                     <button
                       onClick={handlePublish}
                       disabled={!allTrue || publishLoading}
-                      className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
+                      className="w-full bg-brand-700 hover:bg-brand-800 disabled:bg-stone-200 disabled:text-stone-500 text-white text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
                     >
                       {publishLoading ? (
                         "Publishing..."
@@ -11915,7 +11915,7 @@ const AdminMosqueApplications = () => {
 
         {selected.status === "pending" && (
           <div className="flex gap-2 flex-wrap pt-4 border-t border-stone-200">
-            <button onClick={() => setShowApproveModal(true)} className="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
+            <button onClick={() => setShowApproveModal(true)} className="bg-brand-700 hover:bg-brand-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
               <CheckCircle2 size={14} /> Approve
             </button>
             <button onClick={() => setShowRejectModal(true)} className="bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-medium px-5 py-2.5 rounded-lg inline-flex items-center gap-1.5">
@@ -11932,7 +11932,7 @@ const AdminMosqueApplications = () => {
               {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowApproveModal(false)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
-                <button onClick={handleApprove} disabled={actionLoading} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+                <button onClick={handleApprove} disabled={actionLoading} className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
                   {actionLoading ? "Approving..." : <><CheckCircle2 size={14} /> Confirm approval</>}
                 </button>
               </div>
@@ -11950,7 +11950,7 @@ const AdminMosqueApplications = () => {
                 onChange={e => setRejectReason(e.target.value)}
                 rows={4}
                 placeholder="e.g. Couldn't verify your charity number — please attach evidence next time."
-                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none mb-2"
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none mb-2"
               />
               <p className="text-xs text-stone-500 mb-3">{rejectReason.length} chars</p>
               {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
@@ -11966,7 +11966,7 @@ const AdminMosqueApplications = () => {
 
         {toast && (
           <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
-            <CheckCircle2 className="text-emerald-400" size={18} />
+            <CheckCircle2 className="text-brand-400" size={18} />
             <span className="text-sm font-medium">{toast}</span>
           </div>
         )}
@@ -11992,7 +11992,7 @@ const AdminMosqueApplications = () => {
           <button
             key={f.v}
             onClick={() => setFilter(f.v)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${filter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${filter === f.v ? "bg-brand-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
           >
             {f.l}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${filter === f.v ? "bg-white/20" : "bg-stone-100"}`}>{f.c}</span>
@@ -12030,7 +12030,7 @@ const AdminMosqueApplications = () => {
 
       {toast && (
         <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
-          <CheckCircle2 className="text-emerald-400" size={18} />
+          <CheckCircle2 className="text-brand-400" size={18} />
           <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
@@ -12153,7 +12153,7 @@ const AdminAllUsers = ({ authedProfile }) => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or email..."
-            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
           />
         </div>
         <div className="flex gap-2 flex-wrap items-center">
@@ -12167,7 +12167,7 @@ const AdminAllUsers = ({ authedProfile }) => {
             <button
               key={f.v}
               onClick={() => setRoleFilter(f.v)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${roleFilter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${roleFilter === f.v ? "bg-brand-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
             >
               {f.l}
             </button>
@@ -12181,7 +12181,7 @@ const AdminAllUsers = ({ authedProfile }) => {
             <button
               key={f.v}
               onClick={() => setSuspendedFilter(f.v)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${suspendedFilter === f.v ? "bg-emerald-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${suspendedFilter === f.v ? "bg-brand-900 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-stone-400"}`}
             >
               {f.l}
             </button>
@@ -12208,7 +12208,7 @@ const AdminAllUsers = ({ authedProfile }) => {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-stone-900 truncate">{p.name || "(no name)"}</p>
                   {isSelf(p) && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-medium uppercase tracking-wider">You</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-800 rounded-full font-medium uppercase tracking-wider">You</span>
                   )}
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${p.role === "admin" ? "bg-stone-900 text-white border-stone-900" : p.role === "scholar" ? "bg-sky-50 text-sky-800 border-sky-200" : "bg-stone-50 text-stone-700 border-stone-200"}`}>
                     {p.role}
@@ -12234,7 +12234,7 @@ const AdminAllUsers = ({ authedProfile }) => {
                 <button
                   onClick={() => handleSuspendToggle(p)}
                   disabled={isSelf(p)}
-                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${p.suspended ? "bg-emerald-700 hover:bg-emerald-800 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-rose-300 hover:text-rose-700"} disabled:bg-stone-50 disabled:text-stone-400 disabled:border-stone-200 disabled:cursor-not-allowed`}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${p.suspended ? "bg-brand-700 hover:bg-brand-800 text-white" : "bg-white border border-stone-300 text-stone-700 hover:border-rose-300 hover:text-rose-700"} disabled:bg-stone-50 disabled:text-stone-400 disabled:border-stone-200 disabled:cursor-not-allowed`}
                   title={isSelf(p) ? "You can't suspend your own account" : p.suspended ? "Restore access" : "Suspend account"}
                 >
                   {p.suspended ? "Unsuspend" : "Suspend"}
@@ -12323,7 +12323,7 @@ const AdminAllUsers = ({ authedProfile }) => {
             {actionError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{actionError}</div>}
             <div className="flex justify-end gap-2">
               <button onClick={() => setPendingRoleChange(null)} disabled={actionLoading} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
-              <button onClick={confirmRoleChange} disabled={actionLoading} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg">
+              <button onClick={confirmRoleChange} disabled={actionLoading} className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg">
                 {actionLoading ? "Saving..." : "Confirm change"}
               </button>
             </div>
@@ -12333,7 +12333,7 @@ const AdminAllUsers = ({ authedProfile }) => {
 
       {toast && (
         <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
-          <CheckCircle2 className="text-emerald-400" size={18} />
+          <CheckCircle2 className="text-brand-400" size={18} />
           <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
