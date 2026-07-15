@@ -68,12 +68,12 @@ const MosqueRamadanCalendar = ({ mosque, calendar }) => {
   };
 
   return (
-    <div className="border-t border-emerald-100 bg-emerald-50/30 p-5 md:p-6">
+    <div className="border-t border-brand-100 bg-brand-50/30 p-5 md:p-6">
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <h3 className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Moon size={15} className="text-emerald-700" /> Ramadan {mosque.ramadan_year || ""} timetable</h3>
+        <h3 className="text-sm font-semibold text-stone-900 inline-flex items-center gap-1.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><Moon size={15} className="text-brand-700" /> Ramadan {mosque.ramadan_year || ""} timetable</h3>
         <div className="flex items-center gap-2">
-          <button onClick={exportPdf} disabled={pdfBusy} className="text-[12px] font-medium border border-stone-300 bg-white text-stone-700 hover:border-emerald-300 hover:text-emerald-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF</button>
-          <button onClick={exportIcs} className="text-[12px] font-medium border border-stone-300 bg-white text-stone-700 hover:border-emerald-300 hover:text-emerald-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><CalendarPlus size={13} /> Add to calendar</button>
+          <button onClick={exportPdf} disabled={pdfBusy} className="text-[12px] font-medium border border-stone-300 bg-white text-stone-700 hover:border-brand-300 hover:text-brand-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} PDF</button>
+          <button onClick={exportIcs} className="text-[12px] font-medium border border-stone-300 bg-white text-stone-700 hover:border-brand-300 hover:text-brand-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><CalendarPlus size={13} /> Add to calendar</button>
         </div>
       </div>
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
@@ -86,7 +86,7 @@ const MosqueRamadanCalendar = ({ mosque, calendar }) => {
                   <td className="px-3 py-2 text-stone-700 whitespace-nowrap">{r.date}</td>
                   <td className="px-3 py-2 text-stone-400">{r.day || dayName(r.date)}</td>
                   <td className="px-3 py-2 font-mono text-stone-700">{r.sehri_end || "—"}</td>
-                  <td className="px-3 py-2 font-mono font-semibold text-emerald-800">{r.iftar || "—"}</td>
+                  <td className="px-3 py-2 font-mono font-semibold text-brand-800">{r.iftar || "—"}</td>
                   <td className="px-3 py-2 font-mono text-stone-700">{r.tarawih_start || "—"}</td>
                 </tr>
               ))}
