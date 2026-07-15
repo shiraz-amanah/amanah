@@ -10,7 +10,7 @@ import { reindexGovernanceDocument } from "../lib/governanceRag";
 // P5 constitution/document AI Q&A (RAG over doc_text).
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const CATEGORIES = [["constitution", "Constitution"], ["charity_registration", "Charity registration"], ["annual_accounts", "Annual accounts"], ["governing_document", "Governing document"], ["other", "Other"]];
 const catLabel = (v) => CATEGORIES.find((c) => c[0] === v)?.[1] || v || "Uncategorised";
@@ -80,7 +80,7 @@ const GovernanceDocuments = ({ mosqueId }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Documents</h2>
           <p className="text-sm text-stone-600">Constitution, charity registration, accounts and governing documents.</p>
         </div>
-        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add document</button>}
+        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add document</button>}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
 
@@ -104,7 +104,7 @@ const GovernanceDocuments = ({ mosqueId }) => {
               <textarea rows={4} className={inputCls + " resize-y"} value={form.doc_text} onChange={(e) => setForm({ ...form, doc_text: e.target.value })} placeholder="Paste the document text (e.g. the constitution) so the AI assistant can answer questions about it." />
             </div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Upload size={14} />} {busy ? "Saving…" : editing ? "Update" : "Add document"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Upload size={14} />} {busy ? "Saving…" : editing ? "Update" : "Add document"}</button>
               <button onClick={cancel} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
           </div>
@@ -120,15 +120,15 @@ const GovernanceDocuments = ({ mosqueId }) => {
         <div className="space-y-2">
           {filtered.map((d) => (
             <div key={d.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-              <span className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0"><FileText size={16} className="text-emerald-700" /></span>
+              <span className="w-10 h-10 rounded-lg bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0"><FileText size={16} className="text-brand-700" /></span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">{d.title}
-                  {d.doc_text && <span title="Available to the AI assistant" className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-0.5"><Sparkles size={9} /> AI</span>}
+                  {d.doc_text && <span title="Available to the AI assistant" className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200 inline-flex items-center gap-0.5"><Sparkles size={9} /> AI</span>}
                 </p>
                 <p className="text-xs text-stone-500">{catLabel(d.category)}{fmtDate(d.doc_date) ? ` · ${fmtDate(d.doc_date)}` : ""}</p>
               </div>
-              {d.doc_url && <button onClick={() => view(d)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1 shrink-0"><ExternalLink size={13} /> View</button>}
-              <button onClick={() => startEdit(d)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+              {d.doc_url && <button onClick={() => view(d)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1 shrink-0"><ExternalLink size={13} /> View</button>}
+              <button onClick={() => startEdit(d)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
               <button onClick={() => remove(d.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
             </div>
           ))}
