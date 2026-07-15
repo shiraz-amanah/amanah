@@ -2613,7 +2613,7 @@ const RegistrationPending = ({ type, form, onHome }) => (
 // ==================== FULL MOSQUE DASHBOARD ====================
 const DBSStatusPill = ({ status }) => {
   const config = {
-    verified: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: CheckCircle2, label: "Verified" },
+    verified: { bg: "bg-success-50", text: "text-success-700", border: "border-success-200", icon: CheckCircle2, label: "Verified" },
     pending: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", icon: Clock, label: "Pending" },
     expired: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", icon: XCircle, label: "Expired" },
     incomplete: { bg: "bg-stone-100", text: "text-stone-600", border: "border-stone-200", icon: AlertCircle, label: "Not submitted" },
@@ -6591,7 +6591,7 @@ const ReviewSection = ({ title, onEdit, children }) => (
   <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
     <div className="flex items-center justify-between mb-2">
       <h4 className="text-sm font-semibold text-stone-900">{title}</h4>
-      <button onClick={onEdit} className="text-xs text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+      <button onClick={onEdit} className="text-xs text-brand-800 font-medium hover:underline inline-flex items-center gap-1">
         <FileText size={11} /> Edit
       </button>
     </div>
@@ -8864,10 +8864,10 @@ const stageLabel = (stage) => ({
 const StagePill = ({ stage }) => {
   const map = {
     requested: { bg: "bg-stone-100", text: "text-stone-700", label: "Requested" },
-    paid: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Paid" },
-    submitted: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Submitted" },
+    paid: { bg: "bg-success-50", text: "text-success-700", label: "Paid" },
+    submitted: { bg: "bg-success-50", text: "text-success-700", label: "Submitted" },
     in_progress: { bg: "bg-amber-50", text: "text-amber-700", label: "In progress" },
-    issued: { bg: "bg-emerald-100", text: "text-emerald-800", label: "Issued" },
+    issued: { bg: "bg-success-100", text: "text-success-800", label: "Issued" },
     issued_with_disclosure: { bg: "bg-amber-100", text: "text-amber-800", label: "With disclosure" },
     cancelled: { bg: "bg-stone-100", text: "text-stone-600", label: "Cancelled" },
   };
@@ -8898,12 +8898,12 @@ const StageTimeline = ({ stage }) => {
       {stages.map((s, i) => (
         <div key={s} className="flex items-center flex-1 min-w-0">
           <div className="flex flex-col items-center flex-shrink-0 w-12">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${i <= currentIdx ? "bg-emerald-700 text-white" : "bg-stone-200 text-stone-500"}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${i <= currentIdx ? "bg-brand-700 text-white" : "bg-stone-200 text-stone-500"}`}>
               {i < currentIdx ? <CheckCircle2 size={14} /> : <span className="text-xs font-semibold">{i + 1}</span>}
             </div>
             <p className="text-[9px] uppercase tracking-wider mt-1 text-center text-stone-600 truncate w-full">{labels[i]}</p>
           </div>
-          {i < stages.length - 1 && <div className={`flex-1 h-0.5 mx-1 mb-5 ${i < currentIdx ? "bg-emerald-700" : "bg-stone-200"}`}></div>}
+          {i < stages.length - 1 && <div className={`flex-1 h-0.5 mx-1 mb-5 ${i < currentIdx ? "bg-brand-700" : "bg-stone-200"}`}></div>}
         </div>
       ))}
     </div>
@@ -9010,15 +9010,15 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
         <button
           key={level}
           onClick={() => { setOrderingLevel(level); setOrderError(null); }}
-          className="text-left bg-white border border-stone-200 hover:border-emerald-400 hover:shadow-md transition-all rounded-2xl p-5"
+          className="text-left bg-white border border-stone-200 hover:border-brand-400 hover:shadow-md transition-all rounded-2xl p-5"
         >
           <div className="flex items-start justify-between mb-3">
-            <ShieldCheck className="text-emerald-700" size={20} />
+            <ShieldCheck className="text-brand-700" size={20} />
             <span className="text-lg font-semibold text-stone-900">{priceLabel}</span>
           </div>
           <p className="text-sm font-semibold text-stone-900 mb-1">{title}</p>
           <p className="text-xs text-stone-600 leading-relaxed mb-3">{summary}</p>
-          <span className="text-xs font-medium text-emerald-700 inline-flex items-center gap-1">
+          <span className="text-xs font-medium text-brand-700 inline-flex items-center gap-1">
             Order {level === "basic" ? "Basic" : "Enhanced"} <ArrowRight size={12} />
           </span>
         </button>
@@ -9050,7 +9050,7 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
             {order.issuedAt && <p>Issued: {formatDate(order.issuedAt)}</p>}
             {order.cancelledAt && <p>Cancelled: {formatDate(order.cancelledAt)}</p>}
             {order.certificateUrl && order.stage === "issued" && (
-              <p className="pt-1"><a href={order.certificateUrl} target="_blank" rel="noreferrer" className="text-emerald-700 underline">View certificate</a></p>
+              <p className="pt-1"><a href={order.certificateUrl} target="_blank" rel="noreferrer" className="text-brand-700 underline">View certificate</a></p>
             )}
           </div>
         )}
@@ -9073,9 +9073,9 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
         </div>
         <StageTimeline stage={activeOrder.stage} />
         {activeOrder.stage === "issued" && activeOrder.certificateUrl && (
-          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm">
-            <FileCheck size={14} className="text-emerald-700 flex-shrink-0" />
-            <a href={activeOrder.certificateUrl} target="_blank" rel="noreferrer" className="text-emerald-700 font-medium underline">View certificate</a>
+          <div className="mt-4 p-3 bg-brand-50 border border-brand-200 rounded-lg flex items-center gap-2 text-sm">
+            <FileCheck size={14} className="text-brand-700 flex-shrink-0" />
+            <a href={activeOrder.certificateUrl} target="_blank" rel="noreferrer" className="text-brand-700 font-medium underline">View certificate</a>
           </div>
         )}
         {cancellable && !inCancelConfirm && (
@@ -9139,7 +9139,7 @@ const DBSOrderingPanel = ({ scholarId = null, mosqueId = null }) => {
           {orderError && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 mb-3">{orderError}</div>}
           <div className="flex justify-end gap-2">
             <button onClick={() => { setOrderingLevel(null); setOrderError(null); }} disabled={paying} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
-            <button onClick={handlePay} disabled={paying} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <button onClick={handlePay} disabled={paying} className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
               {paying ? "Processing payment..." : <><CreditCard size={14} /> Pay {priceLabel}</>}
             </button>
           </div>
@@ -10602,7 +10602,7 @@ const AdminDBSOrders = ({ initialDetailOrderId = null }) => {
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             placeholder="Search by candidate name or email…"
-            className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600"
+            className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-brand-600"
           />
         </div>
       </div>
@@ -10612,9 +10612,9 @@ const AdminDBSOrders = ({ initialDetailOrderId = null }) => {
           <button
             key={p.v}
             onClick={() => setStageFilter(p.v)}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full border ${stageFilter === p.v ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full border ${stageFilter === p.v ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}
           >
-            {p.l} <span className={`ml-1 ${stageFilter === p.v ? "text-emerald-100" : "text-stone-500"}`}>{stageCounts[p.v]}</span>
+            {p.l} <span className={`ml-1 ${stageFilter === p.v ? "text-brand-100" : "text-stone-500"}`}>{stageCounts[p.v]}</span>
           </button>
         ))}
       </div>
@@ -10828,14 +10828,14 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
             value={pendingStage || order.stage}
             onChange={e => { setPendingStage(e.target.value); setStageError(null); }}
             disabled={stageSaving}
-            className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50"
+            className="flex-1 min-w-0 px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-brand-600 disabled:opacity-50"
           >
             {stageOptions.map(opt => <option key={opt.v} value={opt.v}>{opt.l}</option>)}
           </select>
           <button
             onClick={handleStageSave}
             disabled={stageSaving || !pendingStage || pendingStage === order.stage}
-            className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+            className="px-4 py-2 text-sm font-medium bg-brand-700 hover:bg-brand-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
           >
             {stageSaving ? "Saving..." : "Save stage"}
           </button>
@@ -10857,7 +10857,7 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
             </p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowStageConfirm(false)} disabled={stageSaving} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
-              <button onClick={fireStageUpdate} disabled={stageSaving} className="bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg">{stageSaving ? "Saving..." : "Confirm"}</button>
+              <button onClick={fireStageUpdate} disabled={stageSaving} className="bg-brand-700 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg">{stageSaving ? "Saving..." : "Confirm"}</button>
             </div>
           </div>
         </div>
@@ -10873,12 +10873,12 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
               onChange={e => { setCertUrlInput(e.target.value); setCertUrlError(null); }}
               placeholder="https://..."
               disabled={certUrlSaving}
-              className="flex-1 px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50"
+              className="flex-1 px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-brand-600 disabled:opacity-50"
             />
             <button
               onClick={handleCertUrlSave}
               disabled={certUrlSaving}
-              className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+              className="px-4 py-2 text-sm font-medium bg-brand-700 hover:bg-brand-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
             >
               {certUrlSaving ? "Saving..." : "Save"}
             </button>
@@ -10896,13 +10896,13 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
             placeholder="Internal notes on the disclosures returned by DBS. Candidate sees a generic message; this is for the platform team's records."
             disabled={disclosureSaving}
             rows={4}
-            className="w-full px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 resize-y"
+            className="w-full px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-brand-600 disabled:opacity-50 resize-y"
           />
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={handleDisclosureSave}
               disabled={disclosureSaving}
-              className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+              className="px-4 py-2 text-sm font-medium bg-brand-700 hover:bg-brand-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
             >
               {disclosureSaving ? "Saving..." : "Save summary"}
             </button>
@@ -10919,13 +10919,13 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
           placeholder="Called candidate, awaiting documents / DBS submission delayed by Royal Mail / etc."
           disabled={notesSaving}
           rows={3}
-          className="w-full px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-50 resize-y"
+          className="w-full px-3 py-2 text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:border-brand-600 disabled:opacity-50 resize-y"
         />
         <div className="flex items-center gap-2 mt-2">
           <button
             onClick={handleNotesSave}
             disabled={notesSaving}
-            className="px-4 py-2 text-sm font-medium bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
+            className="px-4 py-2 text-sm font-medium bg-brand-700 hover:bg-brand-800 disabled:bg-stone-200 disabled:text-stone-500 text-white rounded-lg"
           >
             {notesSaving ? "Saving..." : "Save notes"}
           </button>
@@ -10935,7 +10935,7 @@ const AdminDBSOrderDetail = ({ order, onBack, onUpdate }) => {
 
       {toast && (
         <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
-          <CheckCircle2 className="text-emerald-400" size={16} />
+          <CheckCircle2 className="text-brand-400" size={16} />
           <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
@@ -12562,7 +12562,7 @@ const AdminLogin = ({ onBack, onComplete }) => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
               autoComplete="email"
-              className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-700 text-white placeholder-stone-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-900 outline-none text-sm"
+              className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-700 text-white placeholder-stone-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-900 outline-none text-sm"
             />
             <input
               type="password"
@@ -12571,7 +12571,7 @@ const AdminLogin = ({ onBack, onComplete }) => {
               onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
               placeholder="Password"
               autoComplete="current-password"
-              className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-700 text-white placeholder-stone-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-900 outline-none text-sm"
+              className="w-full px-4 py-3 rounded-xl bg-stone-950 border border-stone-700 text-white placeholder-stone-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-900 outline-none text-sm"
             />
             {error && (
               <div className="p-3 bg-rose-950/40 border border-rose-900 rounded-lg text-xs text-rose-300">{error}</div>
@@ -12579,7 +12579,7 @@ const AdminLogin = ({ onBack, onComplete }) => {
             <button
               onClick={submit}
               disabled={loading || !email || !password}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-stone-700 disabled:text-stone-500 text-white py-3 rounded-xl text-sm font-medium transition-colors"
+              className="w-full bg-brand-600 hover:bg-brand-500 disabled:bg-stone-700 disabled:text-stone-500 text-white py-3 rounded-xl text-sm font-medium transition-colors"
             >
               {loading ? "Signing in..." : "Sign in to admin"}
             </button>
