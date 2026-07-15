@@ -11,13 +11,13 @@ import CommunityMemberProfile from "./CommunityMemberProfile";
 // surfacing + group filter are follow-ups.
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 
 const blank = { name: "", email: "", phone: "", address: "", status: "active", notes: "" };
 
 const StatusBadge = ({ status }) => (
-  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${status === "active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{status}</span>
+  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${status === "active" ? "bg-success-50 text-success-800 border border-success-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{status}</span>
 );
 
 // Invite a member by email — warm signup link with an optional personal note.
@@ -42,10 +42,10 @@ const InviteCard = ({ member, onBack }) => {
       <div className={cardCls}>
         {sent ? (
           <div className="text-center py-4">
-            <CheckCircle2 className="mx-auto text-emerald-600 mb-2" size={32} />
+            <CheckCircle2 className="mx-auto text-brand-600 mb-2" size={32} />
             <p className="text-sm font-medium text-stone-900">Invite sent to {member.name}</p>
             <p className="text-xs text-stone-500 mt-1">{member.email}</p>
-            <button onClick={onBack} className="mt-4 text-sm text-emerald-800 hover:text-emerald-900 font-medium">Back to members</button>
+            <button onClick={onBack} className="mt-4 text-sm text-brand-800 hover:text-brand-900 font-medium">Back to members</button>
           </div>
         ) : (
           <>
@@ -55,7 +55,7 @@ const InviteCard = ({ member, onBack }) => {
             <textarea rows={3} className={inputCls + " resize-none"} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} placeholder="e.g. We'd love to have you as part of the community." />
             {error && <p className="text-sm text-rose-700 mt-2 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
             <div className="flex gap-2 mt-4">
-              <button onClick={send} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send invite</button>
+              <button onClick={send} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send invite</button>
               <button onClick={onBack} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
             <p className="text-xs text-stone-400 mt-4 border-t border-stone-100 pt-3">The member will be fully linked to your mosque once they sign up with this email (coming in the next update).</p>
@@ -175,7 +175,7 @@ const CommunityMembers = ({ mosqueId }) => {
           <p className="text-sm text-stone-600">{members.length} member{members.length === 1 ? "" : "s"}{members.length ? ` · ${activeCount} active` : ""}{derivedOnly.length ? ` · ${derivedOnly.length} enrolled famil${derivedOnly.length === 1 ? "y" : "ies"}` : ""}. Your congregation directory.</p>
         </div>
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add member</button>
+          <button onClick={() => setShowForm(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add member</button>
         )}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
@@ -198,7 +198,7 @@ const CommunityMembers = ({ mosqueId }) => {
             <div><label className={labelCls}>Address</label><input className={inputCls} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
             <div><label className={labelCls}>Admin notes</label><textarea rows={2} className={inputCls + " resize-none"} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Add member"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Add member"}</button>
               <button onClick={cancel} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
           </div>
@@ -234,7 +234,7 @@ const CommunityMembers = ({ mosqueId }) => {
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium text-stone-800 flex items-center gap-2 flex-wrap">
                   {m.name}
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">Enrolled family</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">Enrolled family</span>
                   {m.is_pending && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">Pending</span>}
                 </span>
                 <span className="text-xs text-stone-500 flex items-center gap-3 mt-0.5">
@@ -246,9 +246,9 @@ const CommunityMembers = ({ mosqueId }) => {
           ) : (
             <div key={m.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
               <button onClick={() => setSelectedId(m.id)} className="flex-1 min-w-0 text-left flex items-center gap-3 group">
-                <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-sm font-medium">{m.name.slice(0, 1).toUpperCase()}</span>
+                <span className="w-9 h-9 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0 text-sm font-medium">{m.name.slice(0, 1).toUpperCase()}</span>
                 <span className="min-w-0">
-                  <span className="text-sm font-medium text-stone-900 group-hover:text-emerald-800 flex items-center gap-2">{m.name} <StatusBadge status={m.status} /></span>
+                  <span className="text-sm font-medium text-stone-900 group-hover:text-brand-800 flex items-center gap-2">{m.name} <StatusBadge status={m.status} /></span>
                   <span className="text-xs text-stone-500 flex items-center gap-3 mt-0.5">
                     {m.email && <span className="inline-flex items-center gap-1 truncate"><Mail size={11} /> {m.email}</span>}
                     {m.phone && <span className="inline-flex items-center gap-1"><Phone size={11} /> {m.phone}</span>}
@@ -256,9 +256,9 @@ const CommunityMembers = ({ mosqueId }) => {
                 </span>
               </button>
               {m.email && !m.profile_id && (
-                <button onClick={() => setInviteId(m.id)} title="Invite by email" className="text-stone-400 hover:text-emerald-700 p-1.5"><Mail size={14} /></button>
+                <button onClick={() => setInviteId(m.id)} title="Invite by email" className="text-stone-400 hover:text-brand-700 p-1.5"><Mail size={14} /></button>
               )}
-              <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+              <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
               <button onClick={() => remove(m.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
               <button onClick={() => setSelectedId(m.id)} className="text-stone-300 hover:text-stone-500 p-1"><ChevronRight size={16} /></button>
             </div>
