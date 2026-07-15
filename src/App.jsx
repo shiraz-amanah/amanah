@@ -5187,7 +5187,7 @@ const AppStatusPill = ({ status }) => {
     submitted: { bg: "bg-stone-100", text: "text-stone-700", label: "Submitted", icon: Clock },
     viewed: { bg: "bg-sky-50", text: "text-sky-700", label: "Viewed", icon: Eye },
     shortlisted: { bg: "bg-amber-50", text: "text-amber-800", label: "Shortlisted", icon: Star },
-    offered: { bg: "bg-emerald-50", text: "text-emerald-800", label: "Offered", icon: CheckCircle2 },
+    offered: { bg: "bg-success-50", text: "text-success-800", label: "Offered", icon: CheckCircle2 },
     declined: { bg: "bg-rose-50", text: "text-rose-700", label: "Declined", icon: XCircle }
   }[status];
   const Icon = config.icon;
@@ -11594,7 +11594,7 @@ const AdminScholarApplications = ({ onOpenDBSOrder }) => {
 const ApplicationStatusPill = ({ status }) => {
   const cfg = {
     pending:  { bg: "bg-amber-50",   text: "text-amber-800",   border: "border-amber-200",   label: "Pending" },
-    approved: { bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200", label: "Approved" },
+    approved: { bg: "bg-success-50", text: "text-success-800", border: "border-success-200", label: "Approved" },
     rejected: { bg: "bg-rose-50",    text: "text-rose-800",    border: "border-rose-200",    label: "Rejected" },
   }[status] || { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-200", label: status };
   return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
