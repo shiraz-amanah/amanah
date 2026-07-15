@@ -34,7 +34,7 @@ const expiryTone = (iso) => {
   if (iso <= in30Str()) return "amber";
   return "emerald";
 };
-const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-amber-50 border-amber-200 text-amber-700", emerald: "bg-emerald-50 border-emerald-200 text-emerald-700", stone: "bg-stone-50 border-stone-200 text-stone-500" };
+const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-amber-50 border-amber-200 text-amber-700", emerald: "bg-success-50 border-success-200 text-success-700", stone: "bg-stone-50 border-stone-200 text-stone-500" };
 
 // Clickable when onClick is provided (all dashboard tiles route somewhere).
 const StatCard = ({ icon: Icon, label, value, tone = "stone", onClick }) => {
@@ -45,7 +45,7 @@ const StatCard = ({ icon: Icon, label, value, tone = "stone", onClick }) => {
     </>
   );
   if (!onClick) return <div className="bg-white border border-stone-200 rounded-2xl p-4">{inner}</div>;
-  return <button onClick={onClick} className="bg-white border border-stone-200 rounded-2xl p-4 text-left hover:border-emerald-300 hover:shadow-sm transition-all">{inner}</button>;
+  return <button onClick={onClick} className="bg-white border border-stone-200 rounded-2xl p-4 text-left hover:border-brand-300 hover:shadow-sm transition-all">{inner}</button>;
 };
 
 const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
@@ -144,8 +144,8 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
       </div>
 
       {/* AI daily briefing */}
-      <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 mb-2"><Sparkles size={16} /> Daily briefing</div>
+      <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-brand-900 mb-2"><Sparkles size={16} /> Daily briefing</div>
         {briefLoading ? <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Preparing your briefing…</div>
           : briefError ? <p className="text-sm text-stone-500">Your briefing is unavailable right now. The stats below are live.</p>
           : <Markdown text={brief} />}
@@ -201,7 +201,7 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
                   <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${toneCls[tone]}`}>{d.expiry_date}</span>
                 </li>
               ); })}</ul>}
-          <button onClick={() => onNavigate?.("compliance", "documents")} className="mt-3 text-xs font-medium text-emerald-800 hover:text-emerald-900">View all documents →</button>
+          <button onClick={() => onNavigate?.("compliance", "documents")} className="mt-3 text-xs font-medium text-brand-800 hover:text-brand-900">View all documents →</button>
         </div>
       </div>
 
@@ -209,26 +209,26 @@ const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><Calendar size={15} /> Upcoming events</h3>
-          <button onClick={() => onNavigate?.("mosque", "events")} className="text-xs font-medium text-emerald-800 hover:text-emerald-900 inline-flex items-center gap-0.5">Manage events <ChevronRight size={12} /></button>
+          <button onClick={() => onNavigate?.("mosque", "events")} className="text-xs font-medium text-brand-800 hover:text-brand-900 inline-flex items-center gap-0.5">Manage events <ChevronRight size={12} /></button>
         </div>
         {loading ? <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>
           : upcomingEvents.length === 0 ? (
             <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center">
               <Calendar className="mx-auto text-stone-300 mb-2" size={26} />
-              <p className="text-sm text-stone-500">No upcoming events. <button onClick={() => onNavigate?.("mosque", "events")} className="text-emerald-800 hover:underline font-medium">Create one →</button></p>
+              <p className="text-sm text-stone-500">No upcoming events. <button onClick={() => onNavigate?.("mosque", "events")} className="text-brand-800 hover:underline font-medium">Create one →</button></p>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {upcomingEvents.map((e) => (
-                <button key={e.id} onClick={() => onNavigate?.("mosque", "events")} className="text-left bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-300 hover:shadow-sm transition-all">
+                <button key={e.id} onClick={() => onNavigate?.("mosque", "events")} className="text-left bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-brand-300 hover:shadow-sm transition-all">
                   {e.image_url && <img src={e.image_url} alt="" className="w-full h-24 object-cover" />}
                   <div className="p-4">
                     <p className="text-sm font-semibold text-stone-900 mb-1 line-clamp-2">{e.title}</p>
                     <div className="flex items-center justify-between mt-2 gap-2">
-                      <span className="text-xs text-stone-500 inline-flex items-center gap-1"><Calendar size={11} className="text-emerald-700" /> {fmtEventDate(e.date)}{e.time ? ` · ${e.time}` : ""}</span>
+                      <span className="text-xs text-stone-500 inline-flex items-center gap-1"><Calendar size={11} className="text-brand-700" /> {fmtEventDate(e.date)}{e.time ? ` · ${e.time}` : ""}</span>
                       <span className="inline-flex items-center gap-1.5 shrink-0">
                         <RecurrenceBadge recurrence={e.recurrence} />
-                        <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">{eventTypeLabel(e.type)}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">{eventTypeLabel(e.type)}</span>
                       </span>
                     </div>
                   </div>
