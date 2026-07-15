@@ -43,11 +43,11 @@ const CommunityMemberProfile = ({ member, onBack }) => {
       {/* Header */}
       <div className={cardCls}>
         <div className="flex items-center gap-4">
-          <span className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-xl font-medium">{member.name.slice(0, 1).toUpperCase()}</span>
+          <span className="w-14 h-14 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0 text-xl font-medium">{member.name.slice(0, 1).toUpperCase()}</span>
           <div className="min-w-0">
             <h2 className="text-xl md:text-2xl font-semibold text-stone-900 tracking-tight flex items-center gap-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
               {member.name}
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${member.status === "active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{member.status}</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider ${member.status === "active" ? "bg-success-50 text-success-800 border border-success-200" : "bg-stone-100 text-stone-500 border border-stone-200"}`}>{member.status}</span>
             </h2>
             <p className="text-xs text-stone-500 mt-0.5 flex items-center gap-1"><Calendar size={11} /> Member since {fmtDate(member.joined_at)}</p>
           </div>
