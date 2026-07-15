@@ -56,7 +56,7 @@ const blank = {
 };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const isEmpty = (v) => !String(v ?? "").trim();
 
 const Field = ({ label, required, children }) => (
@@ -80,11 +80,11 @@ const FileField = ({ label, required, value, remoteMode, onSelect, onClear, erro
     {remoteMode ? (
       <div className="space-y-1.5">
         {uploadedName && (
-          <div className="flex items-center gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-emerald-800">
-            <CheckCircle2 size={14} className="shrink-0" /> <span className="truncate">{uploadedName}</span> <span className="text-emerald-600 text-xs">uploaded</span>
+          <div className="flex items-center gap-2 text-sm bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-brand-800">
+            <CheckCircle2 size={14} className="shrink-0" /> <span className="truncate">{uploadedName}</span> <span className="text-brand-600 text-xs">uploaded</span>
           </div>
         )}
-        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100 ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
           {uploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />} {uploadedName ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB)
           <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onRemoteUpload?.(f); e.target.value = ""; }} />
         </label>
@@ -100,7 +100,7 @@ const FileField = ({ label, required, value, remoteMode, onSelect, onClear, erro
           </div>
         )}
         {/* Always available — allows replacing an already-selected file. */}
-        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"}`}>
+        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100"}`}>
           <Paperclip size={14} /> {value ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
           <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
         </label>
@@ -400,7 +400,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
       </div>
       <div className="flex gap-1 mb-6">
         {STEPS.map((s, i) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full ${i + 1 <= step ? "bg-emerald-600" : "bg-stone-200"}`} title={s} />
+          <div key={s} className={`h-1.5 flex-1 rounded-full ${i + 1 <= step ? "bg-brand-600" : "bg-stone-200"}`} title={s} />
         ))}
       </div>
 
@@ -510,7 +510,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           <Field label="Student loan">
             <div className="flex gap-2">
               {[["false", "No"], ["true", "Yes"]].map(([v, l]) => (
-                <button key={v} onClick={() => set("student_loan", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.student_loan) === v ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
+                <button key={v} onClick={() => set("student_loan", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.student_loan) === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
               ))}
             </div>
           </Field>
@@ -530,10 +530,10 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
 
         {step === 6 && (<>
           <div className="flex items-start gap-2 text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-            <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> Bank details are stored securely and are only ever visible to mosque admins — never to the staff member or the public.
+            <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-brand-600" /> Bank details are stored securely and are only ever visible to mosque admins — never to the staff member or the public.
           </div>
           {bankSaved && !form.bank_account_number && !form.bank_account_name && !form.bank_sort_code && (
-            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">Your bank details are saved. Leave blank to keep them, or re-enter below to change.</p>
+            <p className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">Your bank details are saved. Leave blank to keep them, or re-enter below to change.</p>
           )}
           <Field label="Account name"><input className={inputCls} value={form.bank_account_name} onChange={(e) => set("bank_account_name", e.target.value)} placeholder={bankSaved && !form.bank_account_name ? "saved — re-enter to change" : ""} /></Field>
           <div className="grid grid-cols-2 gap-3">
@@ -546,7 +546,7 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           <Field label="Issue an employment contract?">
             <div className="flex gap-2">
               {[["true", "Yes"], ["false", "No"]].map(([v, l]) => (
-                <button key={v} onClick={() => set("issue_contract", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.issue_contract) === v ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
+                <button key={v} onClick={() => set("issue_contract", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.issue_contract) === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
               ))}
             </div>
           </Field>
@@ -561,8 +561,8 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
               <input type="email" className={inputCls + (attempted && form.issue_contract && isEmpty(form.email) ? " border-rose-400 ring-1 ring-rose-200" : "")} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="them@example.com" />
             </Field>
             <div className="flex items-center gap-2 flex-wrap">
-              <button type="button" onClick={() => setShowContractEditor(true)} className="text-sm font-medium border border-emerald-300 text-emerald-800 hover:bg-emerald-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><PenLine size={14} /> Review &amp; edit template</button>
-              {form.contract_terms && <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Check size={13} /> Template edited</span>}
+              <button type="button" onClick={() => setShowContractEditor(true)} className="text-sm font-medium border border-brand-300 text-brand-800 hover:bg-brand-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><PenLine size={14} /> Review &amp; edit template</button>
+              {form.contract_terms && <span className="text-xs text-brand-700 inline-flex items-center gap-1"><Check size={13} /> Template edited</span>}
             </div>
             <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">On confirm, the contract is created from {form.contract_terms ? "your edited template" : "these details"} and emailed to {form.email.trim() || "the staff member"} with a secure link to review and e-sign.</p>
           </>)}
@@ -606,11 +606,11 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           <ChevronLeft size={15} /> {step === 1 ? "Cancel" : "Back"}
         </button>
         {step < TOTAL ? (
-          <button onClick={next} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+          <button onClick={next} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
             Next <ChevronRight size={15} />
           </button>
         ) : (
-          <button onClick={save} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+          <button onClick={save} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Confirm & save
           </button>
         )}
