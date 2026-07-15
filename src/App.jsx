@@ -123,7 +123,7 @@ const ProgressBar = ({ raised, goal, gradient = "from-brand-600 to-brand-800" })
 const CampaignCard = ({ campaign, onClick, isSaved, onToggleSave }) => {
   const pct = Math.min((campaign.raised / campaign.goal) * 100, 100);
   return (
-    <div onClick={onClick} className="group bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-300 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1">
+    <div onClick={onClick} className="group bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-brand-300 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1">
       <div className={`relative h-40 bg-gradient-to-br ${campaign.gradient} overflow-hidden`}>
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M20 0l20 20-20 20L0 20z' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3C/svg%3E")` }}></div>
         {campaign.trending && (
@@ -154,7 +154,7 @@ const CampaignCard = ({ campaign, onClick, isSaved, onToggleSave }) => {
       <div className="p-5">
         <div className="flex items-center gap-1.5 mb-2">
           <p className="text-xs text-stone-500">{campaign.creator}</p>
-          {campaign.verified && <ShieldCheck size={12} className="text-emerald-700" />}
+          {campaign.verified && <ShieldCheck size={12} className="text-success-700" />}
         </div>
         <h4 className="text-base font-semibold text-stone-900 mb-2 leading-snug line-clamp-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{campaign.title}</h4>
         <p className="text-sm text-stone-600 line-clamp-2 mb-4 leading-relaxed">{campaign.summary}</p>
@@ -167,7 +167,7 @@ const CampaignCard = ({ campaign, onClick, isSaved, onToggleSave }) => {
         <div className="flex items-center justify-between text-xs text-stone-500 pt-3 border-t border-stone-100">
           <span className="flex items-center gap-1"><Users size={12} /> {campaign.donors} donors</span>
           <span className="flex items-center gap-1"><Clock size={12} /> {campaign.daysLeft} days left</span>
-          <span className="font-semibold text-emerald-700">{Math.round(pct)}%</span>
+          <span className="font-semibold text-brand-700">{Math.round(pct)}%</span>
         </div>
       </div>
     </div>
@@ -336,8 +336,8 @@ useEffect(() => {
       <header className={`sticky top-0 z-40 transition-all duration-300 ${scrolled ? "bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm" : "bg-transparent"}`}>
         <div className="max-w-7xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5 md:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md">
-              <ShieldCheck className="text-emerald-50" size={18} />
+            <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center shadow-md">
+              <ShieldCheck className="text-brand-50" size={18} />
             </div>
             <div>
               <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
@@ -359,7 +359,7 @@ useEffect(() => {
       </div>
     ) : (
       <div
-        className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
+        className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-brand-400 to-brand-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
         style={{ fontFamily: "'Fraunces', Georgia, serif" }}
       >
         {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
@@ -383,7 +383,7 @@ useEffect(() => {
       {/* Hero with animated cinematic background */}
       <section className="relative overflow-hidden">
         {/* Base deep night gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-stone-950 via-emerald-950 to-stone-900"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-stone-950 via-brand-950 to-stone-900"></div>
 
         {/* Animated drifting gradient orbs (the "video" effect) */}
         <div className="absolute inset-0">
@@ -451,14 +451,14 @@ useEffect(() => {
         <div className="relative max-w-7xl mx-auto px-5 md:px-6 pt-10 pb-16 md:pt-20 md:pb-28 text-white">
           <div className="max-w-3xl" style={{ animation: "fadeInUp 0.6s ease-out" }}>
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full text-[11px] md:text-xs uppercase tracking-wider mb-5 md:mb-6">
-              <span className="w-1.5 h-1.5 bg-emerald-300 rounded-full animate-pulse"></span>
+              <span className="w-1.5 h-1.5 bg-brand-300 rounded-full animate-pulse"></span>
               <ShieldCheck size={13} /> <span className="hidden sm:inline">Every scholar DBS-checked & verified</span><span className="sm:hidden">DBS-checked & verified</span>
             </div>
             <h2 className="text-[2.4rem] leading-[1.05] md:text-6xl lg:text-7xl font-semibold tracking-tight mb-5 md:mb-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
               Find a scholar<br />
-              <span className="italic text-emerald-200">you can trust.</span>
+              <span className="italic text-brand-200">you can trust.</span>
             </h2>
-            <p className="text-base md:text-xl text-emerald-100/90 mb-6 md:mb-8 max-w-2xl leading-relaxed">
+            <p className="text-base md:text-xl text-brand-100/90 mb-6 md:mb-8 max-w-2xl leading-relaxed">
               Qur'an tutors for your kids. Arabic teachers for you. Imams for your nikah. All vetted, all one click away.
             </p>
 
@@ -473,13 +473,13 @@ useEffect(() => {
                 placeholder="Try 'female Qur'an teacher for kids in Bradford'"
                 className="flex-1 min-w-0 px-2 py-2.5 md:py-3 text-sm text-stone-900 outline-none placeholder:text-stone-400"
               />
-              <button onClick={submitHeroSearch} className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0">Search</button>
+              <button onClick={submitHeroSearch} className="bg-brand-900 hover:bg-brand-800 text-white px-4 md:px-5 py-2.5 md:py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] active:scale-95 flex-shrink-0">Search</button>
             </div>
 
             {/* Live stats */}
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 md:mt-8 text-xs md:text-sm text-emerald-100/80">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 md:mt-8 text-xs md:text-sm text-brand-100/80">
               <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-300 rounded-full animate-pulse"></span>
+                <span className="w-2 h-2 bg-brand-300 rounded-full animate-pulse"></span>
                 <Counter end={scholars.filter(s => s.online).length} /> online
               </span>
               <span className="flex items-center gap-2"><Users size={14} /> <Counter end={scholars.reduce((sum, s) => sum + (s.students || 0), 0)} />+ students</span>
@@ -508,7 +508,7 @@ useEffect(() => {
               const el = document.getElementById("top-scholars");
               if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all"
+            className="hidden md:flex items-center gap-1 text-sm text-brand-800 font-medium hover:gap-2 transition-all"
           >
             View all <ArrowRight size={14} />
           </button>
@@ -521,7 +521,7 @@ useEffect(() => {
               <button
                 key={cat.id}
                 onClick={() => onCategory(cat.id)}
-                className="group relative bg-white border border-stone-200 rounded-2xl p-5 text-left hover:border-emerald-300 hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden"
+                className="group relative bg-white border border-stone-200 rounded-2xl p-5 text-left hover:border-brand-300 hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden"
                 style={{ animation: `fadeInUp 0.4s ease-out ${i * 0.05}s both` }}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${cat.tint} opacity-0 group-hover:opacity-100 transition-opacity`}></div>
@@ -552,14 +552,14 @@ useEffect(() => {
       <div className="flex items-center gap-2 mb-1 flex-wrap">
         <h3 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Verified mosques near you</h3>
         {heroMosqueActive && (
-          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-full">
+          <span className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 text-xs font-medium px-2.5 py-1 rounded-full">
             <Sparkles size={11} /> Matched by AI
           </span>
         )}
       </div>
       <p className="text-stone-600 text-sm md:text-base">{heroMosqueActive ? "Matching your search" : "Discover trusted mosques in your area"}</p>
     </div>
-    <button onClick={() => onMosquesListing && onMosquesListing()} className="hidden md:flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+    <button onClick={() => onMosquesListing && onMosquesListing()} className="hidden md:flex items-center gap-1 text-sm text-brand-800 font-medium hover:gap-2 transition-all">
       View all <ArrowRight size={14} />
     </button>
   </div>
@@ -590,10 +590,10 @@ useEffect(() => {
 
       {/* Recent booking review prompt */}
       <section className="max-w-7xl mx-auto px-6">
-        <div className="bg-gradient-to-br from-amber-50 via-white to-emerald-50 border border-amber-200 rounded-2xl p-5 flex items-center gap-4 flex-wrap">
+        <div className="bg-gradient-to-br from-amber-50 via-white to-brand-50 border border-amber-200 rounded-2xl p-5 flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="relative flex-shrink-0">
-              <Avatar scholar={{ initials: "YR", avatarGradient: "from-emerald-400 to-emerald-700" }} size="md" />
+              <Avatar scholar={{ initials: "YR", avatarGradient: "from-brand-400 to-brand-700" }} size="md" />
               <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center border-2 border-white">
                 <Star size={10} className="text-white" fill="white" />
               </div>
@@ -603,7 +603,7 @@ useEffect(() => {
               <p className="text-xs text-stone-600 mt-0.5">Completed yesterday · Standard package</p>
             </div>
           </div>
-          <button onClick={() => onLeaveReview({ id: "demo-yusuf", name: "Ustadh Yusuf Al-Rahman", initials: "YR", avatarGradient: "from-emerald-400 to-emerald-700" })} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-all hover:scale-[1.02] inline-flex items-center gap-2 flex-shrink-0">
+          <button onClick={() => onLeaveReview({ id: "demo-yusuf", name: "Ustadh Yusuf Al-Rahman", initials: "YR", avatarGradient: "from-brand-400 to-brand-700" })} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-all hover:scale-[1.02] inline-flex items-center gap-2 flex-shrink-0">
             <Star size={14} /> Leave a review
           </button>
         </div>
@@ -674,7 +674,7 @@ useEffect(() => {
       </section>
 
       {/* Campaigns / Sadaqah Jariyah */}
-      <section id="campaigns" className="relative overflow-hidden mt-16 bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
+      <section id="campaigns" className="relative overflow-hidden mt-16 bg-gradient-to-br from-stone-900 via-brand-950 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
         <div className="relative max-w-7xl mx-auto px-6 py-16">
           <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
@@ -683,15 +683,15 @@ useEffect(() => {
                 <HandCoins size={12} /> Sadaqah jariyah · 0% platform fee
               </div>
               <h3 className="text-3xl md:text-5xl font-semibold tracking-tight mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Support a cause.</h3>
-              <p className="text-emerald-100/90 max-w-xl">{heroCampaignsActive ? "Campaigns matching your search." : "Live campaigns from verified mosques and scholars. Every fundraiser Charity Commission-checked. Every pound reaches the cause."}</p>
+              <p className="text-brand-100/90 max-w-xl">{heroCampaignsActive ? "Campaigns matching your search." : "Live campaigns from verified mosques and scholars. Every fundraiser Charity Commission-checked. Every pound reaches the cause."}</p>
             </div>
-            <button onClick={() => onAllCampaigns()} className="inline-flex items-center gap-1 text-sm font-medium hover:gap-2 transition-all text-emerald-200 hover:text-white">
+            <button onClick={() => onAllCampaigns()} className="inline-flex items-center gap-1 text-sm font-medium hover:gap-2 transition-all text-brand-200 hover:text-white">
               View all campaigns <ArrowRight size={14} />
             </button>
           </div>
 
           {heroCampaignsActive && displayedCampaigns.length === 0 ? (
-            <p className="text-sm text-emerald-100/80 py-6">No matches for this search</p>
+            <p className="text-sm text-brand-100/80 py-6">No matches for this search</p>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               {displayedCampaigns.map((c, i) => (
@@ -704,8 +704,8 @@ useEffect(() => {
 
           {/* Live donation ticker */}
           <div className="mt-10 inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-3 rounded-full text-sm">
-            <span className="w-2 h-2 bg-emerald-300 rounded-full animate-pulse"></span>
-            <span className="text-emerald-100/90">Live:</span>
+            <span className="w-2 h-2 bg-brand-300 rounded-full animate-pulse"></span>
+            <span className="text-brand-100/90">Live:</span>
             <span>Anonymous donor just gave <strong>£50</strong> to Masjid Al-Noor's roof fund</span>
           </div>
         </div>
@@ -715,12 +715,12 @@ useEffect(() => {
       <section className="bg-white border-y border-stone-200 mt-16">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="inline-block text-xs uppercase tracking-widest text-emerald-800 font-medium mb-3">How it works</span>
+            <span className="inline-block text-xs uppercase tracking-widest text-brand-800 font-medium mb-3">How it works</span>
             <h3 className="text-3xl md:text-4xl font-semibold text-stone-900 tracking-tight mb-3" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Three steps to peace of mind</h3>
           </div>
           <div className="grid md:grid-cols-3 gap-6 relative">
             {/* Connecting line */}
-            <div className="hidden md:block absolute top-8 left-[16%] right-[16%] h-px bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200"></div>
+            <div className="hidden md:block absolute top-8 left-[16%] right-[16%] h-px bg-gradient-to-r from-brand-200 via-brand-400 to-brand-200"></div>
             {[
               { n: "01", title: "Browse vetted scholars", desc: "Filter by service, language, or specialty. Everyone is DBS-checked.", icon: Search },
               { n: "02", title: "Book with confidence", desc: "Choose a package, pick a time. Payment held safely until complete.", icon: CheckCircle2 },
@@ -729,10 +729,10 @@ useEffect(() => {
               const Icon = step.icon;
               return (
                 <div key={step.n} className="relative bg-white text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 mb-4 relative z-10">
-                    <Icon className="text-emerald-800" size={24} />
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 border border-brand-200 mb-4 relative z-10">
+                    <Icon className="text-brand-800" size={24} />
                   </div>
-                  <p className="text-xs font-mono text-emerald-700 mb-1">{step.n}</p>
+                  <p className="text-xs font-mono text-brand-700 mb-1">{step.n}</p>
                   <h4 className="text-lg font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{step.title}</h4>
                   <p className="text-sm text-stone-600">{step.desc}</p>
                 </div>
@@ -746,8 +746,8 @@ useEffect(() => {
       <section className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <span className="inline-block text-xs uppercase tracking-widest text-emerald-800 font-medium mb-3">Why Amanah</span>
-            <h3 className="text-3xl md:text-5xl font-semibold text-stone-900 tracking-tight mb-5 leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>The only <span className="italic text-emerald-800">safeguarded</span> Muslim scholar platform in the UK.</h3>
+            <span className="inline-block text-xs uppercase tracking-widest text-brand-800 font-medium mb-3">Why Amanah</span>
+            <h3 className="text-3xl md:text-5xl font-semibold text-stone-900 tracking-tight mb-5 leading-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>The only <span className="italic text-brand-800">safeguarded</span> Muslim scholar platform in the UK.</h3>
             <p className="text-stone-700 mb-6 text-lg leading-relaxed">There are plenty of places to find a teacher. There aren't many where you know they're safe around your children.</p>
             <div className="space-y-4">
               {[
@@ -758,8 +758,8 @@ useEffect(() => {
                 const Icon = item.icon;
                 return (
                   <div key={item.t} className="flex gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
-                      <Icon className="text-emerald-800" size={18} />
+                    <div className="w-11 h-11 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center flex-shrink-0">
+                      <Icon className="text-brand-800" size={18} />
                     </div>
                     <div>
                       <h4 className="font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{item.t}</h4>
@@ -778,14 +778,14 @@ useEffect(() => {
                 <div>
                   <p className="font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Shaykha Maryam Idris</p>
                   <div className="flex items-center gap-1 text-xs text-stone-500 mt-0.5">
-                    <ShieldCheck size={11} className="text-emerald-700" /> DBS Verified
+                    <ShieldCheck size={11} className="text-success-700" /> DBS Verified
                     <span className="mx-1">·</span>
                     <Star size={11} className="text-amber-500" fill="currentColor" /> 5.0
                   </div>
                 </div>
-                <span className="ml-auto text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full font-medium">Online now</span>
+                <span className="ml-auto text-xs text-brand-700 bg-brand-50 px-2 py-1 rounded-full font-medium">Online now</span>
               </div>
-              <Quote className="text-emerald-200 mb-2" size={28} />
+              <Quote className="text-brand-200 mb-2" size={28} />
               <p className="text-stone-800 italic leading-relaxed mb-4">"Finally a female scholar I can ask anything without shame. Changed my iman."</p>
               <p className="text-sm text-stone-500">— Zainab H., verified booking</p>
               <div className="mt-5 pt-5 border-t border-stone-100 grid grid-cols-3 gap-3 text-center">
@@ -800,7 +800,7 @@ useEffect(() => {
 
       {/* CTA */}
       <section className="max-w-7xl mx-auto px-6 pb-16">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 to-emerald-950 p-10 md:p-16 text-white">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 to-brand-950 p-10 md:p-16 text-white">
           <div className="absolute inset-0 opacity-20" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M20 0l20 20-20 20L0 20z' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3C/svg%3E")`
           }}></div>
@@ -818,8 +818,8 @@ useEffect(() => {
       <footer className="bg-stone-950 text-stone-400">
         <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-800 flex items-center justify-center">
-              <ShieldCheck className="text-emerald-50" size={16} />
+            <div className="w-8 h-8 rounded-lg bg-brand-800 flex items-center justify-center">
+              <ShieldCheck className="text-brand-50" size={16} />
             </div>
             <span className="text-sm">© Amanah · The trusted Muslim scholar platform</span>
           </div>
@@ -1150,7 +1150,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation })
   return (
     <div
       onClick={onClick}
-      className="group relative bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-400 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1 overflow-hidden"
+      className="group relative bg-white border border-stone-200 rounded-2xl p-5 hover:border-brand-400 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1 overflow-hidden"
     >
       {scholar.topRated && (
         <div className="absolute top-4 right-4 inline-flex items-center gap-1 bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
@@ -1175,7 +1175,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation })
         <div className="flex-1 min-w-0 pr-16">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
             <h4 className="text-base font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scholar.name}</h4>
-            {scholar.verified && <ShieldCheck size={14} className="text-emerald-700 flex-shrink-0" />}
+            {scholar.verified && <ShieldCheck size={14} className="text-success-700 flex-shrink-0" />}
           </div>
           <div className="flex items-center gap-2 text-xs text-stone-500">
             <span className="flex items-center gap-1"><MapPin size={11} /> {scholar.city}</span>
@@ -1184,7 +1184,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation })
             <span className="text-stone-400">({scholar.reviewCount})</span>
           </div>
           {aiExplanation && (
-            <p className="mt-1 flex items-start gap-1 text-xs text-emerald-700 leading-snug">
+            <p className="mt-1 flex items-start gap-1 text-xs text-brand-700 leading-snug">
               <Sparkles size={11} className="mt-0.5 flex-shrink-0" />
               <span>{aiExplanation}</span>
             </p>
@@ -1203,7 +1203,7 @@ const ScholarCard = ({ scholar, onClick, isSaved, onToggleSave, aiExplanation })
           <span className="text-xs text-stone-500 block">Starting from</span>
           <span className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{minPrice != null ? `£${minPrice}` : "—"}</span>
         </div>
-        <span className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
+        <span className="inline-flex items-center gap-1 text-sm text-brand-800 font-medium opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
           View <ArrowRight size={14} />
         </span>
       </div>
@@ -1231,7 +1231,7 @@ const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave, aiExplan
   return (
     <div
       onClick={onClick}
-      className="group relative bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-emerald-400 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1"
+      className="group relative bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-brand-400 hover:shadow-xl cursor-pointer transition-all hover:-translate-y-1"
     >
       {/* Photo header (or initials block when photo_url is null) */}
       <div className="relative h-40 bg-stone-100 overflow-hidden">
@@ -1243,7 +1243,7 @@ const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave, aiExplan
             onError={(e) => { e.target.style.display = 'none'; }}
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-emerald-700 to-emerald-900 flex items-center justify-center">
+          <div className="w-full h-full bg-gradient-to-br from-brand-700 to-brand-900 flex items-center justify-center">
             <span className="text-white text-4xl font-semibold tracking-wide" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
               {getMosqueInitials(mosque)}
             </span>
@@ -1251,7 +1251,7 @@ const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave, aiExplan
         )}
         {/* Verified badge */}
         {mosque.verified && (
-          <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
+          <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-brand-600 text-white text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
             <ShieldCheck size={12} /> Verified
           </div>
         )}
@@ -1285,7 +1285,7 @@ const MosqueCard = ({ mosque, onClick, distance, isSaved, onToggleSave, aiExplan
           <span className="truncate">{mosque.city}{mosque.postcode ? ` · ${mosque.postcode}` : ''}</span>
         </div>
         {aiExplanation && (
-          <p className="flex items-start gap-1 text-xs text-emerald-700 leading-snug mb-3">
+          <p className="flex items-start gap-1 text-xs text-brand-700 leading-snug mb-3">
             <Sparkles size={11} className="mt-0.5 flex-shrink-0" />
             <span>{aiExplanation}</span>
           </p>
@@ -1405,8 +1405,8 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
 
         {/* Geolocation CTA banner */}
         {(status === 'idle' || status === 'denied' || status === 'unsupported') && (
-          <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
-            <MapPin className="text-emerald-700 shrink-0 mt-0.5" size={20} />
+          <div className="mb-6 bg-brand-50 border border-brand-200 rounded-xl p-4 flex items-start gap-3">
+            <MapPin className="text-brand-700 shrink-0 mt-0.5" size={20} />
             <div className="flex-1">
               <p className="text-sm font-medium text-stone-900">Find mosques near you</p>
               <p className="text-xs text-stone-600 mt-0.5">
@@ -1416,7 +1416,7 @@ const MosquesListing = ({ onBack, onMosque, savedMosqueIds, onToggleMosqueSave, 
               </p>
             </div>
             {status === 'idle' && (
-              <button onClick={requestLocation} className="text-xs font-medium bg-emerald-700 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-800 transition-colors">
+              <button onClick={requestLocation} className="text-xs font-medium bg-brand-700 text-white px-3 py-1.5 rounded-lg hover:bg-brand-800 transition-colors">
                 Enable
               </button>
             )}
@@ -1697,13 +1697,13 @@ useEffect(() => {
                 ].map(v => {
                   const Icon = v.icon;
                   return (
-                    <div key={v.label} className="border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white rounded-xl p-4 relative overflow-hidden">
+                    <div key={v.label} className="border border-brand-200 bg-gradient-to-br from-brand-50 to-white rounded-xl p-4 relative overflow-hidden">
                       <div className="absolute top-2 right-2">
-                        <CheckCircle2 className="text-emerald-600" size={14} />
+                        <CheckCircle2 className="text-brand-600" size={14} />
                       </div>
-                      <Icon className="text-emerald-700 mb-2" size={20} />
-                      <p className="text-sm font-medium text-emerald-900">{v.label}</p>
-                      <p className="text-xs text-emerald-700 mt-0.5">{v.date}</p>
+                      <Icon className="text-brand-700 mb-2" size={20} />
+                      <p className="text-sm font-medium text-brand-900">{v.label}</p>
+                      <p className="text-xs text-brand-700 mt-0.5">{v.date}</p>
                     </div>
                   );
                 })}
@@ -1754,7 +1754,7 @@ useEffect(() => {
               )}
 
               {!reviewsLoading && reviews.length >= 4 && (
-                <button className="w-full mt-4 text-sm text-emerald-800 font-medium hover:underline">See all {scholar.reviewCount} reviews</button>
+                <button className="w-full mt-4 text-sm text-brand-800 font-medium hover:underline">See all {scholar.reviewCount} reviews</button>
               )}
             </div>
           </div>
@@ -1768,7 +1768,7 @@ useEffect(() => {
                   <button
                     key={pkg.name}
                     onClick={() => setSelectedPkg(pkg)}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all relative ${selectedPkg?.name === pkg.name ? "border-emerald-600 bg-emerald-50 shadow-sm" : "border-stone-200 hover:border-stone-300"}`}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all relative ${selectedPkg?.name === pkg.name ? "border-brand-600 bg-brand-50 shadow-sm" : "border-stone-200 hover:border-stone-300"}`}
                   >
                     {pkg.popular && (
                       <span className="absolute -top-2 right-3 bg-amber-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">Most popular</span>
@@ -1782,19 +1782,19 @@ useEffect(() => {
                   </button>
                 ))}
               </div>
-              <button onClick={() => onBook(scholar, selectedPkg)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
+              <button onClick={() => onBook(scholar, selectedPkg)} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-brand-900/20 inline-flex items-center justify-center gap-2">
                 Book for £{selectedPkg?.price} <ArrowRight size={15} />
               </button>
               {!isOwnProfile && (
-                <button onClick={handleMessageClick} disabled={openingChat} className="w-full mt-2 border border-stone-300 hover:border-emerald-400 hover:bg-emerald-50 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                <button onClick={handleMessageClick} disabled={openingChat} className="w-full mt-2 border border-stone-300 hover:border-brand-400 hover:bg-brand-50 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60">
                   {openingChat ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
                   {openingChat ? "Opening chat..." : `Message ${scholar.name.split(" ")[0]} first`}
                 </button>
               )}
               <div className="mt-4 pt-4 border-t border-stone-100 space-y-2 text-xs text-stone-600">
-                <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-emerald-700" /> Payment held until session complete</p>
-                <p className="flex items-center gap-2"><Clock size={12} className="text-emerald-700" /> Full refund if cancelled 24h before</p>
-                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> Satisfaction guarantee</p>
+                <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-brand-700" /> Payment held until session complete</p>
+                <p className="flex items-center gap-2"><Clock size={12} className="text-brand-700" /> Full refund if cancelled 24h before</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-brand-700" /> Satisfaction guarantee</p>
               </div>
             </div>
           </div>
@@ -1813,7 +1813,7 @@ useEffect(() => {
               {openingChat ? <Loader2 size={18} className="animate-spin" /> : <MessageCircle size={18} />}
             </button>
           )}
-          <button onClick={() => onBook(scholar, selectedPkg)} className="bg-emerald-900 text-white px-5 py-3 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 flex-shrink-0">
+          <button onClick={() => onBook(scholar, selectedPkg)} className="bg-brand-900 text-white px-5 py-3 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 flex-shrink-0">
             Book <ArrowRight size={14} />
           </button>
         </div>
@@ -1887,7 +1887,7 @@ useEffect(() => {
       <div className="min-h-screen bg-stone-50 flex items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
         <div className="text-center">
           <p className="text-sm text-stone-400 mb-3">This booking is no longer available.</p>
-          <button onClick={onBack} className="text-sm font-medium text-emerald-800 hover:text-emerald-900">Go back</button>
+          <button onClick={onBack} className="text-sm font-medium text-brand-800 hover:text-brand-900">Go back</button>
         </div>
       </div>
     );
@@ -1947,7 +1947,7 @@ useEffect(() => {
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -1962,10 +1962,10 @@ useEffect(() => {
           <div className="flex items-center gap-3 mb-3">
             {[1, 2, 3].map(n => (
               <div key={n} className="flex items-center gap-3 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-emerald-900 text-white" : "bg-stone-200 text-stone-500"}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-brand-900 text-white" : "bg-stone-200 text-stone-500"}`}>
                   {step > n ? <CheckCircle2 size={14} /> : n}
                 </div>
-                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-emerald-900" : "bg-stone-200"}`}></div>}
+                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-brand-900" : "bg-stone-200"}`}></div>}
               </div>
             ))}
           </div>
@@ -1981,11 +1981,11 @@ useEffect(() => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Your name</label>
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Aisha Khan" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                    <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Aisha Khan" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Email</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                   </div>
                   {/* Student picker — only shown if user has added students */}
                   {authedUser && students.length > 0 && (
@@ -1995,9 +1995,9 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={() => setSelectedStudentId("self")}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selectedStudentId === "self" ? "border-emerald-600 bg-emerald-50" : "border-stone-200 hover:border-stone-300"}`}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selectedStudentId === "self" ? "border-brand-600 bg-brand-50" : "border-stone-200 hover:border-stone-300"}`}
                         >
-                          <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${selectedStudentId === "self" ? "border-emerald-600 bg-emerald-600" : "border-stone-300"}`}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${selectedStudentId === "self" ? "border-brand-600 bg-brand-600" : "border-stone-300"}`}>
                             {selectedStudentId === "self" && <div className="w-full h-full flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full"></div></div>}
                           </div>
                           <div className="flex-1">
@@ -2010,9 +2010,9 @@ useEffect(() => {
                             key={s.id}
                             type="button"
                             onClick={() => setSelectedStudentId(s.id)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selectedStudentId === s.id ? "border-emerald-600 bg-emerald-50" : "border-stone-200 hover:border-stone-300"}`}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${selectedStudentId === s.id ? "border-brand-600 bg-brand-50" : "border-stone-200 hover:border-stone-300"}`}
                           >
-                            <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${selectedStudentId === s.id ? "border-emerald-600 bg-emerald-600" : "border-stone-300"}`}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${selectedStudentId === s.id ? "border-brand-600 bg-brand-600" : "border-stone-300"}`}>
                               {selectedStudentId === s.id && <div className="w-full h-full flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full"></div></div>}
                             </div>
                             <div className="flex-1">
@@ -2043,7 +2043,7 @@ useEffect(() => {
 
                 <div className="mt-5">
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Notes (optional)</label>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="e.g. My son is 7, starting Qur'an for the first time. He's a bit shy." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="e.g. My son is 7, starting Qur'an for the first time. He's a bit shy." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none" />
                 </div>
               </div>
             )}
@@ -2072,11 +2072,11 @@ useEffect(() => {
             <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
               <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} disabled={saving} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Back</button>
               {step < 3 ? (
-                <button onClick={() => setStep(step + 1)} disabled={step === 1 ? !canStep1 : !canStep2} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                <button onClick={() => setStep(step + 1)} disabled={step === 1 ? !canStep1 : !canStep2} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                   Continue <ArrowRight size={14} />
                 </button>
               ) : (
-                <button onClick={handleConfirmBooking} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                <button onClick={handleConfirmBooking} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-brand-900/30">
                   {saving ? "Saving..." : <><CreditCard size={14} /> Pay £{total}</>}
                 </button>
               )}
@@ -2116,8 +2116,8 @@ const BookingSuccess = ({ booking, onHome }) => (
   <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center" style={{ animation: "bounceIn 0.6s ease-out" }}>
       <div className="relative inline-block mb-5">
-        <div className="absolute inset-0 bg-emerald-300 rounded-full blur-xl opacity-40"></div>
-        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-700 shadow-lg">
+        <div className="absolute inset-0 bg-brand-300 rounded-full blur-xl opacity-40"></div>
+        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-700 shadow-lg">
           <CheckCircle2 className="text-white" size={30} strokeWidth={2.5} />
         </div>
       </div>
@@ -2127,7 +2127,7 @@ const BookingSuccess = ({ booking, onHome }) => (
         <p className="text-xs uppercase tracking-wider text-stone-500 mb-1">Booking reference</p>
         <p className="text-sm font-mono text-stone-900">AMN-{Date.now().toString().slice(-8)}</p>
       </div>
-      <button onClick={onHome} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
+      <button onClick={onHome} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
         Back to Amanah
       </button>
     </div>
@@ -2637,7 +2637,7 @@ const MosqueImamDetail = ({ imam, onBack }) => (
   <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
     <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
       <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+        <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
         <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
       </div>
     </header>
@@ -2701,7 +2701,7 @@ const MosqueImamDetail = ({ imam, onBack }) => (
           <span className="flex items-center gap-2"><Phone size={14} className="text-stone-400" /> {imam.phone}</span>
           <span className="text-stone-900 font-medium mt-1">{imam.rate}</span>
         </div>
-        <button className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] shadow-lg shadow-emerald-900/20">Request to Hire</button>
+        <button className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] shadow-lg shadow-brand-900/20">Request to Hire</button>
       </div>
     </main>
   </div>
@@ -2727,7 +2727,7 @@ const OrderCheck = ({ onBack, onComplete }) => {
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -2737,8 +2737,8 @@ const OrderCheck = ({ onBack, onComplete }) => {
           <div className="flex items-center gap-3 mb-3">
             {[1, 2, 3].map(n => (
               <div key={n} className="flex items-center gap-3 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-emerald-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
-                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-emerald-900" : "bg-stone-200"}`}></div>}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-brand-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
+                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-brand-900" : "bg-stone-200"}`}></div>}
               </div>
             ))}
           </div>
@@ -2753,27 +2753,27 @@ const OrderCheck = ({ onBack, onComplete }) => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Candidate name</label>
-                  <input value={form.candidateName} onChange={e => setForm({...form, candidateName: e.target.value})} placeholder="e.g. Harun Malik" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input value={form.candidateName} onChange={e => setForm({...form, candidateName: e.target.value})} placeholder="e.g. Harun Malik" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Candidate email</label>
-                  <input type="email" value={form.candidateEmail} onChange={e => setForm({...form, candidateEmail: e.target.value})} placeholder="candidate@example.com" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="email" value={form.candidateEmail} onChange={e => setForm({...form, candidateEmail: e.target.value})} placeholder="candidate@example.com" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Candidate phone</label>
-                  <input value={form.candidatePhone} onChange={e => setForm({...form, candidatePhone: e.target.value})} placeholder="+44 7700 900000" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input value={form.candidatePhone} onChange={e => setForm({...form, candidatePhone: e.target.value})} placeholder="+44 7700 900000" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Role type</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[{v:"imam",l:"Imam"},{v:"teacher",l:"Teacher"},{v:"volunteer",l:"Volunteer"}].map(opt => (
-                      <button key={opt.v} onClick={() => setForm({...form, roleType: opt.v})} className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${form.roleType === opt.v ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>{opt.l}</button>
+                      <button key={opt.v} onClick={() => setForm({...form, roleType: opt.v})} className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${form.roleType === opt.v ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>{opt.l}</button>
                     ))}
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Expected start date</label>
-                  <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
               </div>
             </div>
@@ -2789,14 +2789,14 @@ const OrderCheck = ({ onBack, onComplete }) => {
                   { v: "standard", l: "Standard DBS", d: "Spent and unspent convictions, cautions.", p: costs.standard },
                   { v: "basic", l: "Basic DBS", d: "Unspent convictions only.", p: costs.basic }
                 ].map(opt => (
-                  <button key={opt.v} onClick={() => setForm({...form, dbsLevel: opt.v})} className={`w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-colors ${form.dbsLevel === opt.v ? "bg-emerald-50 border-emerald-600" : "bg-white border-stone-200 hover:border-stone-300"}`}>
-                    <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${form.dbsLevel === opt.v ? "border-emerald-700 bg-emerald-700" : "border-stone-300"}`}>
+                  <button key={opt.v} onClick={() => setForm({...form, dbsLevel: opt.v})} className={`w-full flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-colors ${form.dbsLevel === opt.v ? "bg-brand-50 border-brand-600" : "bg-white border-stone-200 hover:border-stone-300"}`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${form.dbsLevel === opt.v ? "border-brand-700 bg-brand-700" : "border-stone-300"}`}>
                       {form.dbsLevel === opt.v && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-stone-900">{opt.l}</p>
-                        {opt.rec && <span className="text-[10px] px-1.5 py-0.5 bg-emerald-900 text-white rounded uppercase tracking-wider">Recommended</span>}
+                        {opt.rec && <span className="text-[10px] px-1.5 py-0.5 bg-brand-900 text-white rounded uppercase tracking-wider">Recommended</span>}
                       </div>
                       <p className="text-xs text-stone-600 mt-0.5">{opt.d}</p>
                     </div>
@@ -2804,8 +2804,8 @@ const OrderCheck = ({ onBack, onComplete }) => {
                   </button>
                 ))}
               </div>
-              <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.includeRtw ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-200"}`}>
-                <input type="checkbox" checked={form.includeRtw} onChange={e => setForm({...form, includeRtw: e.target.checked})} className="mt-0.5 accent-emerald-800" />
+              <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.includeRtw ? "bg-brand-50 border-brand-200" : "bg-white border-stone-200"}`}>
+                <input type="checkbox" checked={form.includeRtw} onChange={e => setForm({...form, includeRtw: e.target.checked})} className="mt-0.5 accent-brand-800" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-stone-900">Right to Work check</p>
                   <p className="text-xs text-stone-600 mt-0.5">Digital verification against Home Office share code. Legally required before hiring.</p>
@@ -2835,8 +2835,8 @@ const OrderCheck = ({ onBack, onComplete }) => {
                   <span className="text-lg font-semibold text-stone-900">£{total}</span>
                 </div>
               </div>
-              <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.consentGiven ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}>
-                <input type="checkbox" checked={form.consentGiven} onChange={e => setForm({...form, consentGiven: e.target.checked})} className="mt-0.5 accent-emerald-800" />
+              <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.consentGiven ? "bg-brand-50 border-brand-200" : "bg-amber-50 border-amber-200"}`}>
+                <input type="checkbox" checked={form.consentGiven} onChange={e => setForm({...form, consentGiven: e.target.checked})} className="mt-0.5 accent-brand-800" />
                 <div>
                   <p className="text-sm font-medium text-stone-900">Candidate has given consent</p>
                   <p className="text-xs text-stone-700 mt-0.5">We'll also get their explicit digital consent before submitting.</p>
@@ -2846,7 +2846,7 @@ const OrderCheck = ({ onBack, onComplete }) => {
           )}
           <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
             <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">{step > 1 ? "Back" : "Cancel"}</button>
-            <button onClick={() => step < 3 ? setStep(step + 1) : onComplete(form)} disabled={!canProceed} className="inline-flex items-center gap-2 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] disabled:hover:scale-100 shadow-lg shadow-emerald-900/20">
+            <button onClick={() => step < 3 ? setStep(step + 1) : onComplete(form)} disabled={!canProceed} className="inline-flex items-center gap-2 bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] disabled:hover:scale-100 shadow-lg shadow-brand-900/20">
               {step < 3 ? <>Continue <ArrowRight size={14} /></> : <><CreditCard size={14} /> Pay £{total}</>}
             </button>
           </div>
@@ -2861,7 +2861,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
   const [tab, setTab] = useState("overview");
   const myProfile = {
     id: 101, name: "Yusuf Al-Rahman", initials: "YR", city: "Birmingham",
-    avatarGradient: "from-emerald-400 to-emerald-700",
+    avatarGradient: "from-brand-400 to-brand-700",
     experience: 12, madhhab: "Hanafi", rate: "£180/day",
     bio: "Al-Azhar graduate with 12 years serving UK mosques.",
     specialties: ["Jumu'ah Khutbah", "Tajweed", "Youth Programs"],
@@ -2880,7 +2880,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <button onClick={onPublic} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-brand-50" size={18} /></div>
             <div className="text-left">
               <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
               <p className="text-xs text-stone-500">{myProfile.name}</p>
@@ -2889,19 +2889,19 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
           <button onClick={onLogout} className="flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900"><LogOut size={15} /> Sign out</button>
         </div>
         <div className="max-w-5xl mx-auto px-5 md:px-6 flex gap-1 border-t border-stone-100 overflow-x-auto scrollbar-hide">
-          <button onClick={() => setTab("overview")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "overview" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          <button onClick={() => setTab("overview")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "overview" ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><LayoutDashboard size={14} /> Overview</span>
           </button>
           <button onClick={onOpenSchedule} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors whitespace-nowrap">
             <span className="flex items-center gap-1.5"><Calendar size={14} /> Schedule <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{DEFAULT_BOOKINGS.length}</span></span>
           </button>
           <button onClick={onOpenJobs} className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition-colors whitespace-nowrap">
-            <span className="flex items-center gap-1.5"><Briefcase size={14} /> Jobs <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">{MOCK_JOBS.length}</span></span>
+            <span className="flex items-center gap-1.5"><Briefcase size={14} /> Jobs <span className="bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">{MOCK_JOBS.length}</span></span>
           </button>
-          <button onClick={() => setTab("messages")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "messages" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
-            <span className="flex items-center gap-1.5"><MessageCircle size={14} /> Messages <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">2</span></span>
+          <button onClick={() => setTab("messages")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "messages" ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+            <span className="flex items-center gap-1.5"><MessageCircle size={14} /> Messages <span className="bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-1">2</span></span>
           </button>
-          <button onClick={() => setTab("reviews")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "reviews" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          <button onClick={() => setTab("reviews")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === "reviews" ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><Star size={14} /> Reviews {myReviews.length > 0 && <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{myReviews.length}</span>}</span>
           </button>
         </div>
@@ -2917,12 +2917,12 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
           </div>
         </div>
 
-        <div className="rounded-2xl p-5 mb-6 bg-emerald-50 border border-emerald-200">
+        <div className="rounded-2xl p-5 mb-6 bg-brand-50 border border-brand-200">
           <div className="flex gap-3">
-            <CheckCircle2 className="text-emerald-700 flex-shrink-0 mt-0.5" size={20} />
+            <CheckCircle2 className="text-brand-700 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <p className="text-sm font-medium text-emerald-900">Your profile is live and verified</p>
-              <p className="text-xs mt-0.5 text-emerald-800">Mosques can see and contact you. DBS valid until November 2025.</p>
+              <p className="text-sm font-medium text-success-900">Your profile is live and verified</p>
+              <p className="text-xs mt-0.5 text-success-800">Mosques can see and contact you. DBS valid until November 2025.</p>
             </div>
           </div>
         </div>
@@ -2991,7 +2991,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
           </div>
         </div>
 
-        <button className="text-sm text-emerald-800 font-medium hover:underline">Edit my profile →</button>
+        <button className="text-sm text-brand-800 font-medium hover:underline">Edit my profile →</button>
       </main>
       )}
 
@@ -3002,7 +3002,7 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
               <h2 className="text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Messages</h2>
               <p className="text-stone-600">Conversations with parents, mosques, and students</p>
             </div>
-            <button onClick={onOpenMessages} className="inline-flex items-center gap-2 bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
+            <button onClick={onOpenMessages} className="inline-flex items-center gap-2 bg-brand-900 hover:bg-brand-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
               <Inbox size={15} /> Open full inbox
             </button>
           </div>
@@ -3012,22 +3012,22 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
               <button
                 key={conv.id}
                 onClick={onOpenMessages}
-                className={`w-full flex items-start gap-4 p-4 text-left transition-colors hover:bg-stone-50 ${i < 2 ? "border-b border-stone-100" : ""} ${conv.unread > 0 ? "bg-emerald-50/30" : ""}`}
+                className={`w-full flex items-start gap-4 p-4 text-left transition-colors hover:bg-stone-50 ${i < 2 ? "border-b border-stone-100" : ""} ${conv.unread > 0 ? "bg-brand-50/30" : ""}`}
               >
                 <div className="relative flex-shrink-0">
                   <Avatar scholar={conv.counterparty} size="md" />
-                  {conv.online && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white"></div>}
+                  {conv.online && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-brand-500 rounded-full border-2 border-white"></div>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p className="text-sm font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{conv.counterparty.name}</p>
-                      {conv.counterparty.verified && <ShieldCheck size={12} className="text-emerald-700 flex-shrink-0" />}
+                      {conv.counterparty.verified && <ShieldCheck size={12} className="text-success-700 flex-shrink-0" />}
                       {conv.flagged && <AlertTriangle size={12} className="text-amber-600 flex-shrink-0" />}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-xs text-stone-500">{conv.lastTime}</span>
-                      {conv.unread > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{conv.unread}</span>}
+                      {conv.unread > 0 && <span className="bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{conv.unread}</span>}
                     </div>
                   </div>
                   <p className="text-xs text-stone-500 mb-1">{conv.context?.label}</p>
@@ -3083,8 +3083,8 @@ const ImamDashboardView = ({ onLogout, onPublic, onStartCampaign, onOpenMessages
                 {!r.reply && (
                   <div className="mt-4 pl-12 border-t border-stone-100 pt-4">
                     <div className="flex gap-2">
-                      <input type="text" placeholder="Reply publicly — e.g. 'Jazakallahu khayran, may Allah reward...'" className="flex-1 px-4 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                      <button className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
+                      <input type="text" placeholder="Reply publicly — e.g. 'Jazakallahu khayran, may Allah reward...'" className="flex-1 px-4 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                      <button className="bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1.5">
                         <Send size={12} /> Reply
                       </button>
                     </div>
@@ -3111,7 +3111,7 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile,
   return (
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
     <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />  
-    <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-emerald-950 to-stone-900 text-white">
+    <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-brand-950 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
         <div className="relative max-w-7xl mx-auto px-6 py-14">
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-6"><ArrowLeft size={14} /> Back to Amanah</button>
@@ -3119,11 +3119,11 @@ const AllCampaigns = ({ onBack, onCampaign, onSignIn, authedUser, authedProfile,
             <HandCoins size={12} /> Sadaqah jariyah · 0% platform fee
           </div>
           <h2 className="text-4xl md:text-6xl font-semibold tracking-tight mb-4" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah Fund</h2>
-          <p className="text-lg text-emerald-100/90 max-w-2xl mb-8">Every campaign from a verified mosque or scholar. Every penny reaches the cause. Set up in minutes.</p>
+          <p className="text-lg text-brand-100/90 max-w-2xl mb-8">Every campaign from a verified mosque or scholar. Every penny reaches the cause. Set up in minutes.</p>
           <div className="grid grid-cols-3 gap-6 max-w-2xl">
-            <div><p className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{fmt(totalRaised)}</p><p className="text-xs text-emerald-200/70 mt-1">raised so far</p></div>
-            <div><p className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{totalDonors.toLocaleString()}</p><p className="text-xs text-emerald-200/70 mt-1">donors</p></div>
-            <div><p className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{MOCK_CAMPAIGNS.length}</p><p className="text-xs text-emerald-200/70 mt-1">live campaigns</p></div>
+            <div><p className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{fmt(totalRaised)}</p><p className="text-xs text-brand-200/70 mt-1">raised so far</p></div>
+            <div><p className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{totalDonors.toLocaleString()}</p><p className="text-xs text-brand-200/70 mt-1">donors</p></div>
+            <div><p className="text-2xl md:text-3xl font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{MOCK_CAMPAIGNS.length}</p><p className="text-xs text-brand-200/70 mt-1">live campaigns</p></div>
           </div>
         </div>
       </section>
@@ -3204,10 +3204,10 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
             </div>
 
             {/* Verification badge */}
-            <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-6">
+            <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-6">
               <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <ShieldCheck className="text-emerald-800" size={22} />
+                <div className="w-11 h-11 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="text-brand-800" size={22} />
                 </div>
                 <div>
                   <h4 className="font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>This campaign is verified</h4>
@@ -3224,15 +3224,15 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
             <div className="bg-white border border-stone-200 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider">Recent donors</h3>
-                <span className="flex items-center gap-1 text-xs text-emerald-700">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                <span className="flex items-center gap-1 text-xs text-brand-700">
+                  <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-pulse"></span>
                   Live
                 </span>
               </div>
               <div className="space-y-3">
                 {campaign.recentDonors.map((d, i) => (
                   <div key={i} className="flex items-start gap-3 pb-3 border-b border-stone-100 last:border-0 last:pb-0">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-stone-100 flex items-center justify-center text-xs font-medium text-stone-700 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-100 to-stone-100 flex items-center justify-center text-xs font-medium text-stone-700 flex-shrink-0">
                       {d.name === "Anonymous" ? "✦" : d.name[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -3248,7 +3248,7 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
                   </div>
                 ))}
               </div>
-              <button className="w-full mt-4 text-sm text-emerald-800 font-medium hover:underline">See all {campaign.donors} donors</button>
+              <button className="w-full mt-4 text-sm text-brand-800 font-medium hover:underline">See all {campaign.donors} donors</button>
             </div>
           </div>
 
@@ -3269,7 +3269,7 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
                 <div className="text-center"><p className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{fmt(Math.round(campaign.raised / campaign.donors))}</p><p className="text-xs text-stone-500">avg gift</p></div>
               </div>
 
-              <button onClick={() => onDonate(campaign)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-4 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
+              <button onClick={() => onDonate(campaign)} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-4 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-brand-900/20 inline-flex items-center justify-center gap-2">
                 <HandCoins size={16} /> Donate now
               </button>
               {onToggleSave && (
@@ -3287,9 +3287,9 @@ const CampaignDetail = ({ campaign, onBack, onDonate, onSignIn, authedUser, auth
               </button>
 
               <div className="mt-5 pt-5 border-t border-stone-100 space-y-2 text-xs text-stone-600">
-                <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-emerald-700" /> 0% platform fee</p>
-                <p className="flex items-center gap-2"><HeartHandshake size={12} className="text-emerald-700" /> 100% to the cause</p>
-                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> Charity Commission verified</p>
+                <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-brand-700" /> 0% platform fee</p>
+                <p className="flex items-center gap-2"><HeartHandshake size={12} className="text-brand-700" /> 100% to the cause</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-brand-700" /> Charity Commission verified</p>
               </div>
             </div>
           </div>
@@ -4160,7 +4160,7 @@ const ReportModal = ({ subjectType, subjectId, subjectPreview, onClose, onSubmit
               {reasons.map(r => {
                 const isSelected = reason === r.v;
                 const baseBorder = r.safeguarding ? "border-amber-300 bg-amber-50/60" : "border-stone-200 bg-white";
-                const selectedBorder = r.safeguarding ? "border-amber-500 bg-amber-50" : "border-emerald-700 bg-emerald-50";
+                const selectedBorder = r.safeguarding ? "border-amber-500 bg-amber-50" : "border-brand-700 bg-brand-50";
                 return (
                   <label key={r.v} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? selectedBorder : `${baseBorder} hover:border-stone-300`}`}>
                     <input type="radio" name="report-reason" value={r.v} checked={isSelected} onChange={() => setReason(r.v)} className="mt-0.5" />
@@ -4185,7 +4185,7 @@ const ReportModal = ({ subjectType, subjectId, subjectPreview, onClose, onSubmit
                 rows={3}
                 maxLength={1000}
                 placeholder={detailsRequired ? "Add details (required)" : "Add any context (optional)"}
-                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none"
+                className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none"
               />
               <p className={`text-xs mt-1 ${detailsTooLong ? "text-rose-700" : "text-stone-500"}`}>{details.length}/1000 chars</p>
             </div>
@@ -4194,7 +4194,7 @@ const ReportModal = ({ subjectType, subjectId, subjectPreview, onClose, onSubmit
 
             <div className="flex justify-end gap-2">
               <button onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Cancel</button>
-              <button onClick={handleSubmit} disabled={submitDisabled} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+              <button onClick={handleSubmit} disabled={submitDisabled} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
                 {submitting ? "Submitting..." : <><Flag size={14} /> Submit report</>}
               </button>
             </div>
@@ -4229,7 +4229,7 @@ const ReviewCard = ({ review, compact = false, authedUser = null }) => {
   return (
     <div className={`${compact ? "pb-4 border-b border-stone-100 last:border-0 last:pb-0" : "bg-white border border-stone-200 rounded-2xl p-5"}`}>
       <div className="flex items-start gap-3 mb-2">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-stone-100 flex items-center justify-center text-xs font-medium text-stone-700 flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-100 to-stone-100 flex items-center justify-center text-xs font-medium text-stone-700 flex-shrink-0">
           {initial}
         </div>
         <div className="flex-1 min-w-0">
@@ -4250,7 +4250,7 @@ const ReviewCard = ({ review, compact = false, authedUser = null }) => {
             </div>
             <div className="flex items-center gap-2">
               {isVerifiedBooking && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-brand-50 text-brand-700 rounded font-medium uppercase tracking-wider">
                   <CheckCircle2 size={9} /> Verified booking
                 </span>
               )}
@@ -4277,8 +4277,8 @@ const ReviewCard = ({ review, compact = false, authedUser = null }) => {
         </div>
       )}
       {review.reply && (
-        <div className="ml-12 mt-3 bg-stone-50 border-l-2 border-emerald-600 pl-3 py-2 rounded-r-lg">
-          <p className="text-xs text-emerald-800 font-medium mb-0.5">Scholar replied</p>
+        <div className="ml-12 mt-3 bg-stone-50 border-l-2 border-brand-600 pl-3 py-2 rounded-r-lg">
+          <p className="text-xs text-brand-800 font-medium mb-0.5">Scholar replied</p>
           <p className="text-sm text-stone-700 italic leading-relaxed">{review.reply}</p>
         </div>
       )}
@@ -4352,7 +4352,7 @@ const LeaveReview = ({ scholar, booking, bookingId, onBack, onSubmit, onSignIn }
           </p>
           <div className="flex flex-col gap-2">
             {onSignIn && (
-              <button onClick={() => onSignIn("user")} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+              <button onClick={() => onSignIn("user")} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
                 Sign in to leave a real review
               </button>
             )}
@@ -4369,7 +4369,7 @@ const LeaveReview = ({ scholar, booking, bookingId, onBack, onSubmit, onSignIn }
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -4426,7 +4426,7 @@ const LeaveReview = ({ scholar, booking, bookingId, onBack, onSubmit, onSignIn }
 
             <div className="flex justify-between pt-6 border-t border-stone-100 mt-4">
               <button onClick={onBack} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">Cancel</button>
-              <button onClick={() => setStep(2)} disabled={rating === 0} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+              <button onClick={() => setStep(2)} disabled={rating === 0} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                 Continue <ArrowRight size={14} />
               </button>
             </div>
@@ -4443,7 +4443,7 @@ const LeaveReview = ({ scholar, booking, bookingId, onBack, onSubmit, onSignIn }
               onChange={e => setText(e.target.value)}
               rows={6}
               placeholder={rating >= 4 ? "What did you love about your session? How did the scholar help you or your child?" : "What happened? Being specific helps us and future families."}
-              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed mb-2"
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none leading-relaxed mb-2"
             />
             <p className="text-xs text-stone-500 mb-5">{text.length} characters · Most helpful reviews are 50-200 characters.</p>
 
@@ -4464,7 +4464,7 @@ const LeaveReview = ({ scholar, booking, bookingId, onBack, onSubmit, onSignIn }
 
             <div className="flex justify-between">
               <button onClick={() => setStep(1)} disabled={submitting} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900 disabled:opacity-50">Back</button>
-              <button onClick={handleSubmit} disabled={text.length < 10 || submitting} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+              <button onClick={handleSubmit} disabled={text.length < 10 || submitting} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-brand-900/20 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                 {submitting ? "Posting..." : <><Send size={14} /> Submit review</>}
               </button>
             </div>
@@ -4618,11 +4618,11 @@ const MessagesInbox = ({
         <div className="flex flex-col sm:flex-row gap-3 mb-5">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input type="text" placeholder="Search messages..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+            <input type="text" placeholder="Search messages..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 bg-white focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
           </div>
           <div className="flex gap-2 bg-white border border-stone-300 rounded-xl p-1">
             {[{ v: "all", l: "All" }, { v: "unread", l: "Unread" }, { v: "flagged", l: "Flagged" }].map(f => (
-              <button key={f.v} onClick={() => setFilter(f.v)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f.v ? "bg-emerald-900 text-white" : "text-stone-600 hover:text-stone-900"}`}>{f.l}</button>
+              <button key={f.v} onClick={() => setFilter(f.v)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f.v ? "bg-brand-900 text-white" : "text-stone-600 hover:text-stone-900"}`}>{f.l}</button>
             ))}
           </div>
         </div>
@@ -4633,23 +4633,23 @@ const MessagesInbox = ({
             <button
               key={conv.id}
               onClick={() => onConversation(conv)}
-              className={`w-full flex items-start gap-4 p-4 text-left transition-colors hover:bg-stone-50 ${i < filtered.length - 1 ? "border-b border-stone-100" : ""} ${conv.unread > 0 ? "bg-emerald-50/30" : ""}`}
+              className={`w-full flex items-start gap-4 p-4 text-left transition-colors hover:bg-stone-50 ${i < filtered.length - 1 ? "border-b border-stone-100" : ""} ${conv.unread > 0 ? "bg-brand-50/30" : ""}`}
             >
               <div className="relative flex-shrink-0">
                 <Avatar scholar={conv.counterparty} size="md" />
-                {conv.online && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white"></div>}
+                {conv.online && <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-brand-500 rounded-full border-2 border-white"></div>}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <p className="text-sm font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{conv.counterparty.name}</p>
-                    {conv.counterparty.verified && <ShieldCheck size={12} className="text-emerald-700 flex-shrink-0" />}
+                    {conv.counterparty.verified && <ShieldCheck size={12} className="text-success-700 flex-shrink-0" />}
                     {conv.pinned && <Pin size={11} className="text-stone-400 flex-shrink-0" />}
                     {conv.flagged && <AlertTriangle size={12} className="text-amber-600 flex-shrink-0" />}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-xs text-stone-500">{conv.lastTime}</span>
-                    {conv.unread > 0 && <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{conv.unread}</span>}
+                    {conv.unread > 0 && <span className="bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{conv.unread}</span>}
                   </div>
                 </div>
                 <p className="text-xs text-stone-500 mb-1">{conv.counterparty.role}{conv.context?.label ? ` · ${conv.context.label}` : ""}</p>
@@ -4677,7 +4677,7 @@ const MessagesInbox = ({
         <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
           <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
             <button onClick={onLogoClick} className="flex items-center gap-2.5 md:gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-brand-50" size={18} /></div>
               <div className="text-left">
                 <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
                 {displayName && <p className="text-xs text-stone-500 hidden md:block">{displayName}</p>}
@@ -4703,7 +4703,7 @@ const MessagesInbox = ({
         <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
           <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
             <button onClick={onBack} className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
               <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
             </button>
           </div>
@@ -4928,7 +4928,7 @@ const ConversationView = ({
         <header className="bg-white border-b border-stone-200">
           <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
             <button onClick={onLogoClick} className="flex items-center gap-2.5 md:gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+              <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-brand-50" size={18} /></div>
               <div className="text-left">
                 <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
                 {displayName && <p className="text-xs text-stone-500 hidden md:block">{displayName}</p>}
@@ -4957,12 +4957,12 @@ const ConversationView = ({
           <button onClick={onBack} className="text-stone-600 hover:text-stone-900 -ml-2 p-2"><ArrowLeft size={18} /></button>
           <div className="relative">
             <Avatar scholar={conversation.counterparty} size="md" />
-            {conversation.online && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></div>}
+            {conversation.online && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-brand-500 rounded-full border-2 border-white"></div>}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-base font-semibold text-stone-900 truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{conversation.counterparty.name}</p>
-              {conversation.counterparty.verified && <ShieldCheck size={13} className="text-emerald-700" />}
+              {conversation.counterparty.verified && <ShieldCheck size={13} className="text-success-700" />}
             </div>
             <p className="text-xs text-stone-500">{conversation.online ? "Active now" : conversation.counterparty.role}</p>
           </div>
@@ -4971,8 +4971,8 @@ const ConversationView = ({
         {/* Context strip — only when context exists */}
         {conversation.context && (
           <div className="max-w-3xl mx-auto px-6 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center gap-2 text-xs">
-            {conversation.context.type === "booking" && <><CheckCircle2 size={12} className="text-emerald-600" /><span className="text-stone-700">Booking confirmed:</span></>}
-            {conversation.context.type === "hire" && <><Building2 size={12} className="text-emerald-700" /><span className="text-stone-700">Discussing:</span></>}
+            {conversation.context.type === "booking" && <><CheckCircle2 size={12} className="text-brand-600" /><span className="text-stone-700">Booking confirmed:</span></>}
+            {conversation.context.type === "hire" && <><Building2 size={12} className="text-brand-700" /><span className="text-stone-700">Discussing:</span></>}
             {conversation.context.type === "inquiry" && <><MessageCircle size={12} className="text-stone-500" /><span className="text-stone-700">Inquiry:</span></>}
             <span className="text-stone-900 font-medium truncate">{conversation.context.label}</span>
           </div>
@@ -5010,15 +5010,15 @@ const ConversationView = ({
  
               {m.suggestion && (
                 <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-2`}>
-                  <div className={`max-w-[85%] rounded-2xl border-2 border-dashed ${isMe ? "border-emerald-700 bg-emerald-50" : "border-stone-300 bg-white"} p-4`}>
+                  <div className={`max-w-[85%] rounded-2xl border-2 border-dashed ${isMe ? "border-brand-700 bg-brand-50" : "border-stone-300 bg-white"} p-4`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Gift size={14} className="text-emerald-700" />
-                      <span className="text-xs uppercase tracking-wider text-emerald-800 font-semibold">{isMe ? "You sent a package" : "Package offered"}</span>
+                      <Gift size={14} className="text-brand-700" />
+                      <span className="text-xs uppercase tracking-wider text-brand-800 font-semibold">{isMe ? "You sent a package" : "Package offered"}</span>
                     </div>
                     <p className="text-sm font-semibold text-stone-900 mb-0.5" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{m.suggestion.name} Package · £{m.suggestion.price}</p>
                     <p className="text-xs text-stone-600 mb-3">{m.suggestion.duration}</p>
                     {!isMe && (
-                      <button className="w-full bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium py-2 rounded-lg">Book this package</button>
+                      <button className="w-full bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium py-2 rounded-lg">Book this package</button>
                     )}
                   </div>
                 </div>
@@ -5046,7 +5046,7 @@ const ConversationView = ({
                     const canShowReportAction = !!authedUser && !isMe && isRealMessage && !isDeleted && !!m.id;
                     const showReportSlot = canShowReportAction || (isReported && !isMe);
                     return (
-                      <div className={`relative ${showReportSlot ? "pl-4 pr-9" : "px-4"} py-2.5 rounded-2xl ${isMe ? "bg-emerald-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""} ${m.pending ? "opacity-70" : ""}`}>
+                      <div className={`relative ${showReportSlot ? "pl-4 pr-9" : "px-4"} py-2.5 rounded-2xl ${isMe ? "bg-brand-900 text-white rounded-br-md" : "bg-white border border-stone-200 text-stone-900 rounded-bl-md"} ${m.blurred ? "opacity-80" : ""} ${m.pending ? "opacity-70" : ""}`}>
                         {m.blurred ? (
                           <div>
                             <p className="text-sm leading-relaxed">{m.text}</p>
@@ -5145,9 +5145,9 @@ const ConversationView = ({
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSend()}
               placeholder="Type a message..."
-              className="flex-1 min-w-0 px-4 py-2.5 rounded-full border border-stone-300 bg-stone-50 focus:bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+              className="flex-1 min-w-0 px-4 py-2.5 rounded-full border border-stone-300 bg-stone-50 focus:bg-white focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
             />
-            <button onClick={handleSend} disabled={!input.trim() || sending} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white p-2.5 rounded-full transition-all hover:scale-[1.05] active:scale-95 flex-shrink-0">
+            <button onClick={handleSend} disabled={!input.trim() || sending} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white p-2.5 rounded-full transition-all hover:scale-[1.05] active:scale-95 flex-shrink-0">
               <Send size={16} />
             </button>
           </div>
@@ -5200,7 +5200,7 @@ const AppStatusPill = ({ status }) => {
 
 // Job card
 const JobCard = ({ job, onClick, applied }) => (
-  <div onClick={onClick} className="group bg-white border border-stone-200 rounded-2xl p-5 hover:border-emerald-400 hover:shadow-lg cursor-pointer transition-all hover:-translate-y-0.5">
+  <div onClick={onClick} className="group bg-white border border-stone-200 rounded-2xl p-5 hover:border-brand-400 hover:shadow-lg cursor-pointer transition-all hover:-translate-y-0.5">
     <div className="flex items-start gap-3 mb-3">
       <Avatar scholar={{ initials: job.mosqueInitials, avatarGradient: job.mosqueGradient }} size="md" />
       <div className="flex-1 min-w-0">
@@ -5208,7 +5208,7 @@ const JobCard = ({ job, onClick, applied }) => (
           <h4 className="text-base font-semibold text-stone-900 leading-snug" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{job.title}</h4>
           {job.featured && <Flame size={12} className="text-amber-500" />}
           {job.urgent && <span className="text-[10px] px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded font-medium uppercase tracking-wider">Urgent</span>}
-          {applied && <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-medium uppercase tracking-wider"><CheckCircle2 size={9} /> Applied</span>}
+          {applied && <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-800 rounded font-medium uppercase tracking-wider"><CheckCircle2 size={9} /> Applied</span>}
         </div>
         <p className="text-sm text-stone-600 mb-1">{job.mosque} · <MapPin size={11} className="inline" /> {job.city}</p>
       </div>
@@ -5251,7 +5251,7 @@ const JobsBoard = ({ onBack, onJob, myApplications, authedUser, authedProfile, o
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PublicHeader authedUser={authedUser} authedProfile={authedProfile} onLogoClick={onBack} onSignIn={onSignIn} />
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-stone-900 text-white">
+      <section className="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-stone-900 text-white">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='none' stroke='%23fff' stroke-width='1'/%3E%3C/svg%3E")` }}></div>
         <div className="relative max-w-6xl mx-auto px-6 py-10">
           <button onClick={onBack} className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-4"><ArrowLeft size={14} /> Back to dashboard</button>
@@ -5259,18 +5259,18 @@ const JobsBoard = ({ onBack, onJob, myApplications, authedUser, authedProfile, o
             <Briefcase size={12} /> Jobs for scholars & imams
           </div>
           <h2 className="text-3xl md:text-5xl font-semibold tracking-tight mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Find your next role</h2>
-          <p className="text-emerald-100/90 max-w-xl">Every mosque on Amanah has been Charity Commission verified. Apply with one tap — your DBS and reviews come through automatically.</p>
+          <p className="text-brand-100/90 max-w-xl">Every mosque on Amanah has been Charity Commission verified. Apply with one tap — your DBS and reviews come through automatically.</p>
         </div>
       </section>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* Tabs */}
         <div className="flex gap-1 border-b border-stone-200 mb-6">
-          <button onClick={() => setTab("browse")} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "browse" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          <button onClick={() => setTab("browse")} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "browse" ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             <span className="flex items-center gap-1.5"><Search size={14} /> Browse jobs <span className="bg-stone-100 text-stone-700 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{MOCK_JOBS.length}</span></span>
           </button>
-          <button onClick={() => setTab("applications")} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "applications" ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
-            <span className="flex items-center gap-1.5"><FileText size={14} /> My applications <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{myApplications.length}</span></span>
+          <button onClick={() => setTab("applications")} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === "applications" ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+            <span className="flex items-center gap-1.5"><FileText size={14} /> My applications <span className="bg-brand-100 text-brand-800 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{myApplications.length}</span></span>
           </button>
         </div>
 
@@ -5279,11 +5279,11 @@ const JobsBoard = ({ onBack, onJob, myApplications, authedUser, authedProfile, o
             <div className="flex flex-col md:flex-row gap-3 mb-6">
               <div className="relative flex-1">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                <input type="text" placeholder="Search by title, mosque, or city..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 bg-white focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input type="text" placeholder="Search by title, mosque, or city..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 bg-white focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
               <div className="flex gap-2 bg-white border border-stone-300 rounded-xl p-1 overflow-x-auto">
                 {[{ v: "all", l: "All" }, { v: "full-time", l: "Full-time" }, { v: "part-time", l: "Part-time" }, { v: "contract", l: "Contract" }, { v: "one-off", l: "One-off" }].map(f => (
-                  <button key={f.v} onClick={() => setFilter(f.v)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === f.v ? "bg-emerald-900 text-white" : "text-stone-600 hover:text-stone-900"}`}>{f.l}</button>
+                  <button key={f.v} onClick={() => setFilter(f.v)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filter === f.v ? "bg-brand-900 text-white" : "text-stone-600 hover:text-stone-900"}`}>{f.l}</button>
                 ))}
               </div>
             </div>
@@ -5327,7 +5327,7 @@ const JobsBoard = ({ onBack, onJob, myApplications, authedUser, authedProfile, o
                   </div>
                   <div className="flex items-center justify-between text-xs text-stone-500">
                     <span>Applied {app.appliedDate}</span>
-                    <button onClick={() => onJob(job)} className="text-emerald-800 font-medium hover:underline">View job →</button>
+                    <button onClick={() => onJob(job)} className="text-brand-800 font-medium hover:underline">View job →</button>
                   </div>
                 </div>
               );
@@ -5358,7 +5358,7 @@ const JobDetail = ({ job, onBack, onApply, applied }) => {
   <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
     <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+        <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
         <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
       </div>
     </header>
@@ -5401,7 +5401,7 @@ const JobDetail = ({ job, onBack, onApply, applied }) => {
             <ul className="space-y-2">
               {job.responsibilities.map(r => (
                 <li key={r} className="flex gap-2 text-sm text-stone-800">
-                  <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle2 size={16} className="text-brand-600 flex-shrink-0 mt-0.5" />
                   <span>{r}</span>
                 </li>
               ))}
@@ -5413,17 +5413,17 @@ const JobDetail = ({ job, onBack, onApply, applied }) => {
             <ul className="space-y-2">
               {job.requirements.map(r => (
                 <li key={r} className="flex gap-2 text-sm text-stone-800">
-                  <span className="text-emerald-700 font-bold flex-shrink-0 mt-0.5">•</span>
+                  <span className="text-brand-700 font-bold flex-shrink-0 mt-0.5">•</span>
                   <span>{r}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-6">
+          <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-6">
             <div className="flex items-start gap-4">
-              <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="text-emerald-800" size={20} />
+              <div className="w-11 h-11 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="text-brand-800" size={20} />
               </div>
               <div>
                 <h4 className="font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>This mosque is verified</h4>
@@ -5457,19 +5457,19 @@ const JobDetail = ({ job, onBack, onApply, applied }) => {
             </div>
 
             {applied ? (
-              <button disabled className="w-full bg-emerald-100 text-emerald-800 py-3.5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2">
+              <button disabled className="w-full bg-brand-100 text-brand-800 py-3.5 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2">
                 <CheckCircle2 size={15} /> Already applied
               </button>
             ) : (
-              <button onClick={() => onApply(job)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-emerald-900/20 inline-flex items-center justify-center gap-2">
+              <button onClick={() => onApply(job)} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.01] active:scale-95 shadow-lg shadow-brand-900/20 inline-flex items-center justify-center gap-2">
                 Apply with one tap <ArrowRight size={15} />
               </button>
             )}
 
             <div className="mt-5 pt-5 border-t border-stone-100 space-y-2 text-xs text-stone-600">
-              <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-emerald-700" /> Your profile & reviews sent automatically</p>
-              <p className="flex items-center gap-2"><FileCheck size={12} className="text-emerald-700" /> DBS status verified by Amanah</p>
-              <p className="flex items-center gap-2"><Eye size={12} className="text-emerald-700" /> You'll be notified when viewed</p>
+              <p className="flex items-center gap-2"><ShieldCheck size={12} className="text-brand-700" /> Your profile & reviews sent automatically</p>
+              <p className="flex items-center gap-2"><FileCheck size={12} className="text-success-700" /> DBS status verified by Amanah</p>
+              <p className="flex items-center gap-2"><Eye size={12} className="text-brand-700" /> You'll be notified when viewed</p>
             </div>
 
             <p className="text-xs text-stone-500 text-center mt-4">{job.applicationsCount} people have applied so far</p>
@@ -5502,7 +5502,7 @@ const ApplyToJob = ({ job, onBack, onSubmit }) => {
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -5524,28 +5524,28 @@ const ApplyToJob = ({ job, onBack, onSubmit }) => {
                 onChange={e => setMessage(e.target.value)}
                 rows={8}
                 placeholder="Assalamu alaikum. I'm very interested in this position because..."
-                className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed"
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none leading-relaxed"
               />
               <p className="text-xs text-stone-500 mt-1">{message.length} characters · minimum 30 · mention your relevant experience</p>
             </div>
 
             <div className="mb-6">
               <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Earliest available date</label>
-              <input type="date" value={availableDate} onChange={e => setAvailableDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              <input type="date" value={availableDate} onChange={e => setAvailableDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
             </div>
 
             <div className="space-y-2">
               <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Include with your application</p>
-              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${includeProfile ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-200"}`}>
-                <input type="checkbox" checked={includeProfile} onChange={e => setIncludeProfile(e.target.checked)} className="mt-0.5 accent-emerald-800" />
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${includeProfile ? "bg-brand-50 border-brand-200" : "bg-white border-stone-200"}`}>
+                <input type="checkbox" checked={includeProfile} onChange={e => setIncludeProfile(e.target.checked)} className="mt-0.5 accent-brand-800" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-stone-900">My Amanah profile</p>
                   <p className="text-xs text-stone-600 mt-0.5">DBS, Right to Work, qualifications, specialties, languages</p>
                 </div>
-                <ShieldCheck className="text-emerald-700 flex-shrink-0" size={16} />
+                <ShieldCheck className="text-brand-700 flex-shrink-0" size={16} />
               </label>
-              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${includeReviews ? "bg-emerald-50 border-emerald-200" : "bg-white border-stone-200"}`}>
-                <input type="checkbox" checked={includeReviews} onChange={e => setIncludeReviews(e.target.checked)} className="mt-0.5 accent-emerald-800" />
+              <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${includeReviews ? "bg-brand-50 border-brand-200" : "bg-white border-stone-200"}`}>
+                <input type="checkbox" checked={includeReviews} onChange={e => setIncludeReviews(e.target.checked)} className="mt-0.5 accent-brand-800" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-stone-900">My reviews (4.9 ★ · 142 reviews)</p>
                   <p className="text-xs text-stone-600 mt-0.5">From verified bookings across Amanah</p>
@@ -5554,7 +5554,7 @@ const ApplyToJob = ({ job, onBack, onSubmit }) => {
               </label>
             </div>
 
-            <button onClick={() => onSubmit({ job, message, availableDate, includeProfile, includeReviews })} disabled={!canSubmit} className="w-full mt-6 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.01] disabled:hover:scale-100">
+            <button onClick={() => onSubmit({ job, message, availableDate, includeProfile, includeReviews })} disabled={!canSubmit} className="w-full mt-6 bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 transition-all hover:scale-[1.01] disabled:hover:scale-100">
               <Send size={15} /> Submit application
             </button>
           </div>
@@ -5564,17 +5564,17 @@ const ApplyToJob = ({ job, onBack, onSubmit }) => {
             <div className="bg-white border border-stone-200 rounded-2xl p-5 sticky top-24">
               <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-3">Applying as</p>
               <div className="flex items-center gap-3 mb-4">
-                <Avatar scholar={{ initials: "YR", avatarGradient: "from-emerald-400 to-emerald-700" }} size="md" />
+                <Avatar scholar={{ initials: "YR", avatarGradient: "from-brand-400 to-brand-700" }} size="md" />
                 <div>
                   <p className="text-sm font-semibold text-stone-900">Ustadh Yusuf Al-Rahman</p>
-                  <p className="text-xs text-stone-500 flex items-center gap-1"><ShieldCheck size={10} className="text-emerald-700" /> Verified</p>
+                  <p className="text-xs text-stone-500 flex items-center gap-1"><ShieldCheck size={10} className="text-brand-700" /> Verified</p>
                 </div>
               </div>
 
               <div className="space-y-2 text-xs text-stone-600 pt-4 border-t border-stone-100">
-                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> DBS Verified (Nov 2025)</p>
-                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> Right to Work verified</p>
-                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-700" /> Al-Azhar graduate</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-success-700" /> DBS Verified (Nov 2025)</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-success-700" /> Right to Work verified</p>
+                <p className="flex items-center gap-2"><CheckCircle2 size={12} className="text-brand-700" /> Al-Azhar graduate</p>
                 <p className="flex items-center gap-2"><Star size={12} className="text-amber-500" fill="currentColor" /> 4.9 rating (142 reviews)</p>
               </div>
             </div>
@@ -5641,7 +5641,7 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -5658,8 +5658,8 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
           <div className="flex items-center gap-3 mb-3">
             {[1, 2, 3].map(n => (
               <div key={n} className="flex items-center gap-3 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-emerald-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
-                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-emerald-900" : "bg-stone-200"}`}></div>}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-brand-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
+                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-brand-900" : "bg-stone-200"}`}></div>}
               </div>
             ))}
           </div>
@@ -5671,7 +5671,7 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
             <div className="space-y-5">
               <div>
                 <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Job title</label>
-                <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="e.g. Friday Jumu'ah Imam" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="e.g. Friday Jumu'ah Imam" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 <p className="text-xs text-stone-500 mt-1">Be specific — "Taraweeh Imam for Ramadan 1447" beats "Imam needed"</p>
               </div>
 
@@ -5679,7 +5679,7 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
                 <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Type of role</label>
                 <div className="grid grid-cols-4 gap-2">
                   {[{v:"full-time",l:"Full-time"},{v:"part-time",l:"Part-time"},{v:"contract",l:"Contract"},{v:"one-off",l:"One-off"}].map(opt => (
-                    <button key={opt.v} onClick={() => setForm({...form, type: opt.v})} className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${form.type === opt.v ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                    <button key={opt.v} onClick={() => setForm({...form, type: opt.v})} className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${form.type === opt.v ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
                       {opt.l}
                     </button>
                   ))}
@@ -5688,12 +5688,12 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
 
               <div>
                 <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Time commitment</label>
-                <input value={form.commitment} onChange={e => setForm({...form, commitment: e.target.value})} placeholder="e.g. Every Friday 12:30–14:00" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input value={form.commitment} onChange={e => setForm({...form, commitment: e.target.value})} placeholder="e.g. Every Friday 12:30–14:00" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Compensation</label>
-                <input value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} placeholder="e.g. £120 per khutbah · or £32,000/year" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input value={form.pay} onChange={e => setForm({...form, pay: e.target.value})} placeholder="e.g. £120 per khutbah · or £32,000/year" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 <p className="text-xs text-stone-500 mt-1">Jobs with clear pay get 5× more applications</p>
               </div>
             </div>
@@ -5704,17 +5704,17 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Start date</label>
-                  <input value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} placeholder="e.g. 1 May 2026" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} placeholder="e.g. 1 May 2026" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Duration</label>
-                  <input value={form.duration} onChange={e => setForm({...form, duration: e.target.value})} placeholder="e.g. 30 nights · Permanent" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input value={form.duration} onChange={e => setForm({...form, duration: e.target.value})} placeholder="e.g. 30 nights · Permanent" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">About this role</label>
-                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={6} placeholder="Describe the role, your community, and what kind of scholar would thrive here..." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed" />
+                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={6} placeholder="Describe the role, your community, and what kind of scholar would thrive here..." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none leading-relaxed" />
                 <p className="text-xs text-stone-500 mt-1">{form.description.length} characters · minimum 50</p>
               </div>
             </div>
@@ -5727,12 +5727,12 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
                 <div className="space-y-2">
                   {form.responsibilities.map((r, i) => (
                     <div key={i} className="flex gap-2">
-                      <input value={r} onChange={e => updateArrayItem("responsibilities", i, e.target.value)} placeholder={i === 0 ? "e.g. Deliver 15-20 min khutbah each Friday" : "Add another..."} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      <input value={r} onChange={e => updateArrayItem("responsibilities", i, e.target.value)} placeholder={i === 0 ? "e.g. Deliver 15-20 min khutbah each Friday" : "Add another..."} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                       {form.responsibilities.length > 1 && <button onClick={() => removeArrayItem("responsibilities", i)} className="px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg"><X size={14} /></button>}
                     </div>
                   ))}
                 </div>
-                <button onClick={() => addArrayItem("responsibilities")} className="mt-2 text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another</button>
+                <button onClick={() => addArrayItem("responsibilities")} className="mt-2 text-sm text-brand-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another</button>
               </div>
 
               <div>
@@ -5740,12 +5740,12 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
                 <div className="space-y-2">
                   {form.requirements.map((r, i) => (
                     <div key={i} className="flex gap-2">
-                      <input value={r} onChange={e => updateArrayItem("requirements", i, e.target.value)} placeholder={i === 0 ? "e.g. Enhanced DBS, minimum 3 years' experience" : "Add another..."} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      <input value={r} onChange={e => updateArrayItem("requirements", i, e.target.value)} placeholder={i === 0 ? "e.g. Enhanced DBS, minimum 3 years' experience" : "Add another..."} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                       {form.requirements.length > 1 && <button onClick={() => removeArrayItem("requirements", i)} className="px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg"><X size={14} /></button>}
                     </div>
                   ))}
                 </div>
-                <button onClick={() => addArrayItem("requirements")} className="mt-2 text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another</button>
+                <button onClick={() => addArrayItem("requirements")} className="mt-2 text-sm text-brand-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another</button>
               </div>
 
               <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
@@ -5758,11 +5758,11 @@ const PostJob = ({ onBack, onComplete, mosqueName, mosqueCity }) => {
           <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
             <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">{step > 1 ? "Back" : "Cancel"}</button>
             {step < 3 ? (
-              <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+              <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                 Continue <ArrowRight size={14} />
               </button>
             ) : (
-              <button onClick={() => onComplete(form)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+              <button onClick={() => onComplete(form)} disabled={!canProceed} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-brand-900/30 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                 <Zap size={14} /> Post job
               </button>
             )}
@@ -5807,7 +5807,7 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -5820,9 +5820,9 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
             <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My availability</h1>
             <p className="text-stone-600 text-sm md:text-base">Set your weekly teaching hours. Students can only book during these times.</p>
           </div>
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
-            <p className="text-xs text-emerald-700 uppercase tracking-wider font-medium">Weekly hours</p>
-            <p className="text-xl font-semibold text-emerald-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{weeklyHours}h</p>
+          <div className="bg-brand-50 border border-brand-200 rounded-xl px-4 py-2.5">
+            <p className="text-xs text-brand-700 uppercase tracking-wider font-medium">Weekly hours</p>
+            <p className="text-xl font-semibold text-brand-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{weeklyHours}h</p>
           </div>
         </div>
 
@@ -5835,7 +5835,7 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
               <div key={day.id} className={`p-4 md:p-5 ${i < 6 ? "border-b border-stone-100" : ""}`}>
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-xs uppercase ${windows.length > 0 ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-400"}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-xs uppercase ${windows.length > 0 ? "bg-brand-100 text-brand-800" : "bg-stone-100 text-stone-400"}`}>
                       {day.short}
                     </div>
                     <div>
@@ -5846,7 +5846,7 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
                     </div>
                   </div>
                   {!isEditing && (
-                    <button onClick={() => setEditingDay(day.id)} className="text-xs text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                    <button onClick={() => setEditingDay(day.id)} className="text-xs text-brand-800 font-medium hover:underline inline-flex items-center gap-1">
                       <Plus size={12} /> Add hours
                     </button>
                   )}
@@ -5855,10 +5855,10 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
                 {windows.length > 0 && (
                   <div className="flex flex-wrap gap-2 ml-13">
                     {windows.map((w, idx) => (
-                      <div key={idx} className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
-                        <Clock size={12} className="text-emerald-700" />
-                        <span className="text-sm text-emerald-900 font-medium">{w.start} – {w.end}</span>
-                        <button onClick={() => removeWindow(day.id, idx)} className="text-emerald-600 hover:text-rose-600 ml-1"><X size={12} /></button>
+                      <div key={idx} className="inline-flex items-center gap-1.5 bg-brand-50 border border-brand-200 rounded-lg px-3 py-1.5">
+                        <Clock size={12} className="text-brand-700" />
+                        <span className="text-sm text-brand-900 font-medium">{w.start} – {w.end}</span>
+                        <button onClick={() => removeWindow(day.id, idx)} className="text-brand-600 hover:text-rose-600 ml-1"><X size={12} /></button>
                       </div>
                     ))}
                   </div>
@@ -5871,7 +5871,7 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
                       <input type="time" value={tempStart} onChange={e => setTempStart(e.target.value)} className="px-3 py-1.5 rounded-lg border border-stone-300 text-sm bg-white" />
                       <span className="text-xs text-stone-600">to</span>
                       <input type="time" value={tempEnd} onChange={e => setTempEnd(e.target.value)} className="px-3 py-1.5 rounded-lg border border-stone-300 text-sm bg-white" />
-                      <button onClick={() => addWindow(day.id)} className="bg-emerald-900 hover:bg-emerald-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium">Add</button>
+                      <button onClick={() => addWindow(day.id)} className="bg-brand-900 hover:bg-brand-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium">Add</button>
                       <button onClick={() => setEditingDay(null)} className="text-sm text-stone-500 hover:text-stone-900 px-2">Cancel</button>
                     </div>
                   </div>
@@ -5883,7 +5883,7 @@ const AvailabilityEditor = ({ availability, onChange, onBack }) => {
 
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onBack} className="px-4 py-2.5 text-sm text-stone-600 hover:text-stone-900">Cancel</button>
-          <button onClick={() => onChange(localAvail)} className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-emerald-900/20 inline-flex items-center gap-2">
+          <button onClick={() => onChange(localAvail)} className="bg-brand-900 hover:bg-brand-800 text-white px-6 py-2.5 rounded-xl text-sm font-medium shadow-lg shadow-brand-900/20 inline-flex items-center gap-2">
             <CheckCircle2 size={14} /> Save availability
           </button>
         </div>
@@ -5936,7 +5936,7 @@ const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) =>
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -5949,7 +5949,7 @@ const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) =>
             <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>My schedule</h1>
             <p className="text-stone-600 text-sm md:text-base">Your upcoming sessions & availability</p>
           </div>
-          <button onClick={onEditAvailability} className="bg-white border border-stone-300 hover:border-emerald-500 text-stone-700 px-4 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2">
+          <button onClick={onEditAvailability} className="bg-white border border-stone-300 hover:border-brand-500 text-stone-700 px-4 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2">
             <Settings size={14} /> Edit availability
           </button>
         </div>
@@ -5987,8 +5987,8 @@ const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) =>
                     key={i}
                     onClick={() => setSelectedDate(date)}
                     className={`aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-all relative ${
-                      isSelected ? "bg-emerald-900 text-white" :
-                      isCurrentDay ? "bg-emerald-50 text-emerald-900 font-semibold" :
+                      isSelected ? "bg-brand-900 text-white" :
+                      isCurrentDay ? "bg-brand-50 text-brand-900 font-semibold" :
                       hasSlots ? "hover:bg-stone-100 text-stone-900" :
                       "text-stone-400 hover:bg-stone-50"
                     }`}
@@ -6008,7 +6008,7 @@ const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) =>
 
             <div className="mt-4 pt-4 border-t border-stone-100 flex flex-wrap gap-4 text-xs text-stone-600">
               <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Has bookings</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Today</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-brand-500"></span> Today</span>
               <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-stone-300"></span> No availability</span>
             </div>
           </div>
@@ -6036,7 +6036,7 @@ const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) =>
                     <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Bookings</p>
                     <div className="space-y-2">
                       {selectedDateBookings.map((b, i) => (
-                        <div key={i} className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <div key={i} className="bg-brand-50 border border-brand-200 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-0.5">
                             <span className="text-sm font-semibold text-stone-900">{b.time}</span>
                             <span className="text-[10px] px-1.5 py-0.5 bg-white text-stone-700 rounded font-medium uppercase tracking-wider">{b.package}</span>
@@ -6054,7 +6054,7 @@ const ScheduleView = ({ availability, bookings, onBack, onEditAvailability }) =>
                   <div className="grid grid-cols-3 gap-1.5">
                     {selectedDateSlots.map(slot => (
                       <div key={slot.time} className={`text-center py-2 rounded-lg text-xs font-medium ${
-                        slot.booked ? "bg-stone-200 text-stone-500 line-through" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        slot.booked ? "bg-stone-200 text-stone-500 line-through" : "bg-brand-50 text-brand-800 border border-brand-200"
                       }`}>
                         {slot.time}
                       </div>
@@ -6132,9 +6132,9 @@ const DateTimePicker = ({ availability, bookings, selectedDate, selectedTime, on
                 onClick={() => !isInPast && hasAvailable && onDateChange(dateKey)}
                 disabled={isInPast || !hasAvailable}
                 className={`aspect-square flex items-center justify-center rounded-lg text-xs md:text-sm transition-all ${
-                  isSelected ? "bg-emerald-900 text-white font-semibold" :
+                  isSelected ? "bg-brand-900 text-white font-semibold" :
                   isInPast || !hasAvailable ? "text-stone-300 cursor-not-allowed" :
-                  "hover:bg-emerald-100 text-stone-900 cursor-pointer"
+                  "hover:bg-brand-100 text-stone-900 cursor-pointer"
                 }`}
               >
                 {date.getDate()}
@@ -6156,7 +6156,7 @@ const DateTimePicker = ({ availability, bookings, selectedDate, selectedTime, on
                   key={slot.time}
                   onClick={() => onTimeChange(slot.time)}
                   className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-colors ${
-                    selectedTime === slot.time ? "bg-emerald-900 text-white border-2 border-emerald-900" : "bg-white border border-stone-300 text-stone-700 hover:border-emerald-500"
+                    selectedTime === slot.time ? "bg-brand-900 text-white border-2 border-brand-900" : "bg-white border border-stone-300 text-stone-700 hover:border-brand-500"
                   }`}
                 >
                   {slot.time}
@@ -9234,7 +9234,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, conversatio
               name: b.parent.name,
               city: b.parent.city,
               avatarInitials: b.parent.avatar_initials || initialsFromName(b.parent.name),
-              avatarGradient: b.parent.avatar_gradient || "from-emerald-400 to-emerald-700",
+              avatarGradient: b.parent.avatar_gradient || "from-brand-400 to-brand-700",
             } : null,
             student: b.student ? {
               name: b.student.name,
@@ -9328,7 +9328,7 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, conversatio
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <button onClick={onPublic} className="flex items-center gap-2.5 md:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-brand-50" size={18} /></div>
             <div className="text-left">
               <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
               <p className="text-xs text-stone-500 hidden md:block">{scholar?.name}</p>
@@ -9411,13 +9411,13 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, conversatio
                             value={editingValue}
                             onChange={e => setEditingValue(e.target.value)}
                             placeholder="https://meet.google.com/abc-defg-hij"
-                            className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                            className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
                             autoFocus
                           />
                           <button
                             onClick={() => saveMeetingUrl(b.id)}
                             disabled={savingBookingId === b.id}
-                            className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1"
+                            className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1"
                           >
                             {savingBookingId === b.id ? "Saving..." : <><CheckCircle2 size={14} /> Save</>}
                           </button>
@@ -9437,11 +9437,11 @@ const ScholarDashboard = ({ scholar, authedUser, onPublic, onLogout, conversatio
                       </div>
                     ) : b.meetingUrl ? (
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-brand-800 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-lg">
                           <CheckCircle2 size={12} /> Meeting link set
                         </span>
                         <span className="text-xs text-stone-500 font-mono truncate max-w-[40ch]">{b.meetingUrl}</span>
-                        <button onClick={() => startEditing(b)} className="text-xs text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                        <button onClick={() => startEditing(b)} className="text-xs text-brand-800 font-medium hover:underline inline-flex items-center gap-1">
                           <FileText size={11} /> Edit
                         </button>
                       </div>
@@ -9661,7 +9661,7 @@ const PrayerHub = ({ onBack, onSignIn }) => {
         <header className="sticky top-0 z-20 bg-stone-950/80 backdrop-blur-md border-b border-white/5">
           <div className="max-w-5xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
             <button onClick={onBack} className="flex items-center gap-2.5 md:gap-3 text-white">
-              <div className="w-9 h-9 rounded-xl bg-emerald-800 flex items-center justify-center"><ShieldCheck className="text-emerald-100" size={18} /></div>
+              <div className="w-9 h-9 rounded-xl bg-brand-800 flex items-center justify-center"><ShieldCheck className="text-brand-100" size={18} /></div>
               <h1 className="text-base md:text-lg font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
             </button>
             <button onClick={onBack} className="text-sm text-white/70 hover:text-white flex items-center gap-2"><ArrowLeft size={14} /> Back</button>
@@ -9816,7 +9816,7 @@ const PrayerHub = ({ onBack, onSignIn }) => {
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 md:p-8">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium">Verified mosques near you</h3>
-                <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded uppercase tracking-wider font-medium flex items-center gap-1"><ShieldCheck size={9} /> Vetted</span>
+                <span className="text-[10px] px-2 py-0.5 bg-brand-500/20 text-brand-300 rounded uppercase tracking-wider font-medium flex items-center gap-1"><ShieldCheck size={9} /> Vetted</span>
               </div>
 
               <div className="space-y-2">
@@ -9826,7 +9826,7 @@ const PrayerHub = ({ onBack, onSignIn }) => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <p className="text-sm font-semibold text-white truncate" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{m.name}</p>
-                        {m.verified && <ShieldCheck size={11} className="text-emerald-400 flex-shrink-0" />}
+                        {m.verified && <ShieldCheck size={11} className="text-success-400 flex-shrink-0" />}
                       </div>
                       <p className="text-[11px] text-white/50 truncate">{m.denomination}</p>
                       <div className="flex items-center gap-2 mt-1 text-[11px] text-white/60">
@@ -9846,7 +9846,7 @@ const PrayerHub = ({ onBack, onSignIn }) => {
 
               <div className="mt-5 pt-5 border-t border-white/10">
                 <div className="flex items-start gap-2.5 text-xs text-white/50 leading-relaxed">
-                  <ShieldCheck className="text-emerald-400 flex-shrink-0 mt-0.5" size={13} />
+                  <ShieldCheck className="text-brand-400 flex-shrink-0 mt-0.5" size={13} />
                   <p>Every mosque shown is Charity Commission verified and has a designated safeguarding lead.</p>
                 </div>
               </div>
@@ -9916,7 +9916,7 @@ const AdminOverview = ({ onNavigate, counts, displayName }) => {
           <div key={s.label} className="bg-white border border-stone-200 rounded-2xl p-5">
             <p className="text-xs text-stone-500 uppercase tracking-wider font-medium mb-2">{s.label}</p>
             <p className="text-3xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{s.value}</p>
-            <p className="text-xs text-emerald-700 flex items-center gap-1"><TrendingUp size={11} /> {s.change}</p>
+            <p className="text-xs text-brand-700 flex items-center gap-1"><TrendingUp size={11} /> {s.change}</p>
           </div>
         ))}
       </div>
@@ -9926,7 +9926,7 @@ const AdminOverview = ({ onNavigate, counts, displayName }) => {
           <h3 className="text-sm font-semibold text-stone-900 mb-4" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Platform activity (last 7 days)</h3>
           <div className="space-y-3">
             {[
-              { label: "New bookings", value: 184, max: 200, color: "bg-emerald-600" },
+              { label: "New bookings", value: 184, max: 200, color: "bg-brand-600" },
               { label: "Donations made", value: 342, max: 400, color: "bg-amber-500" },
               { label: "Mosque sign-ups", value: 3, max: 10, color: "bg-sky-600" },
               { label: "Scholar sign-ups", value: 8, max: 10, color: "bg-purple-600" },
@@ -12453,7 +12453,7 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
           )}
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={14} /></div>
+          <div className="w-7 h-7 rounded-lg bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={14} /></div>
           <div className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{sectionTitle}</div>
         </div>
         <div className="flex items-center gap-1">
@@ -12502,7 +12502,7 @@ const AdminPanel = ({ authedProfile, onLogout, section = "overview", onSectionCh
       {/* Toast notification */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-stone-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3" style={{ animation: "slideInRight 0.3s ease-out" }}>
-          <CheckCircle2 className="text-emerald-400" size={18} />
+          <CheckCircle2 className="text-brand-400" size={18} />
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
@@ -13530,7 +13530,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   />;
   if (view === "userDashboard" && authedUser && !authedProfile) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+      <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
     </div>
   );
   // Auth still resolving on any authed dashboard route — show a loader rather than
@@ -13544,7 +13544,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
   if (authLoading && (view === "userDashboard" || view === "mosqueDashboard" || view === "scholarDashboard" || view === "adminPanel")) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <Loader2 className="animate-spin text-emerald-700" size={28} />
+        <Loader2 className="animate-spin text-brand-700" size={28} />
       </div>
     );
   }
@@ -13561,7 +13561,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
       const { data, error } = await openThreadWithTeacher(classId);
       if (error || !data) { console.error("openThreadWithTeacher failed:", error?.code, error?.message); showToast(error?.message || "Couldn't open chat. Please try again."); return; }
       setRole("user");
-      setSelectedConversation({ id: data, counterparty: { name: className ? `${className} teacher` : "Teacher", initials: "TC", avatarGradient: "from-emerald-400 to-emerald-700", role: "Teacher", verified: false }, context: null, lastMessage: "", lastTime: "", unread: 0, pinned: false, online: false, messages: [] });
+      setSelectedConversation({ id: data, counterparty: { name: className ? `${className} teacher` : "Teacher", initials: "TC", avatarGradient: "from-brand-400 to-brand-700", role: "Teacher", verified: false }, context: null, lastMessage: "", lastTime: "", unread: 0, pinned: false, online: false, messages: [] });
       navigate("conversationView", { id: data });
     }}
     onProfileUpdate={(updated) => setAuthedProfile(updated)}
@@ -13635,7 +13635,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     ? {
         displayName: myScholar?.name || authedUser?.email,
         displayInitials: myScholar?.avatar_initials || (myScholar?.name || authedUser?.email || "??").trim().substring(0, 2).toUpperCase(),
-        displayGradient: myScholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
+        displayGradient: myScholar?.avatar_gradient || "from-brand-400 to-brand-700",
         displayAvatarUrl: myScholar?.avatar_url || null,
         onLogout: async () => { await fullSignOut(); setView("publicHome"); },
         upcomingBookingsCount: scholarUpcomingCount,
@@ -13644,7 +13644,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     : {
         displayName: authedProfile?.name || authedUser?.email,
         displayInitials: authedProfile?.avatar_initials || (authedProfile?.name || authedUser?.email || "??").trim().substring(0, 2).toUpperCase(),
-        displayGradient: authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700",
+        displayGradient: authedProfile?.avatar_gradient || "from-brand-400 to-brand-700",
         displayAvatarUrl: authedProfile?.avatar_url || null,
         onLogout: async () => { await fullSignOut(); setView("publicHome"); },
       };
@@ -13811,7 +13811,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     // so the admin chrome never paints.
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <Loader2 className="animate-spin text-emerald-700" size={28} />
+        <Loader2 className="animate-spin text-brand-700" size={28} />
       </div>
     );
   }
@@ -13849,7 +13849,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
       setRole("mosque");
       setSelectedConversation({
         id: data,
-        counterparty: { name: s.name, initials: (s.name ? s.name.slice(0, 2).toUpperCase() : "??"), avatarGradient: s.avatar_gradient || "from-emerald-400 to-emerald-700", role: "Scholar", verified: true },
+        counterparty: { name: s.name, initials: (s.name ? s.name.slice(0, 2).toUpperCase() : "??"), avatarGradient: s.avatar_gradient || "from-brand-400 to-brand-700", role: "Scholar", verified: true },
         context: null, lastMessage: "", lastTime: "", unread: 0, pinned: false, online: false, messages: [],
       });
       navigate("conversationView", { id: data });
