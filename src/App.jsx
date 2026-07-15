@@ -75,7 +75,7 @@ import { ADMIN_CAMPAIGN_APPS } from "./data/mockAdmin";
 const Avatar = ({ scholar, size = "md" }) => {
   const dims = { sm: "w-10 h-10 text-sm", md: "w-14 h-14 text-lg", lg: "w-24 h-24 text-3xl" }[size];
   const url = scholar?.avatarUrl || scholar?.avatar_url || null;
-  const gradient = scholar?.avatarGradient || scholar?.avatar_gradient || "from-emerald-400 to-emerald-700";
+  const gradient = scholar?.avatarGradient || scholar?.avatar_gradient || "from-brand-400 to-brand-700";
   const initials = scholar?.initials ?? scholar?.avatar_initials ?? "";
   if (url) {
     return (
@@ -108,7 +108,7 @@ const Counter = ({ end, duration = 1500, suffix = "" }) => {
 };
 
 // Progress bar
-const ProgressBar = ({ raised, goal, gradient = "from-emerald-600 to-emerald-800" }) => {
+const ProgressBar = ({ raised, goal, gradient = "from-brand-600 to-brand-800" }) => {
   const pct = Math.min((raised / goal) * 100, 100);
   return (
     <div className="relative">
@@ -963,7 +963,7 @@ const AudienceDrawer = ({ isOpen, onClose, onSignIn }) => {
       <div className="absolute top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
             <h2 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h2>
           </div>
           <button onClick={onClose} className="p-2 -mr-1 text-stone-500 hover:text-stone-900" aria-label="Close menu">
@@ -975,7 +975,7 @@ const AudienceDrawer = ({ isOpen, onClose, onSignIn }) => {
             <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">For students & families</p>
           </div>
           <button onClick={() => { onClose(); onSignIn("user"); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-stone-50 text-left">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><User className="text-emerald-800" size={18} /></div>
+            <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center"><User className="text-brand-800" size={18} /></div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-stone-900">Parent or student</p>
               <p className="text-xs text-stone-500">Find a scholar or donate</p>
@@ -1037,8 +1037,8 @@ const PublicHeader = ({ authedUser, authedProfile, onLogoClick, onSignIn }) => {
       <div className="max-w-7xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
         {/* Logo - clickable, returns home */}
         <button onClick={onLogoClick} className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center shadow-md group-hover:bg-emerald-800 transition-colors">
-            <ShieldCheck className="text-emerald-50" size={18} />
+          <div className="w-9 h-9 rounded-xl bg-brand-700 flex items-center justify-center shadow-md group-hover:bg-brand-800 transition-colors">
+            <ShieldCheck className="text-brand-50" size={18} />
           </div>
           <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </button>
@@ -1056,7 +1056,7 @@ const PublicHeader = ({ authedUser, authedProfile, onLogoClick, onSignIn }) => {
               </div>
             ) : (
               <div
-                className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-emerald-400 to-emerald-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
+                className={`w-9 h-9 rounded-full bg-gradient-to-br ${authedProfile?.avatar_gradient || "from-brand-400 to-brand-700"} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}
                 style={{ fontFamily: "'Fraunces', Georgia, serif" }}
               >
                 {authedProfile?.avatar_initials || (authedProfile?.name || authedProfile?.email || "?").substring(0, 2).toUpperCase()}
@@ -1127,12 +1127,12 @@ const DashboardTabBar = ({
             <button
               key={t.v}
               onClick={() => onTabClick(t.v)}
-              className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
+              className={`px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isActive ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}
             >
               <span className="flex items-center gap-1.5">
                 <Icon size={14} /> {t.l}
                 {t.badge > 0 && (
-                  <span className="bg-emerald-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>
+                  <span className="bg-brand-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full ml-0.5">{t.badge}</span>
                 )}
               </span>
             </button>
@@ -7295,8 +7295,8 @@ const ForgotPassword = ({ onBack, onDone }) => {
       <div className="w-full max-w-md">
         <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-5 md:mb-6"><ArrowLeft size={14} /> Back to sign in</button>
         <div className="text-center mb-6 md:mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
-            <ShieldCheck className="text-emerald-50" size={22} />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-900 mb-4 shadow-lg">
+            <ShieldCheck className="text-brand-50" size={22} />
           </div>
           <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
@@ -7309,7 +7309,7 @@ const ForgotPassword = ({ onBack, onDone }) => {
               </p>
               <button
                 onClick={onDone}
-                className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium"
+                className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium"
               >
                 Back to sign in
               </button>
@@ -7326,13 +7326,13 @@ const ForgotPassword = ({ onBack, onDone }) => {
                   onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
                   placeholder="Email"
                   autoComplete="email"
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
                 />
                 {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
                 <button
                   onClick={submit}
                   disabled={loading || !email.trim()}
-                  className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100"
+                  className="w-full bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100"
                 >
                   {loading ? "Sending..." : "Send reset link"}
                 </button>
@@ -7384,8 +7384,8 @@ const ResetPassword = ({ onDone }) => {
     <div className="min-h-screen bg-stone-50 flex items-center justify-center p-5 md:p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="w-full max-w-md">
         <div className="text-center mb-6 md:mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg">
-            <ShieldCheck className="text-emerald-50" size={22} />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-900 mb-4 shadow-lg">
+            <ShieldCheck className="text-brand-50" size={22} />
           </div>
           <h1 className="text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
@@ -7399,7 +7399,7 @@ const ResetPassword = ({ onDone }) => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="New password"
               autoComplete="new-password"
-              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
             />
             <input
               type="password"
@@ -7408,13 +7408,13 @@ const ResetPassword = ({ onDone }) => {
               onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
               placeholder="Confirm new password"
               autoComplete="new-password"
-              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+              className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
             />
             {error && <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">{error}</div>}
             <button
               onClick={submit}
               disabled={loading || !password || !confirm}
-              className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100"
+              className="w-full bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01] disabled:hover:scale-100"
             >
               {loading ? "Updating..." : "Update password"}
             </button>
