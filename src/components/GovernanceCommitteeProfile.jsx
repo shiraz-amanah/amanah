@@ -9,7 +9,7 @@ import { roleLabel, termFlag } from "./GovernanceCommittee";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const meetingLabel = { agm: "AGM", committee: "Committee", extraordinary: "Extraordinary", sub_committee: "Sub-committee" };
-const statusCls = { open: "bg-stone-100 text-stone-600", in_progress: "bg-amber-50 text-amber-700", complete: "bg-emerald-50 text-emerald-800" };
+const statusCls = { open: "bg-stone-100 text-stone-600", in_progress: "bg-amber-50 text-amber-700", complete: "bg-success-50 text-success-800" };
 const isOverdue = (a) => a.status !== "complete" && a.due_date && a.due_date < new Date().toISOString().slice(0, 10);
 
 const GovernanceCommitteeProfile = ({ member, onBack, onEdit }) => {
@@ -37,7 +37,7 @@ const GovernanceCommitteeProfile = ({ member, onBack, onEdit }) => {
       <div className={cardCls}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-4 min-w-0">
-            <span className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-xl font-medium">{member.name.slice(0, 1).toUpperCase()}</span>
+            <span className="w-14 h-14 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0 text-xl font-medium">{member.name.slice(0, 1).toUpperCase()}</span>
             <div className="min-w-0">
               <h2 className="text-xl md:text-2xl font-semibold text-stone-900 tracking-tight flex items-center gap-2 flex-wrap" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
                 {member.name}
@@ -49,7 +49,7 @@ const GovernanceCommitteeProfile = ({ member, onBack, onEdit }) => {
               </p>
             </div>
           </div>
-          <button onClick={onEdit} className="shrink-0 text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Pencil size={13} /> Edit</button>
+          <button onClick={onEdit} className="shrink-0 text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Pencil size={13} /> Edit</button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-sm text-stone-700">
           {member.email && <p className="inline-flex items-center gap-2"><Mail size={14} className="text-stone-400" /> {member.email}</p>}
@@ -73,7 +73,7 @@ const GovernanceCommitteeProfile = ({ member, onBack, onEdit }) => {
               <div className="space-y-1.5 max-h-56 overflow-y-auto">
                 {attendance.map((a, i) => (
                   <div key={a.meeting?.id || i} className="flex items-center gap-2 text-sm">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${a.present ? "bg-emerald-500" : "bg-stone-300"}`} />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${a.present ? "bg-success-500" : "bg-stone-300"}`} />
                     <span className="text-stone-700 flex-1 min-w-0 truncate">{meetingLabel[a.meeting?.type] || a.meeting?.type} {a.meeting?.title ? `· ${a.meeting.title}` : ""}</span>
                     <span className="text-xs text-stone-400 shrink-0">{fmtDate(a.meeting?.meeting_date)}</span>
                   </div>
