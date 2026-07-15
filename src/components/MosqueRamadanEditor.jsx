@@ -11,7 +11,7 @@ import { generateRamadanCalendar, CALC_METHODS, RAMADAN_CSV_COLUMNS, dayName } f
 // to Sehri as a precaution). Self-saving; writes ramadan_calendar + ramadan_year.
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "") && !isNaN(new Date(s + "T12:00:00").getTime());
@@ -84,16 +84,16 @@ const MosqueRamadanEditor = ({ mosque, onSaved }) => {
   return (
     <div className={cardCls + " space-y-4"}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider inline-flex items-center gap-1.5"><Moon size={13} className="text-emerald-700" /> Ramadan timetable</h3>
+        <h3 className="text-xs font-medium text-stone-500 uppercase tracking-wider inline-flex items-center gap-1.5"><Moon size={13} className="text-brand-700" /> Ramadan timetable</h3>
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-1.5"><label className="text-[11px] text-stone-500">Year</label><input type="number" value={year} onChange={(e) => { setYear(e.target.value); dirty(); }} className="w-20 px-2 py-1.5 rounded-lg border border-stone-300 text-sm" /></div>
-          <button onClick={save} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+          <button onClick={save} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
             {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : saved ? <><Check size={14} /> Saved</> : <><Save size={14} /> Save calendar</>}
           </button>
         </div>
       </div>
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {error}</p>}
-      {msg && <p className="text-sm text-emerald-700 flex items-center gap-1.5"><Check size={14} /> {msg}</p>}
+      {msg && <p className="text-sm text-brand-700 flex items-center gap-1.5"><Check size={14} /> {msg}</p>}
 
       <div className="grid md:grid-cols-2 gap-3">
         {/* Option A — CSV */}
@@ -101,8 +101,8 @@ const MosqueRamadanEditor = ({ mosque, onSaved }) => {
           <p className="text-sm font-medium text-stone-800 mb-1">Option A · Import a spreadsheet</p>
           <p className="text-xs text-stone-500 mb-3">Columns: date, sehri_end, iftar, tarawih_start.</p>
           <div className="flex flex-wrap gap-2">
-            <button onClick={downloadTemplate} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Template</button>
-            <button onClick={() => fileRef.current?.click()} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Upload CSV</button>
+            <button onClick={downloadTemplate} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Template</button>
+            <button onClick={() => fileRef.current?.click()} className="text-sm font-medium border border-stone-300 text-stone-700 hover:border-brand-300 hover:text-brand-700 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><Upload size={14} /> Upload CSV</button>
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
           </div>
           {parseErr && <p className="text-xs text-rose-700 mt-2 flex items-start gap-1.5"><AlertCircle size={13} className="mt-0.5 shrink-0" /> {parseErr}</p>}
@@ -117,7 +117,7 @@ const MosqueRamadanEditor = ({ mosque, onSaved }) => {
             <div><label className={labelCls}>First day</label><input type="date" className={inputCls} value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
             <div className="col-span-2"><label className={labelCls}>Calculation method</label><select className={inputCls} value={method} onChange={(e) => setMethod(e.target.value)}>{CALC_METHODS.map((m) => <option key={m.v} value={m.v}>{m.label}</option>)}</select></div>
           </div>
-          <button onClick={autoGenerate} disabled={busy} className="mt-2 bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate 30 days</button>
+          <button onClick={autoGenerate} disabled={busy} className="mt-2 bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate 30 days</button>
         </div>
       </div>
 
