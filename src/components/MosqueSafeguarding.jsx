@@ -29,7 +29,7 @@ const RECRUIT_FIELDS = [["dbs_received", "DBS received"], ["references_obtained"
 const NSPCC = { label: "NSPCC Helpline", name: "NSPCC", phone: "0808 800 5000", email: "help@nspcc.org.uk" };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
 const Card = ({ children }) => <div className="bg-white border border-stone-200 rounded-2xl p-5 space-y-3">{children}</div>;
 
@@ -142,7 +142,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
 
       <div className="flex gap-1 border-b border-stone-200 mb-5 overflow-x-auto">
         {SUBS.map(([v, l, Icon]) => (
-          <button key={v} onClick={() => { setSub(v); setError(null); }} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === v ? "border-emerald-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
+          <button key={v} onClick={() => { setSub(v); setError(null); }} className={`px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap inline-flex items-center gap-1.5 ${sub === v ? "border-brand-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"}`}><Icon size={14} /> {l}</button>
         ))}
       </div>
 
@@ -156,7 +156,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
               <ul className="bg-white border border-stone-200 rounded-2xl divide-y divide-stone-100">{policyDocs.map((d) => (
                 <li key={d.id} className="px-4 py-2.5 flex items-center justify-between gap-2 text-sm">
                   <span className="text-stone-700 truncate flex items-center gap-1.5"><FileText size={13} /> {d.label}{d.expiry_date ? ` · review by ${d.expiry_date}` : ""}</span>
-                  {d.file_path && <button onClick={() => viewDoc(d.file_path)} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">View</button>}
+                  {d.file_path && <button onClick={() => viewDoc(d.file_path)} className="text-xs font-medium text-brand-800 hover:text-brand-900">View</button>}
                 </li>
               ))}</ul>
             )}
@@ -165,9 +165,9 @@ const MosqueSafeguarding = ({ mosqueId }) => {
               <div className="grid md:grid-cols-3 gap-3">
                 <Field label="Policy"><select className={inputCls} value={pol.type} onChange={(e) => setPol({ ...pol, type: e.target.value })}>{POLICY_TYPES.map((p) => <option key={p}>{p}</option>)}</select></Field>
                 <Field label="Review due"><input type="date" className={inputCls} value={pol.review} onChange={(e) => setPol({ ...pol, review: e.target.value })} /></Field>
-                <Field label="File"><label className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-2 cursor-pointer transition-colors"><Paperclip size={14} /> {pol.file ? pol.file.name.slice(0, 18) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setPol({ ...pol, file: e.target.files?.[0] || null })} /></label></Field>
+                <Field label="File"><label className="inline-flex items-center gap-2 text-sm font-semibold text-brand-800 bg-brand-50 border border-brand-200 hover:bg-brand-100 rounded-lg px-3 py-2 cursor-pointer transition-colors"><Paperclip size={14} /> {pol.file ? pol.file.name.slice(0, 18) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setPol({ ...pol, file: e.target.files?.[0] || null })} /></label></Field>
               </div>
-              <div className="flex justify-end"><button onClick={addPolicy} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add policy</button></div>
+              <div className="flex justify-end"><button onClick={addPolicy} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add policy</button></div>
             </Card>
           </div>
         )}
@@ -186,7 +186,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
               <Field label="Last training"><input type="date" className={inputCls} value={dslView.dsl_last_training || ""} onChange={(e) => setDsl("dsl_last_training", e.target.value)} /></Field>
               <Field label="Next training due"><input type="date" className={inputCls} value={dslView.dsl_next_training || ""} onChange={(e) => setDsl("dsl_next_training", e.target.value)} /></Field>
             </div>
-            <div className="flex justify-end"><button onClick={saveDsl} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button></div>
+            <div className="flex justify-end"><button onClick={saveDsl} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button></div>
           </Card>
         )}
 
@@ -197,7 +197,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                 <li key={t.id} className="px-4 py-2.5 flex items-center justify-between gap-2 text-sm">
                   <span className="text-stone-700 truncate">{nameById[t.staff_id] || "—"} · {t.training_type}{t.renewal_due ? ` · renew ${t.renewal_due}` : ""}</span>
                   <div className="flex items-center gap-2">
-                    {t.certificate_path && <button onClick={() => viewDoc(t.certificate_path)} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">View</button>}
+                    {t.certificate_path && <button onClick={() => viewDoc(t.certificate_path)} className="text-xs font-medium text-brand-800 hover:text-brand-900">View</button>}
                     <button onClick={async () => { await deleteStaffTraining(t.id); reload(); }} className="text-stone-400 hover:text-rose-600"><Trash2 size={14} /></button>
                   </div>
                 </li>
@@ -210,9 +210,9 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                 <Field label="Training type"><select className={inputCls} value={trForm.training_type} onChange={(e) => setTrForm({ ...trForm, training_type: e.target.value })}>{TRAINING_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
                 <Field label="Completion date"><input type="date" className={inputCls} value={trForm.completion_date} onChange={(e) => setTrForm({ ...trForm, completion_date: e.target.value })} /></Field>
                 <Field label="Renewal due"><input type="date" className={inputCls} value={trForm.renewal_due} onChange={(e) => setTrForm({ ...trForm, renewal_due: e.target.value })} /></Field>
-                <Field label="Certificate"><label className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg px-3 py-2 cursor-pointer transition-colors"><Paperclip size={14} /> {trForm.file ? trForm.file.name.slice(0, 18) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setTrForm({ ...trForm, file: e.target.files?.[0] || null })} /></label></Field>
+                <Field label="Certificate"><label className="inline-flex items-center gap-2 text-sm font-semibold text-brand-800 bg-brand-50 border border-brand-200 hover:bg-brand-100 rounded-lg px-3 py-2 cursor-pointer transition-colors"><Paperclip size={14} /> {trForm.file ? trForm.file.name.slice(0, 18) : "Attach files"}<input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => setTrForm({ ...trForm, file: e.target.files?.[0] || null })} /></label></Field>
               </div>
-              <div className="flex justify-end"><button onClick={addTraining} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Log</button></div>
+              <div className="flex justify-end"><button onClick={addTraining} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Log</button></div>
             </Card>
           </div>
         )}
@@ -246,10 +246,10 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                   <Field label="Status"><select className={inputCls} value={incForm.status} onChange={(e) => setIncForm({ ...incForm, status: e.target.value })}>{INCIDENT_STATUSES.map(([x, l]) => <option key={x} value={x}>{l}</option>)}</select></Field>
                   <Field label="Referred to"><select className={inputCls} value={incForm.referred_to} onChange={(e) => setIncForm({ ...incForm, referred_to: e.target.value })}>{REFERRED.map(([x, l]) => <option key={x} value={x}>{l}</option>)}</select></Field>
                 </div>
-                <div className="flex justify-end gap-2"><button onClick={() => setIncForm(null)} className="text-sm text-stone-500 px-3 py-2">Cancel</button><button onClick={addIncident} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Record</button></div>
+                <div className="flex justify-end gap-2"><button onClick={() => setIncForm(null)} className="text-sm text-stone-500 px-3 py-2">Cancel</button><button onClick={addIncident} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Record</button></div>
               </Card>
             ) : (
-              <button onClick={() => setIncForm(blankInc)} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Record an incident</button>
+              <button onClick={() => setIncForm(blankInc)} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Record an incident</button>
             )}
           </div>
         )}
@@ -264,7 +264,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                   <td className="px-3 py-2 font-medium text-stone-700 whitespace-nowrap sticky left-0 bg-white">{s.name}</td>
                   {RECRUIT_FIELDS.map(([k]) => (
                     <td key={k} className="px-2 py-2 text-center">
-                      <button onClick={() => toggleRecruit(s.id, k)} className={`w-5 h-5 rounded border inline-flex items-center justify-center ${r[k] ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-stone-300 text-transparent hover:border-stone-400"}`}><Check size={12} /></button>
+                      <button onClick={() => toggleRecruit(s.id, k)} className={`w-5 h-5 rounded border inline-flex items-center justify-center ${r[k] ? "bg-success-600 border-success-600 text-white" : "bg-white border-stone-300 text-transparent hover:border-stone-400"}`}><Check size={12} /></button>
                     </td>
                   ))}
                 </tr>
@@ -277,7 +277,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                   <p className="text-sm font-medium text-stone-700 mb-2">{s.name}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {RECRUIT_FIELDS.map(([k, l]) => (
-                      <button key={k} onClick={() => toggleRecruit(s.id, k)} className={`text-[11px] px-2 py-1 rounded-full border inline-flex items-center gap-1 ${r[k] ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-500"}`}>
+                      <button key={k} onClick={() => toggleRecruit(s.id, k)} className={`text-[11px] px-2 py-1 rounded-full border inline-flex items-center gap-1 ${r[k] ? "bg-success-50 border-success-300 text-success-800" : "bg-white border-stone-300 text-stone-500"}`}>
                         {r[k] && <Check size={11} />} {l}
                       </button>
                     ))}
@@ -299,7 +299,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                 </li>
               ))}</ul>
             )}
-            {!contacts.some((c) => c.name === "NSPCC") && <button onClick={addNspcc} className="text-xs font-medium text-emerald-800 hover:text-emerald-900">+ Add NSPCC helpline (pre-filled)</button>}
+            {!contacts.some((c) => c.name === "NSPCC") && <button onClick={addNspcc} className="text-xs font-medium text-brand-800 hover:text-brand-900">+ Add NSPCC helpline (pre-filled)</button>}
             <Card>
               <p className="text-sm font-medium text-stone-800">Add a contact</p>
               <div className="grid md:grid-cols-2 gap-3">
@@ -308,7 +308,7 @@ const MosqueSafeguarding = ({ mosqueId }) => {
                 <Field label="Phone"><input className={inputCls} value={cForm.phone} onChange={(e) => setCForm({ ...cForm, phone: e.target.value })} /></Field>
                 <Field label="Email"><input className={inputCls} value={cForm.email} onChange={(e) => setCForm({ ...cForm, email: e.target.value })} /></Field>
               </div>
-              <div className="flex justify-end"><button onClick={addContact} className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add contact</button></div>
+              <div className="flex justify-end"><button onClick={addContact} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add contact</button></div>
             </Card>
           </div>
         )}
