@@ -6298,7 +6298,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5 md:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
             <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
           </div>
           {onLogout && (
@@ -6317,7 +6317,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
             <span className="text-xs text-stone-500">{Math.round((step / 5) * 100)}%</span>
           </div>
           <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-900 transition-all duration-500" style={{ width: `${(step / 5) * 100}%` }} />
+            <div className="h-full bg-brand-900 transition-all duration-500" style={{ width: `${(step / 5) * 100}%` }} />
           </div>
         </div>
 
@@ -6338,8 +6338,8 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                   const Icon = c.i;
                   return (
                     <div key={idx} className="bg-stone-50 border border-stone-200 rounded-xl p-4">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center mb-2">
-                        <Icon className="text-emerald-800" size={18} />
+                      <div className="w-9 h-9 rounded-xl bg-brand-100 flex items-center justify-center mb-2">
+                        <Icon className="text-brand-800" size={18} />
                       </div>
                       <p className="text-sm font-semibold text-stone-900">{c.t}</p>
                       <p className="text-xs text-stone-600 mt-0.5">{c.d}</p>
@@ -6358,11 +6358,11 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Full name</label>
-                  <input type="text" value={form.fullName} onChange={e => update({ fullName: e.target.value })} placeholder="e.g. Yusuf Al-Rahman" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="text" value={form.fullName} onChange={e => update({ fullName: e.target.value })} placeholder="e.g. Yusuf Al-Rahman" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">City</label>
-                  <input type="text" value={form.city} onChange={e => update({ city: e.target.value })} placeholder="e.g. Birmingham (or 'Online' if remote only)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="text" value={form.city} onChange={e => update({ city: e.target.value })} placeholder="e.g. Birmingham (or 'Online' if remote only)" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Languages</label>
@@ -6370,7 +6370,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                     {["English", "Arabic", "Urdu", "Bengali", "Turkish", "Somali", "French"].map(lang => {
                       const on = form.languages.includes(lang);
                       return (
-                        <button key={lang} type="button" onClick={() => toggleLanguage(lang)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                        <button key={lang} type="button" onClick={() => toggleLanguage(lang)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
                           {lang}
                         </button>
                       );
@@ -6389,13 +6389,13 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                         }
                       }}
                       placeholder="Other? Type and press Enter"
-                      className="flex-1 px-3 py-2 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                      className="flex-1 px-3 py-2 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
                     />
                   </div>
                   {form.languages.filter(l => !["English","Arabic","Urdu","Bengali","Turkish","Somali","French"].includes(l)).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {form.languages.filter(l => !["English","Arabic","Urdu","Bengali","Turkish","Somali","French"].includes(l)).map(l => (
-                        <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-md">
+                        <span key={l} className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-50 border border-brand-200 text-brand-800 text-xs rounded-md">
                           {l}
                           <button onClick={() => toggleLanguage(l)} className="hover:text-rose-600"><X size={11} /></button>
                         </span>
@@ -6406,7 +6406,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Profile photo (optional)</label>
                   <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-white text-base font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white text-base font-semibold" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
                       {initials || "?"}
                     </div>
                     <p className="text-xs text-stone-500">Photo upload arrives soon. Your initials show until then.</p>
@@ -6424,25 +6424,25 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Ijazah summary <span className="text-stone-400">(optional)</span></label>
-                  <textarea value={form.ijazahSummary} onChange={e => update({ ijazahSummary: e.target.value })} rows={3} placeholder="What ijazah, scholarly permissions, or formal training do you have?" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                  <textarea value={form.ijazahSummary} onChange={e => update({ ijazahSummary: e.target.value })} rows={3} placeholder="What ijazah, scholarly permissions, or formal training do you have?" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none" />
                   <p className="text-xs text-stone-500 mt-1">{form.ijazahSummary.length} chars · ~200 is plenty</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Formal education <span className="text-stone-400">(optional)</span></label>
-                  <textarea value={form.formalEducation} onChange={e => update({ formalEducation: e.target.value })} rows={2} placeholder="Madrasah, university, or other formal study?" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                  <textarea value={form.formalEducation} onChange={e => update({ formalEducation: e.target.value })} rows={2} placeholder="Madrasah, university, or other formal study?" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Years teaching</label>
-                  <input type="number" min={0} max={60} value={form.yearsTeaching} onChange={e => update({ yearsTeaching: e.target.value })} placeholder="e.g. 8" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="number" min={0} max={60} value={form.yearsTeaching} onChange={e => update({ yearsTeaching: e.target.value })} placeholder="e.g. 8" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">DBS check status</label>
                   <p className="text-xs text-stone-500 mb-3">A DBS (Disclosure and Barring Service) check is required to teach children in the UK. Tell us where you're at.</p>
                   <div className="space-y-2">
                     {DBS_OPTIONS.map(opt => (
-                      <button key={opt.v} type="button" onClick={() => update({ dbsStatus: opt.v })} className={`w-full text-left p-3 rounded-xl border transition-colors ${form.dbsStatus === opt.v ? "bg-emerald-50 border-emerald-400" : "bg-white border-stone-200 hover:border-stone-400"}`}>
+                      <button key={opt.v} type="button" onClick={() => update({ dbsStatus: opt.v })} className={`w-full text-left p-3 rounded-xl border transition-colors ${form.dbsStatus === opt.v ? "bg-brand-50 border-brand-400" : "bg-white border-stone-200 hover:border-stone-400"}`}>
                         <div className="flex items-center gap-2">
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${form.dbsStatus === opt.v ? "border-emerald-700 bg-emerald-700" : "border-stone-300"}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${form.dbsStatus === opt.v ? "border-brand-700 bg-brand-700" : "border-stone-300"}`}>
                             {form.dbsStatus === opt.v && <Check size={10} className="text-white" strokeWidth={3} />}
                           </div>
                           <div>
@@ -6471,7 +6471,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                     {CATEGORIES.map(cat => {
                       const on = form.subjects.includes(cat.id);
                       return (
-                        <button key={cat.id} type="button" onClick={() => toggleSubject(cat.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                        <button key={cat.id} type="button" onClick={() => toggleSubject(cat.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
                           {cat.name}
                         </button>
                       );
@@ -6483,7 +6483,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-xs font-medium text-stone-700 uppercase tracking-wider">Packages</label>
                     {form.packages.length < 4 && (
-                      <button type="button" onClick={() => update({ packages: [...form.packages, { name: "", duration: "", price: 0, desc: "" }] })} className="text-xs text-emerald-800 font-medium inline-flex items-center gap-1 hover:underline">
+                      <button type="button" onClick={() => update({ packages: [...form.packages, { name: "", duration: "", price: 0, desc: "" }] })} className="text-xs text-brand-800 font-medium inline-flex items-center gap-1 hover:underline">
                         <Plus size={12} /> Add package
                       </button>
                     )}
@@ -6492,10 +6492,10 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
                   <div className="space-y-3">
                     {form.packages.map((pkg, i) => (
                       <div key={i} className="bg-stone-50 border border-stone-200 rounded-xl p-3 grid grid-cols-1 md:grid-cols-12 gap-2 items-start">
-                        <input type="text" value={pkg.name} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, name: e.target.value } : p) })} placeholder="Name (e.g. Standard)" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                        <input type="text" value={pkg.duration} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, duration: e.target.value } : p) })} placeholder="Duration (e.g. 4 × 45 min)" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                        <input type="number" min={0} value={pkg.price} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, price: Number(e.target.value) } : p) })} placeholder="£" className="md:col-span-2 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-                        <input type="text" value={pkg.desc} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, desc: e.target.value } : p) })} placeholder="Short description" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                        <input type="text" value={pkg.name} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, name: e.target.value } : p) })} placeholder="Name (e.g. Standard)" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                        <input type="text" value={pkg.duration} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, duration: e.target.value } : p) })} placeholder="Duration (e.g. 4 × 45 min)" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                        <input type="number" min={0} value={pkg.price} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, price: Number(e.target.value) } : p) })} placeholder="£" className="md:col-span-2 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                        <input type="text" value={pkg.desc} onChange={e => update({ packages: form.packages.map((p, j) => j === i ? { ...p, desc: e.target.value } : p) })} placeholder="Short description" className="md:col-span-3 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                         <button type="button" onClick={() => update({ packages: form.packages.filter((_, j) => j !== i) })} disabled={form.packages.length === 1} className="md:col-span-1 text-stone-500 hover:text-rose-700 disabled:opacity-30 disabled:hover:text-stone-500 p-2 inline-flex justify-center" aria-label="Remove package">
                           <X size={14} />
                         </button>
@@ -6506,7 +6506,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
 
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Bio</label>
-                  <textarea value={form.bio} onChange={e => update({ bio: e.target.value })} rows={5} maxLength={2000} placeholder="How would you describe yourself to parents looking for a teacher? Mention your style, who you love teaching, and what makes you different." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed" />
+                  <textarea value={form.bio} onChange={e => update({ bio: e.target.value })} rows={5} maxLength={2000} placeholder="How would you describe yourself to parents looking for a teacher? Mention your style, who you love teaching, and what makes you different." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none leading-relaxed" />
                   <p className="text-xs text-stone-500 mt-1">{form.bio.length} chars · aim for 100–500. Min 30 to continue.</p>
                 </div>
               </div>
@@ -6567,7 +6567,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
               <button
                 onClick={goNext}
                 disabled={(step === 2 && !canStep2) || (step === 3 && !canStep3) || (step === 4 && !canStep4)}
-                className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.01] disabled:hover:scale-100"
+                className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.01] disabled:hover:scale-100"
               >
                 {step === 1 ? "Begin" : "Continue"} <ArrowRight size={14} />
               </button>
@@ -6575,7 +6575,7 @@ const LegacyScholarOnboardingWizard = ({ authedUser, authedProfile, onSubmitted,
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit || submitting}
-                className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.01] disabled:hover:scale-100"
+                className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.01] disabled:hover:scale-100"
               >
                 {submitting ? "Submitting..." : <>Submit application <CheckCircle2 size={14} /></>}
               </button>
@@ -6928,8 +6928,8 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5 md:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-700 flex items-center justify-center">
-              <Building2 className="text-emerald-50" size={18} />
+            <div className="w-9 h-9 rounded-xl bg-brand-700 flex items-center justify-center">
+              <Building2 className="text-brand-50" size={18} />
             </div>
             <div>
               <p className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Mosque application</p>
@@ -6942,7 +6942,7 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
         </div>
         {/* Progress bar */}
         <div className="h-1 bg-stone-100">
-          <div className="h-full bg-emerald-700 transition-all" style={{ width: `${(step / 5) * 100}%` }} />
+          <div className="h-full bg-brand-700 transition-all" style={{ width: `${(step / 5) * 100}%` }} />
         </div>
       </header>
 
@@ -6955,11 +6955,11 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
               Welcome{authedProfile?.name ? `, ${authedProfile.name.split(" ")[0]}` : ""}. We'll ask you a few things about your mosque, then our team reviews and verifies before it goes public. Most applications are reviewed within 24-48 hours.
             </p>
             <ul className="text-sm text-stone-700 space-y-2 mb-6">
-              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-700 mt-0.5 flex-shrink-0" /><span>Public listing in our verified mosques directory</span></li>
-              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-700 mt-0.5 flex-shrink-0" /><span>Profile page with prayer times, services, location</span></li>
-              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-emerald-700 mt-0.5 flex-shrink-0" /><span>Free to apply · no commission · just verification</span></li>
+              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-brand-700 mt-0.5 flex-shrink-0" /><span>Public listing in our verified mosques directory</span></li>
+              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-brand-700 mt-0.5 flex-shrink-0" /><span>Profile page with prayer times, services, location</span></li>
+              <li className="flex items-start gap-2"><CheckCircle2 size={14} className="text-brand-700 mt-0.5 flex-shrink-0" /><span>Free to apply · no commission · just verification</span></li>
             </ul>
-            <button onClick={() => setStep(2)} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+            <button onClick={() => setStep(2)} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
               Begin <ArrowRight size={14} />
             </button>
           </div>
@@ -6980,7 +6980,7 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
             <RegField label="Address" value={form.address} onChange={(v) => update({ address: v })} placeholder="Street + building name" />
             <div className="flex justify-between pt-2">
               <button onClick={goBack} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><ArrowLeft size={13} /> Back</button>
-              <button onClick={goNext} disabled={!canStep2} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+              <button onClick={goNext} disabled={!canStep2} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
                 Continue <ArrowRight size={14} />
               </button>
             </div>
@@ -7022,7 +7022,7 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
             </div>
             <div className="flex justify-between pt-2">
               <button onClick={goBack} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><ArrowLeft size={13} /> Back</button>
-              <button onClick={goNext} disabled={!canStep3} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+              <button onClick={goNext} disabled={!canStep3} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
                 Continue <ArrowRight size={14} />
               </button>
             </div>
@@ -7043,7 +7043,7 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
                     <button
                       key={s.v}
                       onClick={() => toggleService(s.v)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${on ? "bg-emerald-700 border-emerald-700 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-stone-400"}`}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${on ? "bg-brand-700 border-brand-700 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-stone-400"}`}
                     >
                       {s.l}
                     </button>
@@ -7061,7 +7061,7 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
                     <button
                       key={f.v}
                       onClick={() => toggleFacility(f.v)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${on ? "bg-emerald-700 border-emerald-700 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-stone-400"}`}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${on ? "bg-brand-700 border-brand-700 text-white" : "bg-white border-stone-300 text-stone-700 hover:border-stone-400"}`}
                     >
                       {f.l}
                     </button>
@@ -7077,13 +7077,13 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
                 onChange={e => update({ bio: e.target.value })}
                 rows={5}
                 placeholder="e.g. Masjid Al-Noor has served the community since..."
-                className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none"
               />
               <p className="text-xs text-stone-500 mt-1">{form.bio.trim().length} / 50 chars</p>
             </div>
             <div className="flex justify-between pt-2">
               <button onClick={goBack} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1"><ArrowLeft size={13} /> Back</button>
-              <button onClick={goNext} disabled={!canStep4} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+              <button onClick={goNext} disabled={!canStep4} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2">
                 Continue <ArrowRight size={14} />
               </button>
             </div>
@@ -7123,7 +7123,7 @@ const MosqueOnboardingWizard = ({ authedUser, authedProfile, onSubmitted, onLogo
             )}
             <div className="bg-white border border-stone-200 rounded-2xl p-5 flex justify-between items-center flex-wrap gap-3">
               <button onClick={goBack} disabled={submitting} className="text-sm text-stone-500 hover:text-stone-900 inline-flex items-center gap-1 disabled:opacity-50"><ArrowLeft size={13} /> Back</button>
-              <button onClick={handleSubmit} disabled={submitting || !canSubmit} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-lg text-sm font-medium inline-flex items-center gap-2">
+              <button onClick={handleSubmit} disabled={submitting || !canSubmit} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-lg text-sm font-medium inline-flex items-center gap-2">
                 {submitting ? "Submitting..." : <>Submit application <CheckCircle2 size={14} /></>}
               </button>
             </div>
@@ -7918,7 +7918,7 @@ useEffect(() => {
     email: profile.email,
     initials,
     avatarUrl: profile.avatar_url || null,
-    avatarGradient: profile.avatar_gradient || "from-emerald-400 to-emerald-700",
+    avatarGradient: profile.avatar_gradient || "from-brand-400 to-brand-700",
     city: profile.city || "",
     joinedDate: profile.joined_date ? new Date(profile.joined_date).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "Recently",
     phone: profile.phone || "",
@@ -7955,7 +7955,7 @@ useEffect(() => {
             scholarId: b.scholar_id || b.scholar?.id || null,
             scholarName: b.scholar?.name || "Unknown scholar",
             scholarInitials: b.scholar?.avatar_initials || initialsFromName(b.scholar?.name),
-            scholarGradient: b.scholar?.avatar_gradient || "from-emerald-400 to-emerald-700",
+            scholarGradient: b.scholar?.avatar_gradient || "from-brand-400 to-brand-700",
             scholarAvatarUrl: b.scholar?.avatar_url || null,
             scholarCity: b.scholar?.city,
             scholarSlug: b.scholar?.slug,
@@ -8032,7 +8032,7 @@ setBookings(transformed);
       <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-5 md:px-6 py-3.5 md:py-4 flex items-center justify-between">
           <button onClick={onPublic} className="flex items-center gap-2.5 md:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-emerald-50" size={18} /></div>
+            <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center shadow-md"><ShieldCheck className="text-brand-50" size={18} /></div>
             <div className="text-left">
               <h1 className="text-base md:text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
               <p className="text-xs text-stone-500 hidden md:block">{user.name}</p>
@@ -8040,7 +8040,7 @@ setBookings(transformed);
           </button>
           <div className="flex items-center gap-2">
             <NotificationBell userId={profile?.id} onNavigate={(n) => (onNotificationNavigate || setTab)(n.type === "message" ? "messages" : "madrasa")} />
-            <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-emerald-400 to-emerald-700", avatarUrl: user.avatarUrl, name: user.name }} size="sm" />
+            <Avatar scholar={{ initials: user.initials || "??", avatarGradient: user.avatarGradient || "from-brand-400 to-brand-700", avatarUrl: user.avatarUrl, name: user.name }} size="sm" />
           </div>
         </div>
       </header>
@@ -8060,13 +8060,13 @@ setBookings(transformed);
         {staffMembership?.mosque && onStaffPortal && (
           <button
             onClick={onStaffPortal}
-            className="w-full mb-6 flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 hover:border-emerald-300 rounded-2xl px-5 py-3.5 text-left transition-colors"
+            className="w-full mb-6 flex items-center justify-between gap-3 bg-brand-50 border border-brand-200 hover:border-brand-300 rounded-2xl px-5 py-3.5 text-left transition-colors"
           >
             <span className="flex items-center gap-2.5">
-              <Briefcase size={17} className="text-emerald-700 shrink-0" />
-              <span className="text-sm text-emerald-900">You're a staff member at <span className="font-semibold">{staffMembership.mosque.name}</span>.</span>
+              <Briefcase size={17} className="text-brand-700 shrink-0" />
+              <span className="text-sm text-brand-900">You're a staff member at <span className="font-semibold">{staffMembership.mosque.name}</span>.</span>
             </span>
-            <span className="text-sm font-medium text-emerald-800 inline-flex items-center gap-1 whitespace-nowrap">Open staff portal <ArrowRight size={14} /></span>
+            <span className="text-sm font-medium text-brand-800 inline-flex items-center gap-1 whitespace-nowrap">Open staff portal <ArrowRight size={14} /></span>
           </button>
         )}
         {tab === "bookings" && (
@@ -8098,12 +8098,12 @@ setBookings(transformed);
             {/* Empty state for new users with no bookings */}
             {!bookingsLoading && upcomingBookings.length === 0 && pastBookings.length === 0 && (
               <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 mb-4">
-                  <BookOpen className="text-emerald-700" size={24} />
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-50 mb-4">
+                  <BookOpen className="text-brand-700" size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No bookings yet</h3>
                 <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Browse verified Qur'an tutors, Arabic teachers, imams and counsellors. All DBS-checked, all a click away.</p>
-                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                <button onClick={onPublic} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
                   <Search size={14} /> Find a scholar
                 </button>
               </div>
@@ -8136,7 +8136,7 @@ setBookings(transformed);
                             </div>
                             {/* Reschedule picker (inline, only when this booking is being rescheduled) */}
                             {reschedulingBookingId === b.id ? (
-                              <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-3 mt-2">
+                              <div className="border border-brand-200 bg-brand-50/30 rounded-xl p-3 mt-2">
                                 <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Pick a new date & time</p>
                                 <DateTimePicker
                                   availability={b.scholarAvailability?.length ? slotsToWeekly(b.scholarAvailability) : DEFAULT_AVAILABILITY}
@@ -8155,7 +8155,7 @@ setBookings(transformed);
                                   <button
                                     onClick={handleReschedule}
                                     disabled={bookingActionLoading || !rescheduleDate || !rescheduleTime || (rescheduleDate === b.date && rescheduleTime === b.time)}
-                                    className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                                    className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
                                   >
                                     {bookingActionLoading ? "Saving..." : <><CheckCircle2 size={12} /> Confirm new time</>}
                                   </button>
@@ -8224,7 +8224,7 @@ setBookings(transformed);
                                   if (minsUntil > 15) {
                                     return (
                                       <>
-                                        <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full font-medium">
+                                        <span className="inline-flex items-center gap-1.5 text-[11px] text-brand-800 bg-brand-50 border border-brand-200 px-2 py-1 rounded-full font-medium">
                                           <CheckCircle2 size={11} /> Link ready
                                         </span>
                                         <button disabled className="bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-not-allowed">
@@ -8237,7 +8237,7 @@ setBookings(transformed);
                                   return (
                                     <button
                                       onClick={() => window.open(b.meetingUrl, "_blank", "noopener,noreferrer")}
-                                      className="bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
+                                      className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"
                                     >
                                       <Play size={13} /> Join session
                                     </button>
@@ -8275,7 +8275,7 @@ setBookings(transformed);
                             </div>
                             <p className="text-xs text-stone-500 mb-2">{b.package} package{b.forStudent && ` · for ${b.forStudent.name}`} · {dateObj.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short", year: "numeric" })}</p>
                             <div className="flex gap-2 flex-wrap">
-                              <button onClick={() => onBookAgain(b.scholarId)} className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">Book again</button>
+                              <button onClick={() => onBookAgain(b.scholarId)} className="text-sm text-brand-800 font-medium hover:underline inline-flex items-center gap-1">Book again</button>
                               {!b.reviewLeft && (
                                 <>
                                   <span className="text-stone-300">·</span>
@@ -8285,7 +8285,7 @@ setBookings(transformed);
                               {b.reviewLeft && (
                                 <>
                                   <span className="text-stone-300">·</span>
-                                  <span className="text-sm text-stone-500 inline-flex items-center gap-1"><CheckCircle2 size={12} className="text-emerald-600" /> Review left</span>
+                                  <span className="text-sm text-stone-500 inline-flex items-center gap-1"><CheckCircle2 size={12} className="text-brand-600" /> Review left</span>
                                 </>
                               )}
                             </div>
@@ -8317,7 +8317,7 @@ setBookings(transformed);
                 </div>
                 <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No donations yet</h3>
                 <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">When you give to verified mosque and scholar campaigns, your sadaqah will be tracked here with Gift Aid receipts for tax purposes.</p>
-                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                <button onClick={onPublic} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
                   <Heart size={14} /> Browse campaigns
                 </button>
               </div>
@@ -8325,8 +8325,8 @@ setBookings(transformed);
               <>
                 {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                  <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl p-4">
-                    <p className="text-xs text-emerald-700 uppercase tracking-wider font-medium mb-1">Total given</p>
+                  <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-4">
+                    <p className="text-xs text-brand-700 uppercase tracking-wider font-medium mb-1">Total given</p>
                     <p className="text-2xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{totalGiven.toLocaleString()}</p>
                   </div>
                   <div className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-2xl p-4">
@@ -8399,7 +8399,7 @@ setBookings(transformed);
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>£{d.amount}</p>
-                      {d.giftAid > 0 && <p className="text-[11px] text-emerald-700 font-medium">+£{d.giftAid} Gift Aid</p>}
+                      {d.giftAid > 0 && <p className="text-[11px] text-brand-700 font-medium">+£{d.giftAid} Gift Aid</p>}
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-3 border-t border-stone-100 text-xs text-stone-500 flex-wrap">
@@ -8408,7 +8408,7 @@ setBookings(transformed);
                       {d.anonymous && <span>· Anonymous</span>}
                       <span className="font-mono">· {d.receiptId}</span>
                     </div>
-                    <button onClick={(e) => e.stopPropagation()} className="text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                    <button onClick={(e) => e.stopPropagation()} className="text-brand-800 font-medium hover:underline inline-flex items-center gap-1">
                       <Download size={11} /> Receipt
                     </button>
                   </div>
@@ -8435,7 +8435,7 @@ setBookings(transformed);
                 </div>
                 <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No scholars saved yet</h3>
                 <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Tap the heart on a scholar to save them here for later.</p>
-                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                <button onClick={onPublic} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
                   <Search size={14} /> Browse scholars
                 </button>
               </div>
@@ -8469,12 +8469,12 @@ setBookings(transformed);
 
             {(!savedMosqueIds || savedMosqueIds.size === 0) ? (
               <div className="bg-white border border-stone-200 rounded-2xl p-8 md:p-12 text-center">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 mb-4">
-                  <Building2 className="text-emerald-700" size={24} />
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-50 mb-4">
+                  <Building2 className="text-brand-700" size={24} />
                 </div>
                 <h3 className="text-lg font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>No mosques saved yet</h3>
                 <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">Browse verified mosques across the UK and tap the heart on any you'd like to keep track of.</p>
-                <button onClick={onPublic} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
+                <button onClick={onPublic} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center gap-2">
                   <Search size={14} /> Browse mosques
                 </button>
               </div>
@@ -8532,7 +8532,7 @@ setBookings(transformed);
                         setEditForm({ name: user.name || "", city: user.city || "", phone: user.phone || "" });
                         setSaveError(null);
                         setEditingProfile(true);
-                      }} className="text-sm text-emerald-800 font-medium hover:underline">Edit</button>
+                      }} className="text-sm text-brand-800 font-medium hover:underline">Edit</button>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-5 border-t border-stone-100 text-sm">
@@ -8563,7 +8563,7 @@ setBookings(transformed);
                         value={editForm.name}
                         onChange={e => setEditForm({...editForm, name: e.target.value})}
                         placeholder="Your name"
-                        className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                        className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -8574,7 +8574,7 @@ setBookings(transformed);
                           value={editForm.city}
                           onChange={e => setEditForm({...editForm, city: e.target.value})}
                           placeholder="e.g. Birmingham"
-                          className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
                         />
                       </div>
                       <div>
@@ -8584,7 +8584,7 @@ setBookings(transformed);
                           value={editForm.phone}
                           onChange={e => setEditForm({...editForm, phone: e.target.value})}
                           placeholder="+44 7700 900000"
-                          className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
                         />
                       </div>
                     </div>
@@ -8618,7 +8618,7 @@ setBookings(transformed);
                         setEditingProfile(false);
                       }}
                       disabled={savingProfile}
-                      className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-5 py-2 rounded-xl text-sm font-medium inline-flex items-center gap-2"
+                      className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-5 py-2 rounded-xl text-sm font-medium inline-flex items-center gap-2"
                     >
                       {savingProfile ? "Saving..." : <><CheckCircle2 size={14} /> Save</>}
                     </button>
@@ -8635,7 +8635,7 @@ setBookings(transformed);
                   <p className="text-xs text-stone-500 mt-0.5">Track learning for each child separately.</p>
                 </div>
                 {!addingStudent && (
-                  <button onClick={() => setAddingStudent(true)} className="text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1">
+                  <button onClick={() => setAddingStudent(true)} className="text-sm text-brand-800 font-medium hover:underline inline-flex items-center gap-1">
                     <Plus size={14} /> Add
                   </button>
                 )}
@@ -8650,7 +8650,7 @@ setBookings(transformed);
                       value={studentForm.name}
                       onChange={e => setStudentForm({...studentForm, name: e.target.value})}
                       placeholder="Name (e.g. Yusuf)"
-                      className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <input
@@ -8659,12 +8659,12 @@ setBookings(transformed);
                         onChange={e => setStudentForm({...studentForm, age: e.target.value})}
                         placeholder="Age"
                         min="1" max="25"
-                        className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                        className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                       />
                       <select
                         value={studentForm.relation}
                         onChange={e => setStudentForm({...studentForm, relation: e.target.value})}
-                        className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                        className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                       >
                         <option>Son</option>
                         <option>Daughter</option>
@@ -8679,7 +8679,7 @@ setBookings(transformed);
                       value={studentForm.notes}
                       onChange={e => setStudentForm({...studentForm, notes: e.target.value})}
                       placeholder="What are they learning? (optional)"
-                      className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                      className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                     />
                   </div>
                   <div className="flex items-center justify-end gap-2 mt-3">
@@ -8691,7 +8691,7 @@ setBookings(transformed);
                     <button
                       onClick={handleAddStudent}
                       disabled={savingStudent || !studentForm.name.trim()}
-                      className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                      className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
                     >
                       {savingStudent ? "Saving..." : <><CheckCircle2 size={12} /> Save</>}
                     </button>
@@ -8722,7 +8722,7 @@ setBookings(transformed);
                           value={studentForm.name}
                           onChange={e => setStudentForm({...studentForm, name: e.target.value})}
                           placeholder="Name"
-                          className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                          className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <input
@@ -8731,12 +8731,12 @@ setBookings(transformed);
                             onChange={e => setStudentForm({...studentForm, age: e.target.value})}
                             placeholder="Age"
                             min="1" max="25"
-                            className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                            className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                           />
                           <select
                             value={studentForm.relation}
                             onChange={e => setStudentForm({...studentForm, relation: e.target.value})}
-                            className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                            className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                           >
                             <option>Son</option>
                             <option>Daughter</option>
@@ -8751,7 +8751,7 @@ setBookings(transformed);
                           value={studentForm.notes}
                           onChange={e => setStudentForm({...studentForm, notes: e.target.value})}
                           placeholder="What are they learning? (optional)"
-                          className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+                          className="w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
                         />
                       </div>
                       <div className="flex items-center justify-end gap-2 mt-3">
@@ -8763,7 +8763,7 @@ setBookings(transformed);
                         <button
                           onClick={handleUpdateStudent}
                           disabled={savingStudent || !studentForm.name.trim()}
-                          className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
+                          className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-4 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
                         >
                           {savingStudent ? "Saving..." : <><CheckCircle2 size={12} /> Save</>}
                         </button>
@@ -8786,7 +8786,7 @@ setBookings(transformed);
                       </div>
                       {!isDemo && (
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={() => startEditingStudent(s)} className="text-stone-400 hover:text-emerald-700 p-1" aria-label="Edit student">
+                          <button onClick={() => startEditingStudent(s)} className="text-stone-400 hover:text-brand-700 p-1" aria-label="Edit student">
                             <FileText size={15} />
                           </button>
                           <button onClick={() => handleDeleteStudent(s.id)} className="text-stone-400 hover:text-rose-600 p-1" aria-label="Remove student">
@@ -8820,7 +8820,7 @@ setBookings(transformed);
                       <p className="text-sm font-medium text-stone-900">{n.l}</p>
                       <p className="text-xs text-stone-500">{n.sub}</p>
                     </div>
-                    <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${notifications[n.k] ? "bg-emerald-600" : "bg-stone-300"}`}>
+                    <div className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${notifications[n.k] ? "bg-brand-600" : "bg-stone-300"}`}>
                       <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifications[n.k] ? "translate-x-5" : "translate-x-0.5"}`}></div>
                     </div>
                   </button>
