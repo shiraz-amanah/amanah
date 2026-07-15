@@ -43,15 +43,15 @@ const TagPicker = ({ presets, values, onChange, placeholder }) => {
         {presets.map((p) => {
           const on = values.includes(p.v);
           return (
-            <button key={p.v} type="button" onClick={() => toggle(p.v)} className={`${pill} ${on ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>
+            <button key={p.v} type="button" onClick={() => toggle(p.v)} className={`${pill} ${on ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600 hover:border-stone-400"}`}>
               {on && <Check size={11} />}{p.l}
             </button>
           );
         })}
         {custom.map((v) => (
-          <span key={v} className={`${pill} bg-emerald-50 border-emerald-300 text-emerald-800`}>
+          <span key={v} className={`${pill} bg-brand-50 border-brand-300 text-brand-800`}>
             {v}
-            <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} aria-label={`Remove ${v}`} className="text-emerald-700 hover:text-emerald-900 -mr-0.5"><X size={11} /></button>
+            <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} aria-label={`Remove ${v}`} className="text-brand-700 hover:text-brand-900 -mr-0.5"><X size={11} /></button>
           </span>
         ))}
       </div>
@@ -61,7 +61,7 @@ const TagPicker = ({ presets, values, onChange, placeholder }) => {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+          className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
         />
         <button type="button" onClick={add} className="border border-stone-300 hover:border-stone-400 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg inline-flex items-center gap-1 flex-shrink-0"><Plus size={14} /> Add</button>
       </div>
@@ -161,7 +161,7 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
   };
 
   const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-  const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
   const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 
   return (
@@ -171,7 +171,7 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Edit profile</h2>
           <p className="text-sm text-stone-600">Changes appear on your public mosque page.</p>
         </div>
-        <button onClick={handleSave} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
+        <button onClick={handleSave} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">
           {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : saved ? <><Check size={14} /> Saved</> : <><Save size={14} /> Save changes</>}
         </button>
       </div>
@@ -184,7 +184,7 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
         <div className="flex items-start gap-5 flex-wrap">
           <div>
             <p className={labelCls}>Logo</p>
-            <label className="flex w-24 h-24 rounded-xl border border-dashed border-stone-300 hover:border-emerald-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center">
+            <label className="flex w-24 h-24 rounded-xl border border-dashed border-stone-300 hover:border-brand-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center">
               {form.logo_url ? <img src={form.logo_url} alt="logo" className="w-full h-full object-cover" /> : media.logo ? <Loader2 size={18} className="animate-spin text-stone-400" /> : <Upload size={18} className="text-stone-400" />}
               <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLogo(e.target.files?.[0])} />
             </label>
@@ -199,7 +199,7 @@ const MosqueProfileEditor = ({ mosque, onSaved }) => {
                 </div>
               ))}
               {form.photos.length < MAX_PHOTOS && (
-                <label className="flex w-20 h-20 rounded-lg border border-dashed border-stone-300 hover:border-emerald-500 cursor-pointer bg-stone-50 items-center justify-center">
+                <label className="flex w-20 h-20 rounded-lg border border-dashed border-stone-300 hover:border-brand-500 cursor-pointer bg-stone-50 items-center justify-center">
                   {media.photo ? <Loader2 size={16} className="animate-spin text-stone-400" /> : <Plus size={16} className="text-stone-400" />}
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAddPhoto(e.target.files?.[0])} />
                 </label>
