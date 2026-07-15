@@ -93,7 +93,7 @@ const MosqueDocuments = ({ mosqueId }) => {
     finally { setOpening(null); }
   };
 
-  const selCls = "px-3 py-2 rounded-lg border border-stone-300 text-sm bg-white outline-none focus:border-emerald-700";
+  const selCls = "px-3 py-2 rounded-lg border border-stone-300 text-sm bg-white outline-none focus:border-brand-700";
 
   return (
     <div>
@@ -105,7 +105,7 @@ const MosqueDocuments = ({ mosqueId }) => {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative flex-1 min-w-[180px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search documents or staff…" className="w-full pl-9 pr-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search documents or staff…" className="w-full pl-9 pr-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
         </div>
         <select value={cat} onChange={(e) => setCat(e.target.value)} className={selCls}>
           <option value="all">All categories</option>
@@ -146,7 +146,7 @@ const MosqueDocuments = ({ mosqueId }) => {
                 </div>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_CLS[r.status]}`}>{STATUS_LABEL[r.status]}</span>
                 {(r.bucketPath || r.contractToken) && (
-                  <button onClick={() => open(r)} disabled={opening === r.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1.5">
+                  <button onClick={() => open(r)} disabled={opening === r.id} className="text-[11px] px-2.5 py-1.5 rounded-lg border border-brand-300 text-brand-800 hover:bg-brand-50 inline-flex items-center gap-1.5">
                     {opening === r.id ? <Loader2 size={12} className="animate-spin" /> : r.contractToken ? <ExternalLink size={12} /> : <Download size={12} />} {r.contractToken ? "View" : "Download"}
                   </button>
                 )}
