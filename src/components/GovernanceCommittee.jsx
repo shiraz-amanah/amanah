@@ -8,13 +8,13 @@ import GovernanceCommitteeProfile from "./GovernanceCommitteeProfile";
 // (details · term · meeting attendance · assigned actions).
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 
 export const ROLES = [["chair", "Chair"], ["treasurer", "Treasurer"], ["secretary", "Secretary"], ["trustee", "Trustee"], ["general_member", "General Member"], ["advisor", "Advisor"]];
 export const roleLabel = (v) => ROLES.find((r) => r[0] === v)?.[1] || v;
 const FEES = [["paid", "Paid"], ["outstanding", "Outstanding"], ["waived", "Waived"]];
-const feeCls = { paid: "bg-emerald-50 text-emerald-800 border-emerald-200", outstanding: "bg-amber-50 text-amber-700 border-amber-200", waived: "bg-stone-100 text-stone-500 border-stone-200" };
+const feeCls = { paid: "bg-success-50 text-success-800 border-success-200", outstanding: "bg-amber-50 text-amber-700 border-amber-200", waived: "bg-stone-100 text-stone-500 border-stone-200" };
 
 export const termFlag = (termEnd) => {
   if (!termEnd) return null;
@@ -81,7 +81,7 @@ const GovernanceCommittee = ({ mosqueId }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Committee</h2>
           <p className="text-sm text-stone-600">{members.filter((m) => m.active).length} active member{members.filter((m) => m.active).length === 1 ? "" : "s"}{expiringCount ? ` · ${expiringCount} term${expiringCount === 1 ? "" : "s"} expiring/expired` : ""}.</p>
         </div>
-        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add member</button>}
+        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add member</button>}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
 
@@ -100,7 +100,7 @@ const GovernanceCommittee = ({ mosqueId }) => {
             </div>
             <div><label className={labelCls}>Notes</label><textarea rows={2} className={inputCls + " resize-none"} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Add member"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Add member"}</button>
               <button onClick={cancel} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
           </div>
@@ -114,9 +114,9 @@ const GovernanceCommittee = ({ mosqueId }) => {
             return (
               <div key={m.id} className={`bg-white border rounded-xl p-3 flex items-center gap-3 ${m.active ? "border-stone-200" : "border-stone-200 opacity-60"}`}>
                 <button onClick={() => setSelectedId(m.id)} className="flex-1 min-w-0 text-left flex items-center gap-3 group">
-                  <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-sm font-medium">{m.name.slice(0, 1).toUpperCase()}</span>
+                  <span className="w-9 h-9 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0 text-sm font-medium">{m.name.slice(0, 1).toUpperCase()}</span>
                   <span className="min-w-0">
-                    <span className="text-sm font-medium text-stone-900 group-hover:text-emerald-800 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-stone-900 group-hover:text-brand-800 flex items-center gap-2 flex-wrap">
                       {m.name}
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase tracking-wider font-medium">{roleLabel(m.role)}</span>
                       {!m.active && <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 uppercase tracking-wider">Archived</span>}
@@ -129,7 +129,7 @@ const GovernanceCommittee = ({ mosqueId }) => {
                   </span>
                 </button>
                 <button onClick={() => toggleActive(m)} title={m.active ? "Archive" : "Restore"} className="text-stone-400 hover:text-stone-700 p-1.5">{m.active ? <Archive size={14} /> : <ArchiveRestore size={14} />}</button>
-                <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+                <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
                 <button onClick={() => remove(m.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
                 <button onClick={() => setSelectedId(m.id)} className="text-stone-300 hover:text-stone-500 p-1"><ChevronRight size={16} /></button>
               </div>
