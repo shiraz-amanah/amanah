@@ -21,7 +21,7 @@ const cadenceLabel = (c) => (c === "weekly" ? "Weekly" : c === "monthly" ? "Mont
 const blankEvent = { title: "", description: "", date: "", time: "", type: "lecture", image_url: "", recurrence: "none" };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 
 const MosqueEventsManager = ({ mosqueId }) => {
@@ -156,7 +156,7 @@ const MosqueEventsManager = ({ mosqueId }) => {
           <div>
             <label className={labelCls}>Poster (optional)</label>
             <div className="flex items-center gap-2">
-              <label className="flex w-16 h-16 rounded-lg border border-dashed border-stone-300 hover:border-emerald-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center flex-shrink-0">
+              <label className="flex w-16 h-16 rounded-lg border border-dashed border-stone-300 hover:border-brand-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center flex-shrink-0">
                 {ev.image_url ? <img src={ev.image_url} alt="" className="w-full h-full object-cover" /> : evImgBusy ? <Loader2 size={14} className="animate-spin text-stone-400" /> : <Upload size={14} className="text-stone-400" />}
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleEvImg(e.target.files?.[0])} />
               </label>
@@ -164,7 +164,7 @@ const MosqueEventsManager = ({ mosqueId }) => {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={saveEvent} disabled={evBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{evBusy ? <Loader2 size={14} className="animate-spin" /> : editingOcc ? <Check size={14} /> : <Plus size={14} />} {editingOcc ? "Update event" : "Add event"}</button>
+            <button onClick={saveEvent} disabled={evBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{evBusy ? <Loader2 size={14} className="animate-spin" /> : editingOcc ? <Check size={14} /> : <Plus size={14} />} {editingOcc ? "Update event" : "Add event"}</button>
             {editingOcc && <button onClick={resetForm} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>}
           </div>
         </div>
@@ -175,18 +175,18 @@ const MosqueEventsManager = ({ mosqueId }) => {
         <div className="space-y-2">
           {displayRows.map((e) => (
             <div key={e._series ? e.recurrence_group_id : e.id} className="flex items-center gap-3 bg-white border border-stone-200 rounded-xl p-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">{e._series ? <Repeat size={16} className="text-emerald-700" /> : <Calendar size={16} className="text-emerald-700" />}</div>
+              <div className="w-10 h-10 rounded-lg bg-brand-50 border border-brand-100 flex items-center justify-center flex-shrink-0">{e._series ? <Repeat size={16} className="text-brand-700" /> : <Calendar size={16} className="text-brand-700" />}</div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-stone-900 truncate flex items-center gap-2">
                   <span className="truncate">{e.title}</span>
                   {e._series && <RecurrenceBadge recurrence={e.recurrence} />}
                 </p>
-                <p className="text-xs text-stone-500">{fmtDate(e.date)}{e.time ? ` · ${e.time}` : ""} · <span className="text-emerald-700">{typeLabel(e.type)}</span>{e._series ? " · next occurrence" : ""}</p>
+                <p className="text-xs text-stone-500">{fmtDate(e.date)}{e.time ? ` · ${e.time}` : ""} · <span className="text-brand-700">{typeLabel(e.type)}</span>{e._series ? " · next occurrence" : ""}</p>
                 {(() => { const c = rsvpCounts[e.id]; return c && (c.yes + c.no + c.maybe) > 0 ? (
                   <p className="text-[11px] text-stone-400 mt-0.5">{c.yes} going{c.maybe ? ` · ${c.maybe} maybe` : ""}{c.no ? ` · ${c.no} can't` : ""}</p>
                 ) : null; })()}
               </div>
-              <button onClick={() => editEvent(e)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+              <button onClick={() => editEvent(e)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
               <button onClick={() => deleteEvent(e)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
             </div>
           ))}
@@ -200,10 +200,10 @@ const MosqueEventsManager = ({ mosqueId }) => {
             <h3 className="text-base font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{scope.mode === "delete" ? "Delete recurring event" : "Edit recurring event"}</h3>
             <p className="text-sm text-stone-600 mb-4">"{scope.occurrence.title}" repeats {cadenceLabel(scope.occurrence.recurrence).toLowerCase()}. Apply to:</p>
             <div className="space-y-2">
-              <button onClick={() => applyScope("one")} className="w-full text-left px-4 py-2.5 rounded-lg border border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-sm font-medium text-stone-800">
+              <button onClick={() => applyScope("one")} className="w-full text-left px-4 py-2.5 rounded-lg border border-stone-200 hover:border-brand-300 hover:bg-brand-50/50 text-sm font-medium text-stone-800">
                 This occurrence <span className="text-stone-400 font-normal">· {fmtDate(scope.occurrence.date)}</span>
               </button>
-              <button onClick={() => applyScope("future")} className={`w-full text-left px-4 py-2.5 rounded-lg border text-sm font-medium ${scope.mode === "delete" ? "border-rose-200 hover:border-rose-300 hover:bg-rose-50 text-rose-700" : "border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-stone-800"}`}>
+              <button onClick={() => applyScope("future")} className={`w-full text-left px-4 py-2.5 rounded-lg border text-sm font-medium ${scope.mode === "delete" ? "border-rose-200 hover:border-rose-300 hover:bg-rose-50 text-rose-700" : "border-stone-200 hover:border-brand-300 hover:bg-brand-50/50 text-stone-800"}`}>
                 This and all future events
               </button>
             </div>
