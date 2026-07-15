@@ -7,14 +7,14 @@ import {
 import { roleLabel } from "./GovernanceCommittee";
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["complete", "Complete"]];
 const statusLabel = (v) => STATUSES.find((s) => s[0] === v)?.[1] || v;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 const today = () => new Date().toISOString().slice(0, 10);
 const isOverdue = (a) => a.status !== "complete" && a.due_date && a.due_date < today();
-const badgeCls = (a) => isOverdue(a) ? "bg-rose-50 text-rose-700 border-rose-200" : a.status === "complete" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : a.status === "in_progress" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-stone-100 text-stone-600 border-stone-200";
+const badgeCls = (a) => isOverdue(a) ? "bg-rose-50 text-rose-700 border-rose-200" : a.status === "complete" ? "bg-success-50 text-success-800 border-success-200" : a.status === "in_progress" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-stone-100 text-stone-600 border-stone-200";
 const meetingName = (m) => (m ? `${m.title || ({ agm: "AGM", committee: "Committee", extraordinary: "Extraordinary", sub_committee: "Sub-committee" }[m.type] || m.type)}` : null);
 
 const blank = { description: "", committee_member_id: "", due_date: "", status: "open", meeting_id: "", notes: "" };
@@ -73,7 +73,7 @@ const GovernanceActions = ({ mosqueId }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Actions</h2>
           <p className="text-sm text-stone-600">{actions.filter((a) => a.status !== "complete").length} open{overdueCount ? ` · ${overdueCount} overdue` : ""}. Every action across all meetings.</p>
         </div>
-        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add action</button>}
+        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add action</button>}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
 
@@ -89,7 +89,7 @@ const GovernanceActions = ({ mosqueId }) => {
               <div><label className={labelCls}>From meeting (optional)</label><select className={inputCls} value={form.meeting_id} onChange={(e) => setForm({ ...form, meeting_id: e.target.value })}><option value="">Standalone</option>{meetings.map((m) => <option key={m.id} value={m.id}>{meetingName(m)} · {fmtDate(m.meeting_date)}</option>)}</select></div>
             </div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Add action"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Add action"}</button>
               <button onClick={() => { setForm(blank); setEditing(null); setShowForm(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
           </div>
@@ -115,7 +115,7 @@ const GovernanceActions = ({ mosqueId }) => {
                 <p className="text-xs text-stone-500">{a.member?.name || "Unassigned"}{a.due_date ? ` · due ${fmtDate(a.due_date)}` : ""}{a.meeting ? ` · ${meetingName(a.meeting)}` : " · standalone"}</p>
               </div>
               <select value={a.status} onChange={(e) => setStatus(a, e.target.value)} className="text-xs border border-stone-200 rounded-lg px-2 py-1 text-stone-600 shrink-0">{STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-              <button onClick={() => startEdit(a)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+              <button onClick={() => startEdit(a)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
               <button onClick={() => remove(a.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
             </div>
           ))}
