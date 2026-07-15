@@ -30,13 +30,13 @@ const MosqueClaimAccept = ({ token, authedUser, onSignIn, onDone, onHome }) => {
 
   if (!authedUser) {
     return card(<>
-      <BadgeCheck className="mx-auto text-emerald-600 mb-4" size={36} />
+      <BadgeCheck className="mx-auto text-brand-600 mb-4" size={36} />
       <h1 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Finish claiming your mosque</h1>
       <p className="text-sm text-stone-600 mb-5">Sign in — or create your account — using the <strong>email address your claim was submitted from</strong>, then you'll be linked to your mosque automatically.</p>
-      <button onClick={onSignIn} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-1.5"><LogIn size={15} /> Sign in to continue</button>
+      <button onClick={onSignIn} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-1.5"><LogIn size={15} /> Sign in to continue</button>
     </>);
   }
-  if (state === "working" || state === "idle") return card(<Loader2 className="mx-auto animate-spin text-emerald-700" size={28} />);
+  if (state === "working" || state === "idle") return card(<Loader2 className="mx-auto animate-spin text-brand-700" size={28} />);
   if (state === "error") {
     return card(<>
       <AlertCircle className="mx-auto text-rose-600 mb-4" size={36} />
@@ -46,10 +46,10 @@ const MosqueClaimAccept = ({ token, authedUser, onSignIn, onDone, onHome }) => {
     </>);
   }
   return card(<>
-    <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto mb-4"><Check size={24} /></div>
+    <div className="w-12 h-12 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center mx-auto mb-4"><Check size={24} /></div>
     <h1 className="text-xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>You now manage {mosque?.name || "your mosque"}</h1>
     <p className="text-sm text-stone-600 mb-5">Your account is linked. Open your mosque dashboard to complete the profile, prayer times and more.</p>
-    <button onClick={onDone} className="bg-emerald-900 hover:bg-emerald-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Go to my mosque dashboard</button>
+    <button onClick={onDone} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Go to my mosque dashboard</button>
   </>);
 };
 
