@@ -12,7 +12,7 @@ import { getMosqueAnnouncements, createMosqueAnnouncement, updateMosqueAnnouncem
 const blankAnn = { title: "", body: "", pinned: false, image_url: "" };
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 
 const MosqueAnnouncementsManager = ({ mosqueId }) => {
@@ -66,11 +66,11 @@ const MosqueAnnouncementsManager = ({ mosqueId }) => {
         <div className="space-y-3">
           <div><label className={labelCls}>Title</label><input className={inputCls} value={an.title} onChange={(e) => setAn({ ...an, title: e.target.value })} /></div>
           <div><label className={labelCls}>Body</label><textarea rows={3} className={inputCls + " resize-none"} value={an.body} onChange={(e) => setAn({ ...an, body: e.target.value })} /></div>
-          <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={an.pinned} onChange={(e) => setAn({ ...an, pinned: e.target.checked })} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-200" /> Pin to top</label>
+          <label className="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={an.pinned} onChange={(e) => setAn({ ...an, pinned: e.target.checked })} className="rounded border-stone-300 text-brand-700 focus:ring-brand-200" /> Pin to top</label>
           <div>
             <label className={labelCls}>Image (optional)</label>
             <div className="flex items-center gap-2">
-              <label className="flex w-16 h-16 rounded-lg border border-dashed border-stone-300 hover:border-emerald-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center flex-shrink-0">
+              <label className="flex w-16 h-16 rounded-lg border border-dashed border-stone-300 hover:border-brand-500 cursor-pointer overflow-hidden bg-stone-50 items-center justify-center flex-shrink-0">
                 {an.image_url ? <img src={an.image_url} alt="" className="w-full h-full object-cover" /> : anImgBusy ? <Loader2 size={14} className="animate-spin text-stone-400" /> : <Upload size={14} className="text-stone-400" />}
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAnImg(e.target.files?.[0])} />
               </label>
@@ -78,7 +78,7 @@ const MosqueAnnouncementsManager = ({ mosqueId }) => {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={saveAnn} disabled={anBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{anBusy ? <Loader2 size={14} className="animate-spin" /> : anEditing ? <Check size={14} /> : <Plus size={14} />} {anEditing ? "Update" : "Add announcement"}</button>
+            <button onClick={saveAnn} disabled={anBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{anBusy ? <Loader2 size={14} className="animate-spin" /> : anEditing ? <Check size={14} /> : <Plus size={14} />} {anEditing ? "Update" : "Add announcement"}</button>
             {anEditing && <button onClick={() => { setAn(blankAnn); setAnEditing(null); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>}
           </div>
         </div>
@@ -90,11 +90,11 @@ const MosqueAnnouncementsManager = ({ mosqueId }) => {
           {anns.map((a) => (
             <div key={a.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-stone-900 flex items-center gap-1.5">{a.pinned && <Pin size={12} className="text-emerald-700" />} {a.title}</p>
+                <p className="text-sm font-medium text-stone-900 flex items-center gap-1.5">{a.pinned && <Pin size={12} className="text-brand-700" />} {a.title}</p>
                 {a.body && <p className="text-xs text-stone-600 mt-0.5 line-clamp-2">{a.body}</p>}
               </div>
-              <button onClick={() => togglePin(a)} title={a.pinned ? "Unpin" : "Pin"} className={`p-1.5 ${a.pinned ? "text-emerald-700" : "text-stone-400 hover:text-emerald-700"}`}><Pin size={14} /></button>
-              <button onClick={() => editAnn(a)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+              <button onClick={() => togglePin(a)} title={a.pinned ? "Unpin" : "Pin"} className={`p-1.5 ${a.pinned ? "text-brand-700" : "text-stone-400 hover:text-brand-700"}`}><Pin size={14} /></button>
+              <button onClick={() => editAnn(a)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
               <button onClick={() => removeAnn(a.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
             </div>
           ))}
