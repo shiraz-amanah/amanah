@@ -12,7 +12,7 @@ import BulkParentMessageModal from "./BulkParentMessageModal";
 // 101). Group-targeted announcements + messaging are follow-ups.
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
@@ -67,7 +67,7 @@ const GroupDetail = ({ group, onBack, onChanged }) => {
           {group.description && <p className="text-sm text-stone-600">{group.description}</p>}
         </div>
         {messageRecipients.length > 0 && (
-          <button onClick={() => setShowMessage(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message group</button>
+          <button onClick={() => setShowMessage(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><MessageCircle size={14} /> Message group</button>
         )}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
@@ -88,7 +88,7 @@ const GroupDetail = ({ group, onBack, onChanged }) => {
             <option value="">{candidates.length ? "Select a member…" : "All members are already in this group"}</option>
             {candidates.map((m) => <option key={m.id} value={m.id}>{m.name}{m.email ? ` · ${m.email}` : ""}</option>)}
           </select>
-          <button onClick={add} disabled={!pick || busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Add</button>
+          <button onClick={add} disabled={!pick || busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />} Add</button>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ const GroupDetail = ({ group, onBack, onChanged }) => {
         <div className="space-y-2">
           {rows.map((r) => (
             <div key={r.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
-              <span className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 text-sm font-medium">{(r.member?.name || "?").slice(0, 1).toUpperCase()}</span>
+              <span className="w-9 h-9 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0 text-sm font-medium">{(r.member?.name || "?").slice(0, 1).toUpperCase()}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-stone-900 truncate">{r.member?.name || "—"}</p>
                 <p className="text-xs text-stone-500">Joined {fmtDate(r.joined_at)}</p>
@@ -168,7 +168,7 @@ const CommunityGroups = ({ mosqueId }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Groups</h2>
           <p className="text-sm text-stone-600">Organise members into segments — Youth, Sisters' circle, Volunteers, Committee.</p>
         </div>
-        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New group</button>}
+        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> New group</button>}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
 
@@ -179,7 +179,7 @@ const CommunityGroups = ({ mosqueId }) => {
             <div><label className={labelCls}>Name</label><input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Sisters' circle" /></div>
             <div><label className={labelCls}>Description (optional)</label><textarea rows={2} className={inputCls + " resize-none"} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Create group"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Create group"}</button>
               <button onClick={cancel} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
           </div>
@@ -191,12 +191,12 @@ const CommunityGroups = ({ mosqueId }) => {
           {groups.map((g) => (
             <div key={g.id} className="bg-white border border-stone-200 rounded-2xl p-4 flex items-start gap-3">
               <button onClick={() => setSelected(g.id)} className="flex-1 min-w-0 text-left group">
-                <p className="text-sm font-semibold text-stone-900 group-hover:text-emerald-800 flex items-center gap-2"><UsersRound size={15} className="text-emerald-700 shrink-0" /> {g.name}</p>
+                <p className="text-sm font-semibold text-stone-900 group-hover:text-brand-800 flex items-center gap-2"><UsersRound size={15} className="text-brand-700 shrink-0" /> {g.name}</p>
                 {g.description && <p className="text-xs text-stone-500 mt-1 line-clamp-2">{g.description}</p>}
                 <p className="text-xs text-stone-400 mt-2">{g.memberCount} member{g.memberCount === 1 ? "" : "s"}</p>
               </button>
               <div className="flex items-center gap-0.5 shrink-0">
-                <button onClick={() => startEdit(g)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={13} /></button>
+                <button onClick={() => startEdit(g)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={13} /></button>
                 <button onClick={() => remove(g.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={13} /></button>
                 <button onClick={() => setSelected(g.id)} className="text-stone-300 hover:text-stone-500 p-1"><ChevronRight size={16} /></button>
               </div>
