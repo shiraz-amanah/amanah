@@ -42,17 +42,17 @@ const MosqueHRAssistant = ({ mosqueId }) => {
   };
 
   return (
-    <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-2xl overflow-hidden">
+    <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl overflow-hidden">
       <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left">
-        <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900"><Sparkles size={16} /> HR assistant</span>
-        {open ? <ChevronUp size={16} className="text-emerald-700" /> : <ChevronDown size={16} className="text-emerald-700" />}
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-900"><Sparkles size={16} /> HR assistant</span>
+        {open ? <ChevronUp size={16} className="text-brand-700" /> : <ChevronDown size={16} className="text-brand-700" />}
       </button>
 
       {open && (
         <div className="px-4 pb-4 space-y-3">
           {/* Proactive suggestions */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-emerald-700 font-medium mb-1">Suggestions</p>
+            <p className="text-[10px] uppercase tracking-wider text-brand-700 font-medium mb-1">Suggestions</p>
             {sugLoading ? <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Reviewing your staff…</div>
               : suggestions ? <Markdown text={suggestions} />
               : <p className="text-sm text-stone-400">No suggestions available.</p>}
@@ -65,9 +65,9 @@ const MosqueHRAssistant = ({ mosqueId }) => {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
               placeholder="Ask about staff, DBS, cover, hours…"
-              className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm bg-white"
+              className="flex-1 px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm bg-white"
             />
-            <button onClick={ask} disabled={asking || !q.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{asking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
+            <button onClick={ask} disabled={asking || !q.trim()} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{asking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</button>
           </div>
           {error && <p className="text-sm text-rose-700">{error}</p>}
           {answer && <div className="bg-white border border-stone-200 rounded-xl p-3"><Markdown text={answer} /></div>}
