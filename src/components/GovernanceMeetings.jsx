@@ -13,7 +13,7 @@ import { extractMinutes } from "../lib/hrAssistant";
 import { roleLabel } from "./GovernanceCommittee";
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const TYPES = [["agm", "AGM"], ["committee", "Committee"], ["extraordinary", "Extraordinary"], ["sub_committee", "Sub-committee"]];
 const typeLabel = (v) => TYPES.find((t) => t[0] === v)?.[1] || v;
@@ -141,12 +141,12 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
       <div>
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1 flex items-center gap-2 flex-wrap" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
           {meeting.title || typeLabel(meeting.type)}
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase tracking-wider font-medium">{typeLabel(meeting.type)}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-800 border border-brand-200 uppercase tracking-wider font-medium">{typeLabel(meeting.type)}</span>
         </h2>
         <p className="text-sm text-stone-600 inline-flex items-center gap-2">
           {fmtDate(meeting.meeting_date)}
           {meeting.is_online ? <span className="inline-flex items-center gap-1"><Video size={12} /> Online</span> : meeting.location ? <span className="inline-flex items-center gap-1"><MapPin size={12} /> {meeting.location}</span> : null}
-          {meeting.quorum_met != null && <span className={meeting.quorum_met ? "text-emerald-700" : "text-rose-700"}>· Quorum {meeting.quorum_met ? "met" : "not met"}</span>}
+          {meeting.quorum_met != null && <span className={meeting.quorum_met ? "text-success-700" : "text-rose-700"}>· Quorum {meeting.quorum_met ? "met" : "not met"}</span>}
         </p>
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
@@ -170,13 +170,13 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
             </div>
             <div className="flex gap-2">
               <input className={inputCls} value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} placeholder="Add an agenda item…" />
-              <button onClick={addItem} disabled={!newItem.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg shrink-0"><Plus size={14} /></button>
+              <button onClick={addItem} disabled={!newItem.trim()} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg shrink-0"><Plus size={14} /></button>
             </div>
           </div>
 
           {/* Attendees */}
           <div className={cardCls}>
-            <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Users size={15} className="text-emerald-700" /> Attendance</p>
+            <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Users size={15} className="text-brand-700" /> Attendance</p>
             {committee.length ? (
               <div className="space-y-1.5">
                 {committee.map((c) => {
@@ -184,7 +184,7 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
                   const marked = attMap.has(c.id);
                   return (
                     <label key={c.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
-                      <input type="checkbox" checked={!!present} onChange={() => toggleAttendee(c.id, marked ? present : undefined)} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-200" />
+                      <input type="checkbox" checked={!!present} onChange={() => toggleAttendee(c.id, marked ? present : undefined)} className="rounded border-stone-300 text-brand-700 focus:ring-brand-200" />
                       <span className="flex-1 min-w-0 truncate text-stone-700">{c.name} <span className="text-stone-400">· {roleLabel(c.role)}</span></span>
                       {marked && <button onClick={(e) => { e.preventDefault(); dropAttendee(c.id); }} className="text-stone-300 hover:text-stone-500 text-xs">clear</button>}
                     </label>
@@ -197,22 +197,22 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
           {/* Minutes */}
           <div className={cardCls + " lg:col-span-2"}>
             <div className="flex items-center justify-between gap-3 mb-1">
-              <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><FileText size={15} className="text-emerald-700" /> Minutes</p>
-              <button onClick={runExtract} disabled={extracting || !minutes.trim()} className="text-sm bg-gradient-to-br from-emerald-600 to-emerald-800 hover:opacity-90 disabled:opacity-40 text-white font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{extracting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} AI extract from minutes</button>
+              <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><FileText size={15} className="text-brand-700" /> Minutes</p>
+              <button onClick={runExtract} disabled={extracting || !minutes.trim()} className="text-sm bg-gradient-to-br from-brand-600 to-brand-800 hover:opacity-90 disabled:opacity-40 text-white font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{extracting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} AI extract from minutes</button>
             </div>
             <p className="text-xs text-stone-400 mb-2">Paste the minutes, then let AI pull out actions, resolutions and attendance for you to review.</p>
             <textarea rows={6} className={inputCls + " resize-y"} value={minutes} onChange={(e) => setMinutes(e.target.value)} placeholder="Paste meeting minutes…" />
             <div className="flex items-center gap-3 mt-2 flex-wrap">
-              <button onClick={saveMinutes} disabled={minutesBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{minutesBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save minutes</button>
+              <button onClick={saveMinutes} disabled={minutesBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{minutesBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save minutes</button>
               {exErr && <span className="text-sm text-rose-700">{exErr}</span>}
-              {confirmed && <span className="text-sm text-emerald-700 inline-flex items-center gap-1"><Check size={14} /> Saved {confirmed.actions} action(s), {confirmed.resolutions} resolution(s), {confirmed.attendees} attendee(s).</span>}
+              {confirmed && <span className="text-sm text-brand-700 inline-flex items-center gap-1"><Check size={14} /> Saved {confirmed.actions} action(s), {confirmed.resolutions} resolution(s), {confirmed.attendees} attendee(s).</span>}
             </div>
           </div>
 
           {/* AI extraction review */}
           {extraction && (
-            <div className={cardCls + " lg:col-span-2 border-emerald-200"}>
-              <p className="text-sm font-semibold text-emerald-900 mb-3 flex items-center gap-1.5"><Sparkles size={15} /> Review extraction — edit, then confirm</p>
+            <div className={cardCls + " lg:col-span-2 border-brand-200"}>
+              <p className="text-sm font-semibold text-brand-900 mb-3 flex items-center gap-1.5"><Sparkles size={15} /> Review extraction — edit, then confirm</p>
               <div className="mb-4">
                 <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5 flex items-center gap-1"><ListChecks size={11} /> Action items</p>
                 {extraction.actions.length ? extraction.actions.map((a, i) => (
@@ -235,7 +235,7 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
               </div>
               <div className="mb-4">
                 <p className="text-[10px] uppercase tracking-wider text-stone-500 font-medium mb-1.5 flex items-center gap-1"><Users size={11} /> Attendance (matched to committee)</p>
-                {extraction.attendees.length ? <div className="flex flex-wrap gap-1.5">{extraction.attendees.map((a, i) => <span key={i} className={`text-xs px-2.5 py-1 rounded-full border ${a.committee_member_id ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-stone-100 text-stone-500 border-stone-200"}`}>{a.name}{a.committee_member_id ? "" : " · no match"}</span>)}</div> : <p className="text-sm text-stone-400">None found.</p>}
+                {extraction.attendees.length ? <div className="flex flex-wrap gap-1.5">{extraction.attendees.map((a, i) => <span key={i} className={`text-xs px-2.5 py-1 rounded-full border ${a.committee_member_id ? "bg-brand-50 text-brand-800 border-brand-200" : "bg-stone-100 text-stone-500 border-stone-200"}`}>{a.name}{a.committee_member_id ? "" : " · no match"}</span>)}</div> : <p className="text-sm text-stone-400">None found.</p>}
               </div>
               {extraction.discussion_points.length > 0 && (
                 <div className="mb-4">
@@ -244,7 +244,7 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
                 </div>
               )}
               <div className="flex gap-2">
-                <button onClick={confirmExtraction} disabled={confirmBusy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{confirmBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Confirm &amp; save</button>
+                <button onClick={confirmExtraction} disabled={confirmBusy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{confirmBusy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Confirm &amp; save</button>
                 <button onClick={() => setExtraction(null)} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Discard</button>
               </div>
             </div>
@@ -252,7 +252,7 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
 
           {/* Resolutions */}
           <div className={cardCls + " lg:col-span-2"}>
-            <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Gavel size={15} className="text-emerald-700" /> Resolutions</p>
+            <p className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Gavel size={15} className="text-brand-700" /> Resolutions</p>
             <div className="space-y-1.5 mb-3">
               {resolutions.map((r) => (
                 <div key={r.id} className="flex items-start gap-2 text-sm bg-stone-50 border border-stone-100 rounded-lg px-2.5 py-1.5">
@@ -264,7 +264,7 @@ const MeetingDetail = ({ meeting: initial, mosqueId, onBack, onChanged }) => {
             </div>
             <div className="flex gap-2">
               <input className={inputCls} value={newRes} onChange={(e) => setNewRes(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRes()} placeholder="Record a resolution…" />
-              <button onClick={addRes} disabled={!newRes.trim()} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg shrink-0"><Plus size={14} /></button>
+              <button onClick={addRes} disabled={!newRes.trim()} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-3 py-2 rounded-lg shrink-0"><Plus size={14} /></button>
             </div>
           </div>
         </div>
@@ -320,7 +320,7 @@ const GovernanceMeetings = ({ mosqueId }) => {
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Meetings</h2>
           <p className="text-sm text-stone-600">Log meetings, build agendas, record attendance and minutes.</p>
         </div>
-        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-emerald-900 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Log meeting</button>}
+        {!showForm && <button onClick={() => setShowForm(true)} className="shrink-0 bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Log meeting</button>}
       </div>
       {err && <p className="text-sm text-rose-700 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
 
@@ -334,10 +334,10 @@ const GovernanceMeetings = ({ mosqueId }) => {
               <div><label className={labelCls}>Title (optional)</label><input className={inputCls} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
               <div><label className={labelCls}>Location</label><input className={inputCls} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} disabled={form.is_online} /></div>
               <div><label className={labelCls}>Quorum met?</label><select className={inputCls} value={form.quorum_met} onChange={(e) => setForm({ ...form, quorum_met: e.target.value })}><option value="">Not recorded</option><option value="yes">Yes</option><option value="no">No</option></select></div>
-              <label className="flex items-center gap-2 text-sm text-stone-700 mt-6"><input type="checkbox" checked={form.is_online} onChange={(e) => setForm({ ...form, is_online: e.target.checked })} className="rounded border-stone-300 text-emerald-700 focus:ring-emerald-200" /> Online meeting</label>
+              <label className="flex items-center gap-2 text-sm text-stone-700 mt-6"><input type="checkbox" checked={form.is_online} onChange={(e) => setForm({ ...form, is_online: e.target.checked })} className="rounded border-stone-300 text-brand-700 focus:ring-brand-200" /> Online meeting</label>
             </div>
             <div className="flex gap-2">
-              <button onClick={save} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Log meeting"}</button>
+              <button onClick={save} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : editing ? <Check size={14} /> : <Plus size={14} />} {editing ? "Update" : "Log meeting"}</button>
               <button onClick={() => { setForm(blank); setEditing(null); setShowForm(false); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
             </div>
           </div>
@@ -349,13 +349,13 @@ const GovernanceMeetings = ({ mosqueId }) => {
           {meetings.map((m) => (
             <div key={m.id} className="bg-white border border-stone-200 rounded-xl p-3 flex items-center gap-3">
               <button onClick={() => setSelectedId(m.id)} className="flex-1 min-w-0 text-left flex items-center gap-3 group">
-                <span className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0"><CalendarDays size={16} className="text-emerald-700" /></span>
+                <span className="w-10 h-10 rounded-lg bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0"><CalendarDays size={16} className="text-brand-700" /></span>
                 <span className="min-w-0">
-                  <span className="text-sm font-medium text-stone-900 group-hover:text-emerald-800 flex items-center gap-2">{m.title || typeLabel(m.type)} <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase tracking-wider">{typeLabel(m.type)}</span></span>
+                  <span className="text-sm font-medium text-stone-900 group-hover:text-brand-800 flex items-center gap-2">{m.title || typeLabel(m.type)} <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 uppercase tracking-wider">{typeLabel(m.type)}</span></span>
                   <span className="text-xs text-stone-500">{fmtDate(m.meeting_date)}{m.is_online ? " · Online" : m.location ? ` · ${m.location}` : ""}</span>
                 </span>
               </button>
-              <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-emerald-700 p-1.5"><Pencil size={14} /></button>
+              <button onClick={() => startEdit(m)} className="text-stone-400 hover:text-brand-700 p-1.5"><Pencil size={14} /></button>
               <button onClick={() => remove(m.id)} className="text-stone-400 hover:text-rose-700 p-1.5"><Trash2 size={14} /></button>
               <button onClick={() => setSelectedId(m.id)} className="text-stone-300 hover:text-stone-500 p-1"><ChevronRight size={16} /></button>
             </div>
