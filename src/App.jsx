@@ -3377,8 +3377,8 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
           <div className="flex items-center gap-3 mb-3">
             {[1, 2, 3].map(n => (
               <div key={n} className="flex items-center gap-3 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-emerald-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
-                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-emerald-900" : "bg-stone-200"}`}></div>}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-brand-900 text-white" : "bg-stone-200 text-stone-500"}`}>{step > n ? <CheckCircle2 size={14} /> : n}</div>
+                {n < 3 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-brand-900" : "bg-stone-200"}`}></div>}
               </div>
             ))}
           </div>
@@ -3394,7 +3394,7 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
 
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {presets.map(p => (
-                    <button key={p} onClick={() => { setAmount(p); setCustom(""); }} className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${amount === p && !custom ? "bg-emerald-900 text-white border-emerald-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
+                    <button key={p} onClick={() => { setAmount(p); setCustom(""); }} className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${amount === p && !custom ? "bg-brand-900 text-white border-brand-900" : "bg-white text-stone-700 border-stone-300 hover:border-stone-400"}`}>
                       £{p}
                     </button>
                   ))}
@@ -3402,17 +3402,17 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
 
                 <div className="relative mb-6">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-500">£</span>
-                  <input type="number" value={custom} onChange={e => setCustom(e.target.value)} placeholder="Or enter custom amount" className="w-full pl-8 pr-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="number" value={custom} onChange={e => setCustom(e.target.value)} placeholder="Or enter custom amount" className="w-full pl-8 pr-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
 
-                <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-xl p-4 mb-4">
+                <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-xl p-4 mb-4">
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input type="checkbox" checked={giftAid} onChange={e => setGiftAid(e.target.checked)} className="mt-0.5 accent-emerald-800" />
+                    <input type="checkbox" checked={giftAid} onChange={e => setGiftAid(e.target.checked)} className="mt-0.5 accent-brand-800" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-stone-900">Add Gift Aid</p>
                       <p className="text-xs text-stone-600 mt-0.5">As a UK taxpayer, the charity can claim an extra 25p for every £1 you give, at no cost to you.</p>
                       {giftAid && effectiveAmount > 0 && (
-                        <p className="text-xs text-emerald-800 font-medium mt-1.5">+ £{giftAidAmount} extra for {campaign.creator}</p>
+                        <p className="text-xs text-brand-800 font-medium mt-1.5">+ £{giftAidAmount} extra for {campaign.creator}</p>
                       )}
                     </div>
                   </label>
@@ -3437,16 +3437,16 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
                 <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>How should we list your donation?</h2>
                 <p className="text-sm text-stone-500 mb-5">The Prophet ﷺ encouraged sadaqah to be hidden — you choose.</p>
 
-                <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all mb-3 ${anonymous ? "bg-emerald-50 border-emerald-600" : "bg-white border-stone-200"}`}>
-                  <input type="radio" checked={anonymous} onChange={() => setAnonymous(true)} className="mt-0.5 accent-emerald-800" />
+                <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all mb-3 ${anonymous ? "bg-brand-50 border-brand-600" : "bg-white border-stone-200"}`}>
+                  <input type="radio" checked={anonymous} onChange={() => setAnonymous(true)} className="mt-0.5 accent-brand-800" />
                   <div>
                     <p className="text-sm font-medium text-stone-900">Give anonymously</p>
                     <p className="text-xs text-stone-600 mt-0.5">Listed as "Anonymous" on the campaign page.</p>
                   </div>
                 </label>
 
-                <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all mb-4 ${!anonymous ? "bg-emerald-50 border-emerald-600" : "bg-white border-stone-200"}`}>
-                  <input type="radio" checked={!anonymous} onChange={() => setAnonymous(false)} className="mt-0.5 accent-emerald-800" />
+                <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all mb-4 ${!anonymous ? "bg-brand-50 border-brand-600" : "bg-white border-stone-200"}`}>
+                  <input type="radio" checked={!anonymous} onChange={() => setAnonymous(false)} className="mt-0.5 accent-brand-800" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-stone-900">Show my name</p>
                     <p className="text-xs text-stone-600 mt-0.5">Others may be inspired to give too.</p>
@@ -3454,22 +3454,22 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
                 </label>
 
                 {!anonymous && (
-                  <div className="space-y-3 mt-4 pl-4 border-l-2 border-emerald-200">
+                  <div className="space-y-3 mt-4 pl-4 border-l-2 border-brand-200">
                     <div>
                       <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Name to display</label>
-                      <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Aisha K. or The Khan Family" className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Aisha K. or The Khan Family" className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                     </div>
                   </div>
                 )}
 
                 <div className="mt-4">
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Email (for receipt)</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 </div>
 
                 <div className="mt-4">
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Message (optional)</label>
-                  <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} placeholder="e.g. Sadaqah jariyah for my late father. Ameen." className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                  <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} placeholder="e.g. Sadaqah jariyah for my late father. Ameen." className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none" />
                 </div>
               </div>
             )}
@@ -3488,7 +3488,7 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
                     <span className="text-stone-900 font-medium">{fmt(effectiveAmount)}</span>
                   </div>
                   {giftAid && giftAidAmount > 0 && (
-                    <div className="flex justify-between py-2 border-b border-stone-100 text-emerald-800">
+                    <div className="flex justify-between py-2 border-b border-stone-100 text-brand-800">
                       <span>Gift Aid boost</span>
                       <span className="font-medium">+{fmt(giftAidAmount)}</span>
                     </div>
@@ -3514,13 +3514,13 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
             <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
               <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">Back</button>
               {step < 3 ? (
-                <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                   Continue <ArrowRight size={14} />
                 </button>
               ) : (
 <div className="flex flex-col items-end">
                   {saveError && <p className="text-xs text-rose-700 mb-2">{saveError}</p>}
-                  <button onClick={handlePay} disabled={saving} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30">
+                  <button onClick={handlePay} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-400 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-brand-900/30">
                     {saving ? "Saving..." : <><CreditCard size={14} /> Pay {fmt(total)}</>}
                   </button>
                 </div>              )}
@@ -3538,14 +3538,14 @@ const DonateFlow = ({ campaign, onBack, onDone, authedUser, authedProfile, onSig
 
             <div className="space-y-2 text-sm pt-4 border-t border-stone-100">
               <div className="flex justify-between text-stone-600"><span>Your gift</span><span className="text-stone-900 font-medium">{fmt(effectiveAmount)}</span></div>
-              {giftAid && giftAidAmount > 0 && <div className="flex justify-between text-emerald-700"><span>+ Gift Aid</span><span>{fmt(giftAidAmount)}</span></div>}
+              {giftAid && giftAidAmount > 0 && <div className="flex justify-between text-brand-700"><span>+ Gift Aid</span><span>{fmt(giftAidAmount)}</span></div>}
               <div className="flex justify-between text-stone-500 text-xs"><span>Tip Amanah</span><span>{fmt(tip)}</span></div>
               <div className="flex justify-between pt-2 border-t border-stone-100">
                 <span className="font-medium text-stone-900">Total today</span>
                 <span className="font-semibold text-stone-900 text-lg">{fmt(total)}</span>
               </div>
               {giftAid && giftAidAmount > 0 && (
-                <p className="text-xs text-emerald-800 pt-1">Charity receives {fmt(effectiveAmount + giftAidAmount)}</p>
+                <p className="text-xs text-brand-800 pt-1">Charity receives {fmt(effectiveAmount + giftAidAmount)}</p>
               )}
             </div>
           </div>
@@ -3560,8 +3560,8 @@ const DonationSuccess = ({ donation, onHome }) => (
   <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8 text-center" style={{ animation: "bounceIn 0.6s ease-out" }}>
       <div className="relative inline-block mb-5">
-        <div className="absolute inset-0 bg-emerald-300 rounded-full blur-xl opacity-40"></div>
-        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-700 shadow-lg">
+        <div className="absolute inset-0 bg-brand-300 rounded-full blur-xl opacity-40"></div>
+        <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-700 shadow-lg">
           <HeartHandshake className="text-white" size={30} strokeWidth={2} />
         </div>
       </div>
@@ -3569,14 +3569,14 @@ const DonationSuccess = ({ donation, onHome }) => (
       <p className="text-stone-700 leading-relaxed mb-2">You've donated <span className="font-semibold text-stone-900">{fmt(donation.amount)}</span> to <span className="font-semibold">{donation.campaign.creator}</span>.</p>
       <p className="text-sm text-stone-600 mb-5">A receipt has been sent to {donation.email}.</p>
 
-      <div className="bg-gradient-to-br from-emerald-50 to-amber-50 border border-emerald-200 rounded-xl p-4 text-left mb-5">
-        <p className="text-xs text-emerald-900 leading-relaxed italic">
+      <div className="bg-gradient-to-br from-brand-50 to-amber-50 border border-brand-200 rounded-xl p-4 text-left mb-5">
+        <p className="text-xs text-brand-900 leading-relaxed italic">
           "The example of those who spend their wealth in the way of Allah is like that of a grain of corn: it grows seven ears, and each ear has a hundred grains..."
         </p>
-        <p className="text-xs text-emerald-700 mt-2 text-right">— Qur'an 2:261</p>
+        <p className="text-xs text-brand-700 mt-2 text-right">— Qur'an 2:261</p>
       </div>
 
-      <button onClick={onHome} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] mb-2">
+      <button onClick={onHome} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02] mb-2">
         Back to Amanah
       </button>
       <button className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2">
@@ -3598,7 +3598,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
     story: "",
     goal: "",
     duration: "30",
-    gradient: "from-emerald-600 to-emerald-900",
+    gradient: "from-brand-600 to-brand-900",
     breakdown: [
       { label: "", amount: "" }
     ],
@@ -3646,7 +3646,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
     <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', sans-serif" }}>
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-900 flex items-center justify-center"><ShieldCheck className="text-emerald-50" size={18} /></div>
+          <div className="w-9 h-9 rounded-xl bg-brand-900 flex items-center justify-center"><ShieldCheck className="text-brand-50" size={18} /></div>
           <h1 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Amanah</h1>
         </div>
       </header>
@@ -3664,10 +3664,10 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
           <div className="flex items-center gap-3 mb-3">
             {[1, 2, 3, 4].map(n => (
               <div key={n} className="flex items-center gap-3 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-emerald-900 text-white" : "bg-stone-200 text-stone-500"}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${step >= n ? "bg-brand-900 text-white" : "bg-stone-200 text-stone-500"}`}>
                   {step > n ? <CheckCircle2 size={14} /> : n}
                 </div>
-                {n < 4 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-emerald-900" : "bg-stone-200"}`}></div>}
+                {n < 4 && <div className={`flex-1 h-0.5 transition-all ${step > n ? "bg-brand-900" : "bg-stone-200"}`}></div>}
               </div>
             ))}
           </div>
@@ -3686,13 +3686,13 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                   {/* Type (locked to creator type but shown for clarity) */}
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-2 uppercase tracking-wider">Campaign type</label>
-                    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-600 bg-emerald-50">
-                      {form.type === "mosque" ? <Building2 className="text-emerald-800" size={22} /> : <Users className="text-emerald-800" size={22} />}
+                    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-brand-600 bg-brand-50">
+                      {form.type === "mosque" ? <Building2 className="text-brand-800" size={22} /> : <Users className="text-brand-800" size={22} />}
                       <div>
                         <p className="text-sm font-medium text-stone-900">{form.type === "mosque" ? "Mosque campaign" : "Scholar campaign"}</p>
                         <p className="text-xs text-stone-600">Running as {creatorName}</p>
                       </div>
-                      <CheckCircle2 className="text-emerald-700 ml-auto" size={20} />
+                      <CheckCircle2 className="text-brand-700 ml-auto" size={20} />
                     </div>
                   </div>
 
@@ -3711,14 +3711,14 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                   {/* Title */}
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Campaign title</label>
-                    <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder={form.type === "mosque" ? "e.g. New roof for Masjid Al-Noor" : "e.g. Help me complete my studies at Madinah University"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                    <input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder={form.type === "mosque" ? "e.g. New roof for Masjid Al-Noor" : "e.g. Help me complete my studies at Madinah University"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                     <p className="text-xs text-stone-500 mt-1">Keep it clear and specific — what are you raising for? ({form.title.length}/80 characters recommended)</p>
                   </div>
 
                   {/* Summary */}
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Short summary</label>
-                    <textarea value={form.summary} onChange={e => setForm({...form, summary: e.target.value})} rows={2} placeholder="One or two sentences that appear on campaign cards" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                    <textarea value={form.summary} onChange={e => setForm({...form, summary: e.target.value})} rows={2} placeholder="One or two sentences that appear on campaign cards" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none" />
                     <p className="text-xs text-stone-500 mt-1">{form.summary.length} characters · aim for 80-150</p>
                   </div>
                 </div>
@@ -3734,7 +3734,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                   {/* Story */}
                   <div>
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Full story</label>
-                    <textarea value={form.story} onChange={e => setForm({...form, story: e.target.value})} rows={10} placeholder="Explain why this campaign matters. What's the need? What will the money do? What impact will it have? Include specific details — numbers, timelines, names where appropriate. Use line breaks for paragraphs." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none leading-relaxed" />
+                    <textarea value={form.story} onChange={e => setForm({...form, story: e.target.value})} rows={10} placeholder="Explain why this campaign matters. What's the need? What will the money do? What impact will it have? Include specific details — numbers, timelines, names where appropriate. Use line breaks for paragraphs." className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none leading-relaxed" />
                     <p className="text-xs text-stone-500 mt-1">{form.story.length} characters · minimum 100 · campaigns with 300+ characters raise 3× more</p>
                   </div>
 
@@ -3743,7 +3743,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                     <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">Fundraising goal</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-500 font-medium">£</span>
-                      <input type="number" value={form.goal} onChange={e => setForm({...form, goal: e.target.value})} placeholder="e.g. 45000" className="w-full pl-8 pr-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                      <input type="number" value={form.goal} onChange={e => setForm({...form, goal: e.target.value})} placeholder="e.g. 45000" className="w-full pl-8 pr-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                     </div>
                     <p className="text-xs text-stone-500 mt-1">Be realistic — it's better to hit 100% of £10,000 than 40% of £25,000.</p>
                   </div>
@@ -3772,10 +3772,10 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                     <div className="space-y-2">
                       {form.breakdown.map((item, i) => (
                         <div key={i} className="flex gap-2">
-                          <input value={item.label} onChange={e => updateBreakdownItem(i, "label", e.target.value)} placeholder={form.type === "mosque" ? "e.g. Roofing materials" : "e.g. Flight to Madinah"} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                          <input value={item.label} onChange={e => updateBreakdownItem(i, "label", e.target.value)} placeholder={form.type === "mosque" ? "e.g. Roofing materials" : "e.g. Flight to Madinah"} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                           <div className="relative w-32">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm">£</span>
-                            <input type="number" value={item.amount} onChange={e => updateBreakdownItem(i, "amount", e.target.value)} placeholder="0" className="w-full pl-7 pr-3 py-2.5 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                            <input type="number" value={item.amount} onChange={e => updateBreakdownItem(i, "amount", e.target.value)} placeholder="0" className="w-full pl-7 pr-3 py-2.5 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                           </div>
                           {form.breakdown.length > 1 && (
                             <button onClick={() => removeBreakdownItem(i)} className="px-3 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors"><X size={14} /></button>
@@ -3783,10 +3783,10 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                         </div>
                       ))}
                     </div>
-                    <button onClick={addBreakdownItem} className="mt-3 text-sm text-emerald-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another item</button>
+                    <button onClick={addBreakdownItem} className="mt-3 text-sm text-brand-800 font-medium hover:underline inline-flex items-center gap-1"><Plus size={14} /> Add another item</button>
 
                     {goalNum > 0 && breakdownTotal > 0 && (
-                      <div className={`mt-3 p-3 rounded-lg text-xs ${breakdownMatches ? "bg-emerald-50 border border-emerald-200 text-emerald-900" : "bg-amber-50 border border-amber-200 text-amber-900"}`}>
+                      <div className={`mt-3 p-3 rounded-lg text-xs ${breakdownMatches ? "bg-brand-50 border border-brand-200 text-brand-900" : "bg-amber-50 border border-amber-200 text-amber-900"}`}>
                         {breakdownMatches ? (
                           <span className="flex items-center gap-1.5"><CheckCircle2 size={13} /> Breakdown matches goal: £{breakdownTotal.toLocaleString()}</span>
                         ) : (
@@ -3817,7 +3817,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                       </div>
                       {form.gradient === g.value && (
                         <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center">
-                          <CheckCircle2 className="text-emerald-700" size={16} strokeWidth={2.5} />
+                          <CheckCircle2 className="text-brand-700" size={16} strokeWidth={2.5} />
                         </div>
                       )}
                     </button>
@@ -3843,7 +3843,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
                       <div className="p-5">
                         <div className="flex items-center gap-1.5 mb-2">
                           <p className="text-xs text-stone-500">{creatorName}</p>
-                          <ShieldCheck size={12} className="text-emerald-700" />
+                          <ShieldCheck size={12} className="text-brand-700" />
                         </div>
                         <h4 className="text-base font-semibold text-stone-900 mb-2 leading-snug" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{form.title || "Your campaign title will appear here"}</h4>
                         <p className="text-sm text-stone-600 line-clamp-2 mb-4 leading-relaxed">{form.summary || "Your summary will appear here — keep it to one or two sentences."}</p>
@@ -3890,15 +3890,15 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
 
                 {/* Terms */}
                 <div className="space-y-3">
-                  <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.agreedFunds ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200 hover:border-stone-300"}`}>
-                    <input type="checkbox" checked={form.agreedFunds} onChange={e => setForm({...form, agreedFunds: e.target.checked})} className="mt-0.5 accent-emerald-800" />
+                  <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.agreedFunds ? "bg-brand-50 border-brand-200" : "bg-stone-50 border-stone-200 hover:border-stone-300"}`}>
+                    <input type="checkbox" checked={form.agreedFunds} onChange={e => setForm({...form, agreedFunds: e.target.checked})} className="mt-0.5 accent-brand-800" />
                     <div>
                       <p className="text-sm font-medium text-stone-900">Funds will only be used as described</p>
                       <p className="text-xs text-stone-600 mt-0.5">I commit that 100% of donations will go toward the purposes described in this campaign. Any material change requires donor notification.</p>
                     </div>
                   </label>
-                  <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.agreedTerms ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200 hover:border-stone-300"}`}>
-                    <input type="checkbox" checked={form.agreedTerms} onChange={e => setForm({...form, agreedTerms: e.target.checked})} className="mt-0.5 accent-emerald-800" />
+                  <label className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${form.agreedTerms ? "bg-brand-50 border-brand-200" : "bg-stone-50 border-stone-200 hover:border-stone-300"}`}>
+                    <input type="checkbox" checked={form.agreedTerms} onChange={e => setForm({...form, agreedTerms: e.target.checked})} className="mt-0.5 accent-brand-800" />
                     <div>
                       <p className="text-sm font-medium text-stone-900">I accept Amanah's campaign terms</p>
                       <p className="text-xs text-stone-600 mt-0.5">Including providing receipts to donors, honouring Gift Aid declarations, and allowing Amanah to review campaign content for community standards.</p>
@@ -3916,11 +3916,11 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
             <div className="flex justify-between mt-8 pt-6 border-t border-stone-100">
               <button onClick={() => step > 1 ? setStep(step - 1) : onBack()} className="px-4 py-2 text-sm text-stone-600 hover:text-stone-900">Back</button>
               {step < 4 ? (
-                <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                <button onClick={() => setStep(step + 1)} disabled={!canProceed} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                   Continue <ArrowRight size={14} />
                 </button>
               ) : (
-                <button onClick={() => onComplete(form)} disabled={!canProceed} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] disabled:hover:scale-100">
+                <button onClick={() => onComplete(form)} disabled={!canProceed} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white px-6 py-2.5 rounded-xl text-sm font-medium inline-flex items-center gap-2 shadow-lg shadow-brand-900/30 transition-all hover:scale-[1.02] disabled:hover:scale-100">
                   <Zap size={14} /> Launch campaign
                 </button>
               )}
@@ -3968,7 +3968,7 @@ const CreateCampaign = ({ creatorType, creatorName, creatorCity, onBack, onCompl
 
             <div className="bg-white border border-stone-200 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
-                <ShieldCheck className="text-emerald-700" size={18} />
+                <ShieldCheck className="text-brand-700" size={18} />
                 <h3 className="text-sm font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>You're verified</h3>
               </div>
               <p className="text-xs text-stone-700 leading-relaxed">
@@ -4003,7 +4003,7 @@ const CampaignLaunched = ({ campaign, onView, onHome }) => (
 
       <p className="text-xs text-stone-600 mb-5 leading-relaxed">Share your campaign link in WhatsApp groups, Friday announcements, and social media. The first 48 hours matter most.</p>
 
-      <button onClick={onView} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium mb-2 transition-all hover:scale-[1.02]">
+      <button onClick={onView} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium mb-2 transition-all hover:scale-[1.02]">
         View my campaign
       </button>
       <button onClick={onHome} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium">
@@ -4496,7 +4496,7 @@ const ReviewSubmitted = ({ review, onHome, onViewScholar }) => (
       </div>
       <div className="flex flex-col gap-2">
         {onViewScholar && (
-          <button onClick={onViewScholar} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
+          <button onClick={onViewScholar} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
             View on {review.scholar.name.split(" ").slice(-2).join(" ")}'s profile
           </button>
         )}
