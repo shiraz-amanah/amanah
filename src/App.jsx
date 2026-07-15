@@ -2140,10 +2140,10 @@ const RolePicker = ({ onPick, onPublic }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
     <div className="w-full max-w-2xl">
       <button onClick={onPublic} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}><ArrowLeft size={14} /> Back to Amanah</button>
-      <div className="text-center mb-10"><div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-900 mb-5 shadow-lg"><ShieldCheck className="text-emerald-50" size={26} /></div><h1 className="text-4xl font-semibold text-stone-900 tracking-tight">Amanah</h1><p className="text-sm text-stone-500 mt-2 tracking-wide uppercase" style={{ fontFamily: "'Inter', sans-serif", letterSpacing: "0.15em" }}>Sign in</p></div>
+      <div className="text-center mb-10"><div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-900 mb-5 shadow-lg"><ShieldCheck className="text-brand-50" size={26} /></div><h1 className="text-4xl font-semibold text-stone-900 tracking-tight">Amanah</h1><p className="text-sm text-stone-500 mt-2 tracking-wide uppercase" style={{ fontFamily: "'Inter', sans-serif", letterSpacing: "0.15em" }}>Sign in</p></div>
       <div className="grid md:grid-cols-2 gap-4" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <button onClick={() => onPick("mosque")} className="bg-white border border-stone-200 rounded-2xl p-8 text-left hover:border-emerald-700 hover:shadow-lg hover:-translate-y-0.5 transition-all"><Building2 className="text-emerald-900 mb-4" size={28} /><h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>I'm a Mosque</h2><p className="text-sm text-stone-600 mb-4">Hire imams, book substitute cover, run DBS checks.</p><span className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium">Continue <ArrowRight size={14} /></span></button>
-        <button onClick={() => onPick("imam")} className="bg-white border border-stone-200 rounded-2xl p-8 text-left hover:border-emerald-700 hover:shadow-lg hover:-translate-y-0.5 transition-all"><Users className="text-emerald-900 mb-4" size={28} /><h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>I'm a Scholar or Imam</h2><p className="text-sm text-stone-600 mb-4">Register, offer services, accept bookings.</p><span className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium">Continue <ArrowRight size={14} /></span></button>
+        <button onClick={() => onPick("mosque")} className="bg-white border border-stone-200 rounded-2xl p-8 text-left hover:border-brand-700 hover:shadow-lg hover:-translate-y-0.5 transition-all"><Building2 className="text-brand-900 mb-4" size={28} /><h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>I'm a Mosque</h2><p className="text-sm text-stone-600 mb-4">Hire imams, book substitute cover, run DBS checks.</p><span className="inline-flex items-center gap-1 text-sm text-brand-800 font-medium">Continue <ArrowRight size={14} /></span></button>
+        <button onClick={() => onPick("imam")} className="bg-white border border-stone-200 rounded-2xl p-8 text-left hover:border-brand-700 hover:shadow-lg hover:-translate-y-0.5 transition-all"><Users className="text-brand-900 mb-4" size={28} /><h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>I'm a Scholar or Imam</h2><p className="text-sm text-stone-600 mb-4">Register, offer services, accept bookings.</p><span className="inline-flex items-center gap-1 text-sm text-brand-800 font-medium">Continue <ArrowRight size={14} /></span></button>
       </div>
     </div>
   </div>
@@ -2153,7 +2153,7 @@ const LoginScreen = ({ role, onLogin, onBack, onGoRegister, onSwitchRole }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
     <div className="w-full max-w-md">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-stone-600 hover:text-stone-900 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}><ArrowLeft size={14} /> Back</button>
-      <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-900 mb-4 shadow-lg"><ShieldCheck className="text-emerald-50" size={22} /></div><h1 className="text-3xl font-semibold text-stone-900 tracking-tight">Amanah</h1></div>
+      <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-900 mb-4 shadow-lg"><ShieldCheck className="text-brand-50" size={22} /></div><h1 className="text-3xl font-semibold text-stone-900 tracking-tight">Amanah</h1></div>
       <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-sm">
         <h2 className="text-xl font-semibold text-stone-900 mb-1">{role === "mosque" ? "Mosque Sign In" : "Scholar Sign In"}</h2>
         <p className="text-sm text-stone-500 mb-6" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -2161,24 +2161,24 @@ const LoginScreen = ({ role, onLogin, onBack, onGoRegister, onSwitchRole }) => (
            "Sign in to manage your availability, bookings and profile."}
         </p>
         <div className="space-y-4" style={{ fontFamily: "'Inter', sans-serif" }}>
-          <input type="email" placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-          <input type="password" placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
-          <button onClick={onLogin} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]">Sign In</button>
+          <input type="email" placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+          <input type="password" placeholder="Password" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+          <button onClick={onLogin} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.01]">Sign In</button>
         </div>
         <div className="mt-6 pt-6 border-t border-stone-100 text-center" style={{ fontFamily: "'Inter', sans-serif" }}>
           <p className="text-sm text-stone-600 mb-2">
             {role === "mosque" ? "Not registered yet?" : "New to Amanah?"}
           </p>
-          <button onClick={onGoRegister} className="inline-flex items-center gap-1 text-sm text-emerald-800 font-medium hover:gap-2 transition-all">
+          <button onClick={onGoRegister} className="inline-flex items-center gap-1 text-sm text-brand-800 font-medium hover:gap-2 transition-all">
             {role === "mosque" ? "Register your masjid" : "Create a scholar profile"} <ArrowRight size={14} />
           </button>
         </div>
       </div>
       <div className="mt-5 text-center text-xs text-stone-500" style={{ fontFamily: "'Inter', sans-serif" }}>
         {role === "mosque" ? (
-          <>Are you a scholar or imam? <button onClick={() => onSwitchRole("imam")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
+          <>Are you a scholar or imam? <button onClick={() => onSwitchRole("imam")} className="text-brand-800 font-medium hover:underline">Sign in here</button></>
         ) : (
-          <>Are you a mosque? <button onClick={() => onSwitchRole("mosque")} className="text-emerald-800 font-medium hover:underline">Sign in here</button></>
+          <>Are you a mosque? <button onClick={() => onSwitchRole("mosque")} className="text-brand-800 font-medium hover:underline">Sign in here</button></>
         )}
       </div>
     </div>
