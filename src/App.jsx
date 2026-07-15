@@ -2580,16 +2580,16 @@ const RegistrationPending = ({ type, form, onHome }) => (
         <ol className="space-y-2 text-sm text-stone-700">
           {type === "mosque" ? (
             <>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We cross-check your Charity Commission number against the public register</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>We verify your documents and safeguarding policy</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>We call one of your listed trustees to confirm</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">4</span><span>You get access to the full platform — hire imams, post jobs, run DBS checks</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We cross-check your Charity Commission number against the public register</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>We verify your documents and safeguarding policy</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>We call one of your listed trustees to confirm</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">4</span><span>You get access to the full platform — hire imams, post jobs, run DBS checks</span></li>
             </>
           ) : (
             <>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We verify your DBS certificate with the issuing body</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>If you provided an ijazah, we verify with the institution</span></li>
-              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>Your profile goes live and mosques can contact you</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">1</span><span>We verify your DBS certificate with the issuing body</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">2</span><span>If you provided an ijazah, we verify with the institution</span></li>
+              <li className="flex gap-3"><span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 text-xs font-semibold flex items-center justify-center flex-shrink-0">3</span><span>Your profile goes live and mosques can contact you</span></li>
             </>
           )}
         </ol>
@@ -2602,7 +2602,7 @@ const RegistrationPending = ({ type, form, onHome }) => (
 
       <p className="text-xs text-stone-600 text-center mb-5">We'll email you at <span className="font-medium text-stone-900">{type === "mosque" ? form.contactEmail : form.email}</span> as soon as verification is complete.</p>
 
-      <button onClick={onHome} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
+      <button onClick={onHome} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]">
         Back to Amanah
       </button>
     </div>
@@ -6693,8 +6693,8 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
       <div className="text-center mb-5">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-100 mb-4">
-          <CheckCircle2 className="text-emerald-700" size={24} />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-100 mb-4">
+          <CheckCircle2 className="text-brand-700" size={24} />
         </div>
         <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application approved</h2>
         <p className="text-sm text-stone-700 leading-relaxed">
@@ -6707,12 +6707,12 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
           { label: "Enhanced DBS check", verified: scholar?.dbs_verified },
           { label: "Ijazah / Qualifications", verified: scholar?.ijazah_verified },
         ].map(check => (
-          <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200"}`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${check.verified ? "bg-emerald-100" : "bg-white border border-stone-200"}`}>
-              {check.verified ? <CheckCircle2 className="text-emerald-700" size={16} /> : <Clock className="text-stone-400" size={14} />}
+          <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-success-50 border-success-200" : "bg-stone-50 border-stone-200"}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${check.verified ? "bg-success-100" : "bg-white border border-stone-200"}`}>
+              {check.verified ? <CheckCircle2 className="text-success-700" size={16} /> : <Clock className="text-stone-400" size={14} />}
             </div>
             <p className="text-sm text-stone-900 flex-1">{check.label}</p>
-            <span className={`text-[10px] uppercase tracking-wider font-medium ${check.verified ? "text-emerald-700" : "text-stone-500"}`}>
+            <span className={`text-[10px] uppercase tracking-wider font-medium ${check.verified ? "text-success-700" : "text-stone-500"}`}>
               {check.verified ? "Verified" : "Pending"}
             </span>
           </div>
@@ -6724,7 +6724,7 @@ const ScholarVerificationPending = ({ scholar, authedUser, onPublic, onLogout })
       </div>
 
       <div className="flex flex-col gap-2">
-        <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+        <button onClick={onPublic} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
           Browse Amanah while you wait
         </button>
         <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
@@ -7220,8 +7220,8 @@ const MosqueVerificationPending = ({ mosque, onPublic, onLogout }) => (
   <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
     <div className="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-stone-200 p-8">
       <div className="text-center mb-5">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-100 mb-4">
-          <CheckCircle2 className="text-emerald-700" size={24} />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-100 mb-4">
+          <CheckCircle2 className="text-brand-700" size={24} />
         </div>
         <h2 className="text-2xl font-semibold text-stone-900 mb-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Application approved</h2>
         <p className="text-sm text-stone-700 leading-relaxed">
@@ -7235,12 +7235,12 @@ const MosqueVerificationPending = ({ mosque, onPublic, onLogout }) => (
           { label: "Mosque address", verified: mosque?.address_verified },
           { label: "Safeguarding policy", verified: mosque?.safeguarding_confirmed },
         ].map(check => (
-          <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-emerald-50 border-emerald-200" : "bg-stone-50 border-stone-200"}`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${check.verified ? "bg-emerald-100" : "bg-white border border-stone-200"}`}>
-              {check.verified ? <CheckCircle2 className="text-emerald-700" size={16} /> : <Clock className="text-stone-400" size={14} />}
+          <div key={check.label} className={`flex items-center gap-3 p-3 rounded-xl border ${check.verified ? "bg-success-50 border-success-200" : "bg-stone-50 border-stone-200"}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${check.verified ? "bg-success-100" : "bg-white border border-stone-200"}`}>
+              {check.verified ? <CheckCircle2 className="text-success-700" size={16} /> : <Clock className="text-stone-400" size={14} />}
             </div>
             <p className="text-sm text-stone-900 flex-1">{check.label}</p>
-            <span className={`text-[10px] uppercase tracking-wider font-medium ${check.verified ? "text-emerald-700" : "text-stone-500"}`}>
+            <span className={`text-[10px] uppercase tracking-wider font-medium ${check.verified ? "text-success-700" : "text-stone-500"}`}>
               {check.verified ? "Verified" : "Pending"}
             </span>
           </div>
@@ -7252,7 +7252,7 @@ const MosqueVerificationPending = ({ mosque, onPublic, onLogout }) => (
       </div>
 
       <div className="flex flex-col gap-2">
-        <button onClick={onPublic} className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
+        <button onClick={onPublic} className="w-full bg-brand-900 hover:bg-brand-800 text-white py-3 rounded-xl text-sm font-medium transition-colors">
           Browse Amanah while you wait
         </button>
         <button onClick={onLogout} className="w-full border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
