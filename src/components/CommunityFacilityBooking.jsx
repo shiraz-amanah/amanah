@@ -8,7 +8,7 @@ import { sendFacilityBookingCancelled } from "../lib/email";
 // member's own requests with status + cancel. Paid bookings show the estimated
 // price + "payment arranged separately" (Stripe later).
 
-const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 outline-none text-sm";
+const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const cardCls = "bg-white border border-stone-200 rounded-2xl p-5 md:p-6";
 const money = (v) => (v == null ? null : `£${Number(v).toFixed(2)}`);
@@ -83,8 +83,8 @@ const CommunityFacilityBooking = ({ mosque, memberName }) => {
   return (
     <div className={cardCls}>
       <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><CalendarCheck size={15} className="text-emerald-700" /> Book a facility</p>
-        {facilities.length > 0 && !showForm && <button onClick={() => setShowForm(true)} className="text-sm text-emerald-800 hover:text-emerald-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Request</button>}
+        <p className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><CalendarCheck size={15} className="text-brand-700" /> Book a facility</p>
+        {facilities.length > 0 && !showForm && <button onClick={() => setShowForm(true)} className="text-sm text-brand-800 hover:text-brand-900 font-medium inline-flex items-center gap-1"><Plus size={14} /> Request</button>}
       </div>
       {err && <p className="text-sm text-rose-700 mb-2 flex items-center gap-1.5"><AlertCircle size={14} /> {err}</p>}
 
@@ -110,7 +110,7 @@ const CommunityFacilityBooking = ({ mosque, memberName }) => {
           <div><label className={labelCls}>Notes (optional)</label><textarea rows={2} className={inputCls + " resize-none"} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           {estPrice != null && <p className="text-xs text-stone-500">Estimated <span className="font-medium text-stone-700">{money(estPrice)}</span> — payment will be arranged separately with the mosque.</p>}
           <div className="flex gap-2">
-            <button onClick={submit} disabled={busy} className="bg-emerald-900 hover:bg-emerald-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send request</button>
+            <button onClick={submit} disabled={busy} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-4 py-2 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send request</button>
             <button onClick={() => { setForm(blank); setShowForm(false); setErr(null); }} className="text-sm text-stone-600 hover:text-stone-900 px-3 py-2 inline-flex items-center gap-1"><X size={14} /> Cancel</button>
           </div>
         </div>
