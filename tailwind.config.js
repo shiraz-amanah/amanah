@@ -25,18 +25,20 @@ export default {
   ],
   theme: {
     extend: {
-      // COLOUR SYSTEM SPLIT (Job A). `brand` (decorative: buttons, nav, logo,
+      // COLOUR SYSTEM SPLIT (Job A/C). `brand` (decorative: buttons, nav, logo,
       // accents) and `success` (positive status signals: Active/Paid/Verified/
-      // Approved/Confirmed) are two DISTINCT tokens that render IDENTICALLY today
-      // — both are Tailwind's emerald scale verbatim, so pinning a status badge
-      // from emerald-* to success-* changes nothing visually. The point is that
-      // they are now separable: Job C can retune `brand` (e.g. toward the
-      // landing's #1a7a3c) without shifting every "Active" badge, and vice-versa.
-      // Do NOT collapse these back into one — that's the bug this split fixes.
+      // Approved/Confirmed/DBS) are two DISTINCT tokens. Job C flipped `brand` to
+      // the forest green anchored on the landing's #1a7a3c; `success` stays on
+      // Tailwind's emerald verbatim, so every "Active"/"Paid"/"Verified"/DBS badge
+      // is UNCHANGED by the flip. That separation is the whole point of the split
+      // — do NOT collapse these back into one, and do NOT retint `success`.
       colors: {
         brand: {
-          50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
-          500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b', 950: '#022c22',
+          // Job C flip: forest green anchored on the landing's #1a7a3c (pinned at
+          // 700, the workhorse shade). Perceptually-even Tailwind `green` ramp for
+          // the rest, so #1a7a3c sits cleanly between 600 (#16a34a) and 800 (#166534).
+          50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80',
+          500: '#22c55e', 600: '#16a34a', 700: '#1a7a3c', 800: '#166534', 900: '#14532d', 950: '#052e16',
         },
         success: {
           50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
