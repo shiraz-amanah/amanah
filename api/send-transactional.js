@@ -29,6 +29,13 @@
 //   PUBLIC_APP_URL            — base app URL for CTA links (e.g. https://youramanah.co.uk)
 //   CRON_SECRET               — shared secret the reminder cron presents
 //
+// Optional env (a feature degrades to a logged no-op when unset, never crashes):
+//   WHATSAPP_TOKEN            — Meta WhatsApp Cloud API access token (server-only,
+//                               NEVER VITE_-prefixed) — powers the staff_whatsapp intent
+//   WHATSAPP_PHONE_NUMBER_ID  — the sending phone number id (Graph API path segment)
+//   WHATSAPP_TEMPLATE         — approved template name (default 'hello_world' for test creds)
+//   WHATSAPP_TEMPLATE_LANG    — template language code (default 'en_US')
+//
 // Returns 200 {ok:true, ...} on success, 4xx/5xx {ok:false, error} otherwise.
 // Never echoes secrets or full email bodies.
 
@@ -420,6 +427,12 @@ function envOrThrow() {
     SUPABASE_SERVICE_ROLE_KEY, PUBLIC_APP_URL: PUBLIC_APP_URL.replace(/\/$/, ''), CRON_SECRET,
     // Optional — ops alerts are skipped (not an error) when unset.
     PLATFORM_ALERT_EMAIL: process.env.PLATFORM_ALERT_EMAIL || null,
+    // Optional — WhatsApp Cloud API (staff_whatsapp intent). Un-prefixed, server-only.
+    // When token/phone-id are unset the intent degrades to a logged no-op.
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN || null,
+    WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID || null,
+    WHATSAPP_TEMPLATE: process.env.WHATSAPP_TEMPLATE || 'hello_world',
+    WHATSAPP_TEMPLATE_LANG: process.env.WHATSAPP_TEMPLATE_LANG || 'en_US',
   };
 }
 
@@ -486,6 +499,53 @@ async function sendEmail(env, { to, subject, html, text, attachments }) {
     throw new Error(`resend_failed:${json?.name || res.status}`);
   }
   return json.id;
+}
+
+// WhatsApp Cloud API (Meta Graph). Un-prefixed, server-only creds. --------------
+const WHATSAPP_GRAPH_VERSION = 'v25.0';
+
+// Normalise a stored phone to WhatsApp's expected international digits (no '+').
+// Handles '+44…', '0044…', and UK national '07…' → '447…'. Returns null if the
+// result isn't a plausible 8–15 digit number (skip rather than send garbage).
+function toWhatsAppNumber(raw) {
+  if (!raw) return null;
+  let p = String(raw).trim().replace(/[^\d+]/g, '');
+  if (p.startsWith('+')) p = p.slice(1);
+  else if (p.startsWith('00')) p = p.slice(2);
+  else if (p.startsWith('0')) p = '44' + p.slice(1); // UK national → international
+  return /^\d{8,15}$/.test(p) ? p : null;
+}
+
+// Send one approved template message. On test credentials only pre-approved
+// templates (e.g. 'hello_world', which takes NO parameters) deliver, and only to
+// numbers on the Meta test-recipient allowlist. bodyParams maps to the {{1}},{{2}}…
+// body variables of a real approved template (omit for hello_world). Throws on
+// a non-2xx Graph response; returns the WhatsApp message id.
+async function sendWhatsAppTemplate(env, { to, template, language, bodyParams }) {
+  const url = `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const payload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: { name: template, language: { code: language } },
+  };
+  if (Array.isArray(bodyParams) && bodyParams.length) {
+    payload.template.components = [{
+      type: 'body',
+      parameters: bodyParams.map((t) => ({ type: 'text', text: String(t) })),
+    }];
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error('[send-transactional] whatsapp_failed', res.status, json?.error?.message || json?.error?.type);
+    throw new Error(`whatsapp_failed:${json?.error?.code || res.status}`);
+  }
+  return json?.messages?.[0]?.id || null;
 }
 
 // Service-role GET against PostgREST. Returns a parsed array (or []).
@@ -1198,13 +1258,61 @@ async function handleStaffEmail(env, caller, { mosqueId, recipientIds, subject, 
   return { status: 200, body: { ok: true, sent, requested: ids.length } };
 }
 
-// WhatsApp send — DEFERRED to Session N1 (no provider wired). Ownership is still
-// validated; the call is a logged no-op so callers can fire it unconditionally.
-async function handleStaffWhatsapp(env, caller, { mosqueId }) {
+// WhatsApp send (Session N1) — real WhatsApp Cloud API template send to the
+// caller's own mosque staff. SECURITY mirrors handleStaffEmail: ownership is
+// validated and every recipient is re-resolved server-side from mosque_staff for
+// THIS mosque (the client only supplies mosque_staff.id values, never a number).
+// Two hard gates before any send:
+//   1. credentials present (else a logged no-op — keeps the composer working when
+//      WhatsApp isn't provisioned for this env),
+//   2. the recipient's profile has notifications.whatsapp === true (channel opt-in).
+// NOTE: on the Meta TEST sender only pre-approved templates deliver, and only to
+// allowlisted numbers. With the default 'hello_world' template the composer body
+// is NOT carried in the message (hello_world takes no parameters) — the free-text
+// body is delivered once a real approved template name is set in WHATSAPP_TEMPLATE.
+async function handleStaffWhatsapp(env, caller, { mosqueId, recipientIds, body }) {
   const { mosque, ok } = await ownsMosque(env, caller, mosqueId);
   if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
   if (!ok) return { status: 403, body: { ok: false, error: 'forbidden' } };
-  return { status: 200, body: { ok: true, sent: 0, note: 'whatsapp_deferred_n1' } };
+
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID) {
+    return { status: 200, body: { ok: true, sent: 0, note: 'whatsapp_not_configured' } };
+  }
+
+  const ids = (Array.isArray(recipientIds) ? recipientIds : []).filter(isUuid);
+  if (!ids.length) return { status: 400, body: { ok: false, error: 'no_recipients' } };
+
+  // in.(...) — recipients constrained to THIS mosque's staff, so no arbitrary send.
+  const staff = await sbGet(env, `mosque_staff?mosque_id=eq.${mosqueId}&id=in.(${ids.join(',')})&archived=eq.false&select=id,name,phone,profile_id`);
+
+  // Channel opt-in gate — only staff whose linked profile set notifications.whatsapp.
+  // Staff with no linked profile can't hold a preference → treated as opted out.
+  const profileIds = [...new Set((staff || []).map((s) => s.profile_id).filter(isUuid))];
+  const prefs = profileIds.length
+    ? await sbGet(env, `profiles?id=in.(${profileIds.join(',')})&select=id,notifications`)
+    : [];
+  const optedIn = new Set(prefs.filter((p) => p?.notifications?.whatsapp === true).map((p) => p.id));
+
+  const template = env.WHATSAPP_TEMPLATE || 'hello_world';
+  const language = env.WHATSAPP_TEMPLATE_LANG || 'en_US';
+  // hello_world takes no params; a real template gets the composer body as {{1}}.
+  const bodyParams = (template !== 'hello_world' && body && String(body).trim())
+    ? [String(body).trim()] : null;
+
+  let sent = 0, skippedOptOut = 0, skippedNoPhone = 0, failed = 0;
+  for (const s of (staff || [])) {
+    if (!s.profile_id || !optedIn.has(s.profile_id)) { skippedOptOut++; continue; }
+    const to = toWhatsAppNumber(s.phone);
+    if (!to) { skippedNoPhone++; continue; }
+    try {
+      await sendWhatsAppTemplate(env, { to, template, language, bodyParams });
+      sent++;
+    } catch (e) {
+      failed++;
+      console.error('[send-transactional] whatsapp send failed for staff', s.id, e?.message);
+    }
+  }
+  return { status: 200, body: { ok: true, sent, requested: ids.length, skippedOptOut, skippedNoPhone, failed } };
 }
 
 // One handler for the three compliance-expiry reminders (DBS / RTW / training).
