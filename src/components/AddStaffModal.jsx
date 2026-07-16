@@ -18,7 +18,7 @@ import { useState, useEffect } from "react";
 import { X, ArrowRight, ArrowLeft, Send, UserPlus, Users, Loader2, FileText } from "lucide-react";
 import {
   createMosqueStaff, updateMosqueStaff, upsertMosqueStaffEmployment, createStaffWizardInvite,
-  ensureMosqueDepartments, addMosqueDepartment, setOnboardingSessionContract,
+  ensureMosqueDepartments, addMosqueDepartment,
 } from "../auth";
 import { sendStaffWizardEmail } from "../lib/resend";
 import StaffContractGenerator from "./StaffContractGenerator";
@@ -120,15 +120,23 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         employment_type: f.employmentType, start_date: f.startDate || null,
       };
       if (path === "remote") {
-        const { data, error } = await createStaffWizardInvite({ mosqueId, name: f.name.trim(), email: f.email.trim() });
+        // Attach the draft contract to the invite so it's written ATOMICALLY with
+        // the session row (the wizard reads it at Step 8). Defensive regenerate if
+        // the preview effect somehow hasn't populated it yet.
+        let contractPayload = contract;
+        if (!contractPayload) {
+          const tmpl = employmentTypeToTemplate(f.employmentType);
+          const fields = contractFields();
+          contractPayload = tmpl
+            ? { template_id: tmpl, fields, rendered_html: sectionsToHtml(`${typeMeta(tmpl).label} — ${fields.employeeName}`, contractMeta(tmpl), buildSections(tmpl, fields)) }
+            : null;
+        }
+        const { data, error } = await createStaffWizardInvite({
+          mosqueId, name: f.name.trim(), email: f.email.trim(),
+          contract: contractPayload ? { ...contractPayload, employment_type: f.employmentType } : null,
+        });
         if (error || !data?.staffId) throw new Error(error?.message || "Could not create staff record");
         await updateMosqueStaff(data.staffId, base);
-        // Store the draft contract on the session so the wizard shows it at Step 8.
-        // Non-fatal on failure: the invite itself already succeeded.
-        if (contract && data.sessionId) {
-          const { error: cErr } = await setOnboardingSessionContract(data.sessionId, { ...contract, employment_type: f.employmentType });
-          if (cErr) console.error("store contract failed:", cErr);
-        }
         if (data.token) {
           // Record exists (HR-record-first). Invite email is best-effort — on
           // failure surface it and STOP (re-running would duplicate the row).

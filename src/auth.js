@@ -1397,7 +1397,7 @@ export async function upsertMosqueStaffEmployment(staffId, mosqueId, fields) {
 // the onboarding session that holds resumable progress + the review gate.
 // staff_id links them. We NO LONGER write wizard_token/wizard_status (dead cols,
 // dropped in RBAC-E). Returns { data: { staffId, sessionId, token }, error }.
-export async function createStaffWizardInvite({ mosqueId, name, email, path = 'remote' }) {
+export async function createStaffWizardInvite({ mosqueId, name, email, path = 'remote', contract = null }) {
   if (!mosqueId || !name || !email) return { data: null, error: { message: 'mosqueId, name and email are required' } }
   const cleanName = name.trim()
   const cleanEmail = email.trim().toLowerCase()
@@ -1416,9 +1416,16 @@ export async function createStaffWizardInvite({ mosqueId, name, email, path = 'r
     .single()
   if (e1 || !staff) return { data: null, error: e1 || { message: 'Could not create staff record' } }
   // 2. Session row — SAME lowercased email (invariant). token + 7-day expiry default in DB.
+  //    The optional contract is written ATOMICALLY here (not via a later UPDATE):
+  //    this insert is the proven-working RLS path, so the contract can't be lost
+  //    to a swallowed second-round-trip failure (e.g. a PostgREST schema-cache
+  //    miss on a freshly-added column). Omitted key when no contract is passed
+  //    (bulk-import / future in-person flows create sessions without one).
+  const sessionRow = { mosque_id: mosqueId, staff_id: staff.id, employee_name: cleanName, employee_email: cleanEmail, path }
+  if (contract) sessionRow.contract = contract
   const { data: sess, error: e2 } = await supabase
     .from('mosque_staff_onboarding_sessions')
-    .insert({ mosque_id: mosqueId, staff_id: staff.id, employee_name: cleanName, employee_email: cleanEmail, path })
+    .insert(sessionRow)
     .select('id, token')
     .single()
   if (e2 || !sess) {
