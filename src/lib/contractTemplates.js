@@ -50,7 +50,7 @@ export function buildSections(type, d) {
   const isZero = type === "zero_hours";
   const s = [];
   s.push({ h: "1. Parties", b: `This agreement is between ${d.mosqueName || "the mosque"} ("the Organisation"), of ${[d.mosqueAddress, d.mosqueCity, d.mosquePostcode].filter(Boolean).join(", ") || "—"}${d.charityNumber ? ` (registered charity ${d.charityNumber})` : ""}, and ${d.employeeName || "the individual"}${d.employeeAddress ? `, of ${d.employeeAddress}` : ""}${isVol ? ' ("the Volunteer")' : isContractor ? ' ("the Contractor")' : ' ("the Employee")'}.` });
-  s.push({ h: "2. Role", b: `${isVol ? "Volunteer role" : "Job title"}: ${d.jobTitle || "—"}.${d.duties ? ` Duties and responsibilities: ${d.duties}` : ""}` });
+  s.push({ h: "2. Role", b: `${isVol ? "Volunteer role" : "Job title"}: ${d.jobTitle || "—"}.${d.duties ? ` Duties and responsibilities: ${d.duties}` : ""}${d.placeOfWork ? ` Place of work: ${d.placeOfWork}.` : ""}` });
   if (!isVol && !isContractor) s.push({ h: "3. Commencement & probation", b: `Employment begins on ${fmt(d.startDate)}.${d.probationLength ? ` A probationary period of ${d.probationLength} applies.` : ""} This written statement is provided as your day-one right under the Employment Rights Act 1996.` });
   if (isVol) {
     s.push({ h: "3. Nature of the arrangement", b: "This is a voluntary arrangement and NOT a contract of employment. There is no mutuality of obligation: the Organisation is not obliged to provide work and the Volunteer is not obliged to accept it. No wage or salary is payable; reasonable pre-agreed out-of-pocket expenses may be reimbursed on production of receipts." });
@@ -62,9 +62,11 @@ export function buildSections(type, d) {
     s.push({ h: "5. Hours of work", b: isZero
       ? "These are casual, as-and-when hours. The Organisation does NOT guarantee any minimum hours. You are free to accept or decline any work offered, and there is no exclusivity — you may work elsewhere (exclusivity clauses in zero-hours contracts are unenforceable under the Small Business, Enterprise and Employment Act 2015)."
       : `${d.hours != null ? `${d.hours} hours per week` : "Hours as agreed"}, over the days and times agreed with your line manager.` });
-    s.push({ h: "6. Holiday", b: `${d.holidayDays || 28} days paid holiday per leave year (inclusive of public holidays)${m.proRata ? ", pro-rata to the hours actually worked. Statutory minimum is 5.6 weeks pro-rata" : ""}.` });
+    s.push({ h: "6. Holiday", b: `${d.holidayDays || 28} days paid holiday per leave year (inclusive of public holidays)${m.proRata ? ", pro-rata to the hours actually worked. Statutory minimum is 5.6 weeks pro-rata" : ""}.${d.holidayYear ? ` The holiday year runs ${d.holidayYear}.` : ""}` });
     s.push({ h: "7. Sickness", b: "Absence must be reported to your line manager as early as possible. Statutory Sick Pay is payable where you qualify." });
-    s.push({ h: "8. Notice", b: `${d.noticePeriod != null ? `${d.noticePeriod} days'` : "Statutory minimum"} notice by either party, never less than the statutory minimum (one week after one month's service, rising with length of service).` });
+    s.push({ h: "8. Notice", b: (d.noticePeriodEmployer || d.noticePeriodEmployee)
+      ? `Notice from the Organisation: ${d.noticePeriodEmployer || "the statutory minimum"}. Notice from you: ${d.noticePeriodEmployee || "the statutory minimum"}. Neither party gives less than the statutory minimum (one week after one month's service, rising with length of service).`
+      : `${d.noticePeriod != null ? `${d.noticePeriod} days'` : "Statutory minimum"} notice by either party, never less than the statutory minimum (one week after one month's service, rising with length of service).` });
     s.push({ h: "9. Pension", b: "You may be automatically enrolled into a workplace pension scheme in line with UK auto-enrolment duties (required for eligible jobholders earning over £10,000 per year); you may opt out." });
   }
   if (!isVol && !isContractor) s.push({ h: "10. Grievance & disciplinary", b: "The Organisation's grievance and disciplinary procedures apply and are available on request; they follow the Acas Code of Practice." });

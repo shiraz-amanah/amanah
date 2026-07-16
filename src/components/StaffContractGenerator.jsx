@@ -53,6 +53,10 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     salaryPence: initialData?.salaryPence ?? null, hours: initialData?.hours ?? null, noticePeriod: initialData?.noticePeriod ?? null,
     duties: initialData?.duties ?? "", holidayDays: initialData?.holidayDays ?? 28,
     benefits: initialData?.benefits ?? "", probationLength: initialData?.probationLength ?? "", specialClauses: initialData?.specialClauses ?? "",
+    // RBAC-E Commit 3: the six added editable contract fields.
+    noticePeriodEmployer: initialData?.noticePeriodEmployer ?? "", noticePeriodEmployee: initialData?.noticePeriodEmployee ?? "",
+    holidayYear: initialData?.holidayYear ?? "1 April to 31 March",
+    placeOfWork: initialData?.placeOfWork ?? [mosque?.address, mosque?.city, mosque?.postcode].filter(Boolean).join(", "),
   }));
 
   // signatures
@@ -167,6 +171,15 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2.5">
                 <div className="text-sm font-medium text-stone-700">Edit</div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="block"><span className="text-xs text-stone-500">Salary (£ / year)</span><input type="number" value={d.salaryPence != null ? d.salaryPence / 100 : ""} onChange={(e) => setD({ ...d, salaryPence: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} className={inputCls} placeholder="e.g. 28000" /></label>
+                  <label className="block"><span className="text-xs text-stone-500">Contracted hours / week</span><input type="number" value={d.hours ?? ""} onChange={(e) => setD({ ...d, hours: e.target.value === "" ? null : Number(e.target.value) })} className={inputCls} /></label>
+                  <label className="block"><span className="text-xs text-stone-500">Start date</span><input type="date" value={d.startDate || ""} onChange={(e) => setD({ ...d, startDate: e.target.value })} className={inputCls} /></label>
+                  <label className="block"><span className="text-xs text-stone-500">Holiday year</span><input value={d.holidayYear || ""} onChange={(e) => setD({ ...d, holidayYear: e.target.value })} className={inputCls} placeholder="1 April to 31 March" /></label>
+                  <label className="block"><span className="text-xs text-stone-500">Notice — Organisation</span><input value={d.noticePeriodEmployer || ""} onChange={(e) => setD({ ...d, noticePeriodEmployer: e.target.value })} className={inputCls} placeholder="e.g. 1 month" /></label>
+                  <label className="block"><span className="text-xs text-stone-500">Notice — Employee</span><input value={d.noticePeriodEmployee || ""} onChange={(e) => setD({ ...d, noticePeriodEmployee: e.target.value })} className={inputCls} placeholder="e.g. 1 month" /></label>
+                  <label className="block col-span-2"><span className="text-xs text-stone-500">Place of work</span><input value={d.placeOfWork || ""} onChange={(e) => setD({ ...d, placeOfWork: e.target.value })} className={inputCls} /></label>
+                </div>
                 <label className="block"><span className="text-xs text-stone-500">Additional duties / responsibilities</span><textarea rows={2} value={d.duties} onChange={(e) => setD({ ...d, duties: e.target.value })} className={inputCls} /></label>
                 <label className="block"><span className="text-xs text-stone-500">Holiday entitlement (days){m?.proRata ? " — pro-rata (5.6 weeks)" : ""}</span><input type="number" value={d.holidayDays} onChange={(e) => setD({ ...d, holidayDays: e.target.value })} className={inputCls} /></label>
                 <label className="block"><span className="text-xs text-stone-500">Probation period length</span><input value={d.probationLength} onChange={(e) => setD({ ...d, probationLength: e.target.value })} placeholder="e.g. 3 months" className={inputCls} /></label>
