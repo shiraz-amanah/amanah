@@ -17,6 +17,28 @@ export const TYPES = [
   { key: "contractor", label: "Self-employed contractor", desc: "Services agreement. IR35 aware. Not an employment relationship." },
 ];
 export const typeMeta = (k) => TYPES.find((t) => t.key === k) || TYPES[0];
+
+// Map a mosque_staff.employment_type onto a contract template key. Returns null
+// when there's no unambiguous match (caller then shows the template picker).
+// The 5 modal employment types all map; zero_hours/sessional are picker-only.
+export function employmentTypeToTemplate(empType) {
+  switch (empType) {
+    case "employed_full_time": return "full_time";
+    case "employed_part_time": return "part_time";
+    case "self_employed":      return "contractor";
+    case "volunteer":          return "volunteer";
+    case "contractor":         return "contractor";
+    default:                   return null; // ambiguous → picker
+  }
+}
+
+// Serialize built sections to a self-contained HTML string for storage as
+// contract.rendered_html (shown read-only in the wizard's Step 8). Escaped.
+export function sectionsToHtml(title, meta, sections) {
+  const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const body = sections.map((sec) => `<h4>${esc(sec.h)}</h4><p>${esc(sec.b)}</p>`).join("\n");
+  return `<section class="amanah-contract"><h2>${esc(title)}</h2><p class="meta">${esc(meta)}</p>\n${body}</section>`;
+}
 export const money = (pence) => (pence == null ? "£—" : `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`);
 export const fmt = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—");
 

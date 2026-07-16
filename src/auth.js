@@ -1428,6 +1428,53 @@ export async function createStaffWizardInvite({ mosqueId, name, email, path = 'r
   return { data: { staffId: staff.id, sessionId: sess.id, token: sess.token }, error: null }
 }
 
+// --- Onboarding contract (migration 148) ---
+// Owner-authed direct UPDATE (RLS "Owner manages onboarding sessions", 133).
+// Stores the auto-generated/edited contract JSONB so the wizard shows it at
+// Step 8. NEVER touches email (055 invariant).
+export async function setOnboardingSessionContract(sessionId, contract) {
+  if (!sessionId) return { error: { message: 'sessionId required' } }
+  const { data, error } = await supabase
+    .from('mosque_staff_onboarding_sessions')
+    .update({ contract }).eq('id', sessionId).select('id').single()
+  return { data, error }
+}
+
+// --- Mosque departments (migration 147) ---
+// Owner-only RLS. Default set is seeded APPLICATION-SIDE on first use (lazy
+// insert-if-empty) — not a trigger. Idempotent via the (mosque_id, lower(name))
+// unique index (147): a concurrent seeder / duplicate name collides harmlessly.
+const DEFAULT_DEPARTMENTS = ['Teaching', 'Administration', 'Maintenance', 'Governance', 'Finance', 'Safeguarding', 'Volunteers']
+
+export async function getMosqueDepartments(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase
+    .from('mosque_departments').select('id, name').eq('mosque_id', mosqueId).order('name', { ascending: true })
+  if (error) { console.error('getMosqueDepartments failed:', error); return [] }
+  return data || []
+}
+
+// Return the mosque's departments, lazily seeding the defaults on first use.
+export async function ensureMosqueDepartments(mosqueId) {
+  if (!mosqueId) return []
+  let list = await getMosqueDepartments(mosqueId)
+  if (list.length === 0) {
+    // Ignore insert errors (a racing seeder trips the unique index) — re-read wins.
+    await supabase.from('mosque_departments')
+      .insert(DEFAULT_DEPARTMENTS.map((name) => ({ mosque_id: mosqueId, name })))
+    list = await getMosqueDepartments(mosqueId)
+  }
+  return list
+}
+
+export async function addMosqueDepartment(mosqueId, name) {
+  const clean = (name || '').trim()
+  if (!mosqueId || !clean) return { data: null, error: { message: 'mosqueId and name required' } }
+  const { data, error } = await supabase
+    .from('mosque_departments').insert({ mosque_id: mosqueId, name: clean }).select('id, name').single()
+  return { data, error }
+}
+
 // Anon-callable (token is the auth). Hydration row for the wizard, or null.
 // NEVER returns bank_details; NI stripped (bank_details_saved / ni_saved flags instead).
 export async function getOnboardingSessionByToken(token) {

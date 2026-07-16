@@ -21,14 +21,20 @@ import { uploadStaffContractPdf } from "../lib/staffStorage";
 import { sendContractReadyToSign, sendContractSignedCopy } from "../lib/email";
 // Contract template core extracted to a shared lib (RBAC-E) so the Add-Staff
 // preview page + the remote wizard Step 8 render the identical contract.
-import { TYPES, typeMeta, fmt, buildSections, renderPdf } from "../lib/contractTemplates";
+import { TYPES, typeMeta, fmt, buildSections, renderPdf, sectionsToHtml } from "../lib/contractTemplates";
 
 const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-200";
 
-export default function StaffContractGenerator({ staffRow, mosque, authedUser, onClose }) { // eslint-disable-line no-unused-vars
-  const staffId = staffRow.id, mosqueId = mosque?.id;
-  const [step, setStep] = useState(1);
-  const [type, setType] = useState(null);
+// mode="sign" (default): the RBAC-C flow — pick type → disclaimer → edit → PDF
+// + in-person e-signature → file. mode="draft" (RBAC-E, from AddStaffModal):
+// pre-filled edit-only flow that returns an UNSIGNED contract via onSaveDraft
+// and never signs/uploads. staffRow is optional in draft mode (no staff row
+// exists yet at invite time).
+export default function StaffContractGenerator({ staffRow, mosque, authedUser, onClose, mode = "sign", initialType = null, initialData = null, onSaveDraft }) { // eslint-disable-line no-unused-vars
+  const isDraft = mode === "draft";
+  const staffId = staffRow?.id, mosqueId = mosque?.id;
+  const [step, setStep] = useState(isDraft && initialType ? 3 : 1);
+  const [type, setType] = useState(isDraft ? initialType : null);
   const [ack1, setAck1] = useState(false);
   const [ack2, setAck2] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -36,14 +42,18 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   const [err, setErr] = useState(null);
   const [note, setNote] = useState(null);
 
-  // auto-fill (loaded on entering step 3)
-  const [d, setD] = useState({
-    employeeName: staffRow.name, jobTitle: staffRow.jobTitle || staffRow.role, startDate: staffRow.startDate,
+  // auto-fill (loaded on entering step 3 in sign mode; from initialData in draft mode)
+  const [d, setD] = useState(() => ({
+    employeeName: initialData?.employeeName ?? staffRow?.name,
+    jobTitle: initialData?.jobTitle ?? staffRow?.jobTitle ?? staffRow?.role,
+    startDate: initialData?.startDate ?? staffRow?.startDate,
     mosqueName: mosque?.name, mosqueAddress: mosque?.address, mosqueCity: mosque?.city, mosquePostcode: mosque?.postcode,
     charityNumber: mosque?.registered_charity_number,
-    employeeAddress: "", salaryPence: null, hours: null, noticePeriod: null,
-    duties: "", holidayDays: 28, benefits: "", probationLength: "", specialClauses: "",
-  });
+    employeeAddress: initialData?.employeeAddress ?? "",
+    salaryPence: initialData?.salaryPence ?? null, hours: initialData?.hours ?? null, noticePeriod: initialData?.noticePeriod ?? null,
+    duties: initialData?.duties ?? "", holidayDays: initialData?.holidayDays ?? 28,
+    benefits: initialData?.benefits ?? "", probationLength: initialData?.probationLength ?? "", specialClauses: initialData?.specialClauses ?? "",
+  }));
 
   // signatures
   const [adminName, setAdminName] = useState("");
@@ -107,14 +117,24 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     setBusy(false); setDone(true);
   };
 
+  // Draft mode: hand the unsigned contract back to the caller (AddStaffModal),
+  // which stores it on the onboarding session. No signing / upload / email here.
+  const saveDraft = () => {
+    if (!type) return;
+    const secs = buildSections(type, d);
+    const html = sectionsToHtml(`${typeMeta(type).label} — ${d.employeeName || ""}`, meta, secs);
+    onSaveDraft?.({ template_id: type, fields: d, rendered_html: html });
+    onClose?.();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-          <h3 className="text-lg font-semibold text-stone-900 inline-flex items-center gap-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><FileSignature size={18} /> Generate contract</h3>
+          <h3 className="text-lg font-semibold text-stone-900 inline-flex items-center gap-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><FileSignature size={18} /> {isDraft ? "Edit contract" : "Generate contract"}</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
         </div>
-        <div className="px-5 pt-2 text-xs text-stone-400">Step {step} of 4 · {staffRow.name}</div>
+        <div className="px-5 pt-2 text-xs text-stone-400">{isDraft ? "Draft — signature is collected later at onboarding" : `Step ${step} of 4`}{d.employeeName ? ` · ${d.employeeName}` : ""}</div>
 
         <div className="p-5 space-y-3">
           {/* STEP 1 — type */}
@@ -122,7 +142,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
             <div className="space-y-2">
               <p className="text-sm text-stone-600 mb-1">Choose a contract type.</p>
               {TYPES.map((t) => (
-                <button key={t.key} onClick={() => { setType(t.key); setStep(2); }} className={`w-full text-left border rounded-xl p-3 hover:border-emerald-300 ${type === t.key ? "border-emerald-400 bg-emerald-50/40" : "border-stone-200"}`}>
+                <button key={t.key} onClick={() => { setType(t.key); setStep(isDraft ? 3 : 2); }} className={`w-full text-left border rounded-xl p-3 hover:border-emerald-300 ${type === t.key ? "border-emerald-400 bg-emerald-50/40" : "border-stone-200"}`}>
                   <div className="text-sm font-medium text-stone-900">{t.label}</div>
                   <p className="text-xs text-stone-500 mt-0.5">{t.desc}</p>
                 </button>
@@ -205,9 +225,11 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
         </div>
 
         <div className="flex items-center justify-between px-5 py-4 border-t border-stone-100">
-          <button onClick={step === 1 ? onClose : () => setStep((sp) => sp - 1)} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">{step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}</button>
+          <button onClick={step === 1 ? onClose : () => setStep(isDraft ? 1 : step - 1)} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">{step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}</button>
           {step === 2 && <button onClick={acceptDisclaimer} disabled={!ack1 || !ack2 || busy} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : null} I understand, continue <ArrowRight size={15} /></button>}
-          {step === 3 && <button onClick={() => setStep(4)} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5">Continue <ArrowRight size={15} /></button>}
+          {step === 3 && (isDraft
+            ? <button onClick={saveDraft} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Check size={15} /> Save contract</button>
+            : <button onClick={() => setStep(4)} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5">Continue <ArrowRight size={15} /></button>)}
           {step === 4 && done && <button onClick={onClose} className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg">Done</button>}
         </div>
       </div>
