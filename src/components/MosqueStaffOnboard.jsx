@@ -47,8 +47,8 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
 
   if (done) {
     return <Shell><Card icon={CheckCircle2} tone="emerald" title="All done — JazakAllahu khairan">
-      <p className="text-sm text-stone-600 mb-5">Your details have been submitted securely to {state.row?.mosque_name || "your mosque"}. There's nothing more to do.</p>
-      <button onClick={onBrowse} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
+      <p className="text-sm text-stone-600 mb-5">Your details have been submitted securely to {state.row?.mosque_name || "your mosque"}. Once your mosque approves them, you can sign in to your staff portal.</p>
+      <a href="/sign-in/staff" className="inline-block bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Sign in to your staff portal</a>
     </Card></Shell>;
   }
 

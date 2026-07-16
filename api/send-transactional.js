@@ -2160,7 +2160,7 @@ async function handleOnboardingReminder(env, token) {
 <p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;"><strong>${escapeHtml(wiz.mosque_name)}</strong> has asked you to complete your staff onboarding on Amanah — personal, right-to-work, DBS, employment and payroll details. It takes a few minutes and your information is held securely.</p>
 <p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Complete onboarding</a></p>
 <p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">This secure link expires in 7 days.</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.<br>If you weren't expecting this, you can ignore this email.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — mosque management, simplified.<br>If you weren't expecting this, you can ignore this email.</p>
 </div></body></html>`;
   const text = `Assalamu alaikum${wiz.staff_name ? ' ' + wiz.staff_name : ''},\n\n${wiz.mosque_name} has asked you to complete your staff onboarding on Amanah.\n\nComplete it here: ${onboardUrl}\n\nThis secure link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
 
@@ -2236,10 +2236,12 @@ async function handleOnboardingApproved(env, caller, sessionId) {
   const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <div style="max-width:480px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${nm},</p>
-<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team. There's nothing more you need to do.</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — trusted Muslim scholars and mosques.</p>
+<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team.</p>
+<p style="margin:0 0 16px;"><a href="${escapeHtml(env.PUBLIC_APP_URL + '/sign-in/staff')}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Sign in to your portal &rarr;</a></p>
+<p style="margin:0 0 24px;color:#44403c;font-size:14px;line-height:1.5;">Sign in with: <strong>${escapeHtml(sess.employee_email)}</strong></p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — mosque management, simplified.</p>
 </div></body></html>`;
-  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team. There's nothing more you need to do.\n\nJazakAllah khair.`;
+  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team.\n\nSign in to your staff portal any time: ${env.PUBLIC_APP_URL}/sign-in/staff\nSign in with: ${sess.employee_email}\n\nJazakAllah khair.`;
   const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });
   return { status: 200, body: { ok: true, id } };
 }

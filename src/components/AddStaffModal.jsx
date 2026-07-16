@@ -134,6 +134,11 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         const { data, error } = await createStaffWizardInvite({
           mosqueId, name: f.name.trim(), email: f.email.trim(),
           contract: contractPayload ? { ...contractPayload, employment_type: f.employmentType } : null,
+          // Seed the read-only Employment step of the remote wizard (RBAC-E C3).
+          employment: {
+            role: f.role, job_title: f.jobTitle || null, department: f.department || null,
+            employment_type: f.employmentType, start_date: f.startDate || null,
+          },
         });
         if (error || !data?.staffId) throw new Error(error?.message || "Could not create staff record");
         await updateMosqueStaff(data.staffId, base);
