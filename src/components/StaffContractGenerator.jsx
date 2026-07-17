@@ -37,9 +37,10 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   const [type, setType] = useState(isDraft ? initialType : null);
   const [ack1, setAck1] = useState(false);
   const [ack2, setAck2] = useState(false);
-  // Draft mode skips step 2 (the sign-mode disclaimer gate), so it carries its
-  // own not-legal-advice acknowledgement on the edit step, gating Save contract.
-  const [draftAck, setDraftAck] = useState(false);
+  // NOTE: draft mode has NO disclaimer gate here. "Save contract" doesn't send
+  // anything — it just returns the draft to AddStaffModal — so the not-legal-
+  // advice acknowledgement lives on that modal's "Review before sending" screen,
+  // gating the actual send. The step-2 gate below (ack1/ack2) is sign-mode only.
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -146,7 +147,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   // Draft mode: hand the unsigned contract back to the caller (AddStaffModal),
   // which stores it on the onboarding session. No signing / upload / email here.
   const saveDraft = () => {
-    if (!type || !draftAck) return;
+    if (!type) return;
     const secs = buildSections(type, d);
     const html = sectionsToHtml(`${typeMeta(type).label} — ${d.employeeName || ""}`, meta, secs);
     onSaveDraft?.({ template_id: type, fields: d, rendered_html: html });
@@ -234,12 +235,6 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
                 ))}
               </div>
             </div>
-            {isDraft && (
-              <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer">
-                <input type="checkbox" checked={draftAck} onChange={(e) => setDraftAck(e.target.checked)} className="mt-0.5 accent-emerald-600 shrink-0" />
-                <span>This is a template only, not legal advice. Please review carefully — Saveco Tech is not a law firm or HR provider and cannot guarantee this contract is legally complete for your situation.</span>
-              </label>
-            )}
             </>
           )}
 
@@ -287,7 +282,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
           <button onClick={step === 1 ? onClose : goBack} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">{step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}</button>
           {step === 2 && <button onClick={acceptDisclaimer} disabled={!ack1 || !ack2 || busy} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : null} I understand, continue <ArrowRight size={15} /></button>}
           {step === 3 && (isDraft
-            ? <button onClick={saveDraft} disabled={!draftAck} title={!draftAck ? "Tick the acknowledgement above to save" : undefined} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"><Check size={15} /> Save contract</button>
+            ? <button onClick={saveDraft} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Check size={15} /> Save contract</button>
             : <button onClick={() => setStep(4)} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5">Continue <ArrowRight size={15} /></button>)}
           {step === 4 && done && <button onClick={onClose} className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg">Done</button>}
         </div>

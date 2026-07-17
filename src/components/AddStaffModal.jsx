@@ -297,7 +297,7 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               <L label="Probation end"><input type="date" className={inputCls} value={f.probationEnd} onChange={(e) => set("probationEnd", e.target.value)} /></L>
               <p className="col-span-2 text-xs text-stone-400">
                 {path === "remote"
-                  ? "These fill in the draft contract on the next step, where you can review and edit every clause before sending. Leave blank to fill them in there instead."
+                  ? "These fill in the draft contract on the next step, where you can review and edit every clause before sending. Notice sets both the organisation's and the employee's notice period to start with — split them apart under Edit contract if they differ. Leave blank to fill them in there instead."
                   : "Salary and pay details are stored on the owner-only employment record and revealed only via the audited RPC."}
               </p>
             </div>
