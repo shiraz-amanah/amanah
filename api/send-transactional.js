@@ -1420,20 +1420,26 @@ async function handleContractSignedCopy(env, caller, staffId, contractType, sign
 
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. UNAUTHENTICATED intent (the staffer has no session). The
-// recipient is constrained server-side to a real mosque_staff row for that
-// email whose wizard_status='completed' (just submitted), so it can't spam
-// arbitrary addresses; the mosque name is resolved from the DB, not the client.
+// recipient is constrained server-side to a just-SUBMITTED onboarding session
+// for that email, so it can't spam arbitrary addresses; the mosque name is
+// resolved from the DB, not the client.
+//
+// RBAC-E fix: previously filtered mosque_staff.wizard_status='completed' — the
+// pre-RBAC-D stub-row model. submit_onboarding_session no longer writes that
+// column (it sets mosque_staff_onboarding_sessions.status='submitted'), so the
+// filter matched nothing and this confirmation email silently never sent. Now
+// resolves from the session model, exactly like the changes/approved handlers.
 async function handleStaffWizardSubmitted(env, email) {
   if (!email || typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
     return { status: 400, body: { ok: false, error: 'invalid_email' } };
   }
   const e = email.trim().toLowerCase();
-  const rows = await sbGet(env, `mosque_staff?email=eq.${encodeURIComponent(e)}&wizard_status=eq.completed&select=name,mosque_id&order=created_at.desc&limit=1`);
-  const staff = Array.isArray(rows) ? rows[0] : null;
-  if (!staff) return { status: 200, body: { ok: true, sent: 0 } }; // no match → silent no-op
-  const mrows = await sbGet(env, `mosques?id=eq.${staff.mosque_id}&select=name`);
+  const rows = await sbGet(env, `mosque_staff_onboarding_sessions?employee_email=eq.${encodeURIComponent(e)}&status=eq.submitted&select=employee_name,mosque_id&order=updated_at.desc&limit=1`);
+  const sess = Array.isArray(rows) ? rows[0] : null;
+  if (!sess) return { status: 200, body: { ok: true, sent: 0 } }; // no match → silent no-op
+  const mrows = await sbGet(env, `mosques?id=eq.${sess.mosque_id}&select=name`);
   const mosqueName = (Array.isArray(mrows) && mrows[0]?.name) || 'your mosque';
-  const inner = `${eGreeting(firstName(staff.name))}${eHeading('Onboarding received')}${ePara(`JazakAllah khair for completing your onboarding. Your details have been submitted to <strong>${escapeHtml(mosqueName)}</strong> for review.`)}${eSignoff}`;
+  const inner = `${eGreeting(firstName(sess.employee_name))}${eHeading('Onboarding received')}${ePara(`JazakAllah khair for completing your onboarding. Your details have been submitted to <strong>${escapeHtml(mosqueName)}</strong> for review.`)}${eSignoff}`;
   await sendEmail(env, { to: e, subject: `Onboarding received — ${mosqueName}`, html: wrapEmail('Onboarding received', inner) });
   return { status: 200, body: { ok: true, sent: 1 } };
 }

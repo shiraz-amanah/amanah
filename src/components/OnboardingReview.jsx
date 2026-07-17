@@ -53,6 +53,10 @@ function DetailModal({ session, onClose, onChanged }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  // Distinct from `err` (red = the action failed): amber = the action SUCCEEDED
+  // but the employee notification email did not. A silent email failure shown as
+  // success is what let the changes/approved emails go unnoticed.
+  const [warn, setWarn] = useState(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -70,23 +74,32 @@ function DetailModal({ session, onClose, onChanged }) {
     if (url) window.open(url, "_blank", "noopener"); else setErr(error || "Couldn't open document");
   };
 
-  const approve = async () => {
-    setBusy(true); setErr(null);
-    const r = await approveOnboardingSession(session.id);
+  // The state transition (approve / request-changes) is the source of truth and
+  // has already committed by the time we email. So on an email failure we do NOT
+  // revert — we refresh the parent list (the status DID change) and keep this
+  // panel open with an amber warning, rather than swallow it and show a false
+  // success. `sendFn` returns { ok } / { ok:false, error } from postTransactional.
+  const notifyOrWarn = async (sendFn, doneLabel) => {
+    const mail = await sendFn(session.id);
+    onChanged?.(); // the status change stands regardless of the email outcome
+    if (mail?.ok) { onClose?.(); return; }
     setBusy(false);
-    if (!r.ok) { setErr(r.error || "Approve failed"); return; }
-    sendOnboardingApproved(session.id).catch(() => {}); // fire-and-forget confirmation
-    onChanged?.(); onClose?.();
+    setWarn(`${doneLabel} — but the email to the employee couldn't be sent (${mail?.error || "unknown error"}). The change stands, but they have NOT been notified. Please contact them directly.`);
+  };
+
+  const approve = async () => {
+    setBusy(true); setErr(null); setWarn(null);
+    const r = await approveOnboardingSession(session.id);
+    if (!r.ok) { setBusy(false); setErr(r.error || "Approve failed"); return; }
+    await notifyOrWarn(sendOnboardingApproved, "Approved");
   };
 
   const requestChanges = async () => {
     if (!notes.trim()) { setErr("Add a note telling the employee what to fix."); return; }
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setWarn(null);
     const r = await requestOnboardingChanges(session.id, notes.trim());
-    setBusy(false);
-    if (!r.ok) { setErr(r.error || "Request failed"); return; }
-    sendOnboardingChangesRequested(session.id).catch(() => {}); // fire-and-forget: tells the employee to return
-    onChanged?.(); onClose?.();
+    if (!r.ok) { setBusy(false); setErr(r.error || "Request failed"); return; }
+    await notifyOrWarn(sendOnboardingChangesRequested, "Changes requested");
   };
 
   const p = full?.personal_details || {};
@@ -141,6 +154,7 @@ function DetailModal({ session, onClose, onChanged }) {
             ]} />
 
             {err && <p className="text-sm text-rose-600 flex items-center gap-1.5 mt-2"><AlertCircle size={14} /> {err}</p>}
+            {warn && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5 mt-2"><AlertCircle size={14} className="mt-0.5 shrink-0" /> {warn}</p>}
 
             {notesOpen ? (
               <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">
