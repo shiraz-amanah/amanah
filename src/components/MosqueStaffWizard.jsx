@@ -168,6 +168,9 @@ const MosqueStaffWizard = ({ token = null, mosque, prefillName = "", staffEmail 
       if (isEmpty(form.emergency_contact_name)) out.push("emergency contact name"); if (isEmpty(form.emergency_contact_phone)) out.push("emergency contact number"); }
     if (s === 2 && !form.rtw_na) { if (isEmpty(form.rtw_check_type)) out.push("RTW check type");
       if (isEmpty(form.rtw_document_type)) out.push("document type");
+      // UK RTW compliance expects a recorded check date for every non-volunteer
+      // check, regardless of document type (even permanent-RTW docs need one).
+      if (isEmpty(form.rtw_check_date)) out.push("check date");
       if (rtwHasExpiry && isEmpty(form.rtw_expiry_date)) out.push("document expiry date"); }
     if (s === 3 && !form.dbs_na) { if (isEmpty(form.dbs_check_type)) out.push("DBS check type");
       if (isEmpty(form.dbs_workforce_type)) out.push("workforce type"); }
@@ -217,14 +220,23 @@ const MosqueStaffWizard = ({ token = null, mosque, prefillName = "", staffEmail 
   const submit = async () => {
     setSaving(true); setError(null);
     const r = await submitOnboardingSession(token);
-    setSaving(false);
     if (!r.ok) {
+      setSaving(false);
       setError(r.error === "locked" ? "This onboarding link is no longer active — contact your mosque admin."
         : "Something went wrong submitting your details. Please try again.");
       return;
     }
-    if (staffEmail) sendStaffWizardSubmitted(staffEmail); // fire-and-forget
-    onDone?.();
+    // Submission is committed and is the source of truth. The confirmation email
+    // is best-effort — mirror the review-side hardening (OnboardingReview): if it
+    // fails we still complete, but surface it on the done screen so a silent email
+    // failure isn't presented as unqualified success.
+    let emailFailed = false;
+    if (staffEmail) {
+      const mail = await sendStaffWizardSubmitted(staffEmail);
+      emailFailed = !mail?.ok;
+    }
+    setSaving(false);
+    onDone?.({ emailFailed });
   };
 
   const toggleDay = (day) => setAvDays((ds) => ds.includes(day) ? ds.filter((x) => x !== day) : [...ds, day]);
@@ -285,7 +297,7 @@ const MosqueStaffWizard = ({ token = null, mosque, prefillName = "", staffEmail 
             </div>
             <Field label="Share code (if applicable)"><input className={inputCls} value={form.rtw_share_code} onChange={(e) => set("rtw_share_code", e.target.value)} /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Check date"><input type="date" className={inputCls} value={form.rtw_check_date} onChange={(e) => set("rtw_check_date", e.target.value)} /></Field>
+              <Field label="Check date" required><input type="date" className={inputCls} value={form.rtw_check_date} onChange={(e) => set("rtw_check_date", e.target.value)} /></Field>
               {rtwHasExpiry
                 ? <Field label="Document expiry date" required><input type="date" className={inputCls} value={form.rtw_expiry_date} onChange={(e) => set("rtw_expiry_date", e.target.value)} /></Field>
                 : <div className="flex items-end"><p className="text-xs text-stone-500 pb-2">No expiry — this document confers permanent right to work.</p></div>}
