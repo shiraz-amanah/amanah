@@ -60,6 +60,15 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   // Draft contract (remote path only), stored on the onboarding session on send.
   const [contract, setContract] = useState(null); // {template_id, employment_type, fields, rendered_html}
   const [editingContract, setEditingContract] = useState(false);
+  // Not-legal-advice acknowledgement. Gates the SEND action, not just the
+  // optional "Edit contract" screen — an admin happy with the auto-generated
+  // contract never opens the editor, so gating only there let the disclaimer be
+  // skipped on the majority path. Only meaningful when a contract template is
+  // actually attached (the "send without a template" branch has nothing to
+  // disclaim). StaffContractGenerator keeps its OWN ack on the edit screen.
+  const [contractAck, setContractAck] = useState(false);
+  const contractAttached = path === "remote" && !!contract?.template_id;
+  const sendBlocked = contractAttached && !contractAck;
 
   // Load (and lazily seed) departments once a path is chosen — both paths use
   // the dropdown on the details step.
@@ -142,6 +151,7 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   };
 
   const create = async () => {
+    if (sendBlocked) return; // belt-and-braces: the button is also disabled
     setBusy(true); setErr(null);
     try {
       const base = {
@@ -320,6 +330,14 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               <p className="text-xs text-stone-500">
                 Sends the self-onboarding invitation and attaches this contract for the employee to review and sign at the final onboarding step.
               </p>
+              {/* Gates the send button below. Shown only when a contract template
+                  is attached — with none, there's no template to disclaim. */}
+              {contractAttached && (
+                <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer">
+                  <input type="checkbox" checked={contractAck} onChange={(e) => setContractAck(e.target.checked)} className="mt-0.5 accent-emerald-600 shrink-0" />
+                  <span>This is a template only, not legal advice. Please review carefully — Saveco Tech is not a law firm or HR provider and cannot guarantee this contract is legally complete for your situation.</span>
+                </label>
+              )}
               {err && <p className="text-sm text-rose-600">{err}</p>}
               {emailWarn && <p className="text-sm text-amber-700">{emailWarn}</p>}
             </div>
@@ -363,8 +381,9 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               Continue <ArrowRight size={15} />
             </button>
           ) : (
-            <button onClick={create} disabled={busy || !basicValid}
-              className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">
+            <button onClick={create} disabled={busy || !basicValid || sendBlocked}
+              title={sendBlocked ? "Tick the acknowledgement above to send" : undefined}
+              className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
               {busy ? <Loader2 size={15} className="animate-spin" /> : path === "remote" ? <Send size={15} /> : <Users size={15} />}
               {path === "remote" ? "Looks good — send invitation" : "Create staff member"}
             </button>
