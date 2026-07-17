@@ -69,28 +69,49 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   }, [path, mosqueId, departments]);
 
   const basicValid = f.name.trim() && /\S+@\S+\.\S+/.test(f.email);
-  const lastStep = path === "inhouse" ? 4 : 3; // in-house: details→employment→review; remote: details→contract
+  // Both paths: 1 path → 2 details → 3 employment → 4 (contract | review).
+  // The remote path previously skipped the employment step, which is why the
+  // generated contract had no salary/hours to render (RBAC-E Commit 3b bug).
+  const lastStep = 4;
   const next = () => setStep((s) => Math.min(lastStep, s + 1));
   const back = () => {
-    if (path === "remote" && step === 3) setContract(null); // regen from current fields on re-entry
+    if (path === "remote" && step === 4) setContract(null); // regen from current fields on re-entry
     setStep((s) => Math.max(1, s - 1));
   };
 
   // Build the contract data object from the modal fields + mosque record.
-  const contractFields = () => ({
-    employeeName: f.name.trim(),
-    jobTitle: f.jobTitle || f.role,
-    startDate: f.startDate || null,
-    mosqueName: mosque?.name, mosqueAddress: mosque?.address, mosqueCity: mosque?.city, mosquePostcode: mosque?.postcode,
-    charityNumber: mosque?.registered_charity_number,
-    employeeAddress: "", salaryPence: null, hours: null, noticePeriod: null,
-    duties: "", holidayDays: 28, benefits: "", probationLength: "", specialClauses: "",
-  });
+  // Every value the admin typed on the employment step is carried through here —
+  // hardcoding salary/hours to null was what made the draft render "£— per year"
+  // and "Hours as agreed". Keys must stay in sync with StaffContractGenerator's
+  // `d` state, which is seeded from this object via initialData.
+  const contractFields = () => {
+    // The DB stores notice as a single integer (notice_period_days); the contract
+    // splits it into Organisation/Employee. Seed both sides from the one figure —
+    // they're independently editable in "Edit contract".
+    const notice = f.noticeDays !== "" ? `${f.noticeDays} days` : "";
+    return {
+      employeeName: f.name.trim(),
+      jobTitle: f.jobTitle || f.role,
+      startDate: f.startDate || null,
+      mosqueName: mosque?.name, mosqueAddress: mosque?.address, mosqueCity: mosque?.city, mosquePostcode: mosque?.postcode,
+      charityNumber: mosque?.registered_charity_number,
+      employeeAddress: "",
+      salaryPence: f.salaryGbp !== "" ? Math.round(Number(f.salaryGbp) * 100) : null,
+      hours: f.hoursPerWeek !== "" ? Number(f.hoursPerWeek) : null,
+      noticePeriod: f.noticeDays !== "" ? Number(f.noticeDays) : null,
+      duties: "", holidayDays: 28, benefits: "", probationLength: "", specialClauses: "",
+      // The six RBAC-E Commit 3b fields. Defaults mirror StaffContractGenerator's
+      // own fallbacks so the preview and the edit modal agree before any edit.
+      noticePeriodEmployer: notice, noticePeriodEmployee: notice,
+      holidayYear: "1 April to 31 March",
+      placeOfWork: [mosque?.address, mosque?.city, mosque?.postcode].filter(Boolean).join(", "),
+    };
+  };
   const contractMeta = (tmpl) => `${mosque?.name || ""} · ${typeMeta(tmpl).label} · drafted ${fmt(new Date().toISOString())}`;
 
   // Auto-generate the draft contract when the remote path reaches the contract page.
   useEffect(() => {
-    if (step !== 3 || path !== "remote" || contract) return;
+    if (step !== 4 || path !== "remote" || contract) return;
     const tmpl = employmentTypeToTemplate(f.employmentType);
     const fields = contractFields();
     if (tmpl) {
@@ -174,8 +195,11 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    {/* Backdrop does NOT close on click: this modal holds un-saved invite form
+        data (name/email/role/contract), and an accidental outside-click used to
+        discard the lot silently. Dismissal is explicit only — Cancel or the X. */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
           <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Add staff</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
@@ -229,14 +253,20 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
             </div>
           )}
 
-          {/* Step 3 (in-house) — employment details */}
-          {step === 3 && path === "inhouse" && (
+          {/* Step 3 — employment details (BOTH paths). In-house persists these to
+              mosque_staff_employment; the remote path feeds them into the draft
+              contract the employee reviews and signs. */}
+          {step === 3 && (
             <div className="grid grid-cols-2 gap-3">
               <L label="Salary (£ / year)"><input type="number" className={inputCls} value={f.salaryGbp} onChange={(e) => set("salaryGbp", e.target.value)} placeholder="e.g. 28000" /></L>
               <L label="Hours / week"><input type="number" className={inputCls} value={f.hoursPerWeek} onChange={(e) => set("hoursPerWeek", e.target.value)} /></L>
               <L label="Notice period (days)"><input type="number" className={inputCls} value={f.noticeDays} onChange={(e) => set("noticeDays", e.target.value)} /></L>
               <L label="Probation end"><input type="date" className={inputCls} value={f.probationEnd} onChange={(e) => set("probationEnd", e.target.value)} /></L>
-              <p className="col-span-2 text-xs text-stone-400">Salary and pay details are stored on the owner-only employment record and revealed only via the audited RPC.</p>
+              <p className="col-span-2 text-xs text-stone-400">
+                {path === "remote"
+                  ? "These fill in the draft contract on the next step, where you can review and edit every clause before sending. Leave blank to fill them in there instead."
+                  : "Salary and pay details are stored on the owner-only employment record and revealed only via the audited RPC."}
+              </p>
             </div>
           )}
 

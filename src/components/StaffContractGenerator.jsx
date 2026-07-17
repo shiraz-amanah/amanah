@@ -37,6 +37,9 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   const [type, setType] = useState(isDraft ? initialType : null);
   const [ack1, setAck1] = useState(false);
   const [ack2, setAck2] = useState(false);
+  // Draft mode skips step 2 (the sign-mode disclaimer gate), so it carries its
+  // own not-legal-advice acknowledgement on the edit step, gating Save contract.
+  const [draftAck, setDraftAck] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -124,16 +127,19 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   // Draft mode: hand the unsigned contract back to the caller (AddStaffModal),
   // which stores it on the onboarding session. No signing / upload / email here.
   const saveDraft = () => {
-    if (!type) return;
+    if (!type || !draftAck) return;
     const secs = buildSections(type, d);
     const html = sectionsToHtml(`${typeMeta(type).label} — ${d.employeeName || ""}`, meta, secs);
     onSaveDraft?.({ template_id: type, fields: d, rendered_html: html });
     onClose?.();
   };
 
+  // Backdrop does NOT close on click — the edit step holds un-saved contract
+  // fields, and an outside-click used to discard them silently. Explicit
+  // dismissal only (Cancel / X). Matches AddStaffModal.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
           <h3 className="text-lg font-semibold text-stone-900 inline-flex items-center gap-2" style={{ fontFamily: "'Fraunces', Georgia, serif" }}><FileSignature size={18} /> {isDraft ? "Edit contract" : "Generate contract"}</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
@@ -168,6 +174,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
 
           {/* STEP 3 — review + edit */}
           {step === 3 && (
+            <>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2.5">
                 <div className="text-sm font-medium text-stone-700">Edit</div>
@@ -195,6 +202,13 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
                 ))}
               </div>
             </div>
+            {isDraft && (
+              <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer">
+                <input type="checkbox" checked={draftAck} onChange={(e) => setDraftAck(e.target.checked)} className="mt-0.5 accent-emerald-600 shrink-0" />
+                <span>This is a template only, not legal advice. Please review carefully — Saveco Tech is not a law firm or HR provider and cannot guarantee this contract is legally complete for your situation.</span>
+              </label>
+            )}
+            </>
           )}
 
           {/* STEP 4 — PDF + e-signature */}
@@ -241,7 +255,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
           <button onClick={step === 1 ? onClose : () => setStep(isDraft ? 1 : step - 1)} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">{step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}</button>
           {step === 2 && <button onClick={acceptDisclaimer} disabled={!ack1 || !ack2 || busy} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : null} I understand, continue <ArrowRight size={15} /></button>}
           {step === 3 && (isDraft
-            ? <button onClick={saveDraft} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5"><Check size={15} /> Save contract</button>
+            ? <button onClick={saveDraft} disabled={!draftAck} title={!draftAck ? "Tick the acknowledgement above to save" : undefined} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"><Check size={15} /> Save contract</button>
             : <button onClick={() => setStep(4)} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5">Continue <ArrowRight size={15} /></button>)}
           {step === 4 && done && <button onClick={onClose} className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg">Done</button>}
         </div>
