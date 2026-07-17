@@ -136,7 +136,23 @@ Reported as: "Edit contract" shows the OLD field set, not the six fields from `a
 - **Draft-mode disclaimer** — draft mode opens at step 3 and so **skipped the step-2 liability gate entirely**; it had NO disclaimer. Added a required not-legal-advice acknowledgement gating Save (disabled button + handler guard).
 
 ### Zero-hours (migration 151) — the migration was ~20% of the job
-`151_staff_employment_type_zero_hours.sql` widens `mosque_staff_employment_type_check` to admit `zero_hours`. **`sessional` deliberately excluded** — its template exists but renders generic salaried wording, so surfacing it would ship a half-built contract; re-widening later is a drop+add and costs nothing.
+**STATUS: applied + probed green on DEV (17 July 2026). NOT yet applied to PROD.** `mosque_staff.employment_type` and `mosque_staff_employment.hourly_rate_pence` therefore DIFFER between dev and prod until 151 runs on prod — and `EMP_TYPES` in `AddStaffModal` already offers `zero_hours`, so **shipping this branch to prod before 151 lands there will 23514 on save.**
+
+`151_staff_employment_type_zero_hours.sql` widens `mosque_staff_employment_type_check` to admit `zero_hours` and adds `mosque_staff_employment.hourly_rate_pence`. **`sessional` deliberately excluded** — its template exists but renders generic salaried wording, so surfacing it would ship a half-built contract; re-widening later is a drop+add and costs nothing.
+
+Applied to dev with `psql "$DEV_DATABASE_URL" -f migrations/151_…sql` (asserted `pbejyukihhmybxxtheqq` in-command first). Raw before/after:
+```
+BEFORE  CHECK ((employment_type = ANY (ARRAY['employed_full_time'::text, 'employed_part_time'::text,
+                'self_employed'::text, 'volunteer'::text, 'contractor'::text])))
+BEFORE  hourly_rate_pence -> (0 rows)
+
+AFTER   CHECK ((employment_type = ANY (ARRAY['employed_full_time'::text, 'employed_part_time'::text,
+                'self_employed'::text, 'volunteer'::text, 'contractor'::text, 'zero_hours'::text])))
+AFTER   column_name=hourly_rate_pence  data_type=integer  is_nullable=YES  column_default=(none)
+AFTER   rls_enabled: mosque_staff=t, mosque_staff_employment=t
+AFTER   existing rows: (null)=6, employed_part_time=1  -> none violate the new list
+```
+Behavioural re-probe after apply: `zero_hours` flipped **23514 → 23503** (now passes the CHECK, dies only on the deliberate bogus FK), while `sessional` and the `nonsense_value` control **stayed 23514** — proving the constraint still enforces and the change is exactly as scoped, not a blanket loosening. PostgREST schema cache confirmed reloaded (`hourly_rate_pence` selectable via REST).
 
 Constraint name **verified against live dev**, not inferred (per the LOCKED rule below). Raw probe output, dev `pbejyukihhmybxxtheqq`, insert into `mosque_staff` with a bogus `mosque_id`:
 ```
@@ -157,7 +173,7 @@ nonsense_value       code=23514  new row for relation "mosque_staff" violates ch
 **GAP — the remote path never persists salary/hours to `mosque_staff_employment`. NOT FIXED.**
 `create()` writes the employment record on the in-house path only. The admin now types a salary on the remote path, it reaches the contract, and the HR record stays blank. Fixing it means a new DB write on the remote path (owner-only RLS, so safe) — deliberately out of scope for the click-test follow-up. Related: the wizard's `employment_details` is returned by the **by-token** RPC, so salary must NOT be seeded there without a deliberate exposure decision.
 
-**OPEN DECISION — the zero-hours hourly rate has no column.** `mosque_staff_employment` has `salary_pence` only (128); the sole `hourly_rate` in the schema is on facilities (105), unrelated. The rate currently lives on the **contract only** (fields JSON + PDF). Either add `hourly_rate_pence` to `mosque_staff_employment` or accept contract-as-record-of-pay-terms. In-house zero-hours writes are guarded so a stale annual salary can't land on a casual-worker record.
+**RESOLVED — the zero-hours hourly rate now has a column.** `mosque_staff_employment` had `salary_pence` only (128); the schema's other `hourly_rate` is on facilities (105), unrelated, so the rate had nowhere to live but the contract JSON. **151 adds `hourly_rate_pence integer` (nullable)** — deliberately on `mosque_staff_employment`, NOT `mosque_staff`, so it inherits 060's owner+admin-only RLS (same reasoning that kept `salary_pence` off the publicly-readable table). The in-house path writes it. **The remote path still doesn't** — same gap as salary, below. Writes are guarded both ways: the two pay models are mutually exclusive, and switching type leaves the other side's value in state.
 
 **PARKED — outside-click data loss in ~13 other modals.** Same pattern, deliberately not swept (Shiraz's scope call — they're surfaces he hasn't click-tested): `BulkParentMessageModal`, `MadrasaEnrolWizard`, `MosqueCoverRequest`, `MadrasaImportStudents`, `MosqueBulkImport`, `GrantAccessModal`, `MessageModal`, `MosqueClaimModal`, `OffboardingFlow`, `MosqueDonateModal`, `MadrasaFees`, `OnboardingReview`, and `MadrasaReportView` (read-only — arguably fine as-is).
 

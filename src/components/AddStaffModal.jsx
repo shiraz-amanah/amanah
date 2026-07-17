@@ -187,14 +187,14 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         });
         if (error || !data?.id) throw new Error(error?.message || "Could not create staff record");
         const emp = {};
-        // Guarded on !isZeroHours: switching the type to zero-hours leaves any
-        // previously-typed salary/hours in state, and persisting them would put
-        // an annual salary + contracted hours on a casual-worker record.
-        // NOTE: the zero-hours hourly rate has NO column on
-        // mosque_staff_employment (128 has salary_pence only) — it currently
-        // lives on the contract only. Logged as a follow-up in NOTES.md.
+        // Guarded on isZeroHours both ways: the two pay models are mutually
+        // exclusive, and switching type leaves the other side's value in state —
+        // persisting it would put an annual salary + contracted hours on a
+        // casual-worker record (or a rate on a salaried one).
+        // hourly_rate_pence landed on mosque_staff_employment in migration 151.
         if (!isZeroHours && f.salaryGbp !== "") emp.salary_pence = Math.round(Number(f.salaryGbp) * 100);
         if (!isZeroHours && f.hoursPerWeek !== "") emp.hours_per_week = Number(f.hoursPerWeek);
+        if (isZeroHours && f.hourlyRateGbp !== "") emp.hourly_rate_pence = Math.round(Number(f.hourlyRateGbp) * 100);
         if (f.noticeDays !== "") emp.notice_period_days = Number(f.noticeDays);
         if (f.probationEnd) emp.probation_end_date = f.probationEnd;
         if (Object.keys(emp).length) await upsertMosqueStaffEmployment(data.id, mosqueId, emp);
