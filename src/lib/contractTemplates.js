@@ -58,7 +58,7 @@ export function buildSections(type, d) {
   // "Employment begins" would contradict the Worker status asserted in clause 1
   // for zero-hours. The ERA 1996 written-statement line stays for both: since
   // April 2020 that day-one right extends to workers, not just employees.
-  if (!isVol && !isContractor) s.push({ h: "3. Commencement & probation", b: `${isZero ? "This engagement" : "Employment"} begins on ${fmt(d.startDate)}.${d.probationLength ? ` A probationary period of ${d.probationLength} applies.` : ""} This written statement is provided as your day-one right under the Employment Rights Act 1996.` });
+  if (!isVol && !isContractor) s.push({ h: "3. Commencement & probation", b: `${isZero ? "This engagement" : "Employment"} begins on ${fmt(d.startDate)}.${d.probationEndDate ? ` A probationary period applies until ${fmt(d.probationEndDate)}.` : ""} This written statement is provided as your day-one right under the Employment Rights Act 1996.` });
   if (isVol) {
     s.push({ h: "3. Nature of the arrangement", b: "This is a voluntary arrangement and NOT a contract of employment. There is no mutuality of obligation: the Organisation is not obliged to provide work and the Volunteer is not obliged to accept it. No wage or salary is payable; reasonable pre-agreed out-of-pocket expenses may be reimbursed on production of receipts." });
   } else if (isContractor) {

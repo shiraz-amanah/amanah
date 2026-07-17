@@ -58,7 +58,10 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     // Zero-hours is paid hourly, not on an annual salary (migration 151).
     hourlyRatePence: initialData?.hourlyRatePence ?? null,
     duties: initialData?.duties ?? "", holidayDays: initialData?.holidayDays ?? 28,
-    benefits: initialData?.benefits ?? "", probationLength: initialData?.probationLength ?? "", specialClauses: initialData?.specialClauses ?? "",
+    benefits: initialData?.benefits ?? "", specialClauses: initialData?.specialClauses ?? "",
+    // Probation is a date (end of the probationary period) — one shape across
+    // AddStaffModal, this editor, the contract clause, and the DB column.
+    probationEndDate: initialData?.probationEndDate ?? "",
     // RBAC-E Commit 3: the six added editable contract fields.
     noticePeriodEmployer: initialData?.noticePeriodEmployer ?? "", noticePeriodEmployee: initialData?.noticePeriodEmployee ?? "",
     holidayYear: initialData?.holidayYear ?? "1 April to 31 March",
@@ -92,6 +95,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
         salaryPence: salaryPence ?? null,
         hours: emp?.hours_per_week ?? null,
         noticePeriod: emp?.notice_period_days ?? null,
+        probationEndDate: emp?.probation_end_date ?? "",
         employeeAddress: sens?.data?.address && sens.data.address !== "[REDACTED]" ? sens.data.address : "",
       }));
       setLoaded(true);
@@ -220,7 +224,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
                 {/* Zero-hours holiday accrues with hours worked (12.07%), so
                     buildSections ignores holidayDays — don't offer a dead field. */}
                 {!isZeroType && <label className="block"><span className="text-xs text-stone-500">Holiday entitlement (days){m?.proRata ? " — pro-rata (5.6 weeks)" : ""}</span><input type="number" value={d.holidayDays} onChange={(e) => setD({ ...d, holidayDays: e.target.value })} className={inputCls} /></label>}
-                <label className="block"><span className="text-xs text-stone-500">Probation period length</span><input value={d.probationLength} onChange={(e) => setD({ ...d, probationLength: e.target.value })} placeholder="e.g. 3 months" className={inputCls} /></label>
+                <label className="block"><span className="text-xs text-stone-500">Probation end date</span><input type="date" value={d.probationEndDate || ""} onChange={(e) => setD({ ...d, probationEndDate: e.target.value })} className={inputCls} /></label>
                 <label className="block"><span className="text-xs text-stone-500">Additional benefits</span><input value={d.benefits} onChange={(e) => setD({ ...d, benefits: e.target.value })} className={inputCls} /></label>
                 <label className="block"><span className="text-xs text-stone-500">Special clauses</span><textarea rows={2} value={d.specialClauses} onChange={(e) => setD({ ...d, specialClauses: e.target.value })} className={inputCls} /></label>
                 {m?.proRata && <p className="text-xs text-amber-700">{isZeroType

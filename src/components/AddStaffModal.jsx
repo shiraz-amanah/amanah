@@ -116,7 +116,12 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
       hourlyRatePence: isZeroHours && f.hourlyRateGbp !== "" ? Math.round(Number(f.hourlyRateGbp) * 100) : null,
       hours: !isZeroHours && f.hoursPerWeek !== "" ? Number(f.hoursPerWeek) : null,
       noticePeriod: f.noticeDays !== "" ? Number(f.noticeDays) : null,
-      duties: "", holidayDays: 28, benefits: "", probationLength: "", specialClauses: "",
+      duties: "", holidayDays: 28, benefits: "", specialClauses: "",
+      // Probation is a DATE end-of-period everywhere (the DB column, this input,
+      // the contract clause, the Edit screen) — was previously dropped here
+      // (hardcoded probationLength: ""), so the admin's "Probation end" never
+      // reached the contract on the remote path. Now carried through.
+      probationEndDate: f.probationEnd || null,
       // The six RBAC-E Commit 3b fields. Defaults mirror StaffContractGenerator's
       // own fallbacks so the preview and the edit modal agree before any edit.
       noticePeriodEmployer: notice, noticePeriodEmployee: notice,
