@@ -166,6 +166,11 @@ nonsense_value       code=23514  new row for relation "mosque_staff" violates ch
 
 **Contract wording** — only clause 5 (Hours) was genuinely built for zero-hours; the rest read as a salaried contract. Fixed: **Pay** (was rendering a bare `£12,000` with NO unit — `" per year"` is gated on `full_time` — now an hourly-rate clause + NMW floor), **Holiday** (was a flat "28 days", meaningless for irregular hours — now 12.07% accrual), **Parties** (was `"the Employee"` — now `"the Worker"`, matching the template's own `desc`). Also `"Employment begins"` → `"This engagement begins"`. The ERA-1996 written-statement line stays for both — that day-one right extends to workers since April 2020.
 
+### Back-from-editor landed on the wrong screen (click-test, fixed)
+Repro: Add staff → "Zero hours" → through to Review → "Edit contract" (opens the field editor at step 3, correct) → **Back landed on the "Choose a contract type" step, not Review.** Cause: `StaffContractGenerator`'s footer Back did `setStep(isDraft ? 1 : step - 1)` → `setStep(1)` unconditionally in draft mode, but the editor was opened *directly at step 3* (a sub-modal over AddStaffModal's Review screen), so it walked into a chooser step this entry never came through. Fixed with a `goBack()` that mirrors the entry path: draft opened-at-edit (`initialType` set) → `onClose()` (reveals Review); draft opened-via-chooser (`initialType` null) → `setStep(1)`; sign mode → `setStep(step-1)` (unchanged, StaffProfile relies on it).
+
+The reported **"Part-time highlighted on that screen" was NOT a selection-state bug** — `type` correctly held `zero_hours`, so `type === t.key` highlighted zero_hours; the confusion was CSS: `hover:border-emerald-300` applied to every button and the selected style (`border-emerald-400` + faint bg) was too close to it, so a grazed neighbour read as selected. Hardened: selected now = `border-emerald-500 bg-emerald-50 ring-1`, hover confined to unselected. With the Back fix, scenario A no longer surfaces step 1 at all; the highlight hardening covers the paths where step 1 IS legitimately reached (sign mode; the no-template chooser).
+
 ### Known bugs / follow-ups logged this session
 
 **BUG — every contract signer is labelled "Employee", including volunteers and contractors. NOT FIXED — next small commit.**

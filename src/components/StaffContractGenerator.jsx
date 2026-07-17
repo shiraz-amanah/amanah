@@ -109,6 +109,20 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     return { doc, docId };
   };
 
+  // Back from the current step. Draft mode has two entry paths and Back must
+  // mirror whichever one was used:
+  //  - opened directly at the edit step (a template was pre-matched, so `step`
+  //    inits to 3 and `initialType` is set) — the editor is a sub-modal over
+  //    AddStaffModal's Review screen, so Back closes it and reveals that screen.
+  //    It must NOT walk into step 1, a chooser this entry never came through.
+  //  - opened via the type chooser (no template matched, `initialType` null,
+  //    opens at step 1) — Back from the editor returns to that chooser.
+  // Sign mode is a normal linear wizard: Back is just the previous step.
+  const goBack = () => {
+    if (!isDraft) return setStep(step - 1);
+    if (initialType) return onClose?.();
+    setStep(1);
+  };
   const now = () => new Date().toLocaleString("en-GB");
   const signAdmin = () => { if (!adminName.trim()) return; setAdminSig({ name: adminName.trim(), role: "Mosque representative", at: now() }); };
   const signEmployee = () => { if (!empName.trim()) return; setEmpSig({ name: empName.trim(), role: m?.employee === false ? "Contractor/Volunteer" : "Employee", at: now() }); };
@@ -157,7 +171,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
             <div className="space-y-2">
               <p className="text-sm text-stone-600 mb-1">Choose a contract type.</p>
               {TYPES.map((t) => (
-                <button key={t.key} onClick={() => { setType(t.key); setStep(isDraft ? 3 : 2); }} className={`w-full text-left border rounded-xl p-3 hover:border-emerald-300 ${type === t.key ? "border-emerald-400 bg-emerald-50/40" : "border-stone-200"}`}>
+                <button key={t.key} onClick={() => { setType(t.key); setStep(isDraft ? 3 : 2); }} className={`w-full text-left border rounded-xl p-3 ${type === t.key ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400" : "border-stone-200 hover:border-emerald-300"}`}>
                   <div className="text-sm font-medium text-stone-900">{t.label}</div>
                   <p className="text-xs text-stone-500 mt-0.5">{t.desc}</p>
                 </button>
@@ -270,7 +284,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
         </div>
 
         <div className="flex items-center justify-between px-5 py-4 border-t border-stone-100">
-          <button onClick={step === 1 ? onClose : () => setStep(isDraft ? 1 : step - 1)} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">{step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}</button>
+          <button onClick={step === 1 ? onClose : goBack} className="text-sm text-stone-500 hover:text-stone-800 inline-flex items-center gap-1.5">{step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}</button>
           {step === 2 && <button onClick={acceptDisclaimer} disabled={!ack1 || !ack2 || busy} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : null} I understand, continue <ArrowRight size={15} /></button>}
           {step === 3 && (isDraft
             ? <button onClick={saveDraft} disabled={!draftAck} title={!draftAck ? "Tick the acknowledgement above to save" : undefined} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"><Check size={15} /> Save contract</button>
