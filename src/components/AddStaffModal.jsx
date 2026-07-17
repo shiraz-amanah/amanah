@@ -25,8 +25,11 @@ import StaffContractGenerator from "./StaffContractGenerator";
 import { buildSections, typeMeta, fmt, sectionsToHtml, employmentTypeToTemplate } from "../lib/contractTemplates";
 
 const ROLES = ["Teacher", "Coordinator", "Imam", "Administrator", "Receptionist", "Treasurer", "Other"];
+// Values are constrained by mosque_staff_employment_type_check — 'zero_hours'
+// requires migration 151. Do NOT add a value here before its migration is in prod.
 const EMP_TYPES = [
   ["employed_full_time", "Employed — full time"], ["employed_part_time", "Employed — part time"],
+  ["zero_hours", "Zero hours (casual)"],
   ["self_employed", "Self-employed"], ["volunteer", "Volunteer"], ["contractor", "Contractor"],
 ];
 const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-200";
@@ -44,8 +47,9 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   const [f, setF] = useState({
     name: "", email: "", role: defaultEmploymentType === "volunteer" ? "Other" : "Teacher", jobTitle: "", department: "",
     employmentType: defaultEmploymentType || "employed_part_time", startDate: "",
-    salaryGbp: "", hoursPerWeek: "", noticeDays: "", probationEnd: "",
+    salaryGbp: "", hourlyRateGbp: "", hoursPerWeek: "", noticeDays: "", probationEnd: "",
   });
+  const isZeroHours = f.employmentType === "zero_hours";
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
   // Departments (migration 147) — lazily seeded on first use for this mosque.
@@ -96,8 +100,12 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
       mosqueName: mosque?.name, mosqueAddress: mosque?.address, mosqueCity: mosque?.city, mosquePostcode: mosque?.postcode,
       charityNumber: mosque?.registered_charity_number,
       employeeAddress: "",
-      salaryPence: f.salaryGbp !== "" ? Math.round(Number(f.salaryGbp) * 100) : null,
-      hours: f.hoursPerWeek !== "" ? Number(f.hoursPerWeek) : null,
+      // Zero-hours has no annual salary and no contracted weekly hours; it carries
+      // an hourly rate instead. Keep the unused side null so the template can't
+      // render an annual figure on a casual-worker contract.
+      salaryPence: !isZeroHours && f.salaryGbp !== "" ? Math.round(Number(f.salaryGbp) * 100) : null,
+      hourlyRatePence: isZeroHours && f.hourlyRateGbp !== "" ? Math.round(Number(f.hourlyRateGbp) * 100) : null,
+      hours: !isZeroHours && f.hoursPerWeek !== "" ? Number(f.hoursPerWeek) : null,
       noticePeriod: f.noticeDays !== "" ? Number(f.noticeDays) : null,
       duties: "", holidayDays: 28, benefits: "", probationLength: "", specialClauses: "",
       // The six RBAC-E Commit 3b fields. Defaults mirror StaffContractGenerator's
@@ -179,8 +187,14 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         });
         if (error || !data?.id) throw new Error(error?.message || "Could not create staff record");
         const emp = {};
-        if (f.salaryGbp !== "") emp.salary_pence = Math.round(Number(f.salaryGbp) * 100);
-        if (f.hoursPerWeek !== "") emp.hours_per_week = Number(f.hoursPerWeek);
+        // Guarded on !isZeroHours: switching the type to zero-hours leaves any
+        // previously-typed salary/hours in state, and persisting them would put
+        // an annual salary + contracted hours on a casual-worker record.
+        // NOTE: the zero-hours hourly rate has NO column on
+        // mosque_staff_employment (128 has salary_pence only) — it currently
+        // lives on the contract only. Logged as a follow-up in NOTES.md.
+        if (!isZeroHours && f.salaryGbp !== "") emp.salary_pence = Math.round(Number(f.salaryGbp) * 100);
+        if (!isZeroHours && f.hoursPerWeek !== "") emp.hours_per_week = Number(f.hoursPerWeek);
         if (f.noticeDays !== "") emp.notice_period_days = Number(f.noticeDays);
         if (f.probationEnd) emp.probation_end_date = f.probationEnd;
         if (Object.keys(emp).length) await upsertMosqueStaffEmployment(data.id, mosqueId, emp);
@@ -258,8 +272,17 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               contract the employee reviews and signs. */}
           {step === 3 && (
             <div className="grid grid-cols-2 gap-3">
-              <L label="Salary (£ / year)"><input type="number" className={inputCls} value={f.salaryGbp} onChange={(e) => set("salaryGbp", e.target.value)} placeholder="e.g. 28000" /></L>
-              <L label="Hours / week"><input type="number" className={inputCls} value={f.hoursPerWeek} onChange={(e) => set("hoursPerWeek", e.target.value)} /></L>
+              {isZeroHours ? (
+                <>
+                  <L label="Hourly rate (£ / hour)"><input type="number" step="0.01" className={inputCls} value={f.hourlyRateGbp} onChange={(e) => set("hourlyRateGbp", e.target.value)} placeholder="e.g. 12.50" /></L>
+                  <p className="self-end pb-2 text-xs text-stone-400 leading-snug">No guaranteed hours — pay follows the hours actually worked.</p>
+                </>
+              ) : (
+                <>
+                  <L label="Salary (£ / year)"><input type="number" className={inputCls} value={f.salaryGbp} onChange={(e) => set("salaryGbp", e.target.value)} placeholder="e.g. 28000" /></L>
+                  <L label="Hours / week"><input type="number" className={inputCls} value={f.hoursPerWeek} onChange={(e) => set("hoursPerWeek", e.target.value)} /></L>
+                </>
+              )}
               <L label="Notice period (days)"><input type="number" className={inputCls} value={f.noticeDays} onChange={(e) => set("noticeDays", e.target.value)} /></L>
               <L label="Probation end"><input type="date" className={inputCls} value={f.probationEnd} onChange={(e) => set("probationEnd", e.target.value)} /></L>
               <p className="col-span-2 text-xs text-stone-400">
@@ -311,7 +334,9 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
                 <div><span className="text-stone-400">Name:</span> {f.name} · {f.email}</div>
                 <div><span className="text-stone-400">Role:</span> {f.role}{f.jobTitle && ` · ${f.jobTitle}`}{f.department && ` · ${f.department}`}</div>
                 <div><span className="text-stone-400">Type:</span> {EMP_TYPES.find(([v]) => v === f.employmentType)?.[1]}{f.startDate && ` · starts ${f.startDate}`}</div>
-                {f.salaryGbp && <div><span className="text-stone-400">Salary:</span> £{Number(f.salaryGbp).toLocaleString("en-GB")}/yr</div>}
+                {isZeroHours
+                  ? f.hourlyRateGbp && <div><span className="text-stone-400">Rate:</span> £{Number(f.hourlyRateGbp).toFixed(2)}/hour · no guaranteed hours</div>
+                  : f.salaryGbp && <div><span className="text-stone-400">Salary:</span> £{Number(f.salaryGbp).toLocaleString("en-GB")}/yr</div>}
               </div>
               <p className="text-xs text-stone-500">Creates the staff record (status: Active). You can record RTW, DBS and grant dashboard access from their profile.</p>
               {err && <p className="text-sm text-rose-600">{err}</p>}

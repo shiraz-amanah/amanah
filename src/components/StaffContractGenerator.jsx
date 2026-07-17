@@ -54,6 +54,8 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     charityNumber: mosque?.registered_charity_number,
     employeeAddress: initialData?.employeeAddress ?? "",
     salaryPence: initialData?.salaryPence ?? null, hours: initialData?.hours ?? null, noticePeriod: initialData?.noticePeriod ?? null,
+    // Zero-hours is paid hourly, not on an annual salary (migration 151).
+    hourlyRatePence: initialData?.hourlyRatePence ?? null,
     duties: initialData?.duties ?? "", holidayDays: initialData?.holidayDays ?? 28,
     benefits: initialData?.benefits ?? "", probationLength: initialData?.probationLength ?? "", specialClauses: initialData?.specialClauses ?? "",
     // RBAC-E Commit 3: the six added editable contract fields.
@@ -71,6 +73,9 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   const [done, setDone] = useState(false);
 
   const m = type ? typeMeta(type) : null;
+  // Zero-hours has no annual salary and no contracted weekly hours — the edit
+  // step swaps both inputs for an hourly rate so neither field dangles.
+  const isZeroType = type === "zero_hours";
   const sections = useMemo(() => (type ? buildSections(type, d) : []), [type, d]);
   const meta = `${d.mosqueName || ""} · ${typeMeta(type || "full_time").label} · drafted ${fmt(new Date().toISOString())}`;
 
@@ -179,8 +184,17 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
               <div className="space-y-2.5">
                 <div className="text-sm font-medium text-stone-700">Edit</div>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <label className="block"><span className="text-xs text-stone-500">Salary (£ / year)</span><input type="number" value={d.salaryPence != null ? d.salaryPence / 100 : ""} onChange={(e) => setD({ ...d, salaryPence: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} className={inputCls} placeholder="e.g. 28000" /></label>
-                  <label className="block"><span className="text-xs text-stone-500">Contracted hours / week</span><input type="number" value={d.hours ?? ""} onChange={(e) => setD({ ...d, hours: e.target.value === "" ? null : Number(e.target.value) })} className={inputCls} /></label>
+                  {isZeroType ? (
+                    <>
+                      <label className="block"><span className="text-xs text-stone-500">Hourly rate (£ / hour)</span><input type="number" step="0.01" value={d.hourlyRatePence != null ? d.hourlyRatePence / 100 : ""} onChange={(e) => setD({ ...d, hourlyRatePence: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} className={inputCls} placeholder="e.g. 12.50" /></label>
+                      <div className="text-xs text-stone-400 self-end pb-2 leading-snug">No contracted hours — pay follows hours actually worked.</div>
+                    </>
+                  ) : (
+                    <>
+                      <label className="block"><span className="text-xs text-stone-500">Salary (£ / year)</span><input type="number" value={d.salaryPence != null ? d.salaryPence / 100 : ""} onChange={(e) => setD({ ...d, salaryPence: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} className={inputCls} placeholder="e.g. 28000" /></label>
+                      <label className="block"><span className="text-xs text-stone-500">Contracted hours / week</span><input type="number" value={d.hours ?? ""} onChange={(e) => setD({ ...d, hours: e.target.value === "" ? null : Number(e.target.value) })} className={inputCls} /></label>
+                    </>
+                  )}
                   <label className="block"><span className="text-xs text-stone-500">Start date</span><input type="date" value={d.startDate || ""} onChange={(e) => setD({ ...d, startDate: e.target.value })} className={inputCls} /></label>
                   <label className="block"><span className="text-xs text-stone-500">Holiday year</span><input value={d.holidayYear || ""} onChange={(e) => setD({ ...d, holidayYear: e.target.value })} className={inputCls} placeholder="1 April to 31 March" /></label>
                   <label className="block"><span className="text-xs text-stone-500">Notice — Organisation</span><input value={d.noticePeriodEmployer || ""} onChange={(e) => setD({ ...d, noticePeriodEmployer: e.target.value })} className={inputCls} placeholder="e.g. 1 month" /></label>
@@ -188,11 +202,15 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
                   <label className="block col-span-2"><span className="text-xs text-stone-500">Place of work</span><input value={d.placeOfWork || ""} onChange={(e) => setD({ ...d, placeOfWork: e.target.value })} className={inputCls} /></label>
                 </div>
                 <label className="block"><span className="text-xs text-stone-500">Additional duties / responsibilities</span><textarea rows={2} value={d.duties} onChange={(e) => setD({ ...d, duties: e.target.value })} className={inputCls} /></label>
-                <label className="block"><span className="text-xs text-stone-500">Holiday entitlement (days){m?.proRata ? " — pro-rata (5.6 weeks)" : ""}</span><input type="number" value={d.holidayDays} onChange={(e) => setD({ ...d, holidayDays: e.target.value })} className={inputCls} /></label>
+                {/* Zero-hours holiday accrues with hours worked (12.07%), so
+                    buildSections ignores holidayDays — don't offer a dead field. */}
+                {!isZeroType && <label className="block"><span className="text-xs text-stone-500">Holiday entitlement (days){m?.proRata ? " — pro-rata (5.6 weeks)" : ""}</span><input type="number" value={d.holidayDays} onChange={(e) => setD({ ...d, holidayDays: e.target.value })} className={inputCls} /></label>}
                 <label className="block"><span className="text-xs text-stone-500">Probation period length</span><input value={d.probationLength} onChange={(e) => setD({ ...d, probationLength: e.target.value })} placeholder="e.g. 3 months" className={inputCls} /></label>
                 <label className="block"><span className="text-xs text-stone-500">Additional benefits</span><input value={d.benefits} onChange={(e) => setD({ ...d, benefits: e.target.value })} className={inputCls} /></label>
                 <label className="block"><span className="text-xs text-stone-500">Special clauses</span><textarea rows={2} value={d.specialClauses} onChange={(e) => setD({ ...d, specialClauses: e.target.value })} className={inputCls} /></label>
-                {m?.proRata && <p className="text-xs text-amber-700">Holiday for part-time / zero-hours / sessional staff is 5.6 weeks pro-rata to hours worked — adjust the figure above.</p>}
+                {m?.proRata && <p className="text-xs text-amber-700">{isZeroType
+                  ? "Holiday accrues at 12.07% of the hours actually worked (5.6 weeks pro-rata) — the contract states this rather than a fixed number of days."
+                  : "Holiday for part-time / zero-hours / sessional staff is 5.6 weeks pro-rata to hours worked — adjust the figure above."}</p>}
               </div>
               <div className="border border-stone-200 rounded-xl p-3 bg-stone-50 max-h-[52vh] overflow-y-auto">
                 <div className="text-sm font-semibold text-stone-900 mb-1">{typeMeta(type).label}</div>

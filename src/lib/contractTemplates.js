@@ -20,7 +20,8 @@ export const typeMeta = (k) => TYPES.find((t) => t.key === k) || TYPES[0];
 
 // Map a mosque_staff.employment_type onto a contract template key. Returns null
 // when there's no unambiguous match (caller then shows the template picker).
-// The 5 modal employment types all map; zero_hours/sessional are picker-only.
+// zero_hours became a real employment_type in migration 151. 'sessional' remains
+// picker-only: the template exists but still renders the generic salaried wording.
 export function employmentTypeToTemplate(empType) {
   switch (empType) {
     case "employed_full_time": return "full_time";
@@ -28,6 +29,7 @@ export function employmentTypeToTemplate(empType) {
     case "self_employed":      return "contractor";
     case "volunteer":          return "volunteer";
     case "contractor":         return "contractor";
+    case "zero_hours":         return "zero_hours";
     default:                   return null; // ambiguous → picker
   }
 }
@@ -40,6 +42,8 @@ export function sectionsToHtml(title, meta, sections) {
   return `<section class="amanah-contract"><h2>${esc(title)}</h2><p class="meta">${esc(meta)}</p>\n${body}</section>`;
 }
 export const money = (pence) => (pence == null ? "£—" : `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`);
+// Hourly rates need pence precision (£11.44, not £11) — money() rounds them away.
+export const moneyRate = (pence) => (pence == null ? "£—" : `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 export const fmt = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—");
 
 // Build the contract as ordered { h, b } sections from the auto-filled + edited data.
@@ -49,20 +53,33 @@ export function buildSections(type, d) {
   const isContractor = type === "contractor";
   const isZero = type === "zero_hours";
   const s = [];
-  s.push({ h: "1. Parties", b: `This agreement is between ${d.mosqueName || "the mosque"} ("the Organisation"), of ${[d.mosqueAddress, d.mosqueCity, d.mosquePostcode].filter(Boolean).join(", ") || "—"}${d.charityNumber ? ` (registered charity ${d.charityNumber})` : ""}, and ${d.employeeName || "the individual"}${d.employeeAddress ? `, of ${d.employeeAddress}` : ""}${isVol ? ' ("the Volunteer")' : isContractor ? ' ("the Contractor")' : ' ("the Employee")'}.` });
+  s.push({ h: "1. Parties", b: `This agreement is between ${d.mosqueName || "the mosque"} ("the Organisation"), of ${[d.mosqueAddress, d.mosqueCity, d.mosquePostcode].filter(Boolean).join(", ") || "—"}${d.charityNumber ? ` (registered charity ${d.charityNumber})` : ""}, and ${d.employeeName || "the individual"}${d.employeeAddress ? `, of ${d.employeeAddress}` : ""}${isVol ? ' ("the Volunteer")' : isContractor ? ' ("the Contractor")' : isZero ? ' ("the Worker")' : ' ("the Employee")'}.` });
   s.push({ h: "2. Role", b: `${isVol ? "Volunteer role" : "Job title"}: ${d.jobTitle || "—"}.${d.duties ? ` Duties and responsibilities: ${d.duties}` : ""}${d.placeOfWork ? ` Place of work: ${d.placeOfWork}.` : ""}` });
-  if (!isVol && !isContractor) s.push({ h: "3. Commencement & probation", b: `Employment begins on ${fmt(d.startDate)}.${d.probationLength ? ` A probationary period of ${d.probationLength} applies.` : ""} This written statement is provided as your day-one right under the Employment Rights Act 1996.` });
+  // "Employment begins" would contradict the Worker status asserted in clause 1
+  // for zero-hours. The ERA 1996 written-statement line stays for both: since
+  // April 2020 that day-one right extends to workers, not just employees.
+  if (!isVol && !isContractor) s.push({ h: "3. Commencement & probation", b: `${isZero ? "This engagement" : "Employment"} begins on ${fmt(d.startDate)}.${d.probationLength ? ` A probationary period of ${d.probationLength} applies.` : ""} This written statement is provided as your day-one right under the Employment Rights Act 1996.` });
   if (isVol) {
     s.push({ h: "3. Nature of the arrangement", b: "This is a voluntary arrangement and NOT a contract of employment. There is no mutuality of obligation: the Organisation is not obliged to provide work and the Volunteer is not obliged to accept it. No wage or salary is payable; reasonable pre-agreed out-of-pocket expenses may be reimbursed on production of receipts." });
   } else if (isContractor) {
     s.push({ h: "3. Status", b: "The Contractor is self-employed and provides services independently. This is a contract for services, NOT a contract of employment; the Contractor is responsible for their own tax and National Insurance. The parties have considered the off-payroll working rules (IR35) and consider them not to apply to this engagement." });
     s.push({ h: "4. Fees", b: `Fees: ${d.salaryText || money(d.salaryPence)}. The Contractor will invoice the Organisation for services rendered.` });
   } else {
-    s.push({ h: "4. Pay", b: `${money(d.salaryPence)}${type === "full_time" ? " per year" : ""}, paid monthly in arrears by bank transfer on the last working day of each month, subject to PAYE deductions.` });
+    // Zero-hours is paid on an HOURLY rate for hours actually worked. The salaried
+    // clause rendered d.salaryPence with no unit at all here (" per year" is gated
+    // on full_time), i.e. a bare "£12,000" on a casual-worker contract.
+    s.push({ h: "4. Pay", b: isZero
+      ? `${moneyRate(d.hourlyRatePence)} per hour, for the hours you actually work, paid monthly in arrears by bank transfer on the last working day of the month following the work, subject to PAYE deductions. Because no minimum hours are guaranteed (see clause 5), no particular level of pay is guaranteed. Your rate will not fall below the National Minimum Wage / National Living Wage for your age band.`
+      : `${money(d.salaryPence)}${type === "full_time" ? " per year" : ""}, paid monthly in arrears by bank transfer on the last working day of each month, subject to PAYE deductions.` });
     s.push({ h: "5. Hours of work", b: isZero
       ? "These are casual, as-and-when hours. The Organisation does NOT guarantee any minimum hours. You are free to accept or decline any work offered, and there is no exclusivity — you may work elsewhere (exclusivity clauses in zero-hours contracts are unenforceable under the Small Business, Enterprise and Employment Act 2015)."
       : `${d.hours != null ? `${d.hours} hours per week` : "Hours as agreed"}, over the days and times agreed with your line manager.` });
-    s.push({ h: "6. Holiday", b: `${d.holidayDays || 28} days paid holiday per leave year (inclusive of public holidays)${m.proRata ? ", pro-rata to the hours actually worked. Statutory minimum is 5.6 weeks pro-rata" : ""}.${d.holidayYear ? ` The holiday year runs ${d.holidayYear}.` : ""}` });
+    // A fixed "28 days" is meaningless where hours are irregular — zero-hours
+    // holiday ACCRUES with hours worked (12.07% method, for leave years starting
+    // on/after 1 April 2024) rather than being granted as a flat entitlement.
+    s.push({ h: "6. Holiday", b: isZero
+      ? `You accrue paid holiday at the statutory rate of 5.6 weeks per leave year, pro-rata to the hours you actually work — accrued at 12.07% of the hours worked in each pay period. Holiday pay is based on your average pay over the previous 52 paid weeks.${d.holidayYear ? ` The holiday year runs ${d.holidayYear}.` : ""}`
+      : `${d.holidayDays || 28} days paid holiday per leave year (inclusive of public holidays)${m.proRata ? ", pro-rata to the hours actually worked. Statutory minimum is 5.6 weeks pro-rata" : ""}.${d.holidayYear ? ` The holiday year runs ${d.holidayYear}.` : ""}` });
     s.push({ h: "7. Sickness", b: "Absence must be reported to your line manager as early as possible. Statutory Sick Pay is payable where you qualify." });
     s.push({ h: "8. Notice", b: (d.noticePeriodEmployer || d.noticePeriodEmployee)
       ? `Notice from the Organisation: ${d.noticePeriodEmployer || "the statutory minimum"}. Notice from you: ${d.noticePeriodEmployee || "the statutory minimum"}. Neither party gives less than the statutory minimum (one week after one month's service, rising with length of service).`

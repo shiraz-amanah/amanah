@@ -118,6 +118,51 @@ Persistent draft-contract table (remote e-sign), normalized rota-shifts table, o
 
 ---
 
+## Session RBAC-E — Commit 3b click-test follow-up (17 July 2026)
+
+Branch `commit-3b-wizard`, on top of `a5689e7`/`a7e2b6e`. **NOT pushed to main.** Four issues from Shiraz's click-test of the Commit 3b preview.
+
+### The "six contract fields are missing" report was a FALSE POSITIVE — it was a seeding bug
+Reported as: "Edit contract" shows the OLD field set, not the six fields from `a7e2b6e`. Three hypotheses **refuted** before the real cause:
+1. **"a7e2b6e built against the wrong component"** — no. It edited `StaffContractGenerator.jsx`, which IS what `AddStaffModal`'s "Edit contract" opens (`mode="draft"`). The six fields were rendering, **above** the old set (which `a7e2b6e` left in place — that adjacency is probably what made them read as "the old field set").
+2. **"there's a second/duplicate contract-edit surface"** — no. `ContractEditor.jsx` has **zero importers** (dead since `a5689e7` removed the admin-mode path). Left in place, not deleted.
+3. **"the preview was stale"** — no. `a7e2b6e` was pushed to `origin/commit-3b-wizard` at 00:48, after the 00:43 commits.
+
+**Actual cause:** `AddStaffModal.contractFields()` hardcoded `salaryPence: null, hours: null` and omitted the six new keys entirely, **and the remote path never collected salary/hours at any step** (it went details → contract, skipping the employment step the in-house path already had). So the fields rendered EMPTY and the preview showed `£— per year` / `Hours as agreed` — exactly as reported. **Lesson: "the field isn't there" and "the field is there but nothing feeds it" look identical in a click-test.**
+
+### Shipped (`f95e470`)
+- **Invite-form data loss** — `AddStaffModal` + `StaffContractGenerator` backdrops no longer close on outside-click; explicit Cancel/X only. **~13 other modals share this pattern and were deliberately NOT swept** (see Parked below).
+- **Field seeding** — both paths now run 1 path → 2 details → 3 employment → 4 (contract | review); `contractFields()` carries every typed value through, incl. the six. Notice is one integer in the DB (`notice_period_days`) and two fields on the contract → both seed from it, independently editable.
+- **Draft-mode disclaimer** — draft mode opens at step 3 and so **skipped the step-2 liability gate entirely**; it had NO disclaimer. Added a required not-legal-advice acknowledgement gating Save (disabled button + handler guard).
+
+### Zero-hours (migration 151) — the migration was ~20% of the job
+`151_staff_employment_type_zero_hours.sql` widens `mosque_staff_employment_type_check` to admit `zero_hours`. **`sessional` deliberately excluded** — its template exists but renders generic salaried wording, so surfacing it would ship a half-built contract; re-widening later is a drop+add and costs nothing.
+
+Constraint name **verified against live dev**, not inferred (per the LOCKED rule below). Raw probe output, dev `pbejyukihhmybxxtheqq`, insert into `mosque_staff` with a bogus `mosque_id`:
+```
+employed_full_time   code=23503  insert or update on table "mosque_staff" violates foreign key constraint "mosque_staff_mosque_id_fkey"
+zero_hours           code=23514  new row for relation "mosque_staff" violates check constraint "mosque_staff_employment_type_check"
+sessional            code=23514  new row for relation "mosque_staff" violates check constraint "mosque_staff_employment_type_check"
+nonsense_value       code=23514  new row for relation "mosque_staff" violates check constraint "mosque_staff_employment_type_check"
+```
+`23503` = passed the CHECK, died on the FK (proves the probe reaches the constraint); `23514` = rejected by it. **The v1 probe was invalid** — it omitted the NOT NULL `role`, so all four rows failed `23502` before the CHECK was ever evaluated, *including the control*. The control is what caught it.
+
+**Contract wording** — only clause 5 (Hours) was genuinely built for zero-hours; the rest read as a salaried contract. Fixed: **Pay** (was rendering a bare `£12,000` with NO unit — `" per year"` is gated on `full_time` — now an hourly-rate clause + NMW floor), **Holiday** (was a flat "28 days", meaningless for irregular hours — now 12.07% accrual), **Parties** (was `"the Employee"` — now `"the Worker"`, matching the template's own `desc`). Also `"Employment begins"` → `"This engagement begins"`. The ERA-1996 written-statement line stays for both — that day-one right extends to workers since April 2020.
+
+### Known bugs / follow-ups logged this session
+
+**BUG — every contract signer is labelled "Employee", including volunteers and contractors. NOT FIXED — next small commit.**
+`StaffContractGenerator.signEmployee` does `m?.employee === false ? "Contractor/Volunteer" : "Employee"`, but **no `TYPES` entry ever sets `employee: false`** — `volunteer`, `contractor` and `zero_hours` simply omit the key, so `undefined === false` is always false. Every signature block on every signed PDF therefore says "Employee". Live in sign mode today; predates this session and is independent of zero-hours. Fix is either `employee: false` on the three entries or invert the test to `m?.employee !== true`.
+
+**GAP — the remote path never persists salary/hours to `mosque_staff_employment`. NOT FIXED.**
+`create()` writes the employment record on the in-house path only. The admin now types a salary on the remote path, it reaches the contract, and the HR record stays blank. Fixing it means a new DB write on the remote path (owner-only RLS, so safe) — deliberately out of scope for the click-test follow-up. Related: the wizard's `employment_details` is returned by the **by-token** RPC, so salary must NOT be seeded there without a deliberate exposure decision.
+
+**OPEN DECISION — the zero-hours hourly rate has no column.** `mosque_staff_employment` has `salary_pence` only (128); the sole `hourly_rate` in the schema is on facilities (105), unrelated. The rate currently lives on the **contract only** (fields JSON + PDF). Either add `hourly_rate_pence` to `mosque_staff_employment` or accept contract-as-record-of-pay-terms. In-house zero-hours writes are guarded so a stale annual salary can't land on a casual-worker record.
+
+**PARKED — outside-click data loss in ~13 other modals.** Same pattern, deliberately not swept (Shiraz's scope call — they're surfaces he hasn't click-tested): `BulkParentMessageModal`, `MadrasaEnrolWizard`, `MosqueCoverRequest`, `MadrasaImportStudents`, `MosqueBulkImport`, `GrantAccessModal`, `MessageModal`, `MosqueClaimModal`, `OffboardingFlow`, `MosqueDonateModal`, `MadrasaFees`, `OnboardingReview`, and `MadrasaReportView` (read-only — arguably fine as-is).
+
+---
+
 ## Migration & storage discipline (LOCKED)
 
 - **Bucket creation ALWAYS goes in the migration via `insert into storage.buckets` — never a manual dashboard step.** A `storage.objects` policy referencing a bucket is valid SQL whether or not the bucket exists, so policy probes do NOT prove the bucket is there. Probe `storage.buckets` explicitly. (Learned the hard way in RBAC-D: migration 131 left `staff-documents` as a manual "create the bucket" checklist line that was never done on dev OR prod, so every RBAC-C document upload had been failing with "Bucket not found" while our policy probes passed green. Migration 135 creates the bucket in SQL + re-asserts the 6 policies idempotently.)
