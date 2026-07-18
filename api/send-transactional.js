@@ -2237,23 +2237,69 @@ ${sess.review_notes ? `<p style="margin:0 0 20px;padding:12px 16px;background:#f
   return { status: 200, body: { ok: true, id } };
 }
 
+// Look up an auth user by email via the GoTrue admin API (paginated — there is
+// no server-side email filter). Returns the user object (incl. last_sign_in_at)
+// or null. Exported for testing the approval-email CTA decision.
+export async function adminFindUserByEmail(env, email) {
+  const target = String(email || '').toLowerCase();
+  if (!target) return null;
+  for (let page = 1; page <= 20; page++) {
+    const res = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=200`, {
+      headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+    });
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => ({}));
+    const users = Array.isArray(body?.users) ? body.users : (Array.isArray(body) ? body : []);
+    const hit = users.find((u) => (u.email || '').toLowerCase() === target);
+    if (hit) return hit;
+    if (users.length < 200) break; // last page
+  }
+  return null;
+}
+
+// Decide where the approval email's CTA should point. A brand-new account has no
+// password and has never signed in → route to the self-service set-password flow
+// so opening THIS email first can't dead-end at a blank sign-in form. A returning
+// account (has authenticated before) keeps the plain sign-in link. Fail SAFE: a
+// null/unknown user → set-password (never a dead-end). We deliberately route to
+// /forgot-password rather than minting a recovery link here — a fresh recovery
+// token would overwrite (invalidate) the one already in the set-password email;
+// /forgot-password issues its own single-use link on demand.
+export function approvalCta(authUser, appUrl) {
+  const neverSignedIn = !authUser || !authUser.last_sign_in_at;
+  return neverSignedIn
+    ? { mode: 'set_password', url: `${appUrl}/forgot-password`, label: 'Set your password to sign in &rarr;' }
+    : { mode: 'sign_in', url: `${appUrl}/sign-in/staff`, label: 'Sign in to your portal &rarr;' };
+}
+
 async function handleOnboardingApproved(env, caller, sessionId) {
   const r = await resolveOwnedOnboarding(env, caller, sessionId);
   if (r.err) return r.err;
   const { sess, mosque } = r;
   const nm = sess.employee_name ? ' ' + escapeHtml(sess.employee_name) : '';
+
+  // Close the dead-end regardless of which email the employee opens first.
+  const authUser = await adminFindUserByEmail(env, sess.employee_email);
+  const cta = approvalCta(authUser, env.PUBLIC_APP_URL);
+  const helpHtml = cta.mode === 'set_password'
+    ? `First time signing in? Set your password for <strong>${escapeHtml(sess.employee_email)}</strong> using the button above (or the separate “Set your password” email we just sent you), then you're in.`
+    : `Sign in with <strong>${escapeHtml(sess.employee_email)}</strong>.`;
+  const helpText = cta.mode === 'set_password'
+    ? `First time signing in? Set your password for ${sess.employee_email} here: ${cta.url} (or use the separate "Set your password" email we just sent), then sign in.`
+    : `Sign in to your staff portal any time: ${cta.url}\nSign in with: ${sess.employee_email}`;
+
   const subject = `You're now part of the team at ${mosque.name}`;
   const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <div style="max-width:480px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${nm},</p>
 <p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team.</p>
-<p style="margin:0 0 16px;"><a href="${escapeHtml(env.PUBLIC_APP_URL + '/sign-in/staff')}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Sign in to your portal &rarr;</a></p>
-<p style="margin:0 0 24px;color:#44403c;font-size:14px;line-height:1.5;">Sign in with: <strong>${escapeHtml(sess.employee_email)}</strong></p>
+<p style="margin:0 0 16px;"><a href="${escapeHtml(cta.url)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">${cta.label}</a></p>
+<p style="margin:0 0 24px;color:#44403c;font-size:14px;line-height:1.5;">${helpHtml}</p>
 <p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — mosque management, simplified.</p>
 </div></body></html>`;
-  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team.\n\nSign in to your staff portal any time: ${env.PUBLIC_APP_URL}/sign-in/staff\nSign in with: ${sess.employee_email}\n\nJazakAllah khair.`;
+  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team.\n\n${helpText}\n\nJazakAllah khair.`;
   const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });
-  return { status: 200, body: { ok: true, id } };
+  return { status: 200, body: { ok: true, id, cta: cta.mode } };
 }
 
 // Demo request from the public landing page (LandingPageV2). Unauthenticated —

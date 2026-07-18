@@ -17,6 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import http from 'node:http';
+import { adminFindUserByEmail, approvalCta } from '../api/send-transactional.js';
 process.loadEnvFile('.env');
 
 const URL = process.env.SUPABASE_URL;             // .env non-VITE = pbej (dev)
@@ -217,6 +218,18 @@ async function main() {
   const { data: prof } = await svc.from('profiles').select('id').eq('id', newUserId).maybeSingle();
   assert(prof?.id === newUserId, `profiles row exists for the new account (trigger fired)`);
 
+  // Approval-email CTA is smart: a NEVER-signed-in account (this one — created
+  // without a password) routes to the self-service set-password flow, so opening
+  // the "you're on the team" email FIRST can't dead-end at a blank sign-in form.
+  const txEnv = { SUPABASE_URL: URL, SUPABASE_SERVICE_ROLE_KEY: SVC };
+  const APP = 'https://youramanah.co.uk';
+  assert(approvalCta(null, APP).mode === 'set_password', `fail-safe: unknown user → set_password CTA`);
+  const preUser = await adminFindUserByEmail(txEnv, EMAILS.employee);
+  assert(preUser?.id === newUserId && !preUser.last_sign_in_at, `adminFindUserByEmail resolves the never-signed-in account`);
+  const preCta = approvalCta(preUser, APP);
+  assert(preCta.mode === 'set_password' && preCta.url === `${APP}/forgot-password`,
+    `never-signed-in → approval CTA routes to set-password (${preCta.mode} ${preCta.url})`);
+
   // The employee resolves as staff via the EXACT getMyStaffMembership query,
   // through their OWN JWT (RLS "Staff read own row" exercised). Give them a
   // password first (createUser made no password).
@@ -234,6 +247,14 @@ async function main() {
     .maybeSingle();
   assert(membership?.id === staffId, `getMyStaffMembership resolves the employee's active staff row`);
   assert(membership?.mosque?.id === mosqueId, `...with the mosque joined (portal target present)`);
+
+  // Now that the employee HAS signed in (last_sign_in_at set), the approval CTA
+  // flips to the plain sign-in link — returning users aren't nagged to reset.
+  const postUser = await adminFindUserByEmail(txEnv, EMAILS.employee);
+  assert(!!postUser?.last_sign_in_at, `employee now has last_sign_in_at set`);
+  const postCta = approvalCta(postUser, APP);
+  assert(postCta.mode === 'sign_in' && postCta.url === `${APP}/sign-in/staff`,
+    `signed-in-before → approval CTA routes to plain sign-in (${postCta.mode} ${postCta.url})`);
 
   // The recovery link's redirect_to: the handler passes `${APP_URL}/reset-password`,
   // but whether the DIRECT redirect lands there or falls back to the project Site
