@@ -654,7 +654,7 @@ function PermissionsSection({ staffRow, mosqueId }) {
   const badge = emp ? <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{ROLE_LABELS[detectPreset(perms)] || "Custom"}</span> : null;
 
   return (
-    <Section icon={ShieldCheck} title="Permissions" subtitle="Dashboard access (RBAC)" badge={badge}>
+    <Section icon={ShieldCheck} title="Permissions" subtitle="Dashboard access (RBAC)" badge={badge} defaultOpen>
       {emp === undefined ? (
         <p className="text-sm text-stone-400 py-2">Loading…</p>
       ) : emp === null ? (
@@ -813,7 +813,7 @@ function RtwSection({ staffRow, mosqueId, authedUser, sensitive, revealSensitive
   };
 
   return (
-    <Section icon={ShieldAlert} title="Identity verification" subtitle="Right to Work">
+    <Section icon={ShieldAlert} title="Identity verification" subtitle="Right to Work" defaultOpen>
       {staffRow.employmentType === "volunteer" && <p className="text-xs text-stone-500 mb-2">Volunteers are not employees — Right to Work checks are optional.</p>}
       <div className="grid grid-cols-2 gap-3">
         <LabeledSelect label="Country" value={country} onChange={(v) => { setCountry(v); setSaved(false); }} options={[["GB", "United Kingdom"], ["OTHER", "Other"]]} />
@@ -869,7 +869,7 @@ function DbsSection({ staffRow, mosqueId, sensitive, revealSensitive, sensLoadin
   };
 
   return (
-    <Section icon={ShieldCheck} title="DBS check">
+    <Section icon={ShieldCheck} title="DBS check" defaultOpen>
       <p className="text-xs bg-sky-50 text-sky-800 border border-sky-100 rounded-lg px-3 py-2 mb-3">Mosque submits DBS externally via the DBS Update Service or an umbrella body. Record the outcome here.</p>
       {dLeft !== null && dLeft < 0 && <p className="text-xs text-rose-700 inline-flex items-center gap-1 mb-2"><AlertTriangle size={13} /> DBS has expired.</p>}
       {dLeft !== null && dLeft >= 0 && dLeft <= 60 && <p className="text-xs text-orange-700 inline-flex items-center gap-1 mb-2"><AlertTriangle size={13} /> DBS expires in {dLeft} day{dLeft === 1 ? "" : "s"}.</p>}
@@ -934,7 +934,7 @@ function IjazahSection({ staffId, mosqueId }) {
   const remove = async (i) => { if (i.storage_path) await deleteStaffDoc(i.storage_path); await deleteIjazah(i.id); load(); };
   const viewCert = async (i) => { const { url } = await getStaffDocUrl(i.storage_path, staffId); if (url) window.open(url, "_blank", "noopener"); };
   return (
-    <Section icon={GraduationCap} title="Ijazah & scholarly credentials">
+    <Section icon={GraduationCap} title="Ijazah & scholarly credentials" defaultOpen>
       {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
         : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No ijazahs recorded.</p>
         : (
@@ -1017,7 +1017,7 @@ function TrainingSection({ staffId, mosqueId }) {
   const viewCert = async (t) => { const { url } = await getStaffDocUrl(t.certificate_path, staffId); if (url) window.open(url, "_blank", "noopener"); };
   const dueDays = (d) => (d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null);
   return (
-    <Section icon={BookOpen} title="Training & CPD">
+    <Section icon={BookOpen} title="Training & CPD" defaultOpen>
       {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
         : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No training recorded.</p>
         : (
@@ -1111,7 +1111,7 @@ function LeaveSection({ staffId, staffRow, authedUser }) {
     ? "Accrues at 12.07% of hours worked"
     : (bal != null ? `${bal} days remaining of ${ann ?? "—"} annual leave` : undefined);
   return (
-    <Section icon={CalendarDays} title="Leave & absence" subtitle={leaveSubtitle}>
+    <Section icon={CalendarDays} title="Leave & absence" subtitle={leaveSubtitle} defaultOpen>
       {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
         : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No leave recorded.</p>
         : (
@@ -1177,7 +1177,7 @@ function PerformanceSection({ staffId, authedUser, mosqueId }) {
   };
   const pct = (v) => (v == null ? "—" : `${Math.round(v)}%`);
   return (
-    <Section icon={TrendingUp} title="Performance">
+    <Section icon={TrendingUp} title="Performance" defaultOpen>
       <Field label="Student attendance (their classes)" value={pct(perf?.attendance_pct)} />
       <Field label="Homework completion (their classes)" value={pct(perf?.homework_pct)} />
       <Field label="Hifz progress (assigned students, avg)" value={pct(perf?.hifz_avg)} />
@@ -1265,7 +1265,7 @@ function DocumentsSection({ staffId, mosqueId }) {
     setBusy(false); load();
   };
   return (
-    <Section icon={FileText} title="Documents">
+    <Section icon={FileText} title="Documents" defaultOpen>
       {docs === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
         : docs.length === 0 ? <p className="text-sm text-stone-400 py-2">No documents attached.</p>
         : <div className="space-y-2">{docs.map((d) => (
