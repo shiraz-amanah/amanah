@@ -66,3 +66,91 @@ export async function uploadStaffContractPdf(blob, mosqueId, staffId, filename) 
   if (error) { console.error("uploadStaffContractPdf failed:", error); return { path: null, error: error.message }; }
   return { path, error: null };
 }
+
+// ====================================================================
+// STAFF AVATARS — PRIVATE `staff-avatars` bucket (migration 155). Path layout:
+//   {mosque_id}/{staff_id}/avatar.jpg   (fixed key, upsert overwrites → no orphans)
+// The path is recorded in mosque_staff.avatar_path (migration 156, NULL = none).
+// Reads are signed (private bucket); the list batch-signs in ONE call. Distinct
+// from the PUBLIC photo_url / get_mosque_team team photo — do not conflate.
+// ====================================================================
+export const STAFF_AVATAR_BUCKET = "staff-avatars";
+const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB (bucket enforces this too)
+
+// Fixed per-staff key. upsert:true overwrites on replace, so no stale orphans;
+// each read re-signs with a fresh token, so a replaced photo never shows stale.
+export function staffAvatarPath(mosqueId, staffId) {
+  return `${mosqueId}/${staffId}/avatar.jpg`;
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+// Center-crop to a square and downscale to a 512×512 JPEG blob (well under 2MB,
+// image/jpeg is in the bucket's allowed MIME list). Keeps avatars uniform.
+async function cropSquareJpeg(file, size = 512) {
+  const img = await loadImage(file);
+  const side = Math.min(img.width, img.height);
+  const sx = (img.width - side) / 2;
+  const sy = (img.height - side) / 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+  const blob = await new Promise((res) => canvas.toBlob((b) => res(b), "image/jpeg", 0.85));
+  if (!blob) throw new Error("toBlob failed");
+  return blob;
+}
+
+// Upload/replace a staff avatar. Direct-to-storage (no serverless). Client guard
+// mirrors the bucket (server enforces both). Returns { path, error }.
+export async function uploadStaffAvatar(file, mosqueId, staffId) {
+  if (!file) return { path: null, error: "No file selected" };
+  if (!AVATAR_TYPES.includes(file.type)) return { path: null, error: "Only JPG, PNG or WebP allowed" };
+  if (file.size > AVATAR_MAX_BYTES) return { path: null, error: "Image must be under 2MB" };
+  let blob;
+  try { blob = await cropSquareJpeg(file); }
+  catch (e) { console.error("cropSquareJpeg:", e); return { path: null, error: "Could not process that image" }; }
+  const path = staffAvatarPath(mosqueId, staffId);
+  const { error } = await supabase.storage.from(STAFF_AVATAR_BUCKET)
+    .upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+  if (error) { console.error("uploadStaffAvatar failed:", error); return { path: null, error: error.message || "Upload failed" }; }
+  return { path, error: null };
+}
+
+// One signed URL for a single avatar path (or null).
+export async function getStaffAvatarUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage.from(STAFF_AVATAR_BUCKET).createSignedUrl(path, SIGNED_URL_EXPIRY);
+  if (error) { console.error("getStaffAvatarUrl:", error); return null; }
+  return data?.signedUrl || null;
+}
+
+// Batch: paths[] → { [path]: signedUrl } in ONE network call. Nulls/dupes dropped;
+// paths that fail to sign are simply absent (caller falls back to initials).
+export async function getStaffAvatarUrls(paths) {
+  const real = [...new Set((paths || []).filter(Boolean))];
+  if (!real.length) return {};
+  const { data, error } = await supabase.storage.from(STAFF_AVATAR_BUCKET).createSignedUrls(real, SIGNED_URL_EXPIRY);
+  if (error) { console.error("getStaffAvatarUrls:", error); return {}; }
+  const map = {};
+  for (const item of (data || [])) if (item?.signedUrl && !item.error) map[item.path] = item.signedUrl;
+  return map;
+}
+
+// Remove an avatar object (owner/admin/staff-self per the 155 storage policies).
+export async function deleteStaffAvatar(path) {
+  if (!path) return { error: null };
+  const { error } = await supabase.storage.from(STAFF_AVATAR_BUCKET).remove([path]);
+  if (error) console.error("deleteStaffAvatar failed:", error);
+  return { error };
+}
