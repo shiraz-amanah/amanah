@@ -26,7 +26,7 @@ import {
   ChevronDown, ChevronRight, ArrowLeft, MessageCircle, MoreHorizontal,
   Eye, Loader2, ShieldCheck, ShieldAlert, GraduationCap, BookOpen,
   CalendarDays, TrendingUp, Globe, FileText, UserCog, Lock,
-  Upload, AlertTriangle, Check, Plus, Trash2, X,
+  Upload, AlertTriangle, Check, Plus, Trash2, X, Pencil,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
@@ -73,6 +73,72 @@ const DOC_TYPE_LABELS = { rtw: "Right to Work", dbs: "DBS", training: "Training"
 const humanDocType = (t) => DOC_TYPE_LABELS[t] || humanEnum(t) || t;
 
 const TONE_TEXT = { rose: "text-rose-700", amber: "text-amber-700", orange: "text-orange-700", success: "text-success-700", muted: "text-stone-500" };
+
+// Mirrors AddStaffModal's ROLES / EMP_TYPES — that file is the source of truth for
+// the mosque_staff_employment_type_check values; keep these in sync with it.
+const ROLE_OPTIONS = ["Teacher", "Coordinator", "Imam", "Administrator", "Receptionist", "Treasurer", "Other"];
+const EMP_TYPE_OPTIONS = [
+  ["employed_full_time", "Employed — full time"], ["employed_part_time", "Employed — part time"],
+  ["zero_hours", "Zero hours (casual)"], ["self_employed", "Self-employed"],
+  ["volunteer", "Volunteer"], ["contractor", "Contractor"],
+];
+
+// Header "Edit" → identity fields only (name/role/department/employment type/start
+// date). Writes straight through updateMosqueStaff (the existing update path used by
+// the DBS panel) — no new RPC. Per-section data stays editable in its own panels.
+// The Role picker is constrained to ROLE_OPTIONS, which is how a leaked marketplace
+// headline in `role` (e.g. from the scholar-link path) gets corrected here.
+function EditIdentityDialog({ row, busy, onCancel, onSave }) {
+  const [name, setName] = useState(row.name || "");
+  const [role, setRole] = useState(ROLE_OPTIONS.includes(row.role) ? row.role : "");
+  const [department, setDepartment] = useState(row.department || "");
+  const [employmentType, setEmploymentType] = useState(EMP_TYPE_OPTIONS.some(([v]) => v === row.employmentType) ? row.employmentType : "");
+  const [startDate, setStartDate] = useState(row.startDate ? String(row.startDate).slice(0, 10) : "");
+  const roleLeaked = row.role && !ROLE_OPTIONS.includes(row.role);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-white rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-stone-900">Edit staff details</h3>
+        <p className="text-xs text-stone-500 mt-1">Identity fields only. Compliance, documents and permissions are edited in their own sections below.</p>
+        <div className="mt-4 space-y-3">
+          <label className="block"><span className="text-xs text-stone-500">Full name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} /></label>
+          <label className="block"><span className="text-xs text-stone-500">Role</span>
+            <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls}>
+              <option value="">Select a role…</option>
+              {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {roleLeaked && <span className="block mt-1 text-xs text-amber-700">Current value isn't a standard role — pick one to replace it.</span>}
+          </label>
+          <label className="block"><span className="text-xs text-stone-500">Department</span>
+            <input value={department} onChange={(e) => setDepartment(e.target.value)} className={inputCls} placeholder="e.g. Madrasah" /></label>
+          <label className="block"><span className="text-xs text-stone-500">Employment type</span>
+            <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} className={inputCls}>
+              <option value="">Select…</option>
+              {EMP_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select></label>
+          <label className="block"><span className="text-xs text-stone-500">Start date</span>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} /></label>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onCancel} className="text-sm px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50">Cancel</button>
+          <button
+            onClick={() => {
+              // department + start_date are nullable (safe to clear). role is NOT NULL
+              // and employment_type is CHECK-constrained — omit them when blank so we
+              // never write null into them; leaving them blank keeps the current value.
+              const payload = { name: name.trim(), department: department.trim() || null, start_date: startDate || null };
+              if (role) payload.role = role;
+              if (employmentType) payload.employment_type = employmentType;
+              onSave(payload);
+            }}
+            disabled={!name.trim() || busy}
+            className="text-sm px-3 py-2 rounded-lg bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-40">{busy ? "Saving…" : "Save changes"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // GDPR anonymise is irreversible — gate the confirm behind typing the exact name.
 function AnonymiseDialog({ name, busy, onCancel, onConfirm }) {
@@ -164,6 +230,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const [actionsOpen, setActionsOpen] = useState(false);
   const [offboardOpen, setOffboardOpen] = useState(false);
   const [anonOpen, setAnonOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
@@ -211,6 +278,13 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const doDeactivate = async () => {
     if (!window.confirm(`Deactivate ${row?.name || "this staff member"}? Their record and history are kept, but they drop out of compliance gaps and the Ofsted score and can't be assigned work until reactivated.`)) return;
     await doSuspend("suspended");
+  };
+  const doSaveIdentity = async (fields) => {
+    setBusy(true);
+    const { error } = await updateMosqueStaff(staffId, fields);
+    setBusy(false);
+    if (!error) { setEditOpen(false); setNote("Details updated."); load(); }
+    else { setNote("Couldn't save changes — please try again."); }
   };
   const doResetPassword = async () => {
     if (!row?.email) return;
@@ -307,6 +381,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
                 {row.startDate && <p className="text-xs text-stone-500 mt-2">Joined {fmtDate(row.startDate)}{mo != null && ` · ${mo} month${mo === 1 ? "" : "s"} at ${mosque?.name || "the mosque"}`}</p>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><Pencil size={15} /> Edit</button>
                 <button onClick={() => onMessage?.([row.id])} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><MessageCircle size={15} /> Message</button>
                 <div className="relative">
                   <button onClick={() => setActionsOpen((o) => !o)} className="inline-flex items-center gap-1 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><MoreHorizontal size={16} /> Actions</button>
@@ -454,6 +529,10 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
       {anonOpen && (
         <AnonymiseDialog name={row.name} busy={busy}
           onCancel={() => setAnonOpen(false)} onConfirm={confirmAnonymise} />
+      )}
+      {editOpen && (
+        <EditIdentityDialog row={row} busy={busy}
+          onCancel={() => setEditOpen(false)} onSave={doSaveIdentity} />
       )}
     </div>
   );
