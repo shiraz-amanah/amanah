@@ -57,6 +57,9 @@ function DetailModal({ session, onClose, onChanged }) {
   // but the employee notification email did not. A silent email failure shown as
   // success is what let the changes/approved emails go unnoticed.
   const [warn, setWarn] = useState(null);
+  // Green success note (distinct from amber `warn`): confirms the set-password
+  // email actually went, so the admin isn't left guessing after approval.
+  const [okMsg, setOkMsg] = useState(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -88,15 +91,13 @@ function DetailModal({ session, onClose, onChanged }) {
   };
 
   const approve = async () => {
-    setBusy(true); setErr(null); setWarn(null);
+    setBusy(true); setErr(null); setWarn(null); setOkMsg(null);
     const r = await approveOnboardingSession(session.id);
     if (!r.ok) { setBusy(false); setErr(r.error || "Approve failed"); return; }
     // The approval RPC promotes the staff row but creates neither the login
-    // account nor the profile_id link. Provision + link now (also sends the
-    // set-password email). The staff promotion already committed, so a failure
-    // here must NOT revert it — surface it as an amber warning, and skip the
-    // "you're on the team, sign in" email (its link would be dead without an
-    // account). Same source-of-truth-stands pattern as a failed notification.
+    // account nor the profile_id link. Provision + link now, and send the
+    // set/reset-password email (for new AND existing accounts). The staff
+    // promotion already committed, so a failure here must NOT revert it.
     const acct = await provisionOnboardingAccount(session.id, {
       employeeEmail: session.employee_email,
       employeeName: session.employee_name,
@@ -107,12 +108,25 @@ function DetailModal({ session, onClose, onChanged }) {
       setWarn(`Approved and added to staff — but their login account couldn't be created (${acct.error || "unknown error"}), so no set-password email was sent and they can't sign in yet. Please retry, or contact them directly.`);
       return;
     }
-    await notifyOrWarn(sendOnboardingApproved, "Approved");
+    // Account is provisioned + linked. Send the "you're on the team" notice, then
+    // surface BOTH email outcomes explicitly — a silently-skipped set-password
+    // email is exactly what dead-ended this flow before.
+    const approvalMail = await sendOnboardingApproved(session.id);
+    onChanged?.(); // the approval + account stand regardless of email outcomes
+    setBusy(false);
+    const failures = [];
+    if (acct.welcomeEmail && acct.welcomeEmail.ok === false) failures.push(`the set-password email (${acct.welcomeEmail.error || "unknown error"})`);
+    if (!approvalMail?.ok) failures.push(`the approval notice (${approvalMail?.error || "unknown error"})`);
+    if (failures.length) {
+      setWarn(`Approved and added to staff — but ${failures.join(" and ")} couldn't be sent to ${session.employee_email}. They may not be able to sign in until you contact them directly with a set-password link.`);
+    } else {
+      setOkMsg(`Approved. A set-your-password email was sent to ${session.employee_email} — they'll use it to sign in.`);
+    }
   };
 
   const requestChanges = async () => {
     if (!notes.trim()) { setErr("Add a note telling the employee what to fix."); return; }
-    setBusy(true); setErr(null); setWarn(null);
+    setBusy(true); setErr(null); setWarn(null); setOkMsg(null);
     const r = await requestOnboardingChanges(session.id, notes.trim());
     if (!r.ok) { setBusy(false); setErr(r.error || "Request failed"); return; }
     await notifyOrWarn(sendOnboardingChangesRequested, "Changes requested");
@@ -171,6 +185,7 @@ function DetailModal({ session, onClose, onChanged }) {
 
             {err && <p className="text-sm text-rose-600 flex items-center gap-1.5 mt-2"><AlertCircle size={14} /> {err}</p>}
             {warn && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5 mt-2"><AlertCircle size={14} className="mt-0.5 shrink-0" /> {warn}</p>}
+            {okMsg && <p className="text-sm text-success-700 bg-success-50 border border-success-200 rounded-lg px-3 py-2 flex items-start gap-1.5 mt-2"><Check size={14} className="mt-0.5 shrink-0" /> {okMsg}</p>}
 
             {notesOpen ? (
               <div className="mt-4 border-t border-stone-100 pt-4 space-y-2">

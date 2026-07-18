@@ -2136,15 +2136,19 @@ async function handleOnboardingInvite(env, token) {
 async function handleOnboardingWelcome(env, { to, employee_name, username, set_password_url, mosque_name }) {
   if (!to || !set_password_url) return { status: 400, body: { ok: false, error: 'missing_fields' } };
   const atMosque = mosque_name ? ` at <strong>${escapeHtml(mosque_name)}</strong>` : '';
-  const inner = `${eGreeting(employee_name)}${eHeading('Your Amanah account is ready')}${ePara(
-    `An account has been created for you${atMosque} on Amanah. Set a password to sign in and get started.`
-  )}${ePara(`Your username is <strong>${escapeHtml(username || '')}</strong>.`)}${ctaButton('Set your password →', set_password_url)}${ePara(
+  // Neutral copy — this email is now sent for BOTH new and pre-existing accounts,
+  // so it must read sensibly whether the recipient is setting a first password or
+  // resetting a forgotten one. Sign-in is by email; the link is a Supabase
+  // recovery link that does both.
+  const inner = `${eGreeting(employee_name)}${eHeading('Set your password to sign in')}${ePara(
+    `Your onboarding${atMosque} has been approved — welcome to the team. To reach your staff portal, set your password using the button below.`
+  )}${ePara(`You'll sign in with <strong>${escapeHtml(to)}</strong>. Already have an Amanah password? This same link lets you reset it.`)}${ctaButton('Set or reset your password →', set_password_url)}${ePara(
     `<span style="font-size:13px; color:#9ca3af;">This link is single-use and expires soon. If you weren't expecting this, you can safely ignore this email.</span>`
   )}${eSignoff}`;
   const id = await sendEmail(env, {
     to,
-    subject: `Your Amanah account${mosque_name ? ` for ${mosque_name}` : ''} is ready`,
-    html: wrapEmail('Your Amanah account is ready', inner),
+    subject: `Set your password for Amanah${mosque_name ? ` — ${mosque_name}` : ''}`,
+    html: wrapEmail('Set your password to sign in', inner),
   });
   return { status: 200, body: { ok: true, id } };
 }

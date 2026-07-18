@@ -1570,7 +1570,9 @@ export async function provisionOnboardingAccount(sessionId, { employeeEmail = ''
     // one folds that into 200 { existed:true }. Treat both as success.
     if (res.status === 409 && body?.error === 'email_exists') return { ok: true, existed: true }
     if (!res.ok || !body?.success) return { ok: false, error: body?.error || `http_${res.status}` }
-    return { ok: true, existed: !!body.existed, userId: body.user_id }
+    // welcome_email = the set/reset-password email outcome ({ ok, error }), surfaced
+    // to the approving admin so a silent send failure can't recur unnoticed.
+    return { ok: true, existed: !!body.existed, userId: body.user_id, welcomeEmail: body.welcome_email || { ok: false, error: 'unknown' } }
   } catch (err) {
     console.error('provisionOnboardingAccount failed:', err?.message)
     return { ok: false, error: 'network_exception' }
