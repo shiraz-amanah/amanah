@@ -51,6 +51,20 @@ export async function sendWelcomeIfNew() {
   return r
 }
 
+// Parent self-signup gate (migration 152). Anon-callable boolean: does this email
+// have a live madrasah enrolment signal — a mosque-enrolled child awaiting the
+// parent's first sign-up (students.pending_parent_email) or a pending enrolment
+// invite (madrasa_enrollment_invites.parent_email)? Drives UserAuth's role='user'
+// signup gate: no signal → login-only. FAILS CLOSED — any error is treated as "no
+// signal" so a transient RPC blip can't reopen the deferred marketplace signup.
+export async function hasPendingEnrolment(email) {
+  const clean = (email || '').trim()
+  if (!clean) return false
+  const { data, error } = await supabase.rpc('has_pending_enrolment', { p_email: clean })
+  if (error) { console.warn('has_pending_enrolment failed:', error.message); return false }
+  return data === true
+}
+
 export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   return { data, error }

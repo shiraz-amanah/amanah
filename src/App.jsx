@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getMyEmployeeMosque, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships, linkMyCommunityMemberships, hasLiveMadrasaSession } from "./auth";
+import { signUp, signIn, signOut, requestPasswordReset, updatePassword, onPasswordRecovery, getUser, getProfile, updateProfile, getStudents, addStudent, updateStudent, deleteStudent, getScholars, getScholarsByCategory, getScholarBySlug, getScholarById, getScholarByUserId, createBooking, getMyBookings, getScholarBookings, updateBooking, cancelBooking, setBookingMeetingUrl, getSaves, addSave, removeSave, getSavedScholars, getDonations, createDonation, getConversations, getMessages, sendMessage, getOrCreateDirectConversation, openThreadWithParent, openThreadWithTeacher, markConversationRead, subscribeToMessages, updateNotificationPreference, getReviewsForScholar, createReview, getReviewsForModeration, setReviewStatus, submitScholarApplication, getMyScholarApplication, getAllScholarApplications, approveScholarApplication, rejectScholarApplication, setScholarVerificationFlag, publishScholar, listAllProfiles, setProfileRole, setProfileSuspended, getMosques, getMosqueBySlug, getMosqueById, getMosqueByUserId, getMyEmployeeMosque, getSavedMosques, getAllMosqueApplications, approveMosqueApplication, rejectMosqueApplication, setMosqueVerificationFlag, publishMosque, submitMosqueApplication, getMyMosqueApplication, submitFlag, getAllFlags, getFlagsForSubject, setFlagStatus, unpublishScholar, unpublishMosque, softDeleteMessage, getSubjectsForFlags, getReportersForFlags, bulkResolveFlagsForSubject, bulkDismissFlagsForSubject, getMyActiveDBSOrder, getMyDBSOrders, processDBSPayment, cancelMyDBSOrder, DBS_PRICES_PENCE, getAllDBSOrders, setDBSOrderStage, setDBSOrderCertificateUrl, setDBSOrderDisclosureSummary, setDBSOrderNotes, getLatestDBSOrderForCandidate, getMyStaffMembership, sendWelcomeIfNew, hasPendingEnrolment, getMyMadrasaEnrollments, getMyWaitlist, getMosqueClaims, getMyCommunityMemberships, linkMyCommunityMemberships, hasLiveMadrasaSession } from "./auth";
 import { Search, ShieldCheck, Clock, MapPin, ChevronRight, LogOut, CheckCircle2, ArrowLeft, Building2, Users, ArrowRight, FileCheck, CreditCard, Star, Globe, Heart, BookMarked, Baby, GraduationCap, Sparkles, MessageCircle, BookOpen, Home, Play, Quote, TrendingUp, Zap, Award, ChevronDown, Flame, XCircle, AlertCircle, Send, Plus, X, Info, UserPlus, Mail, Phone, Upload, HandCoins, Calendar, CalendarDays, Share2, HeartHandshake, Target, Banknote, Gift, LayoutDashboard, FileText, Flag, BarChart3, Activity, Eye, EyeOff, MoreHorizontal, AlertTriangle, CheckSquare, Inbox, Bell, Settings, Filter, Paperclip, Smile, Check, CheckCheck, Pin, Briefcase, Banknote as BanknoteIcon, DollarSign, User, Download, Receipt, Compass, Moon, Sun, Sunrise, Sunset, Navigation, Loader2 } from "lucide-react";
 import { CATEGORIES } from "./data/categories";
 import { NEARBY_MOSQUES } from "./data/mockMosques";
@@ -7450,11 +7450,29 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
   // / dashboard) so the marketplace-fit interest picker is irrelevant.
   // Invited employees also skip it — they're a plain account, not a marketplace
   // signup, and are routed by the acceptInvitePostAuth returnView.
-  const skipsInterest = isScholar || isMosque || isInvite;
+  // Parents (role 'user') now skip it too: the "find a scholar" marketplace is
+  // deferred, so a parent signup (only ever a mosque-enrolled family — gated in
+  // handleSignUp) is a plain account with no consumer interest picker.
+  const isParent = role === "user";
+  const skipsInterest = isScholar || isMosque || isInvite || isParent;
 
   const handleSignUp = async () => {
     setError(null);
     setLoading(true);
+    // Option A gate — a role='user' (parent) account may only be self-created with
+    // a real enrolment signal (a mosque-enrolled child or a pending enrolment
+    // invite; migration 152). The context-free marketplace consumer signup is
+    // deferred, so a no-signal attempt is blocked here — while parent LOGIN stays
+    // open everywhere. Invites (isInvite) and scholar/mosque self-registration are
+    // unaffected. Path A/B parents carry a pending-enrolment email, so they pass.
+    if (isParent && !isInvite) {
+      const allowed = await hasPendingEnrolment(form.email);
+      if (!allowed) {
+        setError("Parent accounts are set up when your mosque enrols your child. If you've been enrolled, open the link in your email (or ask your mosque to enrol you), then sign in here.");
+        setLoading(false);
+        return;
+      }
+    }
     // Scholars + mosques don't pick a parent-flavored "interest" —
     // stash a role-marker on auth metadata instead so post-auth
     // routing has a fallback signal even if the scholars / mosques
@@ -7561,7 +7579,7 @@ const UserAuth = ({ mode = "login", role = "user", initialEmail = "", inviteToke
           {isSignUp && step === 1 && (
             <>
               <h2 className="text-xl font-semibold text-stone-900 mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{isInvite ? "Create your account" : isScholar ? "Sign up as a scholar" : isMosque ? "List your mosque on Amanah" : "Create your account"}</h2>
-              <p className="text-sm text-stone-500 mb-6">{isInvite ? "Set up your Amanah account to accept your invitation and join your mosque's workspace." : isScholar ? "Teach, get hired, build your profile on Amanah." : isMosque ? "Apply for verification and reach the Muslim community across the UK." : "Book scholars, track your giving, save favourites."}</p>
+              <p className="text-sm text-stone-500 mb-6">{isInvite ? "Set up your Amanah account to accept your invitation and join your mosque's workspace." : isScholar ? "Teach, get hired, build your profile on Amanah." : isMosque ? "Apply for verification and reach the Muslim community across the UK." : "Set up your account to follow your children's madrasah progress, attendance and reports."}</p>
               <div className="space-y-3">
                 <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder={isMosque && !isInvite ? "Your name (the person applying)" : "Your name"} className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
                 <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" className="w-full px-4 py-3 rounded-xl border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />

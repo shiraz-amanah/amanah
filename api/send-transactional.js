@@ -756,14 +756,17 @@ async function handleWelcome(env, caller) {
   const name = profile?.name || caller.user_metadata?.name || 'there';
   const isScholar = (profile?.role || 'user') === 'scholar';
 
+  // De-marketplaced: the consumer "find a scholar" marketplace is deferred, so the
+  // non-scholar welcome no longer pushes it. Parent accounts are mosque-initiated
+  // (a madrasah enrolment), so the CTA is a neutral "open your account".
   const inner = `${eGreeting(name)}${eHeading('Welcome to Amanah')}
-${ePara("We're delighted to have you — you're joining a trusted community of verified Muslim scholars, teachers, and families seeking knowledge with confidence.")}
+${ePara("We're delighted to have you — you're joining a trusted community of mosques, teachers and families.")}
 ${ePara(isScholar
     ? 'Your next step is to complete your scholar profile so families can find you and book sessions.'
-    : 'Your next step is to find a scholar — browse verified teachers by subject and book a session that suits you.')}
-${ctaButton(isScholar ? 'Complete your profile' : 'Find a scholar', env.PUBLIC_APP_URL)}${eSignoff}`;
+    : 'You can sign in any time to access your account.')}
+${ctaButton(isScholar ? 'Complete your profile' : 'Open Amanah', env.PUBLIC_APP_URL)}${eSignoff}`;
   const id = await sendEmail(env, { to, subject: 'Welcome to Amanah', html: wrapEmail('Welcome to Amanah', inner) });
-  await sendAlert(env, { event: 'new_parent_signup', link: env.PUBLIC_APP_URL, lines: [['Name', name], ['Email', to], ['Role', profile?.role || 'user']] });
+  await sendAlert(env, { event: 'new_account', link: env.PUBLIC_APP_URL, lines: [['Name', name], ['Email', to], ['Role', profile?.role || 'user']] });
   return { status: 200, body: { ok: true, sent: 1, ids: [id] } };
 }
 
