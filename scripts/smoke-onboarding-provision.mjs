@@ -16,6 +16,7 @@
 // Idempotent: tears down its own seed at start and end. Never prints secrets.
 
 import { createClient } from '@supabase/supabase-js';
+import http from 'node:http';
 process.loadEnvFile('.env');
 
 const URL = process.env.SUPABASE_URL;             // .env non-VITE = pbej (dev)
@@ -25,14 +26,33 @@ const DEV = 'pbejyukihhmybxxtheqq';
 if (!URL || !URL.includes(DEV)) { console.error(`SAFETY: not dev (${DEV}).`); process.exit(1); }
 if (!SVC || !ANON) { console.error('Missing SVC or ANON key in .env'); process.exit(1); }
 
+// The welcome email is a server-to-server POST from create-account to
+// ${PUBLIC_APP_URL}/api/send-transactional (x-cron-secret). We can't hit prod
+// send-transactional (no real CRON_SECRET locally), so stand up a tiny LOCAL
+// mock that captures the onboarding_welcome payload and returns { ok:true }.
+// This lets us assert the email actually fires (welcome_email.ok) for BOTH new
+// and existing accounts, and that a real set_password_url was generated.
+const MOCK_CRON = 'smoke-mock-cron';
+const welcomeCaptures = [];
+const mockServer = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => { raw += c; });
+  req.on('end', () => {
+    let body = {}; try { body = JSON.parse(raw); } catch {}
+    if (req.headers['x-cron-secret'] !== MOCK_CRON) { res.writeHead(401); return res.end('{"ok":false,"error":"unauthorized"}'); }
+    if (body.intent === 'onboarding_welcome') welcomeCaptures.push(body);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{"ok":true,"id":"mock-email-id"}');
+  });
+});
+await new Promise((resolve) => mockServer.listen(0, '127.0.0.1', resolve));
+const MOCK_PORT = mockServer.address().port;
+
 // The handler reads env at import time and builds its own service-role client.
-// Point PUBLIC_APP_URL at prod so the recovery link's redirect is realistic, but
-// give a dummy CRON_SECRET so the welcome-email POST to prod send-transactional
-// 401s (caught, non-fatal) — no real email is sent from this test.
 process.env.SUPABASE_URL = URL;
 process.env.SUPABASE_SERVICE_ROLE_KEY = SVC;
-process.env.PUBLIC_APP_URL = 'https://youramanah.co.uk';
-process.env.CRON_SECRET = 'smoke-dummy-not-a-real-secret';
+process.env.PUBLIC_APP_URL = `http://127.0.0.1:${MOCK_PORT}`; // welcome email → local mock
+process.env.CRON_SECRET = MOCK_CRON;
 
 const { default: handler } = await import('../api/create-account.js');
 
@@ -172,13 +192,21 @@ async function main() {
   assert(nonOwner.statusCode === 403 && nonOwner.body?.error === 'forbidden',
     `non-owner JWT → 403 forbidden (got ${nonOwner.statusCode} ${nonOwner.body?.error})`);
 
-  // The real provision
+  // The real provision (NEW-account path)
   const res = await callCreateAccount(ownerJwt, sessionId);
   assert(res.statusCode === 200 && res.body?.success === true,
     `provision → 200 success (got ${res.statusCode} ${JSON.stringify(res.body)})`);
   assert(res.body?.existed === false, `first provision existed=false (${res.body?.existed})`);
   const newUserId = res.body?.user_id;
   assert(!!newUserId, `returned a user_id (${newUserId})`);
+
+  // NEW account: the set-password email fired, and the outcome is reported
+  assert(res.body?.welcome_email?.ok === true, `new-account welcome_email.ok=true (${JSON.stringify(res.body?.welcome_email)})`);
+  assert(welcomeCaptures.length === 1 && welcomeCaptures[0].intent === 'onboarding_welcome',
+    `mock received the onboarding_welcome email (${welcomeCaptures.length})`);
+  assert(!!welcomeCaptures[0]?.set_password_url && /type=recovery/.test(welcomeCaptures[0].set_password_url),
+    `welcome email carried a recovery set_password_url`);
+  assert(welcomeCaptures[0]?.to === EMAILS.employee, `welcome email addressed to the employee`);
 
   // Staff row is now linked
   const { data: linked } = await svc.from('mosque_staff').select('profile_id, invite_status, status').eq('id', staffId).single();
@@ -207,32 +235,32 @@ async function main() {
   assert(membership?.id === staffId, `getMyStaffMembership resolves the employee's active staff row`);
   assert(membership?.mosque?.id === mosqueId, `...with the mosque joined (portal target present)`);
 
-  // Recovery (set-password) link generation. The handler passes redirectTo
-  // `${APP_URL}/reset-password`; whether the DIRECT redirect lands there or falls
-  // back to the project Site URL depends on the Supabase project's Redirect-URLs
-  // allowlist (dev here strips any custom URL → Site URL localhost:3000). Either
-  // way the app's PASSWORD_RECOVERY event routes to the resetPassword view, so we
-  // assert the MECHANISM (a recovery link with a redirect_to) rather than the
-  // dev-specific host. On prod, allowlist `youramanah.co.uk/reset-password` for
-  // the clean direct landing.
-  const { data: linkData, error: linkErr } = await svc.auth.admin.generateLink({
-    type: 'recovery', email: EMAILS.employee, options: { redirectTo: 'https://youramanah.co.uk/reset-password' },
-  });
-  const actionLink = linkData?.properties?.action_link || '';
-  const redirectTo = actionLink ? new globalThis.URL(actionLink).searchParams.get('redirect_to') : null;
-  assert(!linkErr && !!actionLink, `recovery link generated (${linkErr?.message || 'ok'})`);
-  assert(/type=recovery/.test(actionLink) && !!redirectTo, `recovery link carries a redirect_to (${redirectTo})`);
-  console.log(`  ℹ dev redirect_to fell back to Site URL: ${redirectTo} (prod honours /reset-password if allowlisted)`);
+  // The recovery link's redirect_to: the handler passes `${APP_URL}/reset-password`,
+  // but whether the DIRECT redirect lands there or falls back to the project Site
+  // URL depends on the Supabase Redirect-URLs allowlist (dev strips custom URLs →
+  // Site URL). The app's PASSWORD_RECOVERY event routes to resetPassword regardless,
+  // so this is a config note, not a code assertion. On prod, allowlist
+  // `youramanah.co.uk/reset-password` for the clean direct landing.
+  {
+    const probe = await svc.auth.admin.generateLink({ type: 'recovery', email: EMAILS.employee, options: { redirectTo: 'https://youramanah.co.uk/reset-password' } });
+    const rt = probe.data?.properties?.action_link ? new globalThis.URL(probe.data.properties.action_link).searchParams.get('redirect_to') : null;
+    console.log(`  ℹ dev recovery redirect_to = ${rt} (prod honours /reset-password if allowlisted; else degrades via the recovery event)`);
+  }
 
-  // Idempotent re-run → existed=true (email_exists path resolves + re-links)
+  // Idempotent re-run → EXISTING-account path: existed=true, re-links, and — the
+  // fix for the prod dead-end — STILL sends the set/reset-password email.
   const res2 = await callCreateAccount(ownerJwt, sessionId);
   assert(res2.statusCode === 200 && res2.body?.existed === true,
     `re-run → 200 existed=true (got ${res2.statusCode} ${JSON.stringify(res2.body)})`);
   assert(res2.body?.user_id === newUserId, `re-run resolves the SAME existing account`);
+  assert(res2.body?.welcome_email?.ok === true, `existing-account re-run STILL emails: welcome_email.ok=true (${JSON.stringify(res2.body?.welcome_email)})`);
+  assert(welcomeCaptures.length === 2 && welcomeCaptures[1].intent === 'onboarding_welcome',
+    `mock received a 2nd onboarding_welcome for the existing account (${welcomeCaptures.length})`);
 
   await teardown();
+  mockServer.close();
   console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAILURES'} — ${pass} passed, ${fail} failed\n`);
   process.exit(fail === 0 ? 0 : 1);
 }
 
-main().catch(async (e) => { console.error('\n💥', e.message); try { await teardown(); } catch {} process.exit(1); });
+main().catch(async (e) => { console.error('\n💥', e.message); try { await teardown(); } catch {} try { mockServer.close(); } catch {} process.exit(1); });
