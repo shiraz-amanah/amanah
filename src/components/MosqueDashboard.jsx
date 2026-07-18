@@ -58,6 +58,25 @@ import { useEmployeePermissions } from "../lib/useEmployeePermissions";
 const SUBTABS = Object.fromEntries(MOSQUE_NAV.map((g) => [g.tab, g.items]));
 const ALL_VALUES = MOSQUE_NAV.map((g) => g.tab); // includes messages + account (now sidebar items)
 
+// UI overhaul commit 2 — the in-content sub-navigation for multi-sub tabs
+// (Madrasah/Mosque/Compliance/Finance/Community/Governance), which the flat sidebar
+// collapses to single entries. Matches the Staff page's tab idiom (one sub-nav idiom
+// app-wide). Active state derives from the URL-backed `active` (?sub=), so it survives
+// refresh + Back/Forward. Overflow: horizontal scroll (no wrap, no clipping) for the
+// 5–7-item tabs.
+const SubTabBar = ({ items, active, onSelect }) => (
+  <div className="mb-5 border-b border-stone-200 overflow-x-auto scrollbar-hide">
+    <div className="flex items-center gap-1 min-w-max">
+      {items.map(([v, l]) => (
+        <button key={v} onClick={() => onSelect(v)}
+          className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 whitespace-nowrap ${active === v ? "border-brand-600 text-brand-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          {l}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 // ---- Session RBAC: employee nav gating ----------------------------------
 // Maps each nav surface to the permission module an EMPLOYEE must hold to see it.
 // null = always shown (baseline). OWNER_ONLY = hidden for employees (a legacy
@@ -104,7 +123,7 @@ const Placeholder = ({ title, blurb, icon: Icon = HandCoins }) => (
   </div>
 );
 
-const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, onOpenProfile, MessagesInbox, tab = "dashboard", sub = "", staffId = "", onNavigate }) => {
+const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onPublic, conversations, conversationsLoading, onConversation, onMosqueUpdate, onRequestCover, onOpenProfile, MessagesInbox, tab = "dashboard", sub = "", staffId = "", staffTab = "", staffFilter = "", onNavigate }) => {
   // Session RBAC — permission gating. The hook is authoritative (it re-checks
   // ownership); `isEmployee` from the App bootstrap only avoids a nav flash for
   // owners. Owners (gated=false) bypass every gate below.
@@ -167,6 +186,13 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
     onNavigate?.(newTab, s || "", "");
   };
   const selectStaff = (id) => onNavigate?.("people", "staff", id || "");
+  // Staff-page internal tab + Needs-attention filter as URL params (Commit 5).
+  // Defaults (employees / all) are omitted so clean links stay clean. staffTab
+  // PUSHES (tabs = navigation); filter REPLACES (chips = refinement) — the caller
+  // passes { replace } accordingly.
+  const onStaffUrl = ({ staffTab: st, filter: fl }, opts = {}) =>
+    onNavigate?.("people", "staff", staffId,
+      { staffTab: st && st !== "employees" ? st : "", filter: fl && fl !== "all" ? fl : "" }, opts);
 
   // Global search result → destination within this mosque's dashboard.
   const handleSearchSelect = (r) => {
@@ -210,7 +236,9 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 flex flex-col md:flex-row gap-6">
-        <MosqueSidebar nav={{ tab: activeTab, sub: activeSub }} onSelect={setTab} onLogout={onLogout} mosque={mosque} unread={unread} groups={visibleNav} />
+        <MosqueSidebar nav={{ tab: activeTab, sub: activeSub }} onSelect={setTab} onLogout={onLogout} mosque={mosque} unread={unread} groups={visibleNav}
+          userName={authedUser?.user_metadata?.full_name || authedUser?.user_metadata?.name || authedUser?.email?.split("@")[0] || "You"}
+          userRole={isEmployee ? "Staff" : "Owner"} />
 
         <main className="flex-1 min-w-0">
           {gated && perms.loading ? (
@@ -219,14 +247,19 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
             <AccessDeniedPanel />
           ) : (
           <>
+          {/* In-content sub-navigation for the flattened multi-sub tabs (People's
+              subs stay in the sidebar, so it's excluded here). */}
+          {subList.length > 0 && activeTab !== "people" && (
+            <SubTabBar items={subList} active={activeSub} onSelect={(v) => setTab(activeTab, v)} />
+          )}
           {/* ---- Dashboard ---- */}
           {activeTab === "dashboard" && (
-            <MosqueOverview mosque={mosque} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} />
+            <MosqueOverview mosque={mosque} authedUser={authedUser} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} />
           )}
 
           {/* ---- People (RBAC-B rebuild) ---- */}
           {activeTab === "people" && activeSub === "staff" && (
-            <StaffDirectory mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} staffId={staffId} onSelectStaff={selectStaff} onOpenProfile={onOpenProfile} />
+            <StaffDirectory mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} staffId={staffId} onSelectStaff={selectStaff} onOpenProfile={onOpenProfile} staffTab={staffTab} filter={staffFilter} onStaffUrl={onStaffUrl} />
           )}
           {activeTab === "people" && activeSub === "workforce" && (
             <WorkforceTab mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} />

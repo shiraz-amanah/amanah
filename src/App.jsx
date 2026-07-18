@@ -13851,7 +13851,9 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     tab={routeQuery.tab || "dashboard"}
     sub={routeQuery.sub || ""}
     staffId={routeQuery.staffId || ""}
-    onNavigate={(t, s, sid) => navigate("mosqueDashboard", {}, { tab: t, sub: s || "", staffId: sid || "" }, {})}
+    staffTab={routeQuery.staffTab || ""}
+    staffFilter={routeQuery.filter || ""}
+    onNavigate={(t, s, sid, extra = {}, opts = {}) => navigate("mosqueDashboard", {}, { tab: t, sub: s || "", staffId: sid || "", ...extra }, opts)}
     onOpenProfile={(id) => navigate("staffProfile", {}, { staffId: id || "" }, {})}
     onLogout={async () => { await fullSignOut(); setView("publicHome"); }}
     onPublic={() => setView("publicHome")}

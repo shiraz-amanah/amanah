@@ -8703,3 +8703,111 @@ Platform not fully functional without these.
     - **`get_staff_performance(p_staff_id)` SECURITY DEFINER RPC** — auto-metrics for StaffProfile §10 Performance: student attendance %, homework completion %, and average hifz progress across the staff member's assigned madrasa classes (aggregated server-side, not fragile inline client queries). §10 shows `—` and calls this RPC (via `getStaffPerformance`, currently a graceful no-op) so it auto-populates on landing.
     - **`mosque_staff_review_notes` table** — `id`, `staff_id` FK `mosque_staff`, `mosque_id` FK `mosques`, `author_id` FK `profiles`, `note text`, `created_at`. Owner/admin RLS, anon revoked. Powers StaffProfile §10 "review notes" (UI built now; `getStaffReviewNotes`/`addStaffReviewNote` are graceful stubs until the table exists).
     - **`show_dbs_badge_publicly` added to `get_mosque_staff_list` return** — StaffProfile §11 Platform Listing needs the current value to render its toggle (safe row currently omits it; the toggle defaults to off until then).
+## UI overhaul v1 (branch `ui-overhaul-v1`) — running notes
+
+**Commit 2 — sidebar regroup + in-content SubTabBar (Option C).** The mosque nav is
+URL-routed (`?tab=&sub=`, via `onNavigate`), so active state derives from the URL and
+survives refresh/Back/Forward. The sidebar was a 2-level accordion; `MosqueDashboard`
+renders content only by `activeTab===X && activeSub===Y` with NO in-page sub-nav — so
+flattening the sidebar would have stranded ~28 sub-destinations. Resolution (Shiraz-
+approved Option C): flat, non-collapsible sidebar (`MosqueSidebar` remapped into static
+PEOPLE/EDUCATION/OPERATIONS groups, People's items promoted to flat entries, every other
+multi-sub tab a single entry) + one shared `SubTabBar` rendered once in `MosqueDashboard`
+above the content, driven by the existing `SUBTABS[activeTab]` + `onNavigate`. `MOSQUE_NAV`
+is unchanged (routing source of truth). Clicking a flattened tab defaults its sub via the
+existing `setTab` first-item logic. Accordion `open` state was local-only (nothing read it)
+— removed.
+
+**Badges wanted-but-not-added (no already-loaded count in the sidebar's state; would need
+new queries — deliberately deferred per the brief):** Madrasah → Waiting-list pending
+count; People/Staff → onboarding-submissions-awaiting-review count (currently lives inside
+StaffDirectory's own Onboarding tab badge, not surfaced to the sidebar); Compliance →
+open-gaps count. Only the Messages unread badge is shown (it's already in loaded state).
+
+**Commit 1a — ONE compliance-gap definition (bug fix, score definition changed).**
+The banner, cells, Needs-attention chip and Ofsted score each had their OWN
+definition and disagreed (dev: banner "7 DBS · 0 RTW" + Ofsted 100/100 while every
+RTW cell showed amber "Not verified"). Root cause: the cells flagged any unverified
+RTW/DBS; `computeComplianceIssues` gated RTW-unverified on `status='active' &&
+employmentType`; `computeOfstedScore` did the same for RTW AND never penalised a
+*missing* DBS at all. Fix (Shiraz-approved BROAD definition): new shared
+`deriveDbsState` / `deriveRtwState` in staffHelpers.js are the SINGLE source — cells,
+`computeComplianceIssues`, the chip and `computeOfstedScore` all read from them (no
+re-implemented conditions), so they can't diverge (and RBAC-E Commit 4's real-time
+Ofsted becomes cheap). A gap ⟺ an amber/rose cell; warnings (expiring but still
+valid) are orange, not gaps. Weights: missing DBS −10, expired DBS/RTW −10, refused
+RTW −10, wrong DBS level −8, DBS pending −5, unverified RTW −5. **`dbs_status` (054)
+distinguishes `pending` (−5, "check in flight") from `not_checked`/null (−10,
+"Missing"), so the −5/−10 split IS applied** (no follow-up needed). Banner headline N
+= distinct flagged rows (= chip = amber/rose rows); the X DBS / Y RtW breakdown can
+sum to more than N when a row has both. **Onboarding/invite nudges (invite_expired,
+onboarding_stalled) were REMOVED from `computeComplianceIssues`** — they are
+operational, not compliance gaps per the agreed definition; re-surface as a separate
+"onboarding" strip later if wanted. **Scores drop on existing data — correct, not a
+regression.** Verified on real dev data via the RPC: banner 7 == chip 7 == amber/rose
+7, Ofsted 100→0.
+
+### UI overhaul v1 — PRE-MERGE CHECKLIST (do NOT squash-merge `ui-overhaul-v1` → main until ALL checked)
+- [ ] **Migration 153 (`profiles.dashboard_prefs jsonb`) applied + probed on PROD.** Commit 3's dashboard code WRITES this column, so it MUST exist on prod before the merge deploys. Dev: applied + probed (column jsonb/nullable/no-default; RLS = owner-self UPDATE `auth.uid()=id` is the sole write gate, verified by a cross-user-write-denied round-trip). Prod: PENDING.
+- [ ] Shiraz's full browser pass on the branch preview alias (all commits) green.
+- [ ] `npm run build` green on the final branch HEAD.
+
+**Commit 3 — migration 153 RAW dev probes (verbatim, per the probe-output rule).**
+```
+-- PROBE A: information_schema column
+   column_name   | data_type | is_nullable | column_default
+-----------------+-----------+-------------+----------------
+ dashboard_prefs | jsonb     | YES         |
+(1 row)
+
+-- PROBE B: pg_policies for public.profiles (RLS = sole gate; write is owner-self)
+              policyname               |  cmd   |      roles      |       qual        | with_check
+---------------------------------------+--------+-----------------+-------------------+------------
+ Admins read all profiles              | SELECT | {authenticated} | is_admin()        |
+ Authenticated users can view profiles | SELECT | {authenticated} | true              |
+ Admins update profiles                | UPDATE | {authenticated} | is_admin()        | is_admin()
+ Users can update own profile          | UPDATE | {public}        | (auth.uid() = id) |
+(4 rows)
+
+-- PROBE C: owner round-trip (authed anon client, "Users can update own profile")
+owner update error: null
+owner read-back  : {"cards":["students","fees","attendance","compliance","prayer"]}
+round-trip match : true
+
+-- PROBE D: cross-user write (a different signed-in user targeting this row)
+cross-user write : rows_affected=0, error=null  (RLS denies non-owner)
+```
+PROD 153 probe (same four, verbatim) is owed at merge time per the pre-merge checklist.
+
+**Freed-MODE (not a freed slot) — old LLM dashboard briefing.** Commit 3 removed the
+old MosqueOverview, whose only serverless call was `getMosqueBriefing` →
+`POST /api/admin-brief` (mode `mosque_ops`). That was its ONLY caller, so the
+`mosque_ops` mode branch in `admin-brief.js` is now dead client-side (freeze, don't
+delete — removal is a separate decision). **This does NOT free a Vercel slot:**
+`admin-brief.js` is still used by 7+ other call sites/modes — AdminBriefCard
+(default brief), GovernanceAI, FinanceAI (`finance_ops`), MessageModal
+(`staff_message_draft`), MosqueHRAssistant (`mosque_hr`), CommunityAI,
+MadrasaAssistant (`madrasa_ops`), plus staffComplianceSummary. So the **12/12 slot
+math is UNCHANGED** — the Video-arc / AI-assistant blockage is not relieved by this.
+
+**Commit 4 — dashboard sections + deferred follow-ups (data not cleanly available; shipped the honest version).**
+- "Madrasah today" = classes whose `schedule[].day` matches today's weekday (verified Saturday → real classes on dev), with teacher (resolved via `getMadrasaClasses` teacher join), room, and today's attendance count. **"No cover set" flags an UNASSIGNED teacher (`teacher_staff_id` null) only.** Detecting a teacher who is ASSIGNED but ABSENT/on-leave today needs a mosque-wide leave feed (no clean `getMosqueLeave`) — FOLLOW-UP.
+- **Substitute suggestion** in the no-cover insight ("X taught this before and is free") — needs cover-history + a staff-availability/leave feed, neither cleanly queryable. Shipped the PLAIN no-cover insight; substitute rule = FOLLOW-UP (per the "don't force it" instruction).
+- **Attendance-trend insight (3+ weeks down)** — DROPPED, not approximated: reliable weekly-trend detection from the raw attendance feed is error-prone. FOLLOW-UP.
+- **"Send reminders"** navigates to the madrasah Fees page (NO direct send — the hard rule). Pre-FILTERING that page to the specific arrears families needs a filter param on MadrasaFees — FOLLOW-UP; the arrears are visible + per-record reminders send from there today.
+- Insights shipped: (1) class today with no teacher assigned, (2) families crossing 60 days overdue in the last 7 days, (4) compliance gaps lowering Ofsted. Empty states: Madrasah-today → timetable CTA; Fees → "All families up to date"; Insights → "All clear". "Ask a question" input is DISABLED (no LLM).
+
+**Commit 5 — navigation integrity.** Audit: items 1–5 needed NO change — sidebar
+destinations + dashboard nav + SubTabBar are URL-routed (`?tab=&sub=`, pushState);
+the SPA rewrite (`vercel.json /(.*)→/index.html`) already makes deep-link refresh
+serve index.html; `App.jsx:13562` shows a loader (not a login bounce) for
+mosqueDashboard while `authLoading`, with `myMosque` resolved before the loader
+lifts; `?staffId=` already URL-backed. Only 6–7 were state-only and got wired: the
+staff-page tabs (Employees/Org/Onboarding) → **`?staffTab=`** (PUSH — tabs are
+navigation) and the Needs-attention chip → **`?filter=`** (REPLACE — chips are
+refinement, so Back doesn't step through chip clicks). Defaults (employees / all)
+are OMITTED from the URL (buildUrl drops empty query values). Wiring: App.jsx
+`onNavigate` gained `(…, extra, opts)`; MosqueDashboard forwards `staffTab`/`filter`
++ an `onStaffUrl` writer; StaffDirectory seeds tab+chip from the props and syncs on
+prop change (Back/Forward + refresh). No route PATHS changed, no components
+extracted, no auth logic touched.

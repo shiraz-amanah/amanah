@@ -1,260 +1,460 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
-  Sparkles, Loader2, Users, ShieldCheck, Calendar, MessageCircle, Clock,
-  ClipboardCheck, AlertCircle, CalendarDays, FileText, Activity,
-  UserPlus, CalendarPlus, Search, ListChecks, AlertTriangle, ChevronRight, HeartHandshake,
+  Users, Wallet, CalendarCheck, ShieldCheck, Clock, Calendar, BookOpen,
+  Loader2, SlidersHorizontal, Check, X, ArrowRight, AlertTriangle, Sparkles,
+  GraduationCap, CheckCircle2, UserX, MessageCircle,
 } from "lucide-react";
-import { getMosqueBriefing } from "../lib/hrAssistant";
-import { getMosqueStaff, getMosqueEvents, getMosqueTimeLogs, getMosqueRota, getMosqueDocuments, getCommunityMembers, getOnboardingSessionsForMosque } from "../auth";
-import { MOSQUE_EVENT_TYPES } from "../data/mosqueTaxonomy";
-import { collapseRecurringEvents } from "../lib/events";
-import RecurrenceBadge from "./RecurrenceBadge";
-import Markdown from "./Markdown";
+import {
+  getProfile, updateProfile, getMosqueEnrollments, getFeeRecords,
+  getMosqueAttendanceForDate, getMosqueEvents, getMosqueRecentHifz, getMadrasaClasses,
+} from "../auth";
+import { getMosqueStaffList, computeOfstedScore, computeComplianceIssues, ofstedColour } from "../lib/staffHelpers";
+import { money } from "../lib/format";
 
-const eventTypeLabel = (v) => MOSQUE_EVENT_TYPES.find((t) => t.v === v)?.l || v;
-const fmtEventDate = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); } catch { return d; } };
+// ====================================================================
+// UI overhaul Commit 3 — mosque admin Dashboard (default landing).
+// Read-only, madrasah-focused KPI cards + a per-admin customisable card pool.
+// NO LLM, NO new serverless functions, NO new mutations (the only write is the
+// admin's own dashboard_prefs blob, migration 153). Every number is computed with
+// the SAME logic as its source page so the two can never disagree; a figure that
+// can't be computed reliably is dropped, not approximated.
+// (Commit 4 adds Madrasah-today / Fees-action / Insights below these cards.)
+// ====================================================================
 
-// Session W — admin Dashboard (default landing). AI morning briefing on top
-// (server-side mode:'mosque_ops'), quick stats, today's rota with gaps in red,
-// a document-expiry widget, a derived recent-activity feed and quick actions.
-// Recent activity has no audit-log table yet, so it is DERIVED from created_at
-// across staff / events / documents — not a true event log.
-
-const PRAYER_SLOTS = [["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]];
-const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x.toISOString().slice(0, 10); };
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const in30Str = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); };
-const todayKey = () => new Date().toLocaleDateString("en-GB", { weekday: "long" }).toLowerCase();
-const isThisWeek = (iso) => { if (!iso) return false; const m = mondayOf(new Date()); const x = new Date(m + "T00:00:00"); x.setDate(x.getDate() + 7); return iso >= m && iso < x.toISOString().slice(0, 10); };
+const addDays = (iso, n) => { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return d; };
+const daysSince = (d) => Math.floor((new Date(todayStr() + "T00:00:00") - d) / 86400000);
 
-// Traffic light for an expiry date: red=expired, amber=<30d, green=valid.
-const expiryTone = (iso) => {
-  if (!iso) return "stone";
-  if (iso < todayStr()) return "rose";
-  if (iso <= in30Str()) return "amber";
-  return "emerald";
-};
-const toneCls = { rose: "bg-rose-50 border-rose-200 text-rose-700", amber: "bg-amber-50 border-amber-200 text-amber-700", emerald: "bg-success-50 border-success-200 text-success-700", stone: "bg-stone-50 border-stone-200 text-stone-500" };
-
-// Clickable when onClick is provided (all dashboard tiles route somewhere).
-const StatCard = ({ icon: Icon, label, value, tone = "stone", onClick }) => {
-  const inner = (
-    <>
-      <div className="flex items-center gap-1.5 text-stone-500 mb-1"><Icon size={14} /><span className="text-[11px] uppercase tracking-wider font-semibold">{label}</span></div>
-      <p className={`text-2xl font-semibold ${tone === "rose" ? "text-rose-700" : tone === "amber" ? "text-amber-700" : "text-stone-900"}`} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>
-    </>
-  );
-  if (!onClick) return <div className="bg-white border border-stone-200 rounded-2xl p-4">{inner}</div>;
-  return <button onClick={onClick} className="bg-white border border-stone-200 rounded-2xl p-4 text-left hover:border-brand-300 hover:shadow-sm transition-all">{inner}</button>;
+// Canonical card order + the default set. dashboard_prefs.cards holds the enabled
+// keys; null/malformed/unknown-key all fall back to DEFAULT_KEYS (rewritten clean
+// on the next save).
+const DEFAULT_KEYS = ["students", "fees", "attendance", "compliance"];
+const POOL_KEYS = ["prayer", "events", "hifz", "donations", "staffleave"];
+const ALL_KEYS = [...DEFAULT_KEYS, ...POOL_KEYS];
+const CARD_META = {
+  students:   { label: "Students enrolled" },
+  fees:       { label: "Fees outstanding" },
+  attendance: { label: "Attendance today" }, // falls back to Active staff when no data
+  compliance: { label: "Compliance" },
+  prayer:     { label: "Prayer times" },
+  events:     { label: "Events" },
+  hifz:       { label: "Hifz progress" },
+  donations:  { label: "Donations" },   // no mosque-wide source yet → coming soon
+  staffleave: { label: "Staff leave" }, // no mosque-wide source yet → coming soon
 };
 
-const MosqueOverview = ({ mosque, conversations, onNavigate }) => {
-  const [brief, setBrief] = useState(null);
-  const [briefLoading, setBriefLoading] = useState(true);
-  const [briefError, setBriefError] = useState(false);
+// Parse the stored blob defensively: valid = { cards: string[] } → known keys only.
+function readEnabled(prefs) {
+  const cards = prefs && typeof prefs === "object" && Array.isArray(prefs.cards) ? prefs.cards : null;
+  if (!cards) return { keys: [...DEFAULT_KEYS], clean: false };
+  const keys = cards.filter((k) => ALL_KEYS.includes(k)); // unknown keys ignored
+  return { keys: keys.length ? keys : [...DEFAULT_KEYS], clean: keys.length === cards.length };
+}
 
-  const [staff, setStaff] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [timesheets, setTimesheets] = useState([]);
-  const [rotaSlots, setRotaSlots] = useState({});
-  const [docs, setDocs] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [onboardingSessions, setOnboardingSessions] = useState([]);
+const toneCls = {
+  brand: "bg-brand-50 text-brand-700", success: "bg-success-50 text-success-700",
+  amber: "bg-amber-50 text-amber-700", rose: "bg-rose-50 text-rose-700", stone: "bg-stone-100 text-stone-500",
+};
+// `cta` renders a call-to-action line instead of a bare zero (empty/day-one states).
+const KpiCard = ({ icon: Icon, label, value, sub, tone = "stone", cta, onClick }) => (
+  <button onClick={onClick} disabled={!onClick}
+    className={`text-left bg-white border border-stone-200 rounded-2xl p-4 md:p-5 ${onClick ? "hover:border-stone-300 hover:shadow-sm transition" : "cursor-default"}`}>
+    <div className="flex items-center justify-between mb-3">
+      <span className={`inline-flex items-center justify-center w-9 h-9 rounded-xl ${toneCls[tone]}`}><Icon size={18} /></span>
+      {onClick && <ArrowRight size={15} className="text-stone-300" />}
+    </div>
+    {cta
+      ? <p className="text-base font-medium text-brand-700 leading-snug">{cta} <ArrowRight size={14} className="inline -mt-0.5" /></p>
+      : <p className="text-2xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{value}</p>}
+    <p className="text-sm text-stone-500 mt-0.5">{label}</p>
+    {sub && !cta && <p className="text-xs text-stone-400 mt-1.5">{sub}</p>}
+  </button>
+);
+
+const MosqueOverview = ({ mosque, authedUser, onNavigate }) => {
+  const mosqueId = mosque?.id;
   const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [prefs, setPrefs] = useState({ keys: [...DEFAULT_KEYS], clean: false });
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [data, setData] = useState({ enrollments: [], fees: [], attToday: [], staff: [], events: [], hifz: [], classes: [] });
 
-  // AI briefing — independent of the data widgets so a slow/failed Anthropic
-  // call never blocks the dashboard.
+  // Greeting name + saved layout (dashboard_prefs). Null/malformed → defaults.
   useEffect(() => {
-    if (!mosque?.id) return;
-    let alive = true; setBriefLoading(true); setBriefError(false);
-    getMosqueBriefing(mosque.id)
-      .then((r) => { if (!alive) return; if (r.ok) setBrief(r.brief); else setBriefError(true); })
-      .catch(() => { if (alive) setBriefError(true); })
-      .finally(() => { if (alive) setBriefLoading(false); });
+    let alive = true;
+    getProfile().then((p) => {
+      if (!alive) return;
+      setName(p?.name || authedUser?.user_metadata?.full_name || authedUser?.email?.split("@")[0] || "");
+      setPrefs(readEnabled(p?.dashboard_prefs));
+    }).catch(() => { if (alive) setPrefs({ keys: [...DEFAULT_KEYS], clean: false }); });
     return () => { alive = false; };
-  }, [mosque?.id]);
+  }, [authedUser]);
 
+  // KPI data — the same sources as the madrasah / fees / staff pages.
   useEffect(() => {
-    if (!mosque?.id) return;
-    let alive = true; setLoading(true);
+    if (!mosqueId) return;
+    let alive = true;
+    setLoading(true);
     Promise.all([
-      getMosqueStaff(mosque.id),
-      getMosqueEvents(mosque.id),
-      getMosqueTimeLogs(mosque.id),
-      getMosqueRota(mosque.id, mondayOf(new Date())),
-      getMosqueDocuments(mosque.id),
-      getCommunityMembers(mosque.id),
-      getOnboardingSessionsForMosque(mosque.id),
-    ])
-      .then(([s, e, t, r, d, cm, os]) => {
-        if (!alive) return;
-        setStaff((s || []).filter((x) => !x.archived));
-        setEvents(e || []);
-        setTimesheets(t || []);
-        setRotaSlots(r?.slots || {});
-        setDocs(d || []);
-        setMembers(cm || []);
-        setOnboardingSessions(os || []);
-      })
-      .catch((err) => console.error("dashboard load failed:", err))
-      .finally(() => { if (alive) setLoading(false); });
+      getMosqueEnrollments(mosqueId), getFeeRecords(mosqueId),
+      getMosqueAttendanceForDate(mosqueId, todayStr()), getMosqueStaffList(mosqueId),
+      getMosqueEvents(mosqueId).catch(() => []), getMosqueRecentHifz(mosqueId).catch(() => []),
+      getMadrasaClasses(mosqueId).catch(() => []),
+    ]).then(([enrollments, fees, attToday, staff, events, hifz, classes]) => {
+      if (alive) setData({ enrollments, fees, attToday, staff, events, hifz, classes });
+    }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [mosque?.id]);
+  }, [mosqueId]);
 
-  const nameById = Object.fromEntries(staff.map((s) => [s.id, s.name]));
-  const totalStaff = staff.length;
-  const dbsVerified = staff.filter((s) => s.dbs_status === "verified").length;
-  const dbsPct = totalStaff ? Math.round((dbsVerified / totalStaff) * 100) : 0;
-  const eventsThisWeek = events.filter((e) => isThisWeek(e.date)).length;
-  const activeMembers = members.filter((m) => m.status === "active").length;
-  const upcomingEvents = collapseRecurringEvents(events.filter((e) => e.date >= todayStr()), 6); // date-asc; collapse recurring series to next occurrence
-  const unread = (conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0);
-  const tsPending = timesheets.filter((t) => t.clock_out && t.status === "pending").length;
-  const expiringDocs = docs.filter((d) => d.expiry_date && d.expiry_date <= in30Str());
-  const todaySlots = rotaSlots[todayKey()] || {};
+  // ---- Derived KPI values (each mirrors its source page) ----
+  const kpi = useMemo(() => {
+    const { enrollments, fees, attToday, staff, events, hifz } = data;
+    // Students enrolled — distinct active students (MadrasaStudents).
+    const studentCount = new Set(enrollments.filter((e) => e.status === "active").map((e) => e.student?.id || e.student_id)).size;
 
-  // Next 5 expiring docs (soonest first; already ordered by the query).
-  const upcomingExpiry = docs.filter((d) => d.expiry_date).slice(0, 5);
+    // Fees outstanding — max(0, Σdue − Σpaid) over non-waived (MadrasaFees totals),
+    // summed in integer pence to avoid float drift. Families = distinct parents with
+    // a balance; over-60 = records still owed >60 days past due+grace.
+    const studentFamily = new Map();
+    for (const e of enrollments) {
+      const sid = e.student?.id || e.student_id;
+      const fam = e.student?.profile_id || e.student?.pending_parent_email || (sid ? `student:${sid}` : null);
+      if (sid && fam) studentFamily.set(sid, fam);
+    }
+    let duePence = 0, paidPence = 0, over60 = 0; const families = new Set();
+    for (const r of fees) {
+      if (r.status === "waived") continue;
+      const dp = Math.round((Number(r.amount_due) || 0) * 100);
+      const pp = Math.round((Number(r.amount_paid) || 0) * 100);
+      duePence += dp; paidPence += pp;
+      if (dp - pp > 0) {
+        families.add(studentFamily.get(r.student_id) || `student:${r.student_id}`);
+        const due = r.fee?.due_date;
+        if (due && daysSince(addDays(due, Number(r.fee?.grace_period_days) || 0)) > 60) over60 += 1;
+      }
+    }
+    const outstandingPence = Math.max(0, duePence - paidPence);
 
-  // Staff who submitted remote onboarding and await admin review/approval
-  // (RBAC-D session model — replaces the old wizard_status heuristic).
-  const reviewPending = onboardingSessions.filter((s) => s.status === "submitted");
+    // Attendance today — present of marked (only if today has marks); else Active staff.
+    const marked = attToday.length;
+    const present = attToday.filter((a) => a.status === "present").length;
+    const activeStaff = staff.filter((s) => s.status === "active").length;
 
-  // Derived recent-activity feed (no audit log yet).
-  const activity = [
-    ...reviewPending.map((s) => ({ when: s.updated_at || s.created_at, text: `${s.employee_name || "Unnamed staff member"} submitted onboarding — review pending`, flag: true })),
-    ...staff.map((s) => ({ when: s.created_at, text: `${s.name || "Unnamed staff member"} added to staff` })),
-    ...collapseRecurringEvents(events).map((e) => ({ when: e.created_at, text: `Event "${e.title}" created` })),
-    ...docs.map((d) => ({ when: d.created_at, text: `Document "${d.label}" uploaded` })),
-  ].filter((a) => a.when).sort((a, b) => (a.when < b.when ? 1 : -1)).slice(0, 10);
+    // Compliance — same score + distinct flagged staff as the Staff page.
+    const ofsted = computeOfstedScore(staff);
+    const gaps = new Set(computeComplianceIssues(staff).map((i) => i.staffId)).size;
 
-  const QUICK = [
-    { icon: UserPlus, label: "Add staff", to: ["people", "team"] },
-    { icon: CalendarPlus, label: "Create event", to: ["mosque", "events"] },
-    { icon: Search, label: "Find substitute", to: ["people", "rotas"] },
-    { icon: ListChecks, label: "Manage waiting list", to: ["madrasah"] },
-    { icon: AlertTriangle, label: "Log incident", to: ["compliance", "safeguarding"] },
-  ];
+    const upcomingEvents = events.filter((e) => e.date && e.date >= todayStr()).length;
+    const recentHifz = hifz.length;
+
+    return { studentCount, outstandingPence, families: families.size, over60, marked, present, activeStaff, ofsted, gaps, upcomingEvents, recentHifz };
+  }, [data]);
+
+  const currency = data.fees.find((r) => r.fee?.currency)?.fee?.currency || "GBP";
+  const oCls = { green: "success", amber: "amber", red: "rose" }[ofstedColour(kpi.ofsted)] || "stone";
+
+  // Student → family key + display name (shared by the fees list + insights).
+  const studentMaps = useMemo(() => {
+    const family = new Map(), sname = new Map();
+    for (const e of data.enrollments) {
+      const sid = e.student?.id || e.student_id;
+      if (!sid) continue;
+      family.set(sid, e.student?.profile_id || e.student?.pending_parent_email || `student:${sid}`);
+      if (e.student?.name) sname.set(sid, e.student.name);
+    }
+    return { family, sname };
+  }, [data.enrollments]);
+
+  // ---- Madrasah today: classes scheduled for today's weekday (schedule[].day) ----
+  const WEEKDAY = new Date().toLocaleDateString("en-GB", { weekday: "long" });
+  const todayClasses = useMemo(() => {
+    return (data.classes || [])
+      .filter((c) => (c.status || "active") === "active")
+      .map((c) => {
+        const slot = (Array.isArray(c.schedule) ? c.schedule : []).find((s) => s?.day === WEEKDAY);
+        if (!slot) return null;
+        const attn = data.attToday.filter((a) => a.class_id === c.id);
+        return {
+          id: c.id, name: c.name, subject: c.subject, room: c.room,
+          start: slot.start || "", end: slot.end || "",
+          teacher: c.teacher?.name || null, noCover: !c.teacher_staff_id,
+          marked: attn.length, present: attn.filter((a) => a.status === "present").length,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+  }, [data.classes, data.attToday, WEEKDAY]);
+
+  // ---- Fees needing action: families with a balance, worst arrears first ----
+  const feeFamilies = useMemo(() => {
+    const map = new Map(); // famKey → { label, children:Set, owedPence, daysOver }
+    for (const r of data.fees) {
+      if (r.status === "waived") continue;
+      const owed = Math.round((Number(r.amount_due) || 0) * 100) - Math.round((Number(r.amount_paid) || 0) * 100);
+      if (owed <= 0) continue;
+      const sid = r.student_id;
+      const fam = studentMaps.family.get(sid) || `student:${sid}`;
+      const due = r.fee?.due_date;
+      const daysOver = due ? daysSince(addDays(due, Number(r.fee?.grace_period_days) || 0)) : 0;
+      const e = map.get(fam) || { label: null, children: new Set(), owedPence: 0, daysOver: 0 };
+      e.owedPence += owed; e.children.add(sid); e.daysOver = Math.max(e.daysOver, daysOver);
+      if (!e.label) e.label = studentMaps.sname.get(sid) || r.student?.name || "A family";
+      map.set(fam, e);
+    }
+    return [...map.values()]
+      .map((e) => ({ label: e.label, children: e.children.size, owedPence: e.owedPence, daysOver: e.daysOver }))
+      .sort((a, b) => b.daysOver - a.daysOver || b.owedPence - a.owedPence)
+      .slice(0, 5);
+  }, [data.fees, studentMaps]);
+
+  // ---- Rules-based insights (client-side, from already-loaded data) ----
+  const insights = useMemo(() => {
+    const out = [];
+    // (1) A class today with no teacher assigned. Substitute suggestion (who's
+    //     taught it before + is free) needs cover-history + a leave feed we don't
+    //     have cleanly — shipped plain; substitute rule logged as a follow-up.
+    for (const c of todayClasses.filter((c) => c.noCover)) {
+      out.push({ key: `cover:${c.id}`, icon: UserX, tone: "amber",
+        text: `${c.name} has no teacher assigned for today${c.start ? ` (${c.start})` : ""}. Set cover.`,
+        go: () => onNavigate?.("madrasah", "classes") });
+    }
+    // (2) Families that crossed 60 days overdue in the last 7 days (arrears age
+    //     hit 60 within the past week).
+    const crossed = new Set();
+    for (const r of data.fees) {
+      if (r.status === "waived") continue;
+      const owed = Math.round((Number(r.amount_due) || 0) * 100) - Math.round((Number(r.amount_paid) || 0) * 100);
+      if (owed <= 0 || !r.fee?.due_date) continue;
+      const d = daysSince(addDays(r.fee.due_date, Number(r.fee?.grace_period_days) || 0));
+      if (d >= 60 && d <= 66) crossed.add(studentMaps.family.get(r.student_id) || `student:${r.student_id}`);
+    }
+    if (crossed.size) out.push({ key: "arrears60", icon: Wallet, tone: "amber",
+      text: `${crossed.size} famil${crossed.size === 1 ? "y" : "ies"} crossed 60 days overdue this week.`,
+      go: () => onNavigate?.("madrasah", "fees") });
+    // (4) Compliance gaps lowering the Ofsted score.
+    if (kpi.gaps > 0) out.push({ key: "gaps", icon: ShieldCheck, tone: "rose",
+      text: `${kpi.gaps} compliance gap${kpi.gaps === 1 ? "" : "s"} ${kpi.gaps === 1 ? "is" : "are"} lowering your Ofsted readiness (${kpi.ofsted}/100).`,
+      go: () => onNavigate?.("people", "staff") });
+    // Attendance-trend (3+ weeks down) deliberately NOT shipped — reliable trend
+    // detection from the raw feed is error-prone; dropped, not approximated (follow-up).
+    return out;
+  }, [todayClasses, data.fees, kpi.gaps, kpi.ofsted, studentMaps]);
+
+  const feesNoStructure = !loading && data.fees.length === 0; // £0 because no fee set up (vs nothing owed)
+
+  // Card renderers by key. Attendance auto-swaps to Active staff when no marks today.
+  const renderCard = (key) => {
+    switch (key) {
+      case "students":
+        return kpi.studentCount === 0
+          ? <KpiCard key={key} icon={Users} tone="brand" label="Students enrolled" cta="Enrol your first student" onClick={() => onNavigate?.("madrasah", "students")} />
+          : <KpiCard key={key} icon={Users} tone="brand" label="Students enrolled" value={kpi.studentCount} onClick={() => onNavigate?.("madrasah", "students")} />;
+      case "fees":
+        // Distinguish "£0 because no fee structure exists" (CTA) from "£0 owed" (fine).
+        return feesNoStructure
+          ? <KpiCard key={key} icon={Wallet} tone="brand" label="Fees outstanding" cta="Set up fees" onClick={() => onNavigate?.("madrasah", "fees")} />
+          : <KpiCard key={key} icon={Wallet} tone={kpi.outstandingPence > 0 ? "amber" : "success"} label="Fees outstanding"
+              value={money(kpi.outstandingPence / 100, currency)}
+              sub={kpi.outstandingPence > 0
+                ? `${kpi.families} famil${kpi.families === 1 ? "y" : "ies"}${kpi.over60 ? ` · ${kpi.over60} over 60 days` : ""}`
+                : "All families up to date"}
+              onClick={() => onNavigate?.("madrasah", "fees")} />;
+      case "attendance":
+        return kpi.marked > 0
+          ? <KpiCard key={key} icon={CalendarCheck} tone="success" label="Attendance today"
+              value={`${Math.round((kpi.present / kpi.marked) * 100)}%`} sub={`${kpi.present} present of ${kpi.marked} marked`}
+              onClick={() => onNavigate?.("madrasah", "students")} />
+          : <KpiCard key={key} icon={Users} tone="stone" label="Active staff" value={kpi.activeStaff}
+              sub="No attendance marked today" onClick={() => onNavigate?.("people", "staff")} />;
+      case "compliance":
+        return <KpiCard key={key} icon={ShieldCheck} tone={oCls} label="Compliance"
+          value={`${kpi.ofsted}/100`} sub={kpi.gaps ? `${kpi.gaps} gap${kpi.gaps === 1 ? "" : "s"} to close` : "No open gaps"}
+          onClick={() => onNavigate?.("people", "staff")} />;
+      case "prayer": {
+        const pt = mosque?.prayer_times || {};
+        const next = ["fajr", "dhuhr", "asr", "maghrib", "isha"].map((k) => pt[k]).filter(Boolean)[0];
+        return <KpiCard key={key} icon={Clock} tone="brand" label="Prayer times"
+          value={next || "—"} sub={next ? "Set for today" : "Not set"} onClick={() => onNavigate?.("mosque", "prayer")} />;
+      }
+      case "events":
+        return <KpiCard key={key} icon={Calendar} tone="brand" label="Upcoming events" value={kpi.upcomingEvents}
+          onClick={() => onNavigate?.("mosque", "events")} />;
+      case "hifz":
+        return <KpiCard key={key} icon={BookOpen} tone="success" label="Hifz entries (recent)" value={kpi.recentHifz}
+          onClick={() => onNavigate?.("madrasah", "students")} />;
+      default:
+        return null;
+    }
+  };
+
+  // Availability for the pool chips — data-backed vs "coming soon".
+  const available = (key) => {
+    if (DEFAULT_KEYS.includes(key)) return true;
+    if (key === "prayer") return !!mosque?.prayer_times;
+    if (key === "events" || key === "hifz") return true;
+    return false; // donations, staffleave — no mosque-wide source yet
+  };
+
+  const toggle = (key) => setPrefs((p) => {
+    const has = p.keys.includes(key);
+    return { ...p, keys: has ? p.keys.filter((k) => k !== key) : [...p.keys, key], clean: true };
+  });
+  const saveLayout = async () => {
+    setSaving(true);
+    // Persist in canonical order; unknown/absent keys already filtered out.
+    const ordered = ALL_KEYS.filter((k) => prefs.keys.includes(k));
+    await updateProfile({ dashboard_prefs: { cards: ordered } }).catch(() => {});
+    setSaving(false); setEditOpen(false);
+  };
+
+  const shownKeys = ALL_KEYS.filter((k) => prefs.keys.includes(k) && available(k));
+  const dateLabel = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 
   return (
-    <div className="space-y-6">
-      <div className="mb-1">
-        <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Dashboard</h2>
-        <p className="text-sm text-stone-600">{mosque.name}{mosque.city ? ` · ${mosque.city}` : ""}</p>
+    <div>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-5">
+        <div className="min-w-0">
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
+            Assalamu alaikum{name ? `, ${name.split(" ")[0]}` : ""}
+          </h2>
+          <p className="text-sm text-stone-500 mt-0.5">{dateLabel}{mosque?.name ? ` · ${mosque.name}` : ""}</p>
+        </div>
+        <button onClick={() => setEditOpen((v) => !v)} className="shrink-0 inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg">
+          <SlidersHorizontal size={15} /> Edit dashboard
+        </button>
       </div>
 
-      {/* AI daily briefing */}
-      <div className="bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-brand-900 mb-2"><Sparkles size={16} /> Daily briefing</div>
-        {briefLoading ? <div className="flex items-center gap-2 text-sm text-stone-400"><Loader2 size={14} className="animate-spin" /> Preparing your briefing…</div>
-          : briefError ? <p className="text-sm text-stone-500">Your briefing is unavailable right now. The stats below are live.</p>
-          : <Markdown text={brief} />}
-      </div>
-
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <StatCard icon={Users} label="Total staff" value={loading ? "—" : totalStaff} onClick={() => onNavigate?.("people", "team")} />
-        <StatCard icon={ShieldCheck} label="DBS verified" value={loading ? "—" : `${dbsPct}%`} tone={dbsPct < 100 && totalStaff ? "amber" : "stone"} onClick={() => onNavigate?.("people", "hr")} />
-        <StatCard icon={Calendar} label="Events this week" value={loading ? "—" : eventsThisWeek} onClick={() => onNavigate?.("mosque", "events")} />
-        <StatCard icon={HeartHandshake} label="Community members" value={loading ? "—" : activeMembers} onClick={() => onNavigate?.("community", "members")} />
-        <StatCard icon={MessageCircle} label="Unread messages" value={unread} onClick={() => onNavigate?.("messages")} />
-        <StatCard icon={Clock} label="Timesheets pending" value={loading ? "—" : tsPending} tone={tsPending ? "amber" : "stone"} onClick={() => onNavigate?.("people", "timesheets")} />
-        <StatCard icon={ClipboardCheck} label="Docs expiring" value={loading ? "—" : expiringDocs.length} tone={expiringDocs.length ? "amber" : "stone"} onClick={() => onNavigate?.("compliance", "documents")} />
-      </div>
-
-      {/* Quick actions */}
-      <div className="flex flex-wrap gap-2">
-        {QUICK.map((q) => { const Icon = q.icon; return (
-          <button key={q.label} onClick={() => onNavigate?.(...q.to)} className="inline-flex items-center gap-1.5 text-sm text-stone-700 bg-white border border-stone-300 hover:border-stone-400 px-3 py-2 rounded-lg">
-            <Icon size={14} /> {q.label}
-          </button>
-        ); })}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-5">
-        {/* Today's rota */}
-        <div className="bg-white border border-stone-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><CalendarDays size={15} /> Today's rota</h3>
-          <ul className="divide-y divide-stone-100">
-            {PRAYER_SLOTS.map(([slot, label]) => {
-              const id = todaySlots[slot];
-              const name = id ? (nameById[id] || "(removed)") : null;
+      {/* Edit panel — chip toggles, persisted to dashboard_prefs */}
+      {editOpen && (
+        <div className="mb-5 border border-stone-200 rounded-2xl bg-white p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-stone-800">Choose the cards on your dashboard</p>
+            <button onClick={() => setEditOpen(false)} className="text-stone-400 hover:text-stone-700"><X size={16} /></button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ALL_KEYS.map((key) => {
+              const on = prefs.keys.includes(key);
+              const ok = available(key);
               return (
-                <li key={slot} className="py-2 flex items-center justify-between text-sm">
-                  <span className="text-stone-600">{label}</span>
-                  {name ? <span className="font-medium text-stone-800">{name}</span>
-                    : <span className="text-[11px] px-2 py-0.5 rounded-full border bg-rose-50 border-rose-200 text-rose-700 font-medium">No cover</span>}
-                </li>
+                <button key={key} disabled={!ok} onClick={() => ok && toggle(key)}
+                  title={ok ? "" : "Coming soon — no data source yet"}
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!ok ? "border-stone-200 text-stone-300 cursor-not-allowed" : on ? "bg-brand-50 border-brand-300 text-brand-800" : "border-stone-300 text-stone-600 hover:bg-stone-50"}`}>
+                  {ok && on && <Check size={12} />}{CARD_META[key].label}{!ok && " · coming soon"}
+                </button>
               );
             })}
-          </ul>
+          </div>
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={saveLayout} disabled={saving} className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 disabled:bg-stone-300 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save layout
+            </button>
+            <button onClick={() => setEditOpen(false)} className="text-sm text-stone-500 hover:text-stone-800 px-3 py-2">Cancel</button>
+          </div>
         </div>
+      )}
 
-        {/* Document expiry widget */}
-        <div className="bg-white border border-stone-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><FileText size={15} /> Expiring documents</h3>
-          {loading ? <div className="flex justify-center py-4 text-stone-400"><Loader2 size={16} className="animate-spin" /></div>
-            : upcomingExpiry.length === 0 ? <p className="text-sm text-stone-500">No documents with expiry dates yet. Add them under HR and Compliance.</p>
-            : <ul className="divide-y divide-stone-100">{upcomingExpiry.map((d) => { const tone = expiryTone(d.expiry_date); return (
-                <li key={d.id} className="py-2 flex items-center justify-between gap-2 text-sm">
-                  <span className="text-stone-700 truncate">{d.label}</span>
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full border whitespace-nowrap ${toneCls[tone]}`}>{d.expiry_date}</span>
-                </li>
-              ); })}</ul>}
-          <button onClick={() => onNavigate?.("compliance", "documents")} className="mt-3 text-xs font-medium text-brand-800 hover:text-brand-900">View all documents →</button>
+      {/* KPI grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-brand-700" size={26} /></div>
+      ) : shownKeys.length === 0 ? (
+        <p className="text-sm text-stone-500 py-10 text-center">No cards selected. Use <span className="font-medium">Edit dashboard</span> to add some.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+          {shownKeys.map(renderCard)}
         </div>
-      </div>
+      )}
 
-      {/* Upcoming events — reuses the homepage event-card style */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-stone-900 flex items-center gap-1.5"><Calendar size={15} /> Upcoming events</h3>
-          <button onClick={() => onNavigate?.("mosque", "events")} className="text-xs font-medium text-brand-800 hover:text-brand-900 inline-flex items-center gap-0.5">Manage events <ChevronRight size={12} /></button>
-        </div>
-        {loading ? <div className="flex justify-center py-6 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>
-          : upcomingEvents.length === 0 ? (
-            <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center">
-              <Calendar className="mx-auto text-stone-300 mb-2" size={26} />
-              <p className="text-sm text-stone-500">No upcoming events. <button onClick={() => onNavigate?.("mosque", "events")} className="text-brand-800 hover:underline font-medium">Create one →</button></p>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {upcomingEvents.map((e) => (
-                <button key={e.id} onClick={() => onNavigate?.("mosque", "events")} className="text-left bg-white border border-stone-200 rounded-2xl overflow-hidden hover:border-brand-300 hover:shadow-sm transition-all">
-                  {e.image_url && <img src={e.image_url} alt="" className="w-full h-24 object-cover" />}
-                  <div className="p-4">
-                    <p className="text-sm font-semibold text-stone-900 mb-1 line-clamp-2">{e.title}</p>
-                    <div className="flex items-center justify-between mt-2 gap-2">
-                      <span className="text-xs text-stone-500 inline-flex items-center gap-1"><Calendar size={11} className="text-brand-700" /> {fmtEventDate(e.date)}{e.time ? ` · ${e.time}` : ""}</span>
-                      <span className="inline-flex items-center gap-1.5 shrink-0">
-                        <RecurrenceBadge recurrence={e.recurrence} />
-                        <span className="text-[10px] uppercase tracking-wide text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">{eventTypeLabel(e.type)}</span>
-                      </span>
-                    </div>
-                  </div>
+      {/* ---- Commit 4: Madrasah today · Fees needing action · Amanah assistant ---- */}
+      {!loading && (
+        <>
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Madrasah today */}
+            <div className="border border-stone-200 rounded-2xl bg-white p-4 md:p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <GraduationCap size={16} className="text-brand-700" />
+                <h3 className="text-sm font-semibold text-stone-800">Madrasah today · {WEEKDAY}</h3>
+              </div>
+              {todayClasses.length === 0 ? (
+                <button onClick={() => onNavigate?.("madrasah", "classes")} className="w-full py-6 flex flex-col items-center gap-1.5 text-sm text-stone-500 hover:text-stone-800">
+                  <CalendarCheck size={20} className="text-stone-300" /> No classes scheduled — set up your timetable →
                 </button>
-              ))}
+              ) : (
+                <ul className="divide-y divide-stone-100">
+                  {todayClasses.map((c) => (
+                    <li key={c.id} className="flex items-center gap-3 py-2.5">
+                      <div className="text-xs text-stone-500 w-[74px] shrink-0 tabular-nums">{c.start}{c.end ? `–${c.end}` : ""}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-stone-900 truncate">{c.name}</p>
+                        <p className="text-xs text-stone-500 truncate">{c.teacher || <span className="text-amber-700">No teacher</span>}{c.room ? ` · ${c.room}` : ""}</p>
+                      </div>
+                      {c.noCover
+                        ? <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-amber-700"><UserX size={12} /> No cover set</span>
+                        : c.marked > 0 ? <span className="shrink-0 text-xs text-stone-500">{c.present}/{c.marked} present</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-      </div>
 
-      {/* Recent activity */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-5">
-        <h3 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><Activity size={15} /> Recent activity</h3>
-        {loading ? <div className="flex justify-center py-4 text-stone-400"><Loader2 size={16} className="animate-spin" /></div>
-          : activity.length === 0 ? <p className="text-sm text-stone-500">Nothing yet. Activity appears as you add staff, events and documents.</p>
-          : <ul className="space-y-1.5">{activity.map((a, i) => (
-              <li key={i} className={`flex items-start gap-2 text-sm ${a.flag ? "text-amber-800" : "text-stone-700"}`}>
-                <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.flag ? "bg-amber-500" : "bg-stone-300"}`} />
-                {a.flag
-                  ? <button onClick={() => onNavigate?.("people", "team")} className="flex-1 text-left font-medium hover:underline">{a.text}</button>
-                  : <span className="flex-1">{a.text}</span>}
-                <span className="text-xs text-stone-400 whitespace-nowrap">{(a.when || "").slice(0, 10)}</span>
-              </li>
-            ))}</ul>}
-      </div>
+            {/* Fees needing action */}
+            <div className="border border-stone-200 rounded-2xl bg-white p-4 md:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2"><Wallet size={16} className="text-brand-700" /><h3 className="text-sm font-semibold text-stone-800">Fees needing action</h3></div>
+                {feeFamilies.length > 0 && (
+                  <button onClick={() => onNavigate?.("madrasah", "fees")} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-900">
+                    <MessageCircle size={13} /> Send reminders
+                  </button>
+                )}
+              </div>
+              {feeFamilies.length === 0 ? (
+                <div className="py-6 flex flex-col items-center gap-1.5 text-sm text-success-700"><CheckCircle2 size={20} className="text-success-500" /> All families up to date</div>
+              ) : (
+                <ul className="divide-y divide-stone-100">
+                  {feeFamilies.map((f, i) => (
+                    <li key={i} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-stone-900 truncate">{f.label}</p>
+                        <p className="text-xs text-stone-500">{f.children} child{f.children === 1 ? "" : "ren"}{f.daysOver > 0 ? ` · ${f.daysOver} days overdue` : ""}</p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold text-amber-700">{money(f.owedPence / 100, currency)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
 
-      <p className="text-xs text-stone-400 flex items-center gap-1"><AlertCircle size={12} /> Activity is derived from recent records; a full audit log is coming.</p>
+          {/* Amanah assistant — rules-based insights (no LLM) */}
+          <div className="mt-4 border border-stone-200 rounded-2xl bg-white p-4 md:p-5">
+            <div className="flex items-center gap-2 mb-3"><Sparkles size={16} className="text-brand-700" /><h3 className="text-sm font-semibold text-stone-800">Amanah assistant</h3></div>
+            {insights.length === 0 ? (
+              <div className="py-6 flex flex-col items-center gap-1.5 text-sm text-success-700"><CheckCircle2 size={20} className="text-success-500" /> All clear — nothing needs your attention.</div>
+            ) : (
+              <ul className="space-y-2 mb-3">
+                {insights.map((ins) => {
+                  const Icon = ins.icon;
+                  return (
+                    <li key={ins.key}>
+                      <button onClick={ins.go} className="w-full text-left flex items-start gap-2.5 p-2.5 rounded-xl border border-stone-100 hover:border-stone-300 hover:bg-stone-50 transition">
+                        <span className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg ${toneCls[ins.tone]}`}><Icon size={14} /></span>
+                        <span className="text-sm text-stone-700 flex-1">{ins.text}</span>
+                        <ArrowRight size={14} className="text-stone-300 mt-0.5 shrink-0" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {/* "Ask a question" — deliberately DISABLED (no LLM wired). */}
+            <div className="flex items-center gap-2 border border-stone-200 rounded-xl px-3 py-2 bg-stone-50">
+              <input disabled placeholder="Ask a question — coming soon" className="flex-1 bg-transparent text-sm text-stone-400 outline-none cursor-not-allowed" />
+              <ArrowRight size={15} className="text-stone-300" />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

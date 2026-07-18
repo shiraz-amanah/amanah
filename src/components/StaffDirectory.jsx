@@ -13,14 +13,14 @@
 // full profile) call optional props and are inert until those land (steps 8–9).
 // Export CSV and bulk Suspend are fully wired here.
 // ====================================================================
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search, Filter, Plus, ChevronDown, MessageCircle, X, Download, UserX,
-  MoreHorizontal, ArrowRight, Sparkles, AlertTriangle,
+  MoreHorizontal, ArrowRight, Sparkles, AlertTriangle, Check, Clock, Minus, ShieldCheck,
 } from "lucide-react";
 import {
   getMosqueStaffList, computeComplianceIssues, computeOfstedScore,
-  ofstedColour, suspendStaff,
+  ofstedColour, suspendStaff, deriveDbsState, deriveRtwState,
 } from "../lib/staffHelpers";
 import OrgStructure from "./OrgStructure";
 import AddStaffModal from "./AddStaffModal";
@@ -77,26 +77,40 @@ export function deriveStatus(s) {
   if (s.inviteStatus === "invited") return { label: "Invited", cls: "bg-sky-50 text-sky-700", dot: "bg-sky-500" };
   return { label: "Onboarding", cls: "bg-amber-50 text-amber-700", dot: "bg-amber-500" };
 }
-function deriveRtw(s) {
-  if (s.rtwRefused) return { label: "Refused", cls: "bg-rose-100 text-rose-800" };
-  if (s.employmentType === "volunteer") return { label: "Not required", cls: "bg-stone-100 text-stone-500" };
-  const d = daysUntil(s.rtwExpiryDate);
-  if (d !== null && d < 0) return { label: "Expired", cls: "bg-rose-50 text-rose-700" };
-  if (s.rtwVerified && d !== null && d <= 60) return { label: "Expiring", cls: "bg-orange-50 text-orange-700" };
-  if (s.rtwVerified) return { label: "Verified", cls: "bg-success-50 text-success-700" };
-  return { label: "Not verified", cls: "bg-amber-50 text-amber-700" };
-}
-export function deriveDbs(s) {
-  if (s.dbsRequired === false) return { label: "Not required", cls: "bg-stone-100 text-stone-500" };
-  const d = daysUntil(s.dbsExpiryDate);
-  if (s.dbsStatus === "expired" || (d !== null && d < 0)) return { label: "Expired", cls: "bg-rose-50 text-rose-700" };
-  if (s.dbsStatus === "verified" && d !== null && d <= 60) return { label: "Expiring", cls: "bg-orange-50 text-orange-700" };
-  if (s.dbsStatus === "verified") return { label: "Verified", cls: "bg-success-50 text-success-700" };
-  return { label: "Pending", cls: "bg-amber-50 text-amber-700" };
-}
 const Pill = ({ label, cls, dot }) => (
   <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
     {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}{label}
+  </span>
+);
+
+// Commit 1b — DBS/RtW cells render icon + coloured text (no fill), driven by the
+// SHARED deriveDbsState/deriveRtwState (staffHelpers) so cells, banner, chip and
+// Ofsted score can't disagree. `tone` → text colour; `icon` → glyph.
+const TONE_TEXT = { success: "text-success-700", amber: "text-amber-700", orange: "text-orange-700", rose: "text-rose-700", muted: "text-stone-400" };
+const TONE_BG = { success: "bg-success-50 text-success-700", amber: "bg-amber-50 text-amber-700", orange: "bg-orange-50 text-orange-700", rose: "bg-rose-50 text-rose-700", muted: "bg-stone-100 text-stone-500" };
+const CELL_GLYPH = { check: Check, clock: Clock, alert: AlertTriangle, minus: Minus };
+const CellStatus = ({ label, tone, icon, muted }) => {
+  const Icon = CELL_GLYPH[icon] || Minus;
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${muted ? "text-stone-400" : (TONE_TEXT[tone] || "text-stone-500")}`}>
+      <Icon size={13} className="shrink-0" />{label}
+    </span>
+  );
+};
+
+// VolunteersTab still renders DBS as a filled Pill — thin wrapper over the shared state.
+export function deriveDbs(s) { const st = deriveDbsState(s); return { label: st.label, cls: TONE_BG[st.tone] }; }
+
+// Status renders as a coloured dot + text (no pill fill). deriveStatus supplies
+// the dot; the text colour is mapped by label. Suspended/offboarded read muted.
+const STATUS_TEXT = {
+  "Active": "text-success-700", "Suspended": "text-stone-500", "Offboarded": "text-stone-500",
+  "Invited": "text-sky-700", "Onboarding": "text-amber-700",
+};
+const StatusDot = ({ label, dot }) => (
+  <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+    <span className={STATUS_TEXT[label] || "text-stone-600"}>{label}</span>
   </span>
 );
 
@@ -109,21 +123,33 @@ function aiSummaryFor(staffId, issues) {
   return `${mine.length} issue${mine.length === 1 ? "" : "s"}: ${top}${mine.length > 2 ? "…" : ""}.`;
 }
 
+// Commit 5 — the staff-page tab + Needs-attention chip persist to the URL
+// (?staffTab= / ?filter=). These map the chip key ↔ the existing onlyFlagged +
+// filters.status state (no new state model).
+const STAFF_TABS = ["employees", "org", "onboarding"];
+const chipToState = (k) => k === "attention" ? { of: true, st: "" }
+  : k === "active" ? { of: false, st: "Active" }
+  : k === "suspended" ? { of: false, st: "Suspended" }
+  : { of: false, st: "" };
+
 // ── main ─────────────────────────────────────────────────────────────
-export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaff, onOpenProfile, authedUser }) {
+export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaff, onOpenProfile, authedUser, staffTab = "", filter = "", onStaffUrl }) {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(() => new Set());
   const [openId, setOpenId] = useState(staffId || null);
-  const [tab, setTab] = useState("employees");
+  const [tab, setTab] = useState(() => STAFF_TABS.includes(staffTab) ? staffTab : "employees");
   const [addOpen, setAddOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [msgRecipients, setMsgRecipients] = useState(null); // null = closed; array = open
   const openMsg = (list) => setMsgRecipients(list || []);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filters, setFilters] = useState({ status: "", rtw: "", dbs: "", department: "", employmentType: "" });
-  const [onlyFlagged, setOnlyFlagged] = useState(false);
+  const [filters, setFilters] = useState(() => ({ status: chipToState(filter).st, rtw: "", dbs: "", department: "", employmentType: "" }));
+  const [onlyFlagged, setOnlyFlagged] = useState(() => chipToState(filter).of);
+  const [detailsOpen, setDetailsOpen] = useState(false); // compact banner's expandable issue list
+  const [moreOpen, setMoreOpen] = useState(false); // header "More" menu (Bulk import / Message all)
+  const moreRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [pendingOnboarding, setPendingOnboarding] = useState(0); // submitted sessions awaiting review
@@ -164,9 +190,36 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       .catch(() => {});
   }, [openId, mosqueId, staff]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close the header "More" menu on outside-click / Escape (it's a menu, no data entry).
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDoc = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setMoreOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [moreOpen]);
+
+  // Commit 5 — keep tab + chip in sync with the URL props (Back/Forward + refresh).
+  useEffect(() => { setTab(STAFF_TABS.includes(staffTab) ? staffTab : "employees"); }, [staffTab]);
+  useEffect(() => { const s = chipToState(filter); setOnlyFlagged(s.of); setFilters((f) => ({ ...f, status: s.st })); }, [filter]);
+  // The current chip key (derived from the existing state) + the URL-writers.
+  const filterKey = onlyFlagged ? "attention" : filters.status === "Active" ? "active" : filters.status === "Suspended" ? "suspended" : "all";
+  const changeTab = (v) => { setTab(v); onStaffUrl?.({ staffTab: v, filter: filterKey }, { replace: false }); };   // PUSH — tabs are navigation
+  const applyChip = (key) => { const s = chipToState(key); setOnlyFlagged(s.of); setFilters((f) => ({ ...f, status: s.st })); onStaffUrl?.({ staffTab: tab, filter: key }, { replace: true }); }; // REPLACE — chips are refinement
+
   const issues = useMemo(() => computeComplianceIssues(staff), [staff]);
   const ofsted = useMemo(() => computeOfstedScore(staff), [staff]);
   const flaggedIds = useMemo(() => new Set(issues.map((i) => i.staffId)), [issues]);
+  // Compact-banner breakdown — counts by the category the issues already carry.
+  // Distinct FLAGGED STAFF per category (a row has ≤1 DBS gap + ≤1 RTW gap). The
+  // banner headline = flaggedIds.size (distinct flagged rows), so banner == the
+  // Needs-attention chip == the count of amber/rose RtW-or-DBS cell rows. X + Y can
+  // exceed the headline when a row has both a DBS and a RtW gap.
+  const issueBreakdown = useMemo(() => ({
+    dbs: new Set(issues.filter((i) => i.category === "dbs").map((i) => i.staffId)).size,
+    rtw: new Set(issues.filter((i) => i.category === "rtw").map((i) => i.staffId)).size,
+  }), [issues]);
   const departments = useMemo(() => [...new Set(staff.map((s) => s.department).filter(Boolean))].sort(), [staff]);
 
   const filtered = useMemo(() => {
@@ -175,8 +228,8 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       if (onlyFlagged && !flaggedIds.has(s.id)) return false;
       if (q && ![s.name, s.email, s.department, s.role, s.jobTitle].some((v) => (v || "").toLowerCase().includes(q))) return false;
       if (filters.status && deriveStatus(s).label !== filters.status) return false;
-      if (filters.rtw && deriveRtw(s).label !== filters.rtw) return false;
-      if (filters.dbs && deriveDbs(s).label !== filters.dbs) return false;
+      if (filters.rtw && deriveRtwState(s).label !== filters.rtw) return false;
+      if (filters.dbs && deriveDbsState(s).label !== filters.dbs) return false;
       if (filters.department && s.department !== filters.department) return false;
       if (filters.employmentType && s.employmentType !== filters.employmentType) return false;
       return true;
@@ -193,7 +246,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
   const exportCsv = () => {
     const cols = ["Name", "Email", "Department", "Role", "Status", "Right to Work", "DBS", "Start date"];
-    const rows = filtered.map((s) => [s.name, s.email, s.department, s.jobTitle || s.role, deriveStatus(s).label, deriveRtw(s).label, deriveDbs(s).label, s.startDate]
+    const rows = filtered.map((s) => [s.name, s.email, s.department, s.jobTitle || s.role, deriveStatus(s).label, deriveRtwState(s).label, deriveDbsState(s).label, s.startDate]
       .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
     const blob = new Blob([[cols.join(","), ...rows].join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -214,23 +267,38 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
   return (
     <div className="relative">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-5">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>
-            All Staff <span className="text-stone-400 font-normal">({staff.length})</span>
-          </h2>
-          <p className="text-sm text-stone-600">Manage your team — invite, edit, and view full profiles.</p>
+      {/* Row 1 — compact header band: title + muted meta · Ofsted · More · Add staff */}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight shrink-0" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff</h2>
+          <span className="text-sm text-stone-500 truncate">{staff.length} {staff.length === 1 ? "person" : "people"}{mosque?.name ? ` · ${mosque.name}` : ""}</span>
         </div>
-        <div className={`shrink-0 px-3 py-2 rounded-xl text-sm font-semibold ${oCls}`} title="Ofsted-readiness score">
-          Ofsted readiness: {ofsted}/100
+        <div className="flex items-center gap-2 shrink-0">
+          <div className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${oCls}`} title="Ofsted-readiness score">
+            <ShieldCheck size={15} className="shrink-0" /> {ofsted}/100
+          </div>
+          <div className="relative" ref={moreRef}>
+            <button onClick={() => setMoreOpen((v) => !v)} aria-haspopup="true" aria-expanded={moreOpen}
+              className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3 py-2 rounded-lg ${bulkOpen ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
+              Import / More <ChevronDown size={14} />
+            </button>
+            {moreOpen && (
+              <div role="menu" className="absolute right-0 mt-1 w-52 bg-white border border-stone-200 rounded-xl shadow-lg p-1.5 z-20">
+                <button role="menuitem" onClick={() => { setMoreOpen(false); setTab("employees"); setBulkOpen((v) => !v); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-700 hover:bg-stone-50"><Download size={15} className="text-stone-500" /> Bulk import</button>
+                <button role="menuitem" onClick={() => { setMoreOpen(false); openMsg(filtered); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-700 hover:bg-stone-50"><MessageCircle size={15} className="text-stone-500" /> Message all</button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
+            <Plus size={15} /> Add staff
+          </button>
         </div>
       </div>
 
       {/* Tab switcher: Employees | Org Structure | Onboarding review */}
       <div className="flex items-center gap-1 mb-4 border-b border-stone-200">
         {[["employees", `Employees (${staff.length})`], ["org", "Org Structure"], ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`]].map(([v, l]) => (
-          <button key={v} onClick={() => setTab(v)}
+          <button key={v} onClick={() => changeTab(v)}
             className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-brand-600 text-brand-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             {l}{v === "onboarding" && pendingOnboarding > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
           </button>
@@ -242,58 +310,77 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       {tab === "onboarding" && <OnboardingReview mosqueId={mosqueId} onChanged={() => setTick((t) => t + 1)} />}
 
       {tab === "employees" && (<>
-      {/* AI compliance bar */}
-      {issues.length > 0 && (
-        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-              <Sparkles size={15} /> {issues.length} issue{issues.length === 1 ? "" : "s"} need attention
+      {/* Compliance banner — single compact row. "Review gaps" filters the table
+          to the flagged rows (the existing Resolve-all handler); "Details" expands
+          the per-name list beneath. */}
+      {flaggedIds.size > 0 && (
+        <div className="mb-4 border-y border-amber-200 bg-amber-50/60">
+          <div className="flex items-center gap-3 px-3.5 py-2.5">
+            <AlertTriangle size={16} className="shrink-0 text-amber-600" />
+            <div className="text-sm text-amber-900 min-w-0">
+              <span className="font-semibold">{flaggedIds.size} compliance gap{flaggedIds.size === 1 ? "" : "s"}</span>
+              <span className="text-amber-700">
+                {" — "}{issueBreakdown.dbs} DBS · {issueBreakdown.rtw} right to work
+              </span>
             </div>
-            <button onClick={() => setOnlyFlagged((v) => !v)} className="text-xs font-medium text-amber-800 hover:text-amber-950 underline underline-offset-2">
-              {onlyFlagged ? "Show all" : "Resolve all →"}
+            <div className="flex-1" />
+            <button onClick={() => setDetailsOpen((v) => !v)} className="shrink-0 text-xs font-medium text-amber-800 hover:text-amber-950">
+              {detailsOpen ? "Hide" : "Details"}
+            </button>
+            <button onClick={() => setOnlyFlagged((v) => !v)} className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-amber-900 border border-amber-300 hover:bg-amber-100 rounded-lg px-3 py-1.5">
+              {onlyFlagged ? "Show all staff" : <>Review gaps <ArrowRight size={12} /></>}
             </button>
           </div>
-          <ul className="space-y-1">
-            {issues.slice(0, 5).map((i, n) => (
-              <li key={n} className="flex items-center gap-2 text-sm text-amber-900">
-                <AlertTriangle size={13} className="shrink-0 text-amber-600" /> {i.message}
-              </li>
-            ))}
-          </ul>
+          {detailsOpen && (
+            <ul className="border-t border-amber-200/70 px-3.5 py-2 space-y-1">
+              {issues.map((i, n) => (
+                <li key={n} className="flex items-center gap-2 text-sm text-amber-900">
+                  <AlertTriangle size={12} className="shrink-0 text-amber-500" /> {i.message}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Row 4 — search (left, capped) + filter chips & granular filter (right) on one row */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3.5 py-2 rounded-lg">
-          <Plus size={15} /> Add staff
-        </button>
-        <button onClick={() => setBulkOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${bulkOpen ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
-          <Download size={15} /> Bulk import
-        </button>
-        <button onClick={() => openMsg(filtered)} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3.5 py-2 rounded-lg">
-          <MessageCircle size={15} /> Message all <ArrowRight size={13} />
-        </button>
-        <div className="flex-1" />
         <div className="relative">
-          <button onClick={() => setFilterOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3.5 py-2 rounded-lg ${anyFilter ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, department, role…"
+            className="pl-9 pr-3 py-2 w-full max-w-[320px] border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200" />
+        </div>
+        <div className="flex-1" />
+        {/* Chips — driven by the existing filters.status + onlyFlagged state (no new state). */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { key: "all",       label: "All",             active: !onlyFlagged && !filters.status },
+            { key: "active",    label: "Active",          active: !onlyFlagged && filters.status === "Active" },
+            { key: "attention", label: "Needs attention", active: onlyFlagged },
+            { key: "suspended", label: "Suspended",       active: !onlyFlagged && filters.status === "Suspended" },
+          ].map((c) => (
+            <button key={c.key} onClick={() => applyChip(c.key)}
+              className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${c.active ? "bg-brand-50 border-brand-300 text-brand-800" : "border-stone-300 text-stone-600 hover:bg-stone-50"}`}>
+              {c.key === "attention" && flaggedIds.size > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+              {c.label}{c.key === "attention" && flaggedIds.size > 0 ? ` (${flaggedIds.size})` : ""}
+            </button>
+          ))}
+        </div>
+        {/* Granular filter dropdown (RtW / DBS / dept / employment / status). */}
+        <div className="relative">
+          <button onClick={() => setFilterOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3 py-2 rounded-lg ${anyFilter ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
             <Filter size={15} /> Filter {anyFilter && <span className="text-xs">•</span>} <ChevronDown size={13} />
           </button>
           {filterOpen && (
             <div className="absolute right-0 mt-1 w-64 bg-white border border-stone-200 rounded-xl shadow-lg p-3 z-20 space-y-2.5">
               <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))} options={["Active", "Onboarding", "Invited", "Suspended", "Offboarded"]} />
-              <FilterSelect label="Right to Work" value={filters.rtw} onChange={(v) => setFilters((f) => ({ ...f, rtw: v }))} options={["Verified", "Not verified", "Expiring", "Expired", "Not required"]} />
-              <FilterSelect label="DBS" value={filters.dbs} onChange={(v) => setFilters((f) => ({ ...f, dbs: v }))} options={["Verified", "Pending", "Expiring", "Expired", "Not required"]} />
+              <FilterSelect label="Right to Work" value={filters.rtw} onChange={(v) => setFilters((f) => ({ ...f, rtw: v }))} options={["Verified", "Not verified", "Expiring", "Expired", "Refused", "Not required"]} />
+              <FilterSelect label="DBS" value={filters.dbs} onChange={(v) => setFilters((f) => ({ ...f, dbs: v }))} options={["Verified", "Pending", "Missing", "Wrong level", "Expiring", "Expired", "Not required"]} />
               <FilterSelect label="Department" value={filters.department} onChange={(v) => setFilters((f) => ({ ...f, department: v }))} options={departments} />
               <FilterSelect label="Employment" value={filters.employmentType} onChange={(v) => setFilters((f) => ({ ...f, employmentType: v }))} options={["employed_full_time", "employed_part_time", "self_employed", "volunteer", "contractor"]} />
               <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
             </div>
           )}
-        </div>
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, department, role…"
-            className="pl-9 pr-3 py-2 w-64 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200" />
         </div>
       </div>
 
@@ -323,8 +410,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
             <tr>
               <th className="w-10 px-3 py-2.5"><input type="checkbox" checked={allChecked} onChange={toggleAll} className="accent-brand-600" /></th>
               <th className="px-3 py-2.5 text-left font-medium">Name</th>
-              <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Department</th>
-              <th className="px-3 py-2.5 text-left font-medium hidden lg:table-cell">Role</th>
+              <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Role</th>
               <th className="px-3 py-2.5 text-left font-medium">Status</th>
               <th className="px-3 py-2.5 text-left font-medium hidden sm:table-cell">Right to Work</th>
               <th className="px-3 py-2.5 text-left font-medium hidden sm:table-cell">DBS</th>
@@ -333,32 +419,40 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           </thead>
           <tbody className="divide-y divide-stone-100">
             {loading ? (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-stone-400">Loading staff…</td></tr>
+              <tr><td colSpan={7} className="px-3 py-10 text-center text-stone-400">Loading staff…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-stone-400">{staff.length === 0 ? "No staff yet — add your first team member." : "No staff match your filters."}</td></tr>
+              <tr><td colSpan={7} className="px-3 py-10 text-center text-stone-400">{staff.length === 0 ? "No staff yet — add your first team member." : "No staff match your filters."}</td></tr>
             ) : filtered.map((s) => {
               const st = deriveStatus(s);
+              // Suspended/offboarded rows read muted (secondary cells only); the
+              // checkbox + row actions keep full contrast/function.
+              const muted = s.status === "suspended" || s.status === "offboarded" || s.archived;
               return (
                 <tr key={s.id} onClick={() => setOpenId(s.id)}
                   className={`cursor-pointer hover:bg-stone-50 ${openId === s.id ? "bg-brand-50/40" : ""}`}>
-                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} className="accent-brand-600" />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2">
                     <div className="flex items-center gap-2.5">
                       <Avatar name={s.name} photoUrl={s.photoUrl} size={36} />
                       <div className="min-w-0">
-                        <div className="font-medium text-stone-900 truncate">{s.name}</div>
-                        <div className="text-xs text-stone-500 truncate">{s.email}</div>
+                        {s.name
+                          ? <div className={`font-medium truncate ${muted ? "text-stone-500" : "text-stone-900"}`}>{s.name}</div>
+                          : <div className="font-medium truncate text-stone-400 italic">Unnamed — complete profile</div>}
+                        <div className="text-xs text-stone-400 truncate">{s.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 text-stone-600 hidden md:table-cell">{s.department || "—"}</td>
-                  <td className="px-3 py-2.5 text-stone-600 hidden lg:table-cell">{s.jobTitle || s.role || "—"}</td>
-                  <td className="px-3 py-2.5"><Pill {...st} /></td>
-                  <td className="px-3 py-2.5 hidden sm:table-cell"><Pill {...deriveRtw(s)} /></td>
-                  <td className="px-3 py-2.5 hidden sm:table-cell"><Pill {...deriveDbs(s)} /></td>
-                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                  {/* Merged column: role primary + department muted second line. */}
+                  <td className="px-3 py-2 hidden md:table-cell">
+                    <div className={`truncate ${muted ? "text-stone-400" : "text-stone-700"}`}>{s.jobTitle || s.role || "—"}</div>
+                    {s.department && <div className="text-xs text-stone-400 truncate">{s.department}</div>}
+                  </td>
+                  <td className="px-3 py-2"><StatusDot label={st.label} dot={st.dot} /></td>
+                  <td className="px-3 py-2 hidden sm:table-cell"><CellStatus {...deriveRtwState(s)} muted={muted} /></td>
+                  <td className="px-3 py-2 hidden sm:table-cell"><CellStatus {...deriveDbsState(s)} muted={muted} /></td>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => setOpenId(s.id)} className="text-stone-400 hover:text-stone-700"><MoreHorizontal size={16} /></button>
                   </td>
                 </tr>
@@ -393,8 +487,8 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
                 <Row label="Designation" value={openRow.jobTitle || openRow.role || "—"} />
                 <Row label="Joining date" value={fmtDate(openRow.startDate)} />
                 <Row label="Last login" value={openRow.lastLoginAt ? fmtDate(openRow.lastLoginAt) : "—"} />
-                <Row label="Right to Work" value={<Pill {...deriveRtw(openRow)} />} />
-                <Row label="DBS" value={<Pill {...deriveDbs(openRow)} />} />
+                <Row label="Right to Work" value={<CellStatus {...deriveRtwState(openRow)} />} />
+                <Row label="DBS" value={<CellStatus {...deriveDbsState(openRow)} />} />
               </div>
 
               <div className="mt-4 border-t border-stone-100 pt-4">

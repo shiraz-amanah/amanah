@@ -351,74 +351,64 @@ function daysUntil(dateStr, now = new Date()) {
 }
 const SEV_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 
-// Returns a sorted (most-severe-first) array of compliance issues.
-// staff: array of shapeStaffListRow objects. now: injectable for testing.
+// ── SINGLE COMPLIANCE-GAP DEFINITION (Job C, RBAC-E) ─────────────────────
+// A compliance gap = a not-archived/offboarded staff member whose required DBS
+// isn't verified (missing / pending / expired / wrong level), or whose Right to
+// Work isn't verified and they're not a volunteer — regardless of onboarding
+// status. deriveDbsState / deriveRtwState classify ONE record into a canonical
+// state; the Staff list CELLS, computeComplianceIssues (banner + Needs-attention
+// chip), AND computeOfstedScore all read from these, so those four can never
+// disagree (the bug this centralisation fixed). Centralising now also makes
+// RBAC-E Commit 4's real-time Ofsted updates cheap.
+//   gap    → counts in the banner/chip AND is an amber/rose cell.
+//   weight → Ofsted penalty (0 when not a gap). Warnings (expiring but still
+//            valid) are ORANGE cells, NOT gaps, and carry no weight.
+//   tone/icon → drive the cell colour + glyph (no re-implemented conditions).
+// Data note: dbs_status ∈ {not_checked, pending, verified, expired} (migration
+// 054), so a check in flight (pending → −5) is distinguishable from no record
+// at all (missing → −10).
+export function deriveDbsState(s, { now = new Date() } = {}) {
+  if (s.dbsRequired === false) return { key: "not_required", label: "Not required", tone: "muted", icon: "minus", gap: false, weight: 0 };
+  const d = daysUntil(s.dbsExpiryDate, now);
+  if (s.dbsStatus === "expired" || (d !== null && d < 0))
+    return { key: "expired", label: "Expired", tone: "rose", icon: "alert", gap: true, weight: 10, msg: "DBS expired" };
+  if (s.dbsStatus === "verified") {
+    if (d !== null && d <= 60) return { key: "expiring", label: "Expiring", tone: "orange", icon: "clock", gap: false, weight: 0 };
+    if (s.dbsLevel === "basic" || s.dbsLevel === "standard")
+      return { key: "level_mismatch", label: "Wrong level", tone: "amber", icon: "alert", gap: true, weight: 8, msg: `DBS is ${s.dbsLevel}; Enhanced expected for this role` };
+    return { key: "verified", label: "Verified", tone: "success", icon: "check", gap: false, weight: 0 };
+  }
+  if (s.dbsStatus === "pending")
+    return { key: "pending", label: "Pending", tone: "amber", icon: "clock", gap: true, weight: 5, msg: "DBS check in progress (not yet verified)" };
+  return { key: "missing", label: "Missing", tone: "amber", icon: "alert", gap: true, weight: 10, msg: "no DBS record on file" };
+}
+
+export function deriveRtwState(s, { now = new Date() } = {}) {
+  if (s.employmentType === "volunteer") return { key: "not_required", label: "Not required", tone: "muted", icon: "minus", gap: false, weight: 0 };
+  const d = daysUntil(s.rtwExpiryDate, now);
+  if (s.rtwRefused) return { key: "refused", label: "Refused", tone: "rose", icon: "alert", gap: true, weight: 10, msg: "Right to Work REFUSED" };
+  if (d !== null && d < 0) return { key: "expired", label: "Expired", tone: "rose", icon: "alert", gap: true, weight: 10, msg: "Right to Work expired" };
+  if (s.rtwVerified) {
+    if (d !== null && d <= 60) return { key: "expiring", label: "Expiring", tone: "orange", icon: "clock", gap: false, weight: 0 };
+    return { key: "verified", label: "Verified", tone: "success", icon: "check", gap: false, weight: 0 };
+  }
+  return { key: "not_verified", label: "Not verified", tone: "amber", icon: "alert", gap: true, weight: 5, msg: "Right to Work not verified" };
+}
+
+const sevForWeight = (w) => (w >= 10 ? "urgent" : w >= 8 ? "high" : "medium");
+
+// Sorted (most-severe-first) array of compliance gaps — DBS + RTW only, derived
+// ENTIRELY from deriveDbsState / deriveRtwState (the single definition above).
+// One row yields at most one DBS gap + one RTW gap. Onboarding/invite nudges are
+// deliberately NOT here — they are operational, not compliance gaps per the agreed
+// definition (logged in NOTES.md). staff: shapeStaffListRow objects.
 export function computeComplianceIssues(staff, { now = new Date() } = {}) {
   const issues = [];
   const active = (staff || []).filter((s) => !s.archived && s.status !== "offboarded");
   for (const s of active) {
     const nm = s.name || "Unnamed";
-    const dbsReq = s.dbsRequired !== false;
-    const dbsExp = daysUntil(s.dbsExpiryDate, now);
-
-    // 1. Teacher/childcare role requiring DBS with no record — URGENT
-    if (dbsReq && (!s.dbsLevel || s.dbsLevel === "none") && s.dbsStatus !== "verified") {
-      issues.push({ staffId: s.id, staffName: nm, severity: "urgent", code: "dbs_missing",
-        category: "dbs", message: `${nm} — no DBS record on file` });
-    }
-    // 2. DBS level mismatch (children-facing needs Enhanced)
-    else if (dbsReq && (s.dbsLevel === "basic" || s.dbsLevel === "standard")) {
-      issues.push({ staffId: s.id, staffName: nm, severity: "high", code: "dbs_level_mismatch",
-        category: "dbs", message: `${nm} — DBS is ${s.dbsLevel}; Enhanced expected for this role` });
-    }
-    // 3. DBS expired
-    if (dbsReq && dbsExp !== null && dbsExp < 0) {
-      issues.push({ staffId: s.id, staffName: nm, severity: "high", code: "dbs_expired",
-        category: "dbs", message: `${nm} — DBS expired` });
-    }
-    // 4. DBS expiring ≤60 days
-    else if (dbsReq && dbsExp !== null && dbsExp <= 60) {
-      issues.push({ staffId: s.id, staffName: nm, severity: "medium", code: "dbs_expiring",
-        category: "dbs", message: `${nm} — DBS expires in ${dbsExp} day${dbsExp === 1 ? "" : "s"}` });
-    }
-
-    // RTW refused — URGENT (a refused Right to Work means they can't work here)
-    if (s.rtwRefused) {
-      issues.push({ staffId: s.id, staffName: nm, severity: "urgent", code: "rtw_refused",
-        category: "rtw", message: `${nm} — Right to Work REFUSED` });
-    }
-    const rtwExp = daysUntil(s.rtwExpiryDate, now);
-    // 5. RTW expired
-    if (rtwExp !== null && rtwExp < 0) {
-      issues.push({ staffId: s.id, staffName: nm, severity: "high", code: "rtw_expired",
-        category: "rtw", message: `${nm} — Right to Work expired` });
-    }
-    // 6. RTW expiring ≤60 days
-    else if (rtwExp !== null && rtwExp <= 60) {
-      issues.push({ staffId: s.id, staffName: nm, severity: "medium", code: "rtw_expiring",
-        category: "rtw", message: `${nm} — Right to Work expires in ${rtwExp} day${rtwExp === 1 ? "" : "s"}` });
-    }
-    // 7. RTW not verified (for active employees)
-    if (!s.rtwVerified && s.status === "active" && s.employmentType && s.employmentType !== "volunteer") {
-      issues.push({ staffId: s.id, staffName: nm, severity: "medium", code: "rtw_unverified",
-        category: "rtw", message: `${nm} — Right to Work not verified` });
-    }
-
-    // 12. Invite expired >7 days (not accepted)
-    if (s.inviteStatus === "invited" && s.status !== "active") {
-      const invAge = daysUntil(s.createdAt, now);
-      if (invAge !== null && invAge < -7) {
-        issues.push({ staffId: s.id, staffName: nm, severity: "low", code: "invite_expired",
-          category: "onboarding", message: `${nm} — invite not accepted (>7 days)` });
-      }
-    }
-    // 13. Onboarding stalled >5 days
-    if (s.status !== "active" && !s.onboardingCompletedAt && s.inviteStatus === "active") {
-      const age = daysUntil(s.createdAt, now);
-      if (age !== null && age < -5) {
-        issues.push({ staffId: s.id, staffName: nm, severity: "low", code: "onboarding_stalled",
-          category: "onboarding", message: `${nm} — onboarding stalled (>5 days)` });
-      }
+    for (const [category, st] of [["dbs", deriveDbsState(s, { now })], ["rtw", deriveRtwState(s, { now })]]) {
+      if (st.gap) issues.push({ staffId: s.id, staffName: nm, category, code: st.key, severity: sevForWeight(st.weight), message: `${nm} — ${st.msg}` });
     }
   }
   return issues.sort((a, b) => (SEV_ORDER[a.severity] - SEV_ORDER[b.severity]));
@@ -426,16 +416,16 @@ export function computeComplianceIssues(staff, { now = new Date() } = {}) {
 
 // 0–100 Ofsted-readiness score from the same safe list. Colour: ≥90 green,
 // 70–89 amber, <70 red (caller maps).
+// Ofsted-readiness = 100 − the sum of every gap's weight, from the SAME
+// deriveDbsState / deriveRtwState definition the cells + banner use. Missing DBS
+// now costs −10 (was silently −0), so the score reflects it (definition changed —
+// scores drop on existing data, which is correct, not a regression).
 export function computeOfstedScore(staff, { now = new Date() } = {}) {
   let score = 100;
   const active = (staff || []).filter((s) => !s.archived && s.status !== "offboarded");
   for (const s of active) {
-    const dbsReq = s.dbsRequired !== false;
-    const dbsExp = daysUntil(s.dbsExpiryDate, now);
-    if (dbsReq && dbsExp !== null && dbsExp < 0) score -= 10;            // expired DBS
-    if (dbsReq && (s.dbsLevel === "basic" || s.dbsLevel === "standard")) score -= 8; // level mismatch
-    if (s.rtwRefused) score -= 10;                                                    // refused RTW
-    if (!s.rtwRefused && !s.rtwVerified && s.status === "active" && s.employmentType && s.employmentType !== "volunteer") score -= 5;
+    score -= deriveDbsState(s, { now }).weight;
+    score -= deriveRtwState(s, { now }).weight;
   }
   return Math.max(0, Math.min(100, score));
 }

@@ -1,0 +1,11 @@
+-- 153_profiles_dashboard_prefs.sql
+-- STATUS: new. Apply dev first, then prod (Supabase SQL editor). Additive column.
+--
+-- Per-admin mosque-dashboard card layout (UI overhaul Commit 3). Stores a small
+-- blob, e.g. { "cards": ["students","fees","attendance","compliance","donations"] }.
+-- Nullable, no default, no backfill: null/absent = the client's default card set.
+--
+-- RLS is the sole gate and is UNCHANGED: `profiles` already has an owner-self
+-- UPDATE policy (id = auth.uid()) — the same path updateProfile() writes through —
+-- so an admin can read/write only their OWN dashboard_prefs, no new policy needed.
+alter table public.profiles add column if not exists dashboard_prefs jsonb;
