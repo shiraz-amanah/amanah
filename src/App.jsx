@@ -13922,7 +13922,7 @@ if (view === "cookiePolicy") return <CookiePolicy header={<PublicHeader authedUs
     onView={() => setView("publicHome")}
     onHome={() => navigate(campaignCreatorType === "mosque" ? "mosqueDashboard" : "imamDashboard")}
   />;
-  if (view === "staffProfile") return <StaffProfile staffId={routeQuery.staffId} mosque={myMosque} authedUser={authedUser} onBack={() => window.history.back()} />;
+  if (view === "staffProfile") return <StaffProfile staffId={routeQuery.staffId} section={routeQuery.section || ""} navigate={navigate} goBack={goBack} mosque={myMosque} authedUser={authedUser} onBack={() => window.history.back()} />;
   if (view === "staffAccept") return <MosqueStaffInviteAccept token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "staffWizard") return <MosqueStaffOnboard token={routeParams.token} onBrowse={() => setView("publicHome")} />;
   if (view === "contractSign") return <ContractSign token={routeParams.token} />;

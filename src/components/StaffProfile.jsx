@@ -26,7 +26,7 @@ import {
   ChevronDown, ChevronRight, ArrowLeft, MessageCircle, MoreHorizontal,
   Eye, Loader2, ShieldCheck, ShieldAlert, GraduationCap, BookOpen,
   CalendarDays, TrendingUp, Globe, FileText, UserCog, Lock,
-  Upload, AlertTriangle, Check, Plus, Trash2, X, Pencil,
+  Upload, AlertTriangle, Check, Plus, Trash2, X, Pencil, KeyRound,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
@@ -40,7 +40,7 @@ import {
   getStaffLeave, addLeave, approveLeave, declineLeave,
   getStaffPerformance, getStaffReviewNotes, addStaffReviewNote,
   getStaffDocuments, deleteStaffDocument, addStaffDocument,
-  deriveRtwState, deriveDbsState, computeComplianceIssues,
+  deriveRtwState, deriveDbsState,
 } from "../lib/staffHelpers";
 import { uploadStaffDoc, getStaffDocUrl, deleteStaffDoc } from "../lib/staffStorage";
 import {
@@ -172,13 +172,29 @@ function StripTile({ label, value, sub, tone = "muted" }) {
   );
 }
 
-// A group label above a set of related sections (the "grouped cards" layout).
+// A group label above a set of related sections (kept for the detail view).
 function GroupHeading({ title, badge }) {
   return (
     <div className="flex items-center gap-2 px-1 pt-5 pb-1.5">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-stone-500">{title}</h2>
       {badge}
     </div>
+  );
+}
+
+// One clickable summary card in the overview grid → opens its panel (URL-addressable).
+// Amber/rose status text on a checks card IS the gap badge (no separate count).
+function SummaryCard({ icon: Icon, title, statusText, statusTone, detail, onClick }) {
+  return (
+    <button onClick={onClick} className="text-left w-full bg-white border border-stone-200 rounded-xl p-4 hover:border-stone-300 hover:shadow-sm transition flex items-start gap-3">
+      <div className="w-9 h-9 rounded-lg bg-stone-100 flex items-center justify-center shrink-0"><Icon size={17} className="text-stone-500" /></div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-stone-900">{title}</div>
+        <div className={`text-sm mt-0.5 truncate ${TONE_TEXT[statusTone] || "text-stone-600"}`}>{statusText}</div>
+        {detail && <div className="text-xs text-stone-400 mt-0.5 truncate">{detail}</div>}
+      </div>
+      <ChevronRight size={16} className="text-stone-300 shrink-0 mt-1" />
+    </button>
   );
 }
 import { sendLeaveDecision } from "../lib/email";
@@ -223,7 +239,7 @@ const Field = ({ label, value }) => (
   </div>
 );
 
-export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMessage }) {
+export default function StaffProfile({ staffId, section = "", navigate, goBack, mosque, authedUser, onBack, onMessage }) {
   const mosqueId = mosque?.id;
   const [row, setRow] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -253,6 +269,25 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   useEffect(() => { if (mosqueId && staffId) load(); /* eslint-disable-next-line */ }, [mosqueId, staffId]);
   useEffect(() => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); }, [mosqueId, staffId]);
   useEffect(() => { if (staffId) getContractsForStaff(staffId).then(setContract).catch(() => setContract([])); }, [staffId]);
+
+  // Panels are URL-addressable (?section=<key>). Opening a card PUSHES a history
+  // entry; Back / "Back to overview" returns to the grid, not out of the profile.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    seededRef.current = true;
+    // Cold deep-link straight onto a panel URL (no in-app history beneath it):
+    // seed a grid entry underneath so the browser Back button lands on the grid,
+    // not off-site. Warm entries (opened via a card click) already have the grid
+    // beneath and skip this.
+    if (section && (window.history.state?.idx ?? 0) === 0 && navigate) {
+      navigate("staffProfile", {}, { staffId }, { replace: true });
+      navigate("staffProfile", {}, { staffId, section }, {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const openSection = (key) => navigate?.("staffProfile", {}, { staffId, section: key }, {});
+  const backToOverview = () => (goBack ? goBack("staffProfile", { staffId }) : navigate?.("staffProfile", {}, { staffId }, {}));
 
   const revealSensitive = async () => {
     if (sensitive || sensLoading) return;
@@ -324,7 +359,6 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const dbsSt = deriveDbsState(row);
   const rtwDays = row.rtwExpiryDate ? Math.ceil((new Date(row.rtwExpiryDate) - Date.now()) / 86400000) : null;
   const dbsDays = row.dbsExpiryDate ? Math.ceil((new Date(row.dbsExpiryDate) - Date.now()) / 86400000) : null;
-  const gapCount = computeComplianceIssues([row]).length;
 
   // Contract tile: signed-state is the point. Failure-tolerant — getContractsForStaff
   // catches and returns [] on error, so an empty/failed fetch degrades to type-only
@@ -398,123 +432,137 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
           </div>
         </div>
 
-        {/* ── Personal ── */}
-        <GroupHeading title="Personal" />
-        <div className="space-y-3">
-          <Section icon={UserCog} title="Personal" subtitle="Contact and identity details" defaultOpen>
-            <Field label="Email" value={row.email} />
-            {sensitive ? (
-              <>
-                <Field label="Phone" value={sensitive.phone} />
-                <Field label="Address" value={sensitive.address} />
-                <Field label="Date of birth" value={fmtDate(sensitive.date_of_birth)} />
-                <Field label="Nationality" value={sensitive.nationality} />
-                <Field label="Emergency contact" value={sensitive.emergency_contact_name ? `${sensitive.emergency_contact_name} · ${sensitive.emergency_contact_phone || "—"}` : "—"} />
-                <Field label="Next of kin" value={sensitive.next_of_kin} />
-              </>
-            ) : (
-              <div className="py-2">
-                <button onClick={revealSensitive} disabled={sensLoading} className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-900 font-medium">
-                  {sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal personal details — access is logged
-                </button>
-              </div>
-            )}
-          </Section>
-        </div>
-
-        {/* ── Employment ── */}
-        <GroupHeading title="Employment" />
-        <div className="space-y-3">
-          <Section icon={Lock} title="Employment" subtitle="Terms and pay">
-            <Field label="Employment type" value={row.employmentType ? row.employmentType.replace(/_/g, " ") : "—"} />
-            <Field label="Job title" value={row.jobTitle || cleanRole(row.role)} />
-            <Field label="Department" value={row.department} />
-            <Field label="Start date" value={fmtDate(row.startDate)} />
-            <div className="flex items-start justify-between gap-3 py-1.5">
-              <span className="text-sm text-stone-500 shrink-0">Salary</span>
-              <span className="text-sm text-stone-800 font-medium text-right">
-                {salary !== undefined ? money(salary) : (
-                  <button onClick={revealSalary} disabled={salLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
-                    {salLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
-                  </button>
-                )}
-              </span>
-            </div>
-            <Field label="Hours / week" value={employment?.hours_per_week ?? "—"} />
-            <Field label="Contract type" value={humanEnum(employment?.contract_type) || "—"} />
-            <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
-            <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
-            <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
-            <div className="pt-2">
-              <button onClick={() => setContractOpen(true)} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Generate contract</button>
-            </div>
-          </Section>
-
-          <PermissionsSection staffRow={row} mosqueId={mosqueId} />
-        </div>
-
-        {/* ── Checks & documents ── */}
-        <GroupHeading title="Checks & documents" badge={gapCount > 0 ? <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">{gapCount} gap{gapCount === 1 ? "" : "s"}</span> : undefined} />
-        <div className="space-y-3">
-          <RtwSection staffRow={row} mosqueId={mosqueId} authedUser={authedUser}
-            sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
-          <DbsSection staffRow={row} mosqueId={mosqueId}
-            sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
-          <IjazahSection staffId={staffId} mosqueId={mosqueId} />
-          <TrainingSection staffId={staffId} mosqueId={mosqueId} />
-          <DocumentsSection staffId={staffId} mosqueId={mosqueId} />
-        </div>
-
-        {/* ── Leave & performance ── */}
-        <GroupHeading title="Leave & performance" />
-        <div className="space-y-3">
-          <LeaveSection staffId={staffId} staffRow={row} authedUser={authedUser} />
-          <PerformanceSection staffId={staffId} authedUser={authedUser} mosqueId={mosqueId} />
-        </div>
-
-        {/* Platform listing — FROZEN behind the deferred-marketplace flag (component
-            kept below, deliberately not rendered pre-launch — freeze, don't delete). */}
-        {!DEFERRED_MARKETPLACE && (
-          <div className="space-y-3 mt-3"><PlatformListingSection staffRow={row} onReload={load} /></div>
-        )}
-
-        {/* ── Account ── */}
-        <GroupHeading title="Account" />
-        <div className="space-y-3">
-          <Section icon={UserCog} title="Account" subtitle="Access and lifecycle" defaultOpen>
-            <Field label="Last login" value={row.lastLoginAt ? fmtDate(row.lastLoginAt) : "Never signed in"} />
-            <Field label="Account created" value={row.createdAt ? fmtDate(row.createdAt) : "Not recorded"} />
-            <Field label="Onboarding" value={row.onboardingCompletedAt ? `Completed ${fmtDate(row.onboardingCompletedAt)}` : "Not started"} />
-            <Field label="Invite status" value={humanInvite(row.inviteStatus)} />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {row.status === "suspended"
-                ? <button onClick={() => doSuspend("active")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reactivate</button>
-                : <button onClick={doDeactivate} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate…</button>}
-              <button onClick={doResetPassword} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Send password reset</button>
-            </div>
-          </Section>
-
-          {/* Danger zone — irreversible / archival actions, separated out */}
-          <div className="border border-rose-200 bg-rose-50/50 rounded-xl p-4">
-            <div className="text-sm font-semibold text-rose-800">Danger zone</div>
-            <div className="mt-3 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-stone-800">Offboard</div>
-                  <div className="text-xs text-stone-500">Archives the record and ends their access. They stop counting toward compliance; the history is kept.</div>
-                </div>
-                <button onClick={openOffboard} disabled={busy} className="shrink-0 text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard…</button>
-              </div>
-              <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-stone-800">Anonymise (GDPR)</div>
-                  <div className="text-xs text-stone-500">Permanently erases their personal data ([REDACTED]). This cannot be undone — only the compliance audit trail remains.</div>
-                </div>
-                <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
-              </div>
+        {section ? (
+          /* ── Detail: the selected panel (URL: ?section=<key>) ── */
+          <div>
+            <button onClick={backToOverview} className="inline-flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 mb-3"><ArrowLeft size={15} /> Back to overview</button>
+            <div className="space-y-3">
+              {section === "identity" && (
+                <RtwSection staffRow={row} mosqueId={mosqueId} authedUser={authedUser}
+                  sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
+              )}
+              {section === "dbs" && (
+                <DbsSection staffRow={row} mosqueId={mosqueId}
+                  sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
+              )}
+              {section === "employment" && (
+                <Section icon={Lock} title="Employment" subtitle="Terms and pay" defaultOpen>
+                  <Field label="Employment type" value={row.employmentType ? row.employmentType.replace(/_/g, " ") : "—"} />
+                  <Field label="Job title" value={row.jobTitle || cleanRole(row.role)} />
+                  <Field label="Department" value={row.department} />
+                  <Field label="Start date" value={fmtDate(row.startDate)} />
+                  <div className="flex items-start justify-between gap-3 py-1.5">
+                    <span className="text-sm text-stone-500 shrink-0">Salary</span>
+                    <span className="text-sm text-stone-800 font-medium text-right">
+                      {salary !== undefined ? money(salary) : (
+                        <button onClick={revealSalary} disabled={salLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
+                          {salLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  <Field label="Hours / week" value={employment?.hours_per_week ?? "—"} />
+                  <Field label="Contract type" value={humanEnum(employment?.contract_type) || "—"} />
+                  <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
+                  <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
+                  <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
+                  <div className="pt-2">
+                    <button onClick={() => setContractOpen(true)} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Generate contract</button>
+                  </div>
+                </Section>
+              )}
+              {section === "personal" && (
+                <Section icon={UserCog} title="Personal" subtitle="Contact and identity details" defaultOpen>
+                  <Field label="Email" value={row.email} />
+                  {sensitive ? (
+                    <>
+                      <Field label="Phone" value={sensitive.phone} />
+                      <Field label="Address" value={sensitive.address} />
+                      <Field label="Date of birth" value={fmtDate(sensitive.date_of_birth)} />
+                      <Field label="Nationality" value={sensitive.nationality} />
+                      <Field label="Emergency contact" value={sensitive.emergency_contact_name ? `${sensitive.emergency_contact_name} · ${sensitive.emergency_contact_phone || "—"}` : "—"} />
+                      <Field label="Next of kin" value={sensitive.next_of_kin} />
+                    </>
+                  ) : (
+                    <div className="py-2">
+                      <button onClick={revealSensitive} disabled={sensLoading} className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-900 font-medium">
+                        {sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal personal details — access is logged
+                      </button>
+                    </div>
+                  )}
+                </Section>
+              )}
+              {section === "credentials" && (
+                <>
+                  <IjazahSection staffId={staffId} mosqueId={mosqueId} />
+                  <TrainingSection staffId={staffId} mosqueId={mosqueId} />
+                </>
+              )}
+              {section === "leave" && (
+                <>
+                  <LeaveSection staffId={staffId} staffRow={row} authedUser={authedUser} />
+                  <PerformanceSection staffId={staffId} authedUser={authedUser} mosqueId={mosqueId} />
+                </>
+              )}
+              {section === "documents" && <DocumentsSection staffId={staffId} mosqueId={mosqueId} />}
+              {section === "account" && (
+                <>
+                  <Section icon={KeyRound} title="Account & access" subtitle="Sign-in, invite status and dashboard permissions" defaultOpen>
+                    <Field label="Last login" value={row.lastLoginAt ? fmtDate(row.lastLoginAt) : "Never signed in"} />
+                    <Field label="Account created" value={row.createdAt ? fmtDate(row.createdAt) : "Not recorded"} />
+                    <Field label="Onboarding" value={row.onboardingCompletedAt ? `Completed ${fmtDate(row.onboardingCompletedAt)}` : "Not started"} />
+                    <Field label="Invite status" value={humanInvite(row.inviteStatus)} />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {row.status === "suspended"
+                        ? <button onClick={() => doSuspend("active")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reactivate</button>
+                        : <button onClick={doDeactivate} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate…</button>}
+                      <button onClick={doResetPassword} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Send password reset</button>
+                    </div>
+                  </Section>
+                  <PermissionsSection staffRow={row} mosqueId={mosqueId} />
+                </>
+              )}
             </div>
           </div>
-        </div>
+        ) : (
+          /* ── Overview: 8-card summary grid + danger zone ── */
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <SummaryCard icon={ShieldAlert} title="Identity & right to work" statusText={rtwSt.label} statusTone={rtwSt.tone}
+                detail={rtwSt.msg || (row.rtwExpiryDate ? `Expires ${fmtDate(row.rtwExpiryDate)}` : "Right to Work")} onClick={() => openSection("identity")} />
+              <SummaryCard icon={ShieldCheck} title="DBS check" statusText={dbsSt.label} statusTone={dbsSt.tone}
+                detail={dbsSt.msg || (row.dbsExpiryDate ? `Expires ${fmtDate(row.dbsExpiryDate)}` : "Background check")} onClick={() => openSection("dbs")} />
+              <SummaryCard icon={Lock} title="Employment" statusText={humanEnum(row.employmentType) || "Not set"}
+                detail={[row.startDate && `Started ${fmtDate(row.startDate)}`, humanEnum(employment?.contract_type)].filter(Boolean).join(" · ") || "Terms and pay"} onClick={() => openSection("employment")} />
+              <SummaryCard icon={UserCog} title="Personal" statusText="Contact and identity details" detail="Reveal is access-logged" onClick={() => openSection("personal")} />
+              <SummaryCard icon={GraduationCap} title="Credentials & training" statusText="Certificates and training records" detail="Ijazah, CPD and courses" onClick={() => openSection("credentials")} />
+              <SummaryCard icon={CalendarDays} title="Leave & performance" statusText={leaveVal} detail={zeroHours ? "Accrues per hours worked" : "Leave balance · performance"} onClick={() => openSection("leave")} />
+              <SummaryCard icon={FileText} title="Documents" statusText="Attached files and records" detail="Uploads and signed docs" onClick={() => openSection("documents")} />
+              <SummaryCard icon={KeyRound} title="Account & access" statusText={row.lastLoginAt ? `Last login ${fmtDate(row.lastLoginAt)}` : "Never signed in"} detail={`${humanInvite(row.inviteStatus)} · dashboard access`} onClick={() => openSection("account")} />
+            </div>
+
+            {/* Danger zone — stays separate below the grid */}
+            <div className="border border-rose-200 bg-rose-50/50 rounded-xl p-4 mt-4">
+              <div className="text-sm font-semibold text-rose-800">Danger zone</div>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-stone-800">Offboard</div>
+                    <div className="text-xs text-stone-500">Archives the record and ends their access. They stop counting toward compliance; the history is kept.</div>
+                  </div>
+                  <button onClick={openOffboard} disabled={busy} className="shrink-0 text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard…</button>
+                </div>
+                <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-stone-800">Anonymise (GDPR)</div>
+                    <div className="text-xs text-stone-500">Permanently erases their personal data ([REDACTED]). This cannot be undone — only the compliance audit trail remains.</div>
+                  </div>
+                  <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {offboardOpen && (
