@@ -65,7 +65,35 @@ const cleanRole = (role) => {
   return r || null;
 };
 
+// Humanizers — never render a raw enum / snake_case / db value to the user.
+const INVITE_LABELS = { not_invited: "Not invited yet", invited: "Invited", active: "Active", expired: "Invite expired" };
+const humanInvite = (s) => INVITE_LABELS[s] || (s ? s.replace(/_/g, " ") : "Not invited yet");
+const humanEnum = (s) => (s ? String(s).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null); // full_time → Full Time
+const DOC_TYPE_LABELS = { rtw: "Right to Work", dbs: "DBS", training: "Training", ijazah: "Ijazah", contracts: "Contract", other: "Other" };
+const humanDocType = (t) => DOC_TYPE_LABELS[t] || humanEnum(t) || t;
+
 const TONE_TEXT = { rose: "text-rose-700", amber: "text-amber-700", orange: "text-orange-700", success: "text-success-700", muted: "text-stone-500" };
+
+// GDPR anonymise is irreversible — gate the confirm behind typing the exact name.
+function AnonymiseDialog({ name, busy, onCancel, onConfirm }) {
+  const [typed, setTyped] = useState("");
+  const match = typed.trim() === (name || "").trim() && !!name;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-white rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-rose-700 flex items-center gap-2"><AlertTriangle size={18} /> Anonymise this record</h3>
+        <p className="text-sm text-stone-600 mt-2">This permanently replaces {name || "this person"}'s personal data with <span className="font-medium">[REDACTED]</span>. It <span className="font-medium">cannot be undone</span> — only the compliance audit trail is kept.</p>
+        <p className="text-sm text-stone-600 mt-3">Type <span className="font-semibold text-stone-900">{name}</span> to confirm:</p>
+        <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={name}
+          className="mt-1.5 w-full border border-stone-300 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-200" />
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onCancel} className="text-sm px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50">Cancel</button>
+          <button onClick={onConfirm} disabled={!match || busy} className="text-sm px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed">{busy ? "Anonymising…" : "Anonymise permanently"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // One tile in the compliance strip under the header.
 function StripTile({ label, value, sub, tone = "muted" }) {
@@ -135,6 +163,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const [loading, setLoading] = useState(true);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [offboardOpen, setOffboardOpen] = useState(false);
+  const [anonOpen, setAnonOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
@@ -192,11 +221,11 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
     setNote("Password reset email sent.");
   };
   const openOffboard = () => { setActionsOpen(false); setOffboardOpen(true); };
-  const doAnonymise = async () => {
-    if (!window.confirm("Anonymise this record? PII is replaced with [REDACTED] and cannot be recovered. The compliance audit trail is kept.")) return;
+  const doAnonymise = () => { setActionsOpen(false); setAnonOpen(true); };
+  const confirmAnonymise = async () => {
     setBusy(true);
     const { error } = await anonymiseStaff(staffId);
-    setBusy(false); setActionsOpen(false);
+    setBusy(false); setAnonOpen(false);
     if (!error) { setNote("Record anonymised."); onBack?.(); }
   };
 
@@ -247,11 +276,11 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
     <div className="absolute right-0 mt-1 w-52 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-20 text-sm">
       {row.status === "suspended"
         ? <MenuItem onClick={() => doSuspend("active")} disabled={busy}>Reactivate</MenuItem>
-        : <MenuItem onClick={doDeactivate} disabled={busy}>Deactivate</MenuItem>}
+        : <MenuItem onClick={doDeactivate} disabled={busy}>Deactivate…</MenuItem>}
       <MenuItem onClick={doResetPassword} disabled={busy}>Send password reset</MenuItem>
       <div className="my-1 border-t border-stone-100" />
-      <MenuItem onClick={openOffboard} disabled={busy} danger>Offboard</MenuItem>
-      <MenuItem onClick={doAnonymise} disabled={busy} danger>Anonymise (GDPR)</MenuItem>
+      <MenuItem onClick={openOffboard} disabled={busy} danger>Offboard…</MenuItem>
+      <MenuItem onClick={doAnonymise} disabled={busy} danger>Anonymise (GDPR)…</MenuItem>
     </div>
   );
 
@@ -263,7 +292,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
         {note && <div className="mb-4 text-sm bg-brand-50 text-brand-800 border border-brand-200 rounded-lg px-3 py-2">{note}</div>}
 
         {/* Header + compliance strip */}
-        <div className="bg-white border border-stone-200 rounded-xl mb-4 overflow-hidden">
+        <div className="bg-white border border-stone-200 rounded-xl mb-4">
           <div className="p-5">
             <div className="flex items-start gap-4">
               <Avatar name={row.name} photoUrl={row.photoUrl} size={80} />
@@ -286,7 +315,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap border-t border-stone-100 bg-stone-50/60 divide-x divide-stone-100">
+          <div className="flex flex-wrap border-t border-stone-100 bg-stone-50/60 divide-x divide-stone-100 rounded-b-xl overflow-hidden">
             <StripTile label="Right to Work" value={rtwSt.label} sub={rtwDays != null ? (rtwDays < 0 ? `expired ${-rtwDays}d ago` : `${rtwDays}d left`) : undefined} tone={rtwSt.tone} />
             <StripTile label="DBS" value={dbsSt.label} sub={[row.dbsLevel && row.dbsLevel !== "none" && row.dbsLevel.replace(/_/g, " "), dbsDays != null && (dbsDays < 0 ? `expired ${-dbsDays}d ago` : `${dbsDays}d left`)].filter(Boolean).join(" · ") || undefined} tone={dbsSt.tone} />
             <StripTile label="Contract" value={contractVal} sub={contractSub || undefined} tone={contractTone} />
@@ -337,7 +366,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
               </span>
             </div>
             <Field label="Hours / week" value={employment?.hours_per_week ?? "—"} />
-            <Field label="Contract type" value={employment?.contract_type || "—"} />
+            <Field label="Contract type" value={humanEnum(employment?.contract_type) || "—"} />
             <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
             <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
             <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
@@ -378,19 +407,38 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
         <GroupHeading title="Account" />
         <div className="space-y-3">
           <Section icon={UserCog} title="Account" subtitle="Access and lifecycle" defaultOpen>
-            <Field label="Last login" value={row.lastLoginAt ? fmtDate(row.lastLoginAt) : "—"} />
-            <Field label="Account created" value={fmtDate(row.createdAt)} />
-            <Field label="Onboarding completed" value={fmtDate(row.onboardingCompletedAt)} />
-            <Field label="Invite status" value={row.inviteStatus} />
+            <Field label="Last login" value={row.lastLoginAt ? fmtDate(row.lastLoginAt) : "Never signed in"} />
+            <Field label="Account created" value={row.createdAt ? fmtDate(row.createdAt) : "Not recorded"} />
+            <Field label="Onboarding" value={row.onboardingCompletedAt ? `Completed ${fmtDate(row.onboardingCompletedAt)}` : "Not started"} />
+            <Field label="Invite status" value={humanInvite(row.inviteStatus)} />
             <div className="mt-3 flex flex-wrap gap-2">
               {row.status === "suspended"
                 ? <button onClick={() => doSuspend("active")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reactivate</button>
-                : <button onClick={doDeactivate} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate</button>}
+                : <button onClick={doDeactivate} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate…</button>}
               <button onClick={doResetPassword} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Send password reset</button>
-              <button onClick={openOffboard} disabled={busy} className="text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard</button>
-              <button onClick={doAnonymise} disabled={busy} className="text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise (GDPR)</button>
             </div>
           </Section>
+
+          {/* Danger zone — irreversible / archival actions, separated out */}
+          <div className="border border-rose-200 bg-rose-50/50 rounded-xl p-4">
+            <div className="text-sm font-semibold text-rose-800">Danger zone</div>
+            <div className="mt-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-stone-800">Offboard</div>
+                  <div className="text-xs text-stone-500">Archives the record and ends their access. They stop counting toward compliance; the history is kept.</div>
+                </div>
+                <button onClick={openOffboard} disabled={busy} className="shrink-0 text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard…</button>
+              </div>
+              <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-stone-800">Anonymise (GDPR)</div>
+                  <div className="text-xs text-stone-500">Permanently erases their personal data ([REDACTED]). This cannot be undone — only the compliance audit trail remains.</div>
+                </div>
+                <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -402,6 +450,10 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
       {contractOpen && (
         <StaffContractGenerator staffRow={row} mosque={mosque} authedUser={authedUser}
           onClose={() => setContractOpen(false)} />
+      )}
+      {anonOpen && (
+        <AnonymiseDialog name={row.name} busy={busy}
+          onCancel={() => setAnonOpen(false)} onConfirm={confirmAnonymise} />
       )}
     </div>
   );
@@ -1093,7 +1145,7 @@ function DocumentsSection({ staffId, mosqueId }) {
             <div key={d.id} className="flex items-center justify-between gap-3 border border-stone-100 rounded-lg px-3 py-2">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-stone-800 truncate">{d.document_name}</div>
-                <div className="text-xs text-stone-500">{d.document_type}{d.uploaded_at && ` · ${fmtDate(d.uploaded_at)}`}{d.expires_at && ` · expires ${fmtDate(d.expires_at)}`}</div>
+                <div className="text-xs text-stone-500">{humanDocType(d.document_type)}{d.uploaded_at && ` · ${fmtDate(d.uploaded_at)}`}{d.expires_at && ` · expires ${fmtDate(d.expires_at)}`}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => view(d)} disabled={viewing === d.id} className="text-xs text-brand-700 hover:underline inline-flex items-center gap-1">{viewing === d.id ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} View</button>
@@ -1102,7 +1154,7 @@ function DocumentsSection({ staffId, mosqueId }) {
             </div>))}</div>}
       <div className="mt-3 flex items-center gap-2">
         <select value={docType} onChange={(e) => setDocType(e.target.value)} className="border border-stone-300 rounded-lg text-sm px-2 py-1.5">
-          {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {DOC_TYPES.map((t) => <option key={t} value={t}>{humanDocType(t)}</option>)}
         </select>
         <FilePick onPick={onPick} busy={busy} label="Attach document" />
       </div>
