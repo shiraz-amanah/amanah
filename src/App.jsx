@@ -7267,9 +7267,10 @@ const MosqueVerificationPending = ({ mosque, onPublic, onLogout }) => (
 // Standalone view reached from UserAuth's "Forgot password?" link.
 // Hands off to Supabase's transactional reset email; the user lands
 // back on the app via the link, and App's PASSWORD_RECOVERY listener
-// flips view → "resetPassword". redirectTo is hardcoded to the prod
-// origin per current spec — dev testing of the email round-trip is
-// expected against prod.
+// flips view → "resetPassword". redirectTo is the live root origin
+// (window.location.origin) — allowlisted on prod, so GoTrue never
+// falls back to the project Site URL (a stale localhost Site URL is
+// what dead-ended the reset link on prod); works on preview too.
 const ForgotPassword = ({ onBack, onDone }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -7280,7 +7281,7 @@ const ForgotPassword = ({ onBack, onDone }) => {
     if (!email.trim()) return;
     setError(null);
     setLoading(true);
-    const { error: resetError } = await requestPasswordReset(email.trim(), "https://youramanah.co.uk");
+    const { error: resetError } = await requestPasswordReset(email.trim(), window.location.origin);
     if (resetError) {
       setError(resetError.message || "Couldn't send reset link. Try again.");
       setLoading(false);

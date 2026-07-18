@@ -77,9 +77,14 @@ export async function signOut() {
 
 // Trigger Supabase's password-reset email flow. The redirectTo origin
 // must be in the project's Auth → URL Configuration → Redirect URLs
-// allowlist; otherwise Supabase silently falls back to the Site URL.
+// allowlist; otherwise Supabase silently falls back to the Site URL
+// (a stale localhost Site URL has dead-ended reset links on prod twice).
+// Defensive default: if a caller omits redirectTo, fall back to the live
+// root origin (window.location.origin), never to the project Site URL —
+// so no call site can regress to the localhost-fallback bug.
 export async function requestPasswordReset(email, redirectTo) {
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  const origin = redirectTo || (typeof window !== 'undefined' ? window.location.origin : undefined)
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: origin })
   return { data, error }
 }
 

@@ -136,7 +136,10 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   };
   const doResetPassword = async () => {
     if (!row?.email) return;
-    setBusy(true); await requestPasswordReset(row.email); setBusy(false); setActionsOpen(false);
+    // Pass the explicit root origin (create-account.js pattern) so GoTrue never
+    // falls back to the project Site URL — a stale localhost Site URL is exactly
+    // what dead-ended this action's reset email on prod.
+    setBusy(true); await requestPasswordReset(row.email, window.location.origin); setBusy(false); setActionsOpen(false);
     setNote("Password reset email sent.");
   };
   const openOffboard = () => { setActionsOpen(false); setOffboardOpen(true); };
