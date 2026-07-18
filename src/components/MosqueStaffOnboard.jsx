@@ -31,6 +31,8 @@ const Card = ({ icon: Icon, tone = "stone", title, children }) => (
 
 const MosqueStaffOnboard = ({ token, onBrowse }) => {
   const [state, setState] = useState({ loading: true });
+  // `done` is false until submission completes, then an object carrying whether
+  // the confirmation email failed (submission itself always stands regardless).
   const [done, setDone] = useState(false);
 
   useEffect(() => {
@@ -47,8 +49,19 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
 
   if (done) {
     return <Shell><Card icon={CheckCircle2} tone="emerald" title="All done — JazakAllahu khairan">
-      <p className="text-sm text-stone-600 mb-5">Your details have been submitted securely to {state.row?.mosque_name || "your mosque"}. There's nothing more to do.</p>
-      <button onClick={onBrowse} className="bg-brand-900 hover:bg-brand-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium">Browse Amanah</button>
+      {/* No sign-in link here: the staff account does not exist yet — it's
+          created only when the mosque APPROVES this submission (create-account.js
+          at approval). Linking to /sign-in/staff now is a dead end that can only
+          fail with "incorrect credentials". The approval email carries the real
+          sign-in link once the account exists (onboarding_approved intent). */}
+      <p className="text-sm text-stone-600">Your details have been submitted securely to {state.row?.mosque_name || "your mosque"} for review.</p>
+      <p className="text-sm text-stone-600 mt-3">We'll email you{state.row?.employee_email ? <> at <span className="font-medium text-stone-800">{state.row.employee_email}</span></> : null} once your mosque approves them, with a link to sign in to your staff portal. There's nothing more you need to do for now.</p>
+      {done?.emailFailed && (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-4 flex items-start gap-1.5 text-left">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          We couldn't send you a confirmation email, but your details reached {state.row?.mosque_name || "your mosque"} successfully — no action needed.
+        </p>
+      )}
     </Card></Shell>;
   }
 
@@ -79,7 +92,7 @@ const MosqueStaffOnboard = ({ token, onBrowse }) => {
         prefillName={row.employee_name || ""}
         staffEmail={row.employee_email || ""}
         mosque={{ name: row.mosque_name }}
-        onDone={() => setDone(true)}
+        onDone={(res) => setDone({ emailFailed: !!res?.emailFailed })}
         onCancel={onBrowse}
       />
     </Shell>

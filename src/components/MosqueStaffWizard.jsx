@@ -1,264 +1,156 @@
 import { useState } from "react";
-import { Loader2, Check, ChevronLeft, ChevronRight, Upload, X, AlertCircle, CheckCircle2, Paperclip, PenLine } from "lucide-react";
-import { MOSQUE_STAFF_ROLES } from "../data/mosqueTaxonomy";
-import { createMosqueStaff, upsertMosqueStaffEmployment, createMosqueDocument, saveOnboardingStep, submitOnboardingSession, uploadOnboardingDoc, createContract } from "../auth";
-import { uploadMosqueHrDoc } from "../lib/storage";
-import { sendStaffWizardSubmitted, sendContractInvite } from "../lib/email";
-import { buildContractTerms, CONTRACT_TYPES as CONTRACT_DOC_TYPES } from "../lib/contract";
-import ContractEditor from "./ContractEditor";
+import { Loader2, Check, ChevronLeft, ChevronRight, X, AlertCircle, CheckCircle2, Paperclip, ShieldAlert, Plus, Trash2, PenLine } from "lucide-react";
+import { saveOnboardingStep, submitOnboardingSession, signOnboardingContract, uploadOnboardingDoc } from "../auth";
+import { sendStaffWizardSubmitted } from "../lib/email";
 
-// Session W — 7-step staff onboarding wizard. Fill-now (admin) writes
-// mosque_staff + the owner-only mosque_staff_employment directly and uploads to
-// the private bucket. Remote (token) writes via submit_staff_wizard RPC, skips
-// uploads, hides salary (admin-only), and emails the staff a confirmation.
-// Draft = per-step client state (survives Back/Next, not a reload).
-// REQUIRES migration 065 (DBS/RTW detail columns) to persist steps 2 + 3.
+// Session RBAC-E Commit 3 — remote staff onboarding wizard, 8 steps + review,
+// wired to the migration-149/150 RPCs. The ONLY live caller is MosqueStaffOnboard
+// (remoteMode). Admin/in-house onboarding does NOT use this component (that flow
+// lives in AddStaffModal and is rebuilt in Commit 4). Each step persists via
+// save_onboarding_step (MERGE, not overwrite) so a partial wizard resumes from
+// any step. Step 8 signs the stored contract via sign_onboarding_contract.
+//
+// INVARIANTS: bank + NI are write-only (never rendered raw — booleans only on
+// review); medical_questionnaire (step 5) is Art.9 and never leaves the session;
+// employment fields (step 4) are admin-set and shown READ-ONLY.
 
-const CONTRACT_TYPES = ["permanent", "fixed_term", "casual", "volunteer"];
 const DBS_CHECK_TYPES = [["basic", "Basic"], ["standard", "Standard"], ["enhanced", "Enhanced"], ["enhanced_barred", "Enhanced + barred list"]];
 const WORKFORCE_TYPES = [["child", "Child"], ["adult", "Adult"], ["other", "Other"]];
 const RTW_CHECK_TYPES = [["manual", "Manual document check"], ["online", "Online IDVT"], ["share_code", "Share code"]];
-const RTW_DOC_TYPES = ["British/Irish Passport", "EU Settlement Scheme", "BRP", "Visa", "Birth Certificate + NI", "Other"];
+const RTW_DOC_TYPES = ["British/Irish Passport", "Indefinite Leave to Remain (ILR)", "EU Settlement Scheme", "BRP", "Visa", "Birth Certificate + NI", "Other"];
+// Document types that confer permanent right to work → no expiry date applies.
+const NO_EXPIRY_RTW = ["British/Irish Passport", "Indefinite Leave to Remain (ILR)"];
 const P46_STATEMENTS = [["A", "A — first job since 6 April"], ["B", "B — only job now, had others"], ["C", "C — another job or pension"]];
 const SL_PLANS = [["1", "Plan 1"], ["2", "Plan 2"], ["4", "Plan 4"]];
+const DAYS = [["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"], ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"]];
+const YNP = [["yes", "Yes"], ["no", "No"], ["prefer_not", "Prefer not to say"]];
+const PREVENT_OPTS = [["yes", "Yes"], ["no", "No"], ["in_progress", "In progress"]];
 
-// Step list is mode-aware: the Contract step (issue + e-sign) only appears in
-// admin fill-now mode, since issuing a contract is owner-only. Remote staff
-// onboarding keeps the original 7 steps.
-const STEPS_ADMIN = ["Personal", "Right to Work", "DBS", "Employment", "Tax / P46", "Bank", "Contract", "Review"];
-const STEPS_REMOTE = ["Personal", "Right to Work", "DBS", "Employment", "Tax / P46", "Bank", "Review"];
-
-// Fields that block Confirm (moderate set). RTW/DBS skipped when marked
-// "not required". Bank / NI / address intentionally optional.
-const REQUIRED = {
-  1: ["name", "dob", "phone", "emergency_contact_name", "emergency_contact_phone"],
-  2: ["rtw_check_type", "rtw_document_type", "rtw_expiry_date"],
-  3: ["dbs_check_type", "dbs_workforce_type"],
-  4: ["start_date"],
-  5: ["p46_statement"],
-};
-
-const blank = {
-  name: "", phone: "", dob: "", address: "", ni_number: "",
-  emergency_contact_name: "", emergency_contact_phone: "",
-  rtw_na: false,
-  rtw_check_type: "", rtw_document_type: "", rtw_document_number: "", rtw_share_code: "",
-  rtw_check_date: "", rtw_expiry_date: "", rtw_checked_by: "", rtw_file: null, rtw_storage_path: "",
-  dbs_na: false,
-  dbs_check_type: "", dbs_workforce_type: "", dbs_id_document_type: "", dbs_id_document_number: "",
-  dbs_ucheck_reference: "", dbs_certificate_number: "", dbs_result_date: "", dbs_expiry_date: "",
-  dbs_checked_by: "", dbs_file: null, dbs_storage_path: "",
-  role: "Imam", roleOther: "", contract_type: "permanent", start_date: "", hours_per_week: "", salary_rate: "",
-  student_loan: false, student_loan_plan: "", p46_statement: "",
-  bank_account_name: "", bank_sort_code: "", bank_account_number: "",
-  // Contract step (admin only): issue an employment contract for e-signing.
-  email: "", issue_contract: true, contract_doc_type: "full_time", contract_terms: null,
-};
+const STEPS = ["Personal", "Right to Work", "DBS", "Employment", "Medical", "Tax / P46", "Bank", "Contract", "Review"];
+const TOTAL = STEPS.length;        // 9 (8 data steps + review)
+const REVIEW = TOTAL;              // step 9
 
 const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-medium block mb-1";
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const isEmpty = (v) => !String(v ?? "").trim();
-
 const Field = ({ label, required, children }) => (
   <div><label className={labelCls}>{label}{required && <span className="text-rose-500"> *</span>}</label>{children}</div>
 );
+const ReadonlyRow = ({ label, value, mosqueName }) => (
+  <div className="flex items-center justify-between border border-stone-200 bg-stone-50 rounded-lg px-3 py-2">
+    <span className="text-[11px] uppercase tracking-wider text-stone-500 font-medium">{label}</span>
+    <span className="text-sm text-stone-800">{value || "—"} <span className="text-xs text-stone-400">· set by {mosqueName}</span></span>
+  </div>
+);
 
-// Human labels for required-field validation messages.
-const LABELS = {
-  name: "full name", dob: "date of birth", phone: "phone",
-  emergency_contact_name: "emergency contact name", emergency_contact_phone: "emergency contact number",
-  rtw_check_type: "RTW check type", rtw_document_type: "RTW document type", rtw_expiry_date: "RTW expiry date",
-  dbs_check_type: "DBS check type", dbs_workforce_type: "DBS workforce type",
-  start_date: "start date", p46_statement: "P46 statement",
+const blank = {
+  previous_names: "", phone: "", dob: "", address: "", ni_number: "",
+  emergency_contact_name: "", emergency_contact_phone: "",
+  rtw_na: false, rtw_check_type: "", rtw_document_type: "", rtw_document_number: "",
+  rtw_share_code: "", rtw_check_date: "", rtw_expiry_date: "", rtw_file: null, rtw_storage_path: "",
+  dbs_na: false, dbs_check_type: "", dbs_workforce_type: "",
+  safer_recruitment_declared: false, dbs_consent_given: false,
+  student_loan: false, student_loan_plan: "", postgraduate_loan: false, p46_statement: "",
+  bank_account_name: "", bank_sort_code: "", bank_account_number: "",
+  med_q1: "", med_q1_detail: "", med_q2: "", med_q2_detail: "", med_q3: "", med_q4: "", med_q4_date: "",
+  signature: "",
 };
 
-// Module-level (NOT defined inside the wizard) so they keep a stable component
-// identity across renders — otherwise React remounts them on every keystroke,
-// which is what made fields appear to reset when navigating Back.
-const FileField = ({ label, required, value, remoteMode, onSelect, onClear, error, onRemoteUpload, uploadedName, uploading, uploadError }) => (
-  <Field label={label} required={required}>
-    {remoteMode ? (
-      <div className="space-y-1.5">
-        {uploadedName && (
-          <div className="flex items-center gap-2 text-sm bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-brand-800">
-            <CheckCircle2 size={14} className="shrink-0" /> <span className="truncate">{uploadedName}</span> <span className="text-brand-600 text-xs">uploaded</span>
-          </div>
-        )}
-        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100 ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />} {uploadedName ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB)
-          <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onRemoteUpload?.(f); e.target.value = ""; }} />
-        </label>
-        {uploadError && <p className="text-xs text-rose-600">{uploadError}</p>}
-        <p className="text-[11px] text-stone-400">Optional — your mosque admin can also attach this later.</p>
-      </div>
-    ) : (
-      <div className="space-y-1.5">
-        {value && (
-          <div className="flex items-center justify-between gap-2 text-sm bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-            <span className="truncate text-stone-700">{value.name}</span>
-            <button onClick={onClear} className="text-stone-400 hover:text-rose-600" title="Remove"><X size={14} /></button>
-          </div>
-        )}
-        {/* Always available — allows replacing an already-selected file. */}
-        <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border transition-colors ${error ? "border-rose-400 bg-rose-50 text-rose-600" : "border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100"}`}>
-          <Paperclip size={14} /> {value ? "Replace file" : "Attach files"} (PDF/JPG/PNG, ≤10MB){required && !value ? " — required" : ""}
-          <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => onSelect(e.target.files?.[0] || null)} />
-        </label>
-      </div>
-    )}
-  </Field>
-);
-
-const NotRequiredToggle = ({ checked, onChange }) => (
-  <label className="flex items-center gap-2 text-sm text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer">
-    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-    Not required / not applicable for this person
-  </label>
-);
-
-// Map a resumed session's per-step jsonb back into the flat form. NI + bank are
-// intentionally left blank (write-only, masked on the client). "not_required"
-// check types round-trip back to the NA toggle.
-function hydrateForm(session) {
-  const p = session.personal_details || {}, r = session.rtw_details || {}, d = session.dbs_details || {};
-  const e = session.employment_details || {}, t = session.tax_details || {};
-  const roleVal = e.role || blank.role;
-  const knownRole = MOSQUE_STAFF_ROLES.includes(roleVal);
+// Resume: map the session's per-step jsonb + typed columns back into the flat
+// form. NI + bank stay blank (write-only). Availability times aren't round-tripped
+// (notes are free text) — the day toggles restore, times start empty.
+function hydrateForm(session, nameOnFile) {
+  const p = session.personal_details || {}, r = session.rtw_details || {}, d = session.dbs_details || {}, t = session.tax_details || {};
   return {
     ...blank,
-    name: p.name || "", phone: p.phone || "", dob: p.dob || "", address: p.address || "",
-    ni_number: "",
+    previous_names: p.previous_names || "",
+    phone: p.phone || "", dob: p.dob || "", address: p.address || "",
     emergency_contact_name: p.emergency_contact_name || "", emergency_contact_phone: p.emergency_contact_phone || "",
-    rtw_na: !!p.rtw_na || r.rtw_check_type === "not_required" || !!r.rtw_na,
+    rtw_na: r.rtw_check_type === "not_required" || !!r.rtw_na,
     rtw_check_type: r.rtw_check_type === "not_required" ? "" : (r.rtw_check_type || ""),
     rtw_document_type: r.rtw_document_type || "", rtw_document_number: r.rtw_document_number || "",
     rtw_share_code: r.rtw_share_code || "", rtw_check_date: r.rtw_check_date || "",
-    rtw_expiry_date: r.rtw_expiry_date || "", rtw_checked_by: r.rtw_checked_by || "",
+    rtw_expiry_date: r.rtw_expiry_date || "",
     rtw_storage_path: r.rtw_storage_path || "", rtw_file: r.rtw_storage_path ? { name: "Uploaded document" } : null,
     dbs_na: d.dbs_check_type === "not_required" || !!d.dbs_na,
     dbs_check_type: d.dbs_check_type === "not_required" ? "" : (d.dbs_check_type || ""),
-    dbs_workforce_type: d.dbs_workforce_type || "", dbs_id_document_type: d.dbs_id_document_type || "",
-    dbs_id_document_number: d.dbs_id_document_number || "", dbs_ucheck_reference: d.dbs_ucheck_reference || "",
-    dbs_certificate_number: d.dbs_certificate_number || "", dbs_result_date: d.dbs_result_date || "",
-    dbs_expiry_date: d.dbs_expiry_date || "", dbs_checked_by: d.dbs_checked_by || "",
-    dbs_storage_path: d.dbs_storage_path || "", dbs_file: d.dbs_storage_path ? { name: "Uploaded certificate" } : null,
-    role: knownRole ? roleVal : "Other", roleOther: knownRole ? "" : roleVal,
-    contract_type: e.contract_type || blank.contract_type, start_date: e.start_date || "",
-    hours_per_week: e.hours_per_week != null && e.hours_per_week !== "" ? String(e.hours_per_week) : "",
-    student_loan: !!t.student_loan, student_loan_plan: t.student_loan_plan || "", p46_statement: t.p46_statement || "",
+    dbs_workforce_type: d.dbs_workforce_type || "",
+    safer_recruitment_declared: !!session.safer_recruitment_declared,
+    dbs_consent_given: !!session.dbs_consent_given,
+    student_loan: !!t.student_loan, student_loan_plan: t.student_loan_plan || "",
+    postgraduate_loan: !!t.postgraduate_loan, p46_statement: t.p46_statement || "",
+    med_q1: (session.medical_questionnaire || {}).q1 || "", med_q1_detail: (session.medical_questionnaire || {}).q1_detail || "",
+    med_q2: (session.medical_questionnaire || {}).q2 || "", med_q2_detail: (session.medical_questionnaire || {}).q2_detail || "",
+    med_q3: (session.medical_questionnaire || {}).q3 || "",
+    med_q4: (session.medical_questionnaire || {}).q4 || "", med_q4_date: (session.medical_questionnaire || {}).q4_date || "",
+    name_on_file: nameOnFile,
   };
 }
 
-const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = false, token = null, prefillName = "", staffEmail = "", session = null }) => {
-  // Remote resume: hydrate the flat form from the session's per-step jsonb
-  // (migration 133). Bank + NI are NOT returned (write-only) — the booleans
-  // niSaved/bankSaved drive a masked "saved — re-enter to change" hint instead.
-  const hydrated = remoteMode && session ? hydrateForm(session) : null;
+const MosqueStaffWizard = ({ token = null, mosque, prefillName = "", staffEmail = "", session = null, onDone, onCancel }) => {
+  const mosqueName = mosque?.name || "your mosque";
+  const nameOnFile = session?.employee_name || prefillName || "";
+  const emp = session?.employment_details || {};        // admin-set, read-only
+  const contract = session?.contract || null;           // stored at invite (148)
+
   const [step, setStep] = useState(() => {
-    const total = (remoteMode ? STEPS_REMOTE : STEPS_ADMIN).length;
-    if (remoteMode && session?.step_completed) return Math.max(1, Math.min(session.step_completed + 1, total));
+    if (session?.step_completed) return Math.max(1, Math.min(session.step_completed + 1, TOTAL));
     return 1;
   });
-  const [form, setForm] = useState(() => hydrated || ({ ...blank, name: prefillName || "" }));
+  const [form, setForm] = useState(() => hydrateForm(session || {}, nameOnFile));
+  const [addrHistory, setAddrHistory] = useState(() =>
+    (session?.address_history && session.address_history.length ? session.address_history
+      : [{ address: (session?.personal_details || {}).address || "", from: "", to: "" }]));
+  const [avDays, setAvDays] = useState(() => session?.availability_days || []);
+  const [avTimes, setAvTimes] = useState({});           // { mon: {from,to} } — not resumed
   const [niSaved, setNiSaved] = useState(!!session?.ni_saved);
   const [bankSaved, setBankSaved] = useState(!!session?.bank_details_saved);
-  const [uploading, setUploading] = useState({});   // { rtw: bool, dbs: bool }
-  const [uploadErr, setUploadErr] = useState({});    // { rtw, dbs }
+  const [signed, setSigned] = useState(!!session?.contract_signed);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState(null);
   const [saving, setSaving] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState(null);
-  const [showContractEditor, setShowContractEditor] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Build the contract terms snapshot from the current wizard fields (item 5).
-  // The Contract step lets the admin edit this; the edited copy is stored on
-  // form.contract_terms and used verbatim at submit.
-  const buildWizardTerms = () => buildContractTerms({
-    type: form.contract_doc_type, staffName: form.name.trim(), role: roleValue, startDate: form.start_date,
-    hoursPerWeek: form.hours_per_week === "" ? null : Number(form.hours_per_week),
-    salaryRate: form.salary_rate.trim(), mosqueName: mosque?.name, mosqueCity: mosque?.city,
-  });
+  const rtwHasExpiry = !NO_EXPIRY_RTW.includes(form.rtw_document_type);
 
-  // Mode-aware step machine. Bank stays step 6; Contract is step 7 (admin only);
-  // Review is the last step (8 admin / 7 remote).
-  const STEPS = remoteMode ? STEPS_REMOTE : STEPS_ADMIN;
-  const TOTAL = STEPS.length;
-  const reviewStep = TOTAL;
-  const contractStep = remoteMode ? 0 : 7;
+  // Availability notes: "Mon 09:00–12:00; Wed 14:00–16:00" for days with times set.
+  const buildAvailabilityNotes = () => avDays
+    .map((day) => { const t = avTimes[day]; const label = DAYS.find(([k]) => k === day)?.[1] || day;
+      return t && (t.from || t.to) ? `${label} ${t.from || "?"}–${t.to || "?"}` : null; })
+    .filter(Boolean).join("; ");
 
-  const roleValue = form.role === "Other" ? (form.roleOther.trim() || "Other") : form.role;
-
-  const stepSkipped = (s) => (s === 2 && form.rtw_na) || (s === 3 && form.dbs_na);
-  // A document upload is mandatory once a check type is chosen — but only in
-  // fill-now mode (remote staff can't upload; the admin attaches it later).
-  const uploadReq = (kind) => !remoteMode && (kind === "rtw" ? (!form.rtw_na && !!form.rtw_check_type) : (!form.dbs_na && !!form.dbs_check_type));
-  // Human-readable list of what's still missing on a step (respects skips).
-  const stepIssues = (s) => {
-    const out = [];
-    if (!stepSkipped(s)) for (const k of (REQUIRED[s] || [])) if (isEmpty(form[k])) out.push(LABELS[k] || k);
-    if (s === 2 && uploadReq("rtw") && !form.rtw_file) out.push("Right to Work document upload");
-    if (s === 3 && uploadReq("dbs") && !form.dbs_file) out.push("DBS certificate upload");
-    return out;
-  };
-  const firstIncompleteStep = () => { for (let s = 1; s <= 6; s++) if (stepIssues(s).length) return s; return 0; };
-  // red highlight once a Next/Confirm was attempted with gaps
-  const errCls = (key, s) => (attempted && (REQUIRED[s] || []).includes(key) && !stepSkipped(s) && isEmpty(form[key]) ? " border-rose-400 ring-1 ring-rose-200" : "");
-
-  // Next is gated on the current step being complete — blocks advancing past
-  // an empty required field (e.g. name) or a missing mandatory upload.
-  const next = async () => {
-    const issues = stepIssues(step);
-    if (issues.length) { setAttempted(true); setError(`Please complete: ${issues.join(", ")}.`); return; }
-    setError(null);
-    // Remote: persist this step before advancing (resumability). Admin (fill-now)
-    // keeps everything client-side until the single final write.
-    if (remoteMode) {
-      setSaving(true);
-      const ok = await saveOnboardingStep(token, step, buildStepBlob(step));
-      setSaving(false);
-      if (!ok) { setError("Couldn't save your progress — this link may have expired. Refresh the page and try again."); return; }
-      if (step === 1 && form.ni_number.trim()) setNiSaved(true);
-      if (step === 6 && (form.bank_account_number.trim() || form.bank_account_name.trim() || form.bank_sort_code.trim())) setBankSaved(true);
-    }
-    setStep((s) => Math.min(TOTAL, s + 1)); // strictly the next step in sequence
-  };
-  // Back never validates and never resets data (single form state); functional
-  // update so it always lands on the immediately previous step.
-  const back = () => { setError(null); setStep((s) => Math.max(1, s - 1)); };
-
-  const dbsStatusFromForm = () => {
-    if (form.dbs_certificate_number.trim()) return "verified";
-    if (form.dbs_check_type) return "pending";
-    return "not_checked";
-  };
-
-  // NA-aware RTW/DBS values shared by both save paths. "Not required" persists
-  // *_check_type='not_required' (free-text employment cols) and nulls the rest.
-  const rtwVals = () => form.rtw_na
-    ? { rtw_check_type: "not_required", rtw_document_type: "", rtw_document_number: "", rtw_share_code: "", rtw_check_date: "", rtw_expiry_date: "", rtw_checked_by: "" }
-    : { rtw_check_type: form.rtw_check_type, rtw_document_type: form.rtw_document_type.trim(), rtw_document_number: form.rtw_document_number.trim(), rtw_share_code: form.rtw_share_code.trim(), rtw_check_date: form.rtw_check_date, rtw_expiry_date: form.rtw_expiry_date, rtw_checked_by: form.rtw_checked_by.trim() };
-  const dbsVals = () => form.dbs_na
-    ? { dbs_check_type: "not_required", dbs_workforce_type: "", dbs_id_document_type: "", dbs_id_document_number: "", dbs_ucheck_reference: "", dbs_certificate_number: "", dbs_result_date: "", dbs_checked_by: "" }
-    : { dbs_check_type: form.dbs_check_type, dbs_workforce_type: form.dbs_workforce_type, dbs_id_document_type: form.dbs_id_document_type.trim(), dbs_id_document_number: form.dbs_id_document_number.trim(), dbs_ucheck_reference: form.dbs_ucheck_reference.trim(), dbs_certificate_number: form.dbs_certificate_number.trim(), dbs_result_date: form.dbs_result_date, dbs_checked_by: form.dbs_checked_by.trim() };
-  const dbsStatus = () => (form.dbs_na ? "not_checked" : dbsStatusFromForm());
-  const dbsExpiry = () => (form.dbs_na ? "" : form.dbs_expiry_date);
-
-  // Per-step jsonb for save_onboarding_step. 137 MERGES, so masked NI/bank are
-  // OMITTED when blank → previously-saved (unseeable) values persist. Keys match
-  // the approve_onboarding_session named-blob contract exactly (no cross-step
-  // collisions). salary_rate never sent — admin-only.
+  // Per-step jsonb for save_onboarding_step. MERGE semantics (150): masked
+  // NI/bank omitted when blank so previously-saved values persist. Typed keys
+  // (consents/address/availability) are projected server-side into columns.
   const buildStepBlob = (s) => {
     if (s === 1) {
-      const b = { name: form.name.trim(), phone: form.phone.trim(), dob: form.dob, address: form.address.trim(),
-        emergency_contact_name: form.emergency_contact_name.trim(), emergency_contact_phone: form.emergency_contact_phone.trim() };
+      const b = { name: nameOnFile, previous_names: form.previous_names.trim(), phone: form.phone.trim(), dob: form.dob,
+        address: form.address.trim(), emergency_contact_name: form.emergency_contact_name.trim(), emergency_contact_phone: form.emergency_contact_phone.trim() };
       if (form.ni_number.trim()) b.ni_number = form.ni_number.trim();
       return b;
     }
-    if (s === 2) return { rtw_na: form.rtw_na, ...rtwVals(), ...(form.rtw_storage_path ? { rtw_storage_path: form.rtw_storage_path } : {}) };
-    if (s === 3) return { dbs_na: form.dbs_na, ...dbsVals(), dbs_status: dbsStatus(), dbs_expiry_date: dbsExpiry(), ...(form.dbs_storage_path ? { dbs_storage_path: form.dbs_storage_path } : {}) };
-    if (s === 4) return { role: roleValue, contract_type: form.contract_type, start_date: form.start_date, hours_per_week: form.hours_per_week === "" ? "" : String(form.hours_per_week) };
-    if (s === 5) return { p46_statement: form.p46_statement, student_loan: !!form.student_loan, student_loan_plan: form.student_loan ? form.student_loan_plan : "" };
-    if (s === 6) {
+    if (s === 2) return form.rtw_na
+      ? { rtw_na: true, rtw_check_type: "not_required" }
+      : { rtw_na: false, rtw_check_type: form.rtw_check_type, rtw_document_type: form.rtw_document_type,
+          rtw_document_number: form.rtw_document_number.trim(), rtw_share_code: form.rtw_share_code.trim(),
+          rtw_check_date: form.rtw_check_date, ...(rtwHasExpiry ? { rtw_expiry_date: form.rtw_expiry_date } : { rtw_expiry_date: "" }),
+          ...(form.rtw_storage_path ? { rtw_storage_path: form.rtw_storage_path } : {}) };
+    if (s === 3) return form.dbs_na
+      ? { dbs_na: true, dbs_check_type: "not_required", dbs_workforce_type: "",
+          safer_recruitment_declared: form.safer_recruitment_declared, dbs_consent_given: form.dbs_consent_given,
+          address_history: addrHistory.filter((a) => a.address.trim()) }
+      : { dbs_na: false, dbs_check_type: form.dbs_check_type, dbs_workforce_type: form.dbs_workforce_type,
+          safer_recruitment_declared: form.safer_recruitment_declared, dbs_consent_given: form.dbs_consent_given,
+          address_history: addrHistory.filter((a) => a.address.trim()) };
+    if (s === 4) return { availability_days: avDays, availability_notes: buildAvailabilityNotes() };
+    if (s === 5) return { q1: form.med_q1, q1_detail: form.med_q1 === "yes" ? form.med_q1_detail.trim() : "",
+      q2: form.med_q2, q2_detail: form.med_q2 === "yes" ? form.med_q2_detail.trim() : "",
+      q3: form.med_q3.trim(), q4: form.med_q4, q4_date: form.med_q4 === "yes" ? form.med_q4_date : "" };
+    if (s === 6) return { p46_statement: form.p46_statement, student_loan: !!form.student_loan,
+      student_loan_plan: form.student_loan ? form.student_loan_plan : "", postgraduate_loan: !!form.postgraduate_loan };
+    if (s === 7) {
       const b = {};
       if (form.bank_account_name.trim()) b.bank_account_name = form.bank_account_name.trim();
       if (form.bank_sort_code.trim()) b.bank_sort_code = form.bank_sort_code.trim();
@@ -268,172 +160,136 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
     return {};
   };
 
-  // Remote employee document upload (RTW/DBS) via api/onboarding-upload.js →
-  // staff-documents. Stores the returned path so buildStepBlob carries it.
-  const uploadRemote = async (kind, file) => {
+  // What's still missing on a step (blocks Next). Availability + medical are
+  // optional. Step 8 is gated on signing a present contract.
+  const stepIssues = (s) => {
+    const out = [];
+    if (s === 1) { if (isEmpty(form.phone)) out.push("phone"); if (isEmpty(form.dob)) out.push("date of birth");
+      if (isEmpty(form.emergency_contact_name)) out.push("emergency contact name"); if (isEmpty(form.emergency_contact_phone)) out.push("emergency contact number"); }
+    if (s === 2 && !form.rtw_na) { if (isEmpty(form.rtw_check_type)) out.push("RTW check type");
+      if (isEmpty(form.rtw_document_type)) out.push("document type");
+      // UK RTW compliance expects a recorded check date for every non-volunteer
+      // check, regardless of document type (even permanent-RTW docs need one).
+      if (isEmpty(form.rtw_check_date)) out.push("check date");
+      if (rtwHasExpiry && isEmpty(form.rtw_expiry_date)) out.push("document expiry date"); }
+    if (s === 3 && !form.dbs_na) { if (isEmpty(form.dbs_check_type)) out.push("DBS check type");
+      if (isEmpty(form.dbs_workforce_type)) out.push("workforce type"); }
+    if (s === 3) { if (!form.safer_recruitment_declared) out.push("safer-recruitment declaration");
+      if (!form.dbs_consent_given) out.push("DBS consent"); }
+    if (s === 6 && isEmpty(form.p46_statement)) out.push("P46 statement");
+    if (s === 8 && contract && !signed) out.push("contract signature");
+    return out;
+  };
+
+  const uploadRemote = async (file) => {
     if (!file) return;
-    setUploadErr((e) => ({ ...e, [kind]: null }));
-    setUploading((u) => ({ ...u, [kind]: true }));
-    const { path, error: upErr } = await uploadOnboardingDoc({ token, docType: kind, file });
-    setUploading((u) => ({ ...u, [kind]: false }));
-    if (upErr) { setUploadErr((e) => ({ ...e, [kind]: `Upload failed: ${upErr}` })); return; }
-    set(`${kind}_storage_path`, path);
-    set(`${kind}_file`, { name: file.name });
+    setUploadErr(null); setUploading(true);
+    const { path, error: upErr } = await uploadOnboardingDoc({ token, docType: "rtw", file });
+    setUploading(false);
+    if (upErr) { setUploadErr(`Upload failed: ${upErr}`); return; }
+    set("rtw_storage_path", path); set("rtw_file", { name: file.name });
   };
 
-  const save = async () => {
-    // Final gate — required fields + mandatory uploads, respecting skips.
-    const bad = firstIncompleteStep();
-    if (bad) {
-      setAttempted(true);
-      setError("Please complete the highlighted required fields before submitting.");
-      setStep(bad);
-      return;
-    }
-    // Contract step (admin only): a staff email is required to email the e-sign link.
-    if (!remoteMode && form.issue_contract && isEmpty(form.email)) {
-      setAttempted(true);
-      setError("Add a staff email to issue the contract, or set 'Issue an employment contract?' to No.");
-      setStep(contractStep);
-      return;
-    }
+  const doSign = async () => {
+    if (isEmpty(form.signature)) { setError("Type your full name to sign."); return; }
     setSaving(true); setError(null);
+    const r = await signOnboardingContract(token, form.signature.trim());
+    setSaving(false);
+    if (!r.ok) { setError("Couldn't record your signature — this link may have expired. Refresh and try again."); return; }
+    setSigned(true);
+  };
 
-    // Remote (token) path — each step already persisted via save_onboarding_step;
-    // this just flips the session to 'submitted' for admin review.
-    if (remoteMode) {
-      const r = await submitOnboardingSession(token);
+  const next = async () => {
+    const issues = stepIssues(step);
+    if (issues.length) { setAttempted(true); setError(`Please complete: ${issues.join(", ")}.`); return; }
+    setError(null);
+    // Steps 1–7 persist via save_onboarding_step. Step 8 (contract) is signed via
+    // its own button/RPC — nothing to save here.
+    if (step >= 1 && step <= 7) {
+      setSaving(true);
+      const ok = await saveOnboardingStep(token, step, buildStepBlob(step));
       setSaving(false);
-      if (!r.ok) {
-        setError(r.error === "locked" ? "This onboarding link is no longer active — contact your mosque admin."
-          : "Something went wrong submitting your details. Please try again.");
-        return;
-      }
-      if (staffEmail) sendStaffWizardSubmitted(staffEmail); // fire-and-forget confirmation
-      onDone?.();
+      if (!ok) { setError("Couldn't save your progress — this link may have expired. Refresh the page and try again."); return; }
+      if (step === 1 && form.ni_number.trim()) setNiSaved(true);
+      if (step === 7 && (form.bank_account_name.trim() || form.bank_sort_code.trim() || form.bank_account_number.trim())) setBankSaved(true);
+    }
+    setStep((s) => Math.min(TOTAL, s + 1));
+  };
+  const back = () => { setError(null); setStep((s) => Math.max(1, s - 1)); };
+
+  const submit = async () => {
+    setSaving(true); setError(null);
+    const r = await submitOnboardingSession(token);
+    if (!r.ok) {
+      setSaving(false);
+      setError(r.error === "locked" ? "This onboarding link is no longer active — contact your mosque admin."
+        : "Something went wrong submitting your details. Please try again.");
       return;
     }
-
-    try {
-      // 1. Documents → private mosque-hr-docs bucket (admin = owner-write).
-      let dbsPath = null, rtwPath = null;
-      if (!form.dbs_na && form.dbs_file) {
-        const r = await uploadMosqueHrDoc(form.dbs_file, mosqueId, "dbs/");
-        if (r.error) { setError(`DBS document: ${r.error}`); setSaving(false); return; }
-        dbsPath = r.path;
-      }
-      if (!form.rtw_na && form.rtw_file) {
-        const r = await uploadMosqueHrDoc(form.rtw_file, mosqueId, "rtw/");
-        if (r.error) { setError(`RTW document: ${r.error}`); setSaving(false); return; }
-        rtwPath = r.path;
-      }
-
-      // 2. mosque_staff (directory + lightweight status fields).
-      const { data: staff, error: e1 } = await createMosqueStaff({
-        mosqueId,
-        name: form.name.trim(),
-        role: roleValue,
-        phone: form.phone.trim() || null,
-        email: form.email.trim() || null,
-        staff_type: "permanent",
-        start_date: form.start_date || null,
-        dbs_status: dbsStatus(),
-        dbs_certificate: dbsVals().dbs_certificate_number || null,
-        dbs_expiry_date: dbsExpiry() || null,
-        wizard_status: "completed",
-      });
-      if (e1 || !staff) { setError(e1?.message || "Couldn't create the staff record."); setSaving(false); return; }
-
-      // 3. mosque_staff_employment (owner-only sensitive detail).
-      const { error: e2 } = await upsertMosqueStaffEmployment(staff.id, mosqueId, {
-        ni_number: form.ni_number.trim() || null,
-        dob: form.dob || null,
-        address: form.address.trim() || null,
-        emergency_contact_name: form.emergency_contact_name.trim() || null,
-        emergency_contact_phone: form.emergency_contact_phone.trim() || null,
-        bank_account_name: form.bank_account_name.trim() || null,
-        bank_sort_code: form.bank_sort_code.trim() || null,
-        bank_account_number: form.bank_account_number.trim() || null,
-        contract_type: form.contract_type || null,
-        hours_per_week: form.hours_per_week === "" ? null : Number(form.hours_per_week),
-        salary_rate: form.salary_rate.trim() || null,
-        p46_statement: form.p46_statement || null,
-        student_loan: !!form.student_loan,
-        student_loan_plan: form.student_loan ? (form.student_loan_plan || null) : null,
-        ...Object.fromEntries(Object.entries(dbsVals()).map(([k, v]) => [k, v || null])),
-        dbs_result_date: form.dbs_na ? null : (form.dbs_result_date || null),
-        ...Object.fromEntries(Object.entries(rtwVals()).map(([k, v]) => [k, v || null])),
-        rtw_check_date: form.rtw_na ? null : (form.rtw_check_date || null),
-        rtw_expiry_date: form.rtw_na ? null : (form.rtw_expiry_date || null),
-      });
-      if (e2) { setError(`Staff created, but employment details failed to save: ${e2.message}`); setSaving(false); return; }
-
-      // 4. Track uploaded docs in the unified store (expiry dashboard).
-      if (dbsPath) await createMosqueDocument({ mosqueId, category: "dbs", label: `DBS certificate — ${form.name.trim()}`, expiry_date: dbsExpiry() || null, file_path: dbsPath, staff_id: staff.id });
-      if (rtwPath) await createMosqueDocument({ mosqueId, category: "rtw", label: `Right to Work — ${form.name.trim()}`, expiry_date: form.rtw_expiry_date || null, file_path: rtwPath, staff_id: staff.id });
-
-      // 5. Optional employment contract → issue (status 'sent') + email the
-      // e-sign link. Non-fatal: a contract/email failure doesn't undo the hire.
-      if (form.issue_contract && form.email.trim()) {
-        try {
-          // Use the admin's edited template if they reviewed it, else build fresh.
-          const terms = form.contract_terms || buildWizardTerms();
-          const { data: contract } = await createContract({ mosqueId, staffId: staff.id, contractType: form.contract_doc_type, terms, status: "sent" });
-          if (contract) await sendContractInvite(contract.id);
-        } catch (ce) { console.error("contract issue failed:", ce); }
-      }
-
-      setSaving(false);
-      onDone?.();
-    } catch (err) {
-      console.error("wizard save failed:", err);
-      setError("Something went wrong saving this staff member.");
-      setSaving(false);
+    // Submission is committed and is the source of truth. The confirmation email
+    // is best-effort — mirror the review-side hardening (OnboardingReview): if it
+    // fails we still complete, but surface it on the done screen so a silent email
+    // failure isn't presented as unqualified success.
+    let emailFailed = false;
+    if (staffEmail) {
+      const mail = await sendStaffWizardSubmitted(staffEmail);
+      emailFailed = !mail?.ok;
     }
+    setSaving(false);
+    onDone?.({ emailFailed });
   };
+
+  const toggleDay = (day) => setAvDays((ds) => ds.includes(day) ? ds.filter((x) => x !== day) : [...ds, day]);
 
   return (
     <div className="bg-white border border-stone-200 rounded-2xl p-5 md:p-6">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Onboard staff — {STEPS[step - 1]}</h3>
+        <h3 className="text-base font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Onboarding — {STEPS[step - 1]}</h3>
         <button onClick={onCancel} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
       </div>
       <div className="flex gap-1 mb-6">
-        {STEPS.map((s, i) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full ${i + 1 <= step ? "bg-brand-600" : "bg-stone-200"}`} title={s} />
-        ))}
+        {STEPS.map((s, i) => <div key={s} className={`h-1.5 flex-1 rounded-full ${i + 1 <= step ? "bg-brand-600" : "bg-stone-200"}`} title={s} />)}
       </div>
 
       {error && <p className="text-sm text-rose-700 flex items-center gap-1.5 mb-4"><AlertCircle size={14} /> {error}</p>}
 
       <div className="space-y-3">
+        {/* STEP 1 — Personal */}
         {step === 1 && (<>
-          <Field label="Full name" required><input className={inputCls + errCls("name", 1)} value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5">
+            <div className={labelCls}>Name on file</div>
+            <div className="text-sm text-stone-800">{nameOnFile || "—"}</div>
+            <p className="text-[11px] text-stone-400 mt-1">This is the name your mosque registered. Contact {mosqueName} if it's incorrect.</p>
+          </div>
+          <Field label="Any previous names (e.g. maiden name)"><input className={inputCls} value={form.previous_names} onChange={(e) => set("previous_names", e.target.value)} placeholder="Required for DBS if applicable" /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Phone" required><input className={inputCls + errCls("phone", 1)} value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
-            <Field label="Date of birth" required><input type="date" className={inputCls + errCls("dob", 1)} value={form.dob} onChange={(e) => set("dob", e.target.value)} /></Field>
+            <Field label="Phone" required><input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+            <Field label="Date of birth" required><input type="date" className={inputCls} value={form.dob} onChange={(e) => set("dob", e.target.value)} /></Field>
           </div>
           <Field label="Address"><textarea className={inputCls} rows={2} value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
           <Field label="National Insurance number"><input className={inputCls} value={form.ni_number} onChange={(e) => set("ni_number", e.target.value)} placeholder={niSaved && !form.ni_number ? "•••••••• saved — re-enter to change" : "QQ123456C"} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Emergency contact name" required><input className={inputCls + errCls("emergency_contact_name", 1)} value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name", e.target.value)} /></Field>
-            <Field label="Emergency contact number" required><input className={inputCls + errCls("emergency_contact_phone", 1)} value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone", e.target.value)} /></Field>
+            <Field label="Emergency contact name" required><input className={inputCls} value={form.emergency_contact_name} onChange={(e) => set("emergency_contact_name", e.target.value)} /></Field>
+            <Field label="Emergency contact number" required><input className={inputCls} value={form.emergency_contact_phone} onChange={(e) => set("emergency_contact_phone", e.target.value)} /></Field>
           </div>
         </>)}
 
+        {/* STEP 2 — Right to Work */}
         {step === 2 && (<>
-          <NotRequiredToggle checked={form.rtw_na} onChange={(v) => set("rtw_na", v)} />
-          {form.rtw_na ? (
-            <p className="text-sm text-stone-500 py-2">Right to Work marked as not required for this person.</p>
-          ) : (<>
+          <label className="flex items-start gap-2 text-sm text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer">
+            <input type="checkbox" className="mt-0.5" checked={form.rtw_na} onChange={(e) => set("rtw_na", e.target.checked)} />
+            This person is a volunteer — RTW check not applicable
+          </label>
+          <p className="text-xs text-amber-700 flex items-start gap-1.5"><ShieldAlert size={13} className="mt-0.5 shrink-0" /> Right to Work checks are legally required for all paid staff. Only select this for genuine unpaid volunteers.</p>
+          {!form.rtw_na && (<>
             <Field label="Check type" required>
-              <select className={inputCls + errCls("rtw_check_type", 2)} value={form.rtw_check_type} onChange={(e) => set("rtw_check_type", e.target.value)}>
+              <select className={inputCls} value={form.rtw_check_type} onChange={(e) => set("rtw_check_type", e.target.value)}>
                 <option value="">Select…</option>{RTW_CHECK_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Document type" required>
-                <select className={inputCls + errCls("rtw_document_type", 2)} value={form.rtw_document_type} onChange={(e) => set("rtw_document_type", e.target.value)}>
+                <select className={inputCls} value={form.rtw_document_type} onChange={(e) => set("rtw_document_type", e.target.value)}>
                   <option value="">Select…</option>{RTW_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </Field>
@@ -441,96 +297,145 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
             </div>
             <Field label="Share code (if applicable)"><input className={inputCls} value={form.rtw_share_code} onChange={(e) => set("rtw_share_code", e.target.value)} /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Check date"><input type="date" className={inputCls} value={form.rtw_check_date} onChange={(e) => set("rtw_check_date", e.target.value)} /></Field>
-              <Field label="Expiry date" required><input type="date" className={inputCls + errCls("rtw_expiry_date", 2)} value={form.rtw_expiry_date} onChange={(e) => set("rtw_expiry_date", e.target.value)} /></Field>
+              <Field label="Check date" required><input type="date" className={inputCls} value={form.rtw_check_date} onChange={(e) => set("rtw_check_date", e.target.value)} /></Field>
+              {rtwHasExpiry
+                ? <Field label="Document expiry date" required><input type="date" className={inputCls} value={form.rtw_expiry_date} onChange={(e) => set("rtw_expiry_date", e.target.value)} /></Field>
+                : <div className="flex items-end"><p className="text-xs text-stone-500 pb-2">No expiry — this document confers permanent right to work.</p></div>}
             </div>
-            <Field label="Checked by"><input className={inputCls} value={form.rtw_checked_by} onChange={(e) => set("rtw_checked_by", e.target.value)} /></Field>
-            <FileField label="Attach document" required={uploadReq("rtw")} value={form.rtw_file} remoteMode={remoteMode} onSelect={(f) => set("rtw_file", f)} onClear={() => set("rtw_file", null)} error={attempted && uploadReq("rtw") && !form.rtw_file} onRemoteUpload={(f) => uploadRemote("rtw", f)} uploadedName={form.rtw_file?.name} uploading={uploading.rtw} uploadError={uploadErr.rtw} />
+            <Field label="Attach document">
+              <div className="space-y-1.5">
+                {form.rtw_file && <div className="flex items-center gap-2 text-sm bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-brand-800"><CheckCircle2 size={14} /> <span className="truncate">{form.rtw_file.name}</span></div>}
+                <label className={`flex items-center gap-2 text-sm font-semibold rounded-lg px-3 py-2 cursor-pointer border border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100 ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+                  {uploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />} {form.rtw_file ? "Replace file" : "Attach file"} (PDF/JPG/PNG, ≤10MB)
+                  <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadRemote(f); e.target.value = ""; }} />
+                </label>
+                {uploadErr && <p className="text-xs text-rose-600">{uploadErr}</p>}
+              </div>
+            </Field>
           </>)}
         </>)}
 
+        {/* STEP 3 — DBS */}
         {step === 3 && (<>
-          <NotRequiredToggle checked={form.dbs_na} onChange={(v) => set("dbs_na", v)} />
-          {form.dbs_na ? (
-            <p className="text-sm text-stone-500 py-2">DBS marked as not required for this person.</p>
-          ) : (<>
+          <label className="flex items-start gap-2 text-sm text-stone-700 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer">
+            <input type="checkbox" className="mt-0.5" checked={form.dbs_na} onChange={(e) => set("dbs_na", e.target.checked)} />
+            This person is a volunteer — DBS not applicable
+          </label>
+          <p className="text-xs text-amber-700 flex items-start gap-1.5"><ShieldAlert size={13} className="mt-0.5 shrink-0" /> Enhanced DBS is legally required for all paid staff working with children. Only select this for roles with no child contact.</p>
+          {!form.dbs_na && (
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Check type" required>
-                <select className={inputCls + errCls("dbs_check_type", 3)} value={form.dbs_check_type} onChange={(e) => set("dbs_check_type", e.target.value)}>
+              <Field label="DBS check type" required>
+                <select className={inputCls} value={form.dbs_check_type} onChange={(e) => set("dbs_check_type", e.target.value)}>
                   <option value="">Select…</option>{DBS_CHECK_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </Field>
               <Field label="Workforce type" required>
-                <select className={inputCls + errCls("dbs_workforce_type", 3)} value={form.dbs_workforce_type} onChange={(e) => set("dbs_workforce_type", e.target.value)}>
+                <select className={inputCls} value={form.dbs_workforce_type} onChange={(e) => set("dbs_workforce_type", e.target.value)}>
                   <option value="">Select…</option>{WORKFORCE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="ID document type"><input className={inputCls} value={form.dbs_id_document_type} onChange={(e) => set("dbs_id_document_type", e.target.value)} /></Field>
-              <Field label="ID document number"><input className={inputCls} value={form.dbs_id_document_number} onChange={(e) => set("dbs_id_document_number", e.target.value)} /></Field>
-            </div>
-            <Field label="uCheck application reference"><input className={inputCls} value={form.dbs_ucheck_reference} onChange={(e) => set("dbs_ucheck_reference", e.target.value)} /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Certificate number"><input className={inputCls} value={form.dbs_certificate_number} onChange={(e) => set("dbs_certificate_number", e.target.value)} /></Field>
-              <Field label="Result date"><input type="date" className={inputCls} value={form.dbs_result_date} onChange={(e) => set("dbs_result_date", e.target.value)} /></Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Expiry date"><input type="date" className={inputCls} value={form.dbs_expiry_date} onChange={(e) => set("dbs_expiry_date", e.target.value)} /></Field>
-              <Field label="Checked by"><input className={inputCls} value={form.dbs_checked_by} onChange={(e) => set("dbs_checked_by", e.target.value)} /></Field>
-            </div>
-            <FileField label="Attach certificate" required={uploadReq("dbs")} value={form.dbs_file} remoteMode={remoteMode} onSelect={(f) => set("dbs_file", f)} onClear={() => set("dbs_file", null)} error={attempted && uploadReq("dbs") && !form.dbs_file} onRemoteUpload={(f) => uploadRemote("dbs", f)} uploadedName={form.dbs_file?.name} uploading={uploading.dbs} uploadError={uploadErr.dbs} />
-          </>)}
+          )}
+          {/* Required declarations */}
+          <label className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2.5 cursor-pointer border ${attempted && !form.safer_recruitment_declared ? "border-rose-300 bg-rose-50" : "border-stone-200 bg-white"}`}>
+            <input type="checkbox" className="mt-0.5" checked={form.safer_recruitment_declared} onChange={(e) => set("safer_recruitment_declared", e.target.checked)} />
+            <span className="text-stone-700">I confirm I have never been barred from working with children or vulnerable adults, and I am not currently under investigation by the DBS or any safeguarding authority.</span>
+          </label>
+          <label className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2.5 cursor-pointer border ${attempted && !form.dbs_consent_given ? "border-rose-300 bg-rose-50" : "border-stone-200 bg-white"}`}>
+            <input type="checkbox" className="mt-0.5" checked={form.dbs_consent_given} onChange={(e) => set("dbs_consent_given", e.target.checked)} />
+            <span className="text-stone-700">I consent to {mosqueName} submitting an Enhanced DBS application on my behalf. I understand this involves a check of police records and the children's barred list.</span>
+          </label>
+          {/* 5-year address history */}
+          <div className="space-y-2">
+            <div className={labelCls}>Address history (last 5 years, for the DBS application)</div>
+            {addrHistory.map((a, i) => (
+              <div key={i} className="grid grid-cols-[1fr,auto,auto,auto] gap-2 items-center">
+                <input className={inputCls} value={a.address} placeholder="Address" onChange={(e) => setAddrHistory((h) => h.map((x, j) => j === i ? { ...x, address: e.target.value } : x))} />
+                <input type="month" className={inputCls + " w-32"} value={a.from} title="From" onChange={(e) => setAddrHistory((h) => h.map((x, j) => j === i ? { ...x, from: e.target.value } : x))} />
+                <input type="month" className={inputCls + " w-32"} value={a.to} title="To" onChange={(e) => setAddrHistory((h) => h.map((x, j) => j === i ? { ...x, to: e.target.value } : x))} />
+                {addrHistory.length > 1 && <button type="button" onClick={() => setAddrHistory((h) => h.filter((_, j) => j !== i))} className="text-stone-400 hover:text-rose-600"><Trash2 size={15} /></button>}
+              </div>
+            ))}
+            <button type="button" onClick={() => setAddrHistory((h) => [...h, { address: "", from: "", to: "" }])} className="text-sm text-brand-700 inline-flex items-center gap-1"><Plus size={14} /> Add previous address</button>
+            <p className="text-[11px] text-stone-400">Add earlier addresses until the last 5 years are covered.</p>
+          </div>
         </>)}
 
+        {/* STEP 4 — Employment (read-only) + Availability */}
         {step === 4 && (<>
-          <Field label="Role" required>
-            <select className={inputCls} value={form.role} onChange={(e) => set("role", e.target.value)}>
-              {MOSQUE_STAFF_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-              <option value="Other">Other…</option>
-            </select>
-          </Field>
-          {form.role === "Other" && <Field label="Role (specify)"><input className={inputCls} value={form.roleOther} onChange={(e) => set("roleOther", e.target.value)} /></Field>}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Contract type">
-              <select className={inputCls} value={form.contract_type} onChange={(e) => set("contract_type", e.target.value)}>
-                {CONTRACT_TYPES.map((c) => <option key={c} value={c} className="capitalize">{c.replace("_", " ")}</option>)}
-              </select>
-            </Field>
-            <Field label="Start date" required><input type="date" className={inputCls + errCls("start_date", 4)} value={form.start_date} onChange={(e) => set("start_date", e.target.value)} /></Field>
+          <div className="space-y-2">
+            <ReadonlyRow label="Role" value={emp.role} mosqueName={mosqueName} />
+            <ReadonlyRow label="Job title" value={emp.job_title} mosqueName={mosqueName} />
+            <ReadonlyRow label="Department" value={emp.department} mosqueName={mosqueName} />
+            <ReadonlyRow label="Employment type" value={emp.employment_type} mosqueName={mosqueName} />
+            <ReadonlyRow label="Start date" value={emp.start_date} mosqueName={mosqueName} />
+            <p className="text-xs text-stone-500">If any of these are incorrect, contact {mosqueName} before submitting.</p>
           </div>
-          <div className={`grid ${remoteMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
-            <Field label="Hours per week"><input type="number" min="0" step="0.5" className={inputCls} value={form.hours_per_week} onChange={(e) => set("hours_per_week", e.target.value)} /></Field>
-            {/* Salary/rate is admin-only — set in HR Employment Records, not by the staff member. */}
-            {!remoteMode && <Field label="Salary / rate"><input className={inputCls} value={form.salary_rate} onChange={(e) => set("salary_rate", e.target.value)} placeholder="£28,000/yr or £15/hr" /></Field>}
-          </div>
-        </>)}
-
-        {step === 5 && (<>
-          <Field label="Student loan">
-            <div className="flex gap-2">
-              {[["false", "No"], ["true", "Yes"]].map(([v, l]) => (
-                <button key={v} onClick={() => set("student_loan", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.student_loan) === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
+          <div>
+            <div className={labelCls}>Your availability</div>
+            <div className="flex gap-1.5 flex-wrap">
+              {DAYS.map(([v, l]) => (
+                <button key={v} type="button" onClick={() => toggleDay(v)} className={`px-3 py-1.5 rounded-lg border text-sm ${avDays.includes(v) ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
               ))}
             </div>
-          </Field>
-          {form.student_loan && (
-            <Field label="Plan">
-              <select className={inputCls} value={form.student_loan_plan} onChange={(e) => set("student_loan_plan", e.target.value)}>
-                <option value="">Select…</option>{SL_PLANS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </Field>
+          </div>
+          {avDays.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] text-stone-400">Optional — set the hours you're available each day.</p>
+              {avDays.map((day) => (
+                <div key={day} className="flex items-center gap-2 text-sm">
+                  <span className="w-10 text-stone-600">{DAYS.find(([k]) => k === day)?.[1]}</span>
+                  <input type="time" className={inputCls + " w-32"} value={avTimes[day]?.from || ""} onChange={(e) => setAvTimes((t) => ({ ...t, [day]: { ...t[day], from: e.target.value } }))} />
+                  <span className="text-stone-400">to</span>
+                  <input type="time" className={inputCls + " w-32"} value={avTimes[day]?.to || ""} onChange={(e) => setAvTimes((t) => ({ ...t, [day]: { ...t[day], to: e.target.value } }))} />
+                </div>
+              ))}
+            </div>
           )}
+        </>)}
+
+        {/* STEP 5 — Medical (privacy notice, NOT a consent gate) */}
+        {step === 5 && (<>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs text-stone-600 leading-relaxed">
+            We collect this under our Health &amp; Safety obligations and the Equality Act 2010 to make reasonable adjustments. It is held securely, accessed only by authorised mosque management, and never shared with third parties.
+          </div>
+          <Field label="Do you have any health conditions or disabilities we should be aware of to make reasonable adjustments?">
+            <div className="flex gap-2">{YNP.map(([v, l]) => <button key={v} type="button" onClick={() => set("med_q1", v)} className={`px-3 py-1.5 rounded-lg border text-sm ${form.med_q1 === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>)}</div>
+          </Field>
+          {form.med_q1 === "yes" && <textarea className={inputCls} rows={2} placeholder="Optional details" value={form.med_q1_detail} onChange={(e) => set("med_q1_detail", e.target.value)} />}
+          <Field label="Do you have any conditions relevant to working with children that we should be aware of?">
+            <div className="flex gap-2">{YNP.map(([v, l]) => <button key={v} type="button" onClick={() => set("med_q2", v)} className={`px-3 py-1.5 rounded-lg border text-sm ${form.med_q2 === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>)}</div>
+          </Field>
+          {form.med_q2 === "yes" && <textarea className={inputCls} rows={2} placeholder="Optional details" value={form.med_q2_detail} onChange={(e) => set("med_q2_detail", e.target.value)} />}
+          <Field label="Emergency medical information for first aiders (e.g. severe allergies, medications)"><textarea className={inputCls} rows={2} value={form.med_q3} onChange={(e) => set("med_q3", e.target.value)} /></Field>
+          <Field label="Have you completed Prevent Duty awareness training?">
+            <div className="flex gap-2">{PREVENT_OPTS.map(([v, l]) => <button key={v} type="button" onClick={() => set("med_q4", v)} className={`px-3 py-1.5 rounded-lg border text-sm ${form.med_q4 === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>)}</div>
+          </Field>
+          {form.med_q4 === "yes" && <Field label="Date completed"><input type="date" className={inputCls} value={form.med_q4_date} onChange={(e) => set("med_q4_date", e.target.value)} /></Field>}
+        </>)}
+
+        {/* STEP 6 — Tax / P46 */}
+        {step === 6 && (<>
           <Field label="P46 starter statement" required>
-            <select className={inputCls + errCls("p46_statement", 5)} value={form.p46_statement} onChange={(e) => set("p46_statement", e.target.value)}>
+            <select className={inputCls} value={form.p46_statement} onChange={(e) => set("p46_statement", e.target.value)}>
               <option value="">Select…</option>{P46_STATEMENTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
+          <Field label="Student loan">
+            <div className="flex gap-2">{[["false", "No"], ["true", "Yes"]].map(([v, l]) => <button key={v} type="button" onClick={() => set("student_loan", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.student_loan) === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>)}</div>
+          </Field>
+          {form.student_loan && (
+            <Field label="Plan"><select className={inputCls} value={form.student_loan_plan} onChange={(e) => set("student_loan_plan", e.target.value)}><option value="">Select…</option>{SL_PLANS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+          )}
+          <Field label="Postgraduate loan">
+            <div className="flex gap-2">{[["false", "No"], ["true", "Yes"]].map(([v, l]) => <button key={v} type="button" onClick={() => set("postgraduate_loan", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.postgraduate_loan) === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>)}</div>
+          </Field>
         </>)}
 
-        {step === 6 && (<>
+        {/* STEP 7 — Bank */}
+        {step === 7 && (<>
           <div className="flex items-start gap-2 text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-            <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-brand-600" /> Bank details are stored securely and are only ever visible to mosque admins — never to the staff member or the public.
+            <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-brand-600" /> Bank details are stored securely and encrypted. Once submitted, they can only be accessed by authorised mosque admins.
           </div>
           {bankSaved && !form.bank_account_number && !form.bank_account_name && !form.bank_sort_code && (
             <p className="text-xs text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">Your bank details are saved. Leave blank to keep them, or re-enter below to change.</p>
@@ -542,55 +447,44 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
           </div>
         </>)}
 
-        {step === contractStep && (<>
-          <Field label="Issue an employment contract?">
-            <div className="flex gap-2">
-              {[["true", "Yes"], ["false", "No"]].map(([v, l]) => (
-                <button key={v} onClick={() => set("issue_contract", v === "true")} className={`px-3 py-1.5 rounded-lg border text-sm ${String(form.issue_contract) === v ? "bg-brand-50 border-brand-300 text-brand-800" : "bg-white border-stone-300 text-stone-600"}`}>{l}</button>
-              ))}
+        {/* STEP 8 — Contract signature */}
+        {step === 8 && (<>
+          {!contract ? (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
+              Your contract will be provided separately by {mosqueName}. Click Next to continue.
             </div>
-          </Field>
-          {form.issue_contract && (<>
-            <Field label="Contract type">
-              {/* Changing type invalidates any edited template snapshot. */}
-              <select className={inputCls} value={form.contract_doc_type} onChange={(e) => setForm((f) => ({ ...f, contract_doc_type: e.target.value, contract_terms: null }))}>
-                {CONTRACT_DOC_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </Field>
-            <Field label="Staff email" required>
-              <input type="email" className={inputCls + (attempted && form.issue_contract && isEmpty(form.email) ? " border-rose-400 ring-1 ring-rose-200" : "")} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="them@example.com" />
-            </Field>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button type="button" onClick={() => setShowContractEditor(true)} className="text-sm font-medium border border-brand-300 text-brand-800 hover:bg-brand-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5"><PenLine size={14} /> Review &amp; edit template</button>
-              {form.contract_terms && <span className="text-xs text-brand-700 inline-flex items-center gap-1"><Check size={13} /> Template edited</span>}
-            </div>
-            <p className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">On confirm, the contract is created from {form.contract_terms ? "your edited template" : "these details"} and emailed to {form.email.trim() || "the staff member"} with a secure link to review and e-sign.</p>
+          ) : (<>
+            <div className="border border-stone-200 rounded-xl p-3 bg-white max-h-[46vh] overflow-y-auto text-sm text-stone-700 [&_h2]:text-base [&_h2]:font-semibold [&_h4]:font-semibold [&_h4]:mt-2 [&_p]:mb-1.5"
+              dangerouslySetInnerHTML={{ __html: contract.rendered_html || "" }} />
+            {signed ? (
+              <div className="text-sm bg-brand-50 text-brand-800 border border-brand-200 rounded-lg px-3 py-2 inline-flex items-center gap-2"><Check size={15} /> Signed as {form.signature || contract.signature}</div>
+            ) : (<>
+              <p className="text-xs text-stone-500">By typing your full legal name and clicking Sign, you confirm you have read and agree to the terms of your employment contract with {mosqueName}, and that all information you have provided during this onboarding is accurate.</p>
+              <div className="flex items-center gap-2">
+                <input className={inputCls + " flex-1"} value={form.signature} onChange={(e) => set("signature", e.target.value)} placeholder="Type your full legal name" />
+                <button type="button" onClick={doSign} disabled={saving || isEmpty(form.signature)} className="text-sm bg-brand-900 hover:bg-brand-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap">{saving ? <Loader2 size={15} className="animate-spin" /> : <PenLine size={15} />} Sign</button>
+              </div>
+            </>)}
           </>)}
         </>)}
 
-        {showContractEditor && (
-          <ContractEditor
-            initialTerms={form.contract_terms || buildWizardTerms()}
-            issueLabel="Save template"
-            onIssue={(terms) => { set("contract_terms", terms); setShowContractEditor(false); }}
-            onCancel={() => setShowContractEditor(false)}
-          />
-        )}
-
-        {step === reviewStep && (
+        {/* REVIEW */}
+        {step === REVIEW && (
           <div className="space-y-2 text-sm">
-            <p className="text-stone-600 mb-2">Review the details, then confirm to {remoteMode ? "submit your onboarding" : "create this staff member"}.</p>
+            <p className="text-stone-600 mb-2">Review, then submit your onboarding to {mosqueName}.</p>
             {[
-              ["Name", form.name], ["Role", roleValue], ["Contract", form.contract_type],
-              ["Start date", form.start_date || "—"],
-              ["RTW", form.rtw_na ? "Not required" : (form.rtw_check_type ? `${form.rtw_check_type}${form.rtw_expiry_date ? ` · exp ${form.rtw_expiry_date}` : ""}` : "—")],
-              ["DBS", form.dbs_na ? "Not required" : dbsStatusFromForm()],
-              ["DBS expiry", form.dbs_na ? "—" : (form.dbs_expiry_date || "—")],
-              ["Hours/week", form.hours_per_week || "—"],
-              ...(remoteMode ? [] : [["Salary/rate", form.salary_rate || "—"]]),
+              ["Name", nameOnFile],
+              ["Role", emp.role || "—"],
+              ["Start date", emp.start_date || "—"],
+              ["Availability", avDays.length ? avDays.map((d) => DAYS.find(([k]) => k === d)?.[1]).join(", ") : "—"],
+              ["RTW", form.rtw_na ? "Volunteer — n/a" : (form.rtw_check_type ? `${form.rtw_check_type}${rtwHasExpiry && form.rtw_expiry_date ? ` · exp ${form.rtw_expiry_date}` : ""}` : "—")],
+              ["DBS", form.dbs_na ? "Volunteer — n/a" : (form.dbs_check_type || "—")],
+              ["Safer recruitment", form.safer_recruitment_declared ? "✓ Declaration signed" : "Not signed"],
+              ["DBS consent", form.dbs_consent_given ? "✓ Given" : "Not given"],
+              ["Medical", (form.med_q1 || form.med_q2 || form.med_q3 || form.med_q4) ? "✓ Submitted" : "Not submitted"],
+              ["Prevent duty", form.med_q4 === "yes" ? "Trained (self-reported)" : form.med_q4 === "in_progress" ? "In progress" : form.med_q4 === "no" ? "Not trained" : "—"],
               ["Bank set", (bankSaved || form.bank_account_number) ? "Yes" : "No"],
-              ...(remoteMode ? [] : [["Documents", [form.dbs_file && "DBS", form.rtw_file && "RTW"].filter(Boolean).join(", ") || "none"]]),
-              ...(remoteMode ? [] : [["Contract", form.issue_contract ? `${CONTRACT_DOC_TYPES.find(([v]) => v === form.contract_doc_type)?.[1] || form.contract_doc_type}${form.email ? ` → ${form.email}` : ""}` : "Not issued"]]),
+              ["Contract signed", contract ? (signed ? "✓ Signed" : "Awaiting") : "Provided separately"],
             ].map(([k, v]) => (
               <div key={k} className="flex items-center justify-between border-b border-stone-100 py-1.5">
                 <span className="text-[11px] uppercase tracking-wider text-stone-500 font-medium">{k}</span>
@@ -605,13 +499,13 @@ const MosqueStaffWizard = ({ mosqueId, mosque, onDone, onCancel, remoteMode = fa
         <button onClick={step === 1 ? onCancel : back} className="text-sm text-stone-600 hover:text-stone-900 inline-flex items-center gap-1.5">
           <ChevronLeft size={15} /> {step === 1 ? "Cancel" : "Back"}
         </button>
-        {step < TOTAL ? (
-          <button onClick={next} className="bg-brand-900 hover:bg-brand-800 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
-            Next <ChevronRight size={15} />
+        {step < REVIEW ? (
+          <button onClick={next} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : null} Next <ChevronRight size={15} />
           </button>
         ) : (
-          <button onClick={save} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Confirm & save
+          <button onClick={submit} disabled={saving} className="bg-brand-900 hover:bg-brand-800 disabled:bg-stone-300 text-white text-sm font-medium px-5 py-2 rounded-lg inline-flex items-center gap-1.5">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Submit onboarding
           </button>
         )}
       </div>

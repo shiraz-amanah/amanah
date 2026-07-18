@@ -25,8 +25,11 @@ import StaffContractGenerator from "./StaffContractGenerator";
 import { buildSections, typeMeta, fmt, sectionsToHtml, employmentTypeToTemplate } from "../lib/contractTemplates";
 
 const ROLES = ["Teacher", "Coordinator", "Imam", "Administrator", "Receptionist", "Treasurer", "Other"];
+// Values are constrained by mosque_staff_employment_type_check — 'zero_hours'
+// requires migration 151. Do NOT add a value here before its migration is in prod.
 const EMP_TYPES = [
   ["employed_full_time", "Employed — full time"], ["employed_part_time", "Employed — part time"],
+  ["zero_hours", "Zero hours (casual)"],
   ["self_employed", "Self-employed"], ["volunteer", "Volunteer"], ["contractor", "Contractor"],
 ];
 const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-200";
@@ -44,8 +47,9 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   const [f, setF] = useState({
     name: "", email: "", role: defaultEmploymentType === "volunteer" ? "Other" : "Teacher", jobTitle: "", department: "",
     employmentType: defaultEmploymentType || "employed_part_time", startDate: "",
-    salaryGbp: "", hoursPerWeek: "", noticeDays: "", probationEnd: "",
+    salaryGbp: "", hourlyRateGbp: "", hoursPerWeek: "", noticeDays: "", probationEnd: "",
   });
+  const isZeroHours = f.employmentType === "zero_hours";
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
   // Departments (migration 147) — lazily seeded on first use for this mosque.
@@ -56,6 +60,15 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   // Draft contract (remote path only), stored on the onboarding session on send.
   const [contract, setContract] = useState(null); // {template_id, employment_type, fields, rendered_html}
   const [editingContract, setEditingContract] = useState(false);
+  // Not-legal-advice acknowledgement. Gates the SEND action, not just the
+  // optional "Edit contract" screen — an admin happy with the auto-generated
+  // contract never opens the editor, so gating only there let the disclaimer be
+  // skipped on the majority path. Only meaningful when a contract template is
+  // actually attached (the "send without a template" branch has nothing to
+  // disclaim). StaffContractGenerator keeps its OWN ack on the edit screen.
+  const [contractAck, setContractAck] = useState(false);
+  const contractAttached = path === "remote" && !!contract?.template_id;
+  const sendBlocked = contractAttached && !contractAck;
 
   // Load (and lazily seed) departments once a path is chosen — both paths use
   // the dropdown on the details step.
@@ -69,28 +82,58 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   }, [path, mosqueId, departments]);
 
   const basicValid = f.name.trim() && /\S+@\S+\.\S+/.test(f.email);
-  const lastStep = path === "inhouse" ? 4 : 3; // in-house: details→employment→review; remote: details→contract
+  // Both paths: 1 path → 2 details → 3 employment → 4 (contract | review).
+  // The remote path previously skipped the employment step, which is why the
+  // generated contract had no salary/hours to render (RBAC-E Commit 3b bug).
+  const lastStep = 4;
   const next = () => setStep((s) => Math.min(lastStep, s + 1));
   const back = () => {
-    if (path === "remote" && step === 3) setContract(null); // regen from current fields on re-entry
+    if (path === "remote" && step === 4) setContract(null); // regen from current fields on re-entry
     setStep((s) => Math.max(1, s - 1));
   };
 
   // Build the contract data object from the modal fields + mosque record.
-  const contractFields = () => ({
-    employeeName: f.name.trim(),
-    jobTitle: f.jobTitle || f.role,
-    startDate: f.startDate || null,
-    mosqueName: mosque?.name, mosqueAddress: mosque?.address, mosqueCity: mosque?.city, mosquePostcode: mosque?.postcode,
-    charityNumber: mosque?.registered_charity_number,
-    employeeAddress: "", salaryPence: null, hours: null, noticePeriod: null,
-    duties: "", holidayDays: 28, benefits: "", probationLength: "", specialClauses: "",
-  });
+  // Every value the admin typed on the employment step is carried through here —
+  // hardcoding salary/hours to null was what made the draft render "£— per year"
+  // and "Hours as agreed". Keys must stay in sync with StaffContractGenerator's
+  // `d` state, which is seeded from this object via initialData.
+  const contractFields = () => {
+    // The DB stores notice as a single integer (notice_period_days); the contract
+    // splits it into Organisation/Employee. Seed both sides from the one figure —
+    // they're independently editable in "Edit contract".
+    const notice = f.noticeDays !== "" ? `${f.noticeDays} days` : "";
+    return {
+      employeeName: f.name.trim(),
+      jobTitle: f.jobTitle || f.role,
+      startDate: f.startDate || null,
+      mosqueName: mosque?.name, mosqueAddress: mosque?.address, mosqueCity: mosque?.city, mosquePostcode: mosque?.postcode,
+      charityNumber: mosque?.registered_charity_number,
+      employeeAddress: "",
+      // Zero-hours has no annual salary and no contracted weekly hours; it carries
+      // an hourly rate instead. Keep the unused side null so the template can't
+      // render an annual figure on a casual-worker contract.
+      salaryPence: !isZeroHours && f.salaryGbp !== "" ? Math.round(Number(f.salaryGbp) * 100) : null,
+      hourlyRatePence: isZeroHours && f.hourlyRateGbp !== "" ? Math.round(Number(f.hourlyRateGbp) * 100) : null,
+      hours: !isZeroHours && f.hoursPerWeek !== "" ? Number(f.hoursPerWeek) : null,
+      noticePeriod: f.noticeDays !== "" ? Number(f.noticeDays) : null,
+      duties: "", holidayDays: 28, benefits: "", specialClauses: "",
+      // Probation is a DATE end-of-period everywhere (the DB column, this input,
+      // the contract clause, the Edit screen) — was previously dropped here
+      // (hardcoded probationLength: ""), so the admin's "Probation end" never
+      // reached the contract on the remote path. Now carried through.
+      probationEndDate: f.probationEnd || null,
+      // The six RBAC-E Commit 3b fields. Defaults mirror StaffContractGenerator's
+      // own fallbacks so the preview and the edit modal agree before any edit.
+      noticePeriodEmployer: notice, noticePeriodEmployee: notice,
+      holidayYear: "1 April to 31 March",
+      placeOfWork: [mosque?.address, mosque?.city, mosque?.postcode].filter(Boolean).join(", "),
+    };
+  };
   const contractMeta = (tmpl) => `${mosque?.name || ""} · ${typeMeta(tmpl).label} · drafted ${fmt(new Date().toISOString())}`;
 
   // Auto-generate the draft contract when the remote path reaches the contract page.
   useEffect(() => {
-    if (step !== 3 || path !== "remote" || contract) return;
+    if (step !== 4 || path !== "remote" || contract) return;
     const tmpl = employmentTypeToTemplate(f.employmentType);
     const fields = contractFields();
     if (tmpl) {
@@ -113,6 +156,7 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
   };
 
   const create = async () => {
+    if (sendBlocked) return; // belt-and-braces: the button is also disabled
     setBusy(true); setErr(null);
     try {
       const base = {
@@ -134,6 +178,11 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         const { data, error } = await createStaffWizardInvite({
           mosqueId, name: f.name.trim(), email: f.email.trim(),
           contract: contractPayload ? { ...contractPayload, employment_type: f.employmentType } : null,
+          // Seed the read-only Employment step of the remote wizard (RBAC-E C3).
+          employment: {
+            role: f.role, job_title: f.jobTitle || null, department: f.department || null,
+            employment_type: f.employmentType, start_date: f.startDate || null,
+          },
         });
         if (error || !data?.staffId) throw new Error(error?.message || "Could not create staff record");
         await updateMosqueStaff(data.staffId, base);
@@ -153,8 +202,14 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
         });
         if (error || !data?.id) throw new Error(error?.message || "Could not create staff record");
         const emp = {};
-        if (f.salaryGbp !== "") emp.salary_pence = Math.round(Number(f.salaryGbp) * 100);
-        if (f.hoursPerWeek !== "") emp.hours_per_week = Number(f.hoursPerWeek);
+        // Guarded on isZeroHours both ways: the two pay models are mutually
+        // exclusive, and switching type leaves the other side's value in state —
+        // persisting it would put an annual salary + contracted hours on a
+        // casual-worker record (or a rate on a salaried one).
+        // hourly_rate_pence landed on mosque_staff_employment in migration 151.
+        if (!isZeroHours && f.salaryGbp !== "") emp.salary_pence = Math.round(Number(f.salaryGbp) * 100);
+        if (!isZeroHours && f.hoursPerWeek !== "") emp.hours_per_week = Number(f.hoursPerWeek);
+        if (isZeroHours && f.hourlyRateGbp !== "") emp.hourly_rate_pence = Math.round(Number(f.hourlyRateGbp) * 100);
         if (f.noticeDays !== "") emp.notice_period_days = Number(f.noticeDays);
         if (f.probationEnd) emp.probation_end_date = f.probationEnd;
         if (Object.keys(emp).length) await upsertMosqueStaffEmployment(data.id, mosqueId, emp);
@@ -169,8 +224,11 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    {/* Backdrop does NOT close on click: this modal holds un-saved invite form
+        data (name/email/role/contract), and an accidental outside-click used to
+        discard the lot silently. Dismissal is explicit only — Cancel or the X. */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
           <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Add staff</h3>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
@@ -224,14 +282,29 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
             </div>
           )}
 
-          {/* Step 3 (in-house) — employment details */}
-          {step === 3 && path === "inhouse" && (
+          {/* Step 3 — employment details (BOTH paths). In-house persists these to
+              mosque_staff_employment; the remote path feeds them into the draft
+              contract the employee reviews and signs. */}
+          {step === 3 && (
             <div className="grid grid-cols-2 gap-3">
-              <L label="Salary (£ / year)"><input type="number" className={inputCls} value={f.salaryGbp} onChange={(e) => set("salaryGbp", e.target.value)} placeholder="e.g. 28000" /></L>
-              <L label="Hours / week"><input type="number" className={inputCls} value={f.hoursPerWeek} onChange={(e) => set("hoursPerWeek", e.target.value)} /></L>
+              {isZeroHours ? (
+                <>
+                  <L label="Hourly rate (£ / hour)"><input type="number" step="0.01" className={inputCls} value={f.hourlyRateGbp} onChange={(e) => set("hourlyRateGbp", e.target.value)} placeholder="e.g. 12.50" /></L>
+                  <p className="self-end pb-2 text-xs text-stone-400 leading-snug">No guaranteed hours — pay follows the hours actually worked.</p>
+                </>
+              ) : (
+                <>
+                  <L label="Salary (£ / year)"><input type="number" className={inputCls} value={f.salaryGbp} onChange={(e) => set("salaryGbp", e.target.value)} placeholder="e.g. 28000" /></L>
+                  <L label="Hours / week"><input type="number" className={inputCls} value={f.hoursPerWeek} onChange={(e) => set("hoursPerWeek", e.target.value)} /></L>
+                </>
+              )}
               <L label="Notice period (days)"><input type="number" className={inputCls} value={f.noticeDays} onChange={(e) => set("noticeDays", e.target.value)} /></L>
               <L label="Probation end"><input type="date" className={inputCls} value={f.probationEnd} onChange={(e) => set("probationEnd", e.target.value)} /></L>
-              <p className="col-span-2 text-xs text-stone-400">Salary and pay details are stored on the owner-only employment record and revealed only via the audited RPC.</p>
+              <p className="col-span-2 text-xs text-stone-400">
+                {path === "remote"
+                  ? "These fill in the draft contract on the next step, where you can review and edit every clause before sending. Notice sets both the organisation's and the employee's notice period to start with — split them apart under Edit contract if they differ. Leave blank to fill them in there instead."
+                  : "Salary and pay details are stored on the owner-only employment record and revealed only via the audited RPC."}
+              </p>
             </div>
           )}
 
@@ -262,6 +335,14 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               <p className="text-xs text-stone-500">
                 Sends the self-onboarding invitation and attaches this contract for the employee to review and sign at the final onboarding step.
               </p>
+              {/* Gates the send button below. Shown only when a contract template
+                  is attached — with none, there's no template to disclaim. */}
+              {contractAttached && (
+                <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 cursor-pointer">
+                  <input type="checkbox" checked={contractAck} onChange={(e) => setContractAck(e.target.checked)} className="mt-0.5 accent-emerald-600 shrink-0" />
+                  <span>This is a template only, not legal advice. Please review carefully — Saveco Tech is not a law firm or HR provider and cannot guarantee this contract is legally complete for your situation.</span>
+                </label>
+              )}
               {err && <p className="text-sm text-rose-600">{err}</p>}
               {emailWarn && <p className="text-sm text-amber-700">{emailWarn}</p>}
             </div>
@@ -276,7 +357,9 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
                 <div><span className="text-stone-400">Name:</span> {f.name} · {f.email}</div>
                 <div><span className="text-stone-400">Role:</span> {f.role}{f.jobTitle && ` · ${f.jobTitle}`}{f.department && ` · ${f.department}`}</div>
                 <div><span className="text-stone-400">Type:</span> {EMP_TYPES.find(([v]) => v === f.employmentType)?.[1]}{f.startDate && ` · starts ${f.startDate}`}</div>
-                {f.salaryGbp && <div><span className="text-stone-400">Salary:</span> £{Number(f.salaryGbp).toLocaleString("en-GB")}/yr</div>}
+                {isZeroHours
+                  ? f.hourlyRateGbp && <div><span className="text-stone-400">Rate:</span> £{Number(f.hourlyRateGbp).toFixed(2)}/hour · no guaranteed hours</div>
+                  : f.salaryGbp && <div><span className="text-stone-400">Salary:</span> £{Number(f.salaryGbp).toLocaleString("en-GB")}/yr</div>}
               </div>
               <p className="text-xs text-stone-500">Creates the staff record (status: Active). You can record RTW, DBS and grant dashboard access from their profile.</p>
               {err && <p className="text-sm text-rose-600">{err}</p>}
@@ -303,8 +386,9 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
               Continue <ArrowRight size={15} />
             </button>
           ) : (
-            <button onClick={create} disabled={busy || !basicValid}
-              className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">
+            <button onClick={create} disabled={busy || !basicValid || sendBlocked}
+              title={sendBlocked ? "Tick the acknowledgement above to send" : undefined}
+              className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
               {busy ? <Loader2 size={15} className="animate-spin" /> : path === "remote" ? <Send size={15} /> : <Users size={15} />}
               {path === "remote" ? "Looks good — send invitation" : "Create staff member"}
             </button>

@@ -1420,20 +1420,26 @@ async function handleContractSignedCopy(env, caller, staffId, contractType, sign
 
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. UNAUTHENTICATED intent (the staffer has no session). The
-// recipient is constrained server-side to a real mosque_staff row for that
-// email whose wizard_status='completed' (just submitted), so it can't spam
-// arbitrary addresses; the mosque name is resolved from the DB, not the client.
+// recipient is constrained server-side to a just-SUBMITTED onboarding session
+// for that email, so it can't spam arbitrary addresses; the mosque name is
+// resolved from the DB, not the client.
+//
+// RBAC-E fix: previously filtered mosque_staff.wizard_status='completed' — the
+// pre-RBAC-D stub-row model. submit_onboarding_session no longer writes that
+// column (it sets mosque_staff_onboarding_sessions.status='submitted'), so the
+// filter matched nothing and this confirmation email silently never sent. Now
+// resolves from the session model, exactly like the changes/approved handlers.
 async function handleStaffWizardSubmitted(env, email) {
   if (!email || typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
     return { status: 400, body: { ok: false, error: 'invalid_email' } };
   }
   const e = email.trim().toLowerCase();
-  const rows = await sbGet(env, `mosque_staff?email=eq.${encodeURIComponent(e)}&wizard_status=eq.completed&select=name,mosque_id&order=created_at.desc&limit=1`);
-  const staff = Array.isArray(rows) ? rows[0] : null;
-  if (!staff) return { status: 200, body: { ok: true, sent: 0 } }; // no match → silent no-op
-  const mrows = await sbGet(env, `mosques?id=eq.${staff.mosque_id}&select=name`);
+  const rows = await sbGet(env, `mosque_staff_onboarding_sessions?employee_email=eq.${encodeURIComponent(e)}&status=eq.submitted&select=employee_name,mosque_id&order=updated_at.desc&limit=1`);
+  const sess = Array.isArray(rows) ? rows[0] : null;
+  if (!sess) return { status: 200, body: { ok: true, sent: 0 } }; // no match → silent no-op
+  const mrows = await sbGet(env, `mosques?id=eq.${sess.mosque_id}&select=name`);
   const mosqueName = (Array.isArray(mrows) && mrows[0]?.name) || 'your mosque';
-  const inner = `${eGreeting(firstName(staff.name))}${eHeading('Onboarding received')}${ePara(`JazakAllah khair for completing your onboarding. Your details have been submitted to <strong>${escapeHtml(mosqueName)}</strong> for review.`)}${eSignoff}`;
+  const inner = `${eGreeting(firstName(sess.employee_name))}${eHeading('Onboarding received')}${ePara(`JazakAllah khair for completing your onboarding. Your details have been submitted to <strong>${escapeHtml(mosqueName)}</strong> for review.`)}${eSignoff}`;
   await sendEmail(env, { to: e, subject: `Onboarding received — ${mosqueName}`, html: wrapEmail('Onboarding received', inner) });
   return { status: 200, body: { ok: true, sent: 1 } };
 }
@@ -2160,7 +2166,7 @@ async function handleOnboardingReminder(env, token) {
 <p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;"><strong>${escapeHtml(wiz.mosque_name)}</strong> has asked you to complete your staff onboarding on Amanah — personal, right-to-work, DBS, employment and payroll details. It takes a few minutes and your information is held securely.</p>
 <p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Complete onboarding</a></p>
 <p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">This secure link expires in 7 days.</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.<br>If you weren't expecting this, you can ignore this email.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — mosque management, simplified.<br>If you weren't expecting this, you can ignore this email.</p>
 </div></body></html>`;
   const text = `Assalamu alaikum${wiz.staff_name ? ' ' + wiz.staff_name : ''},\n\n${wiz.mosque_name} has asked you to complete your staff onboarding on Amanah.\n\nComplete it here: ${onboardUrl}\n\nThis secure link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
 
@@ -2236,10 +2242,12 @@ async function handleOnboardingApproved(env, caller, sessionId) {
   const html = `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
 <div style="max-width:480px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 16px;color:#1c1917;font-size:18px;font-weight:600;">Assalamu alaikum${nm},</p>
-<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team. There's nothing more you need to do.</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — trusted Muslim scholars and mosques.</p>
+<p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team.</p>
+<p style="margin:0 0 16px;"><a href="${escapeHtml(env.PUBLIC_APP_URL + '/sign-in/staff')}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Sign in to your portal &rarr;</a></p>
+<p style="margin:0 0 24px;color:#44403c;font-size:14px;line-height:1.5;">Sign in with: <strong>${escapeHtml(sess.employee_email)}</strong></p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — mosque management, simplified.</p>
 </div></body></html>`;
-  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team. There's nothing more you need to do.\n\nJazakAllah khair.`;
+  const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team.\n\nSign in to your staff portal any time: ${env.PUBLIC_APP_URL}/sign-in/staff\nSign in with: ${sess.employee_email}\n\nJazakAllah khair.`;
   const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });
   return { status: 200, body: { ok: true, id } };
 }

@@ -1397,7 +1397,7 @@ export async function upsertMosqueStaffEmployment(staffId, mosqueId, fields) {
 // the onboarding session that holds resumable progress + the review gate.
 // staff_id links them. We NO LONGER write wizard_token/wizard_status (dead cols,
 // dropped in RBAC-E). Returns { data: { staffId, sessionId, token }, error }.
-export async function createStaffWizardInvite({ mosqueId, name, email, path = 'remote', contract = null }) {
+export async function createStaffWizardInvite({ mosqueId, name, email, path = 'remote', contract = null, employment = null }) {
   if (!mosqueId || !name || !email) return { data: null, error: { message: 'mosqueId, name and email are required' } }
   const cleanName = name.trim()
   const cleanEmail = email.trim().toLowerCase()
@@ -1423,6 +1423,10 @@ export async function createStaffWizardInvite({ mosqueId, name, email, path = 'r
   //    (bulk-import / future in-person flows create sessions without one).
   const sessionRow = { mosque_id: mosqueId, staff_id: staff.id, employee_name: cleanName, employee_email: cleanEmail, path }
   if (contract) sessionRow.contract = contract
+  // Seed the admin-set employment fields into the session so the wizard's
+  // read-only Employment step (RBAC-E Commit 3) can display them — the by-token
+  // RPC returns employment_details, which the wizard would otherwise see empty.
+  if (employment && Object.keys(employment).length) sessionRow.employment_details = employment
   const { data: sess, error: e2 } = await supabase
     .from('mosque_staff_onboarding_sessions')
     .insert(sessionRow)
@@ -1505,6 +1509,16 @@ export async function submitOnboardingSession(token) {
   const { data, error } = await supabase.rpc('submit_onboarding_session', { p_token: token })
   if (error) { console.error('submit_onboarding_session failed:', error); return { ok: false, error: error.message } }
   return data === true ? { ok: true } : { ok: false, error: 'locked' }
+}
+
+// Step-8 contract e-signature (anon, token-gated; migration 150). Merges the
+// typed signature + timestamp into the session's contract jsonb and sets the
+// signed flags. Returns { ok } / { ok:false, error }.
+export async function signOnboardingContract(token, signature) {
+  if (!token) return { ok: false, error: 'missing_token' }
+  const { data, error } = await supabase.rpc('sign_onboarding_contract', { p_token: token, p_signature: signature })
+  if (error) { console.error('sign_onboarding_contract failed:', error); return { ok: false, error: error.message } }
+  return data === true ? { ok: true } : { ok: false, error: 'could_not_sign' }
 }
 
 // Owner-gated list (no sensitive fields).

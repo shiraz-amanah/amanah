@@ -83,7 +83,14 @@ export default async function handler(req, res) {
     .select('id, mosque_id, staff_id, token_expires_at, status')
     .eq('token', token)
     .limit(1);
-  if (sErr) return res.status(500).json({ error: 'lookup_failed' });
+  // A service-role SELECT on an existing table only errors on auth (a disabled
+  // or mismatched SUPABASE_SERVICE_ROLE_KEY — cf. the Session N1 legacy-key
+  // incident) or connectivity — never RLS. Log the real cause; this was the one
+  // error branch in this file that swallowed it, making it a black box.
+  if (sErr) {
+    console.error('[onboarding-upload] session lookup failed:', sErr.message, sErr.code || '');
+    return res.status(500).json({ error: 'lookup_failed' });
+  }
   const session = Array.isArray(sessions) ? sessions[0] : null;
   if (!session) return res.status(404).json({ error: 'not_found' });
   if (new Date(session.token_expires_at).getTime() < Date.now()) {
