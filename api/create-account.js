@@ -277,10 +277,20 @@ export default async function handler(req, res) {
     //    + staff link have already committed, so a link/email failure is SURFACED
     //    to the admin via welcome_email, never a hard failure.
     let welcome_email = { ok: false, error: 'not_sent' };
+    // redirectTo is the ROOT origin, not `${APP_URL}/reset-password`. GoTrue only
+    // honours a redirectTo that's in the project's Redirect-URLs allowlist and
+    // otherwise silently falls back to the project Site URL — so a stale/missing
+    // allowlist once sent the recovery link to a localhost Site URL (dead on prod).
+    // The root origin IS the Site URL, which is always an allowed target, so this
+    // resolves regardless of the allowlist. The app boots at the root, supabase-js
+    // detects the recovery token in the URL hash, fires PASSWORD_RECOVERY, and
+    // App.jsx routes to the reset-password view — identical to the Forgot-password
+    // flow (ForgotPassword also passes the bare origin). Defence in depth against
+    // the allowlist drifting again.
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'recovery',
       email,
-      options: { redirectTo: `${APP_URL}/reset-password` },
+      options: { redirectTo: APP_URL },
     });
     if (linkErr) {
       console.warn('[create-account] recovery link generation failed:', linkErr.message);
