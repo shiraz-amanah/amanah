@@ -72,7 +72,7 @@ export const Avatar = ({ name, photoUrl, size = 40 }) => (
 // and stay as-is.
 export function deriveStatus(s) {
   if (s.status === "offboarded" || s.archived) return { label: "Offboarded", cls: "bg-stone-200 text-stone-600", dot: "bg-stone-500" };
-  if (s.status === "suspended") return { label: "Suspended", cls: "bg-stone-100 text-stone-600", dot: "bg-stone-400" };
+  if (s.status === "suspended") return { label: "Inactive", cls: "bg-stone-100 text-stone-600", dot: "bg-stone-400" };
   if (s.status === "active") return { label: "Active", cls: "bg-success-50 text-success-700", dot: "bg-success-500" };
   if (s.inviteStatus === "invited") return { label: "Invited", cls: "bg-sky-50 text-sky-700", dot: "bg-sky-500" };
   return { label: "Onboarding", cls: "bg-amber-50 text-amber-700", dot: "bg-amber-500" };
@@ -104,7 +104,7 @@ export function deriveDbs(s) { const st = deriveDbsState(s); return { label: st.
 // Status renders as a coloured dot + text (no pill fill). deriveStatus supplies
 // the dot; the text colour is mapped by label. Suspended/offboarded read muted.
 const STATUS_TEXT = {
-  "Active": "text-success-700", "Suspended": "text-stone-500", "Offboarded": "text-stone-500",
+  "Active": "text-success-700", "Inactive": "text-stone-500", "Offboarded": "text-stone-500",
   "Invited": "text-sky-700", "Onboarding": "text-amber-700",
 };
 const StatusDot = ({ label, dot }) => (
@@ -129,7 +129,7 @@ function aiSummaryFor(staffId, issues) {
 const STAFF_TABS = ["employees", "org", "onboarding"];
 const chipToState = (k) => k === "attention" ? { of: true, st: "" }
   : k === "active" ? { of: false, st: "Active" }
-  : k === "suspended" ? { of: false, st: "Suspended" }
+  : k === "suspended" ? { of: false, st: "Inactive" }  // URL key stays "suspended" (link stability); product label is "Inactive"
   : { of: false, st: "" };
 
 // ── main ─────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   useEffect(() => { setTab(STAFF_TABS.includes(staffTab) ? staffTab : "employees"); }, [staffTab]);
   useEffect(() => { const s = chipToState(filter); setOnlyFlagged(s.of); setFilters((f) => ({ ...f, status: s.st })); }, [filter]);
   // The current chip key (derived from the existing state) + the URL-writers.
-  const filterKey = onlyFlagged ? "attention" : filters.status === "Active" ? "active" : filters.status === "Suspended" ? "suspended" : "all";
+  const filterKey = onlyFlagged ? "attention" : filters.status === "Active" ? "active" : filters.status === "Inactive" ? "suspended" : "all";
   const changeTab = (v) => { setTab(v); onStaffUrl?.({ staffTab: v, filter: filterKey }, { replace: false }); };   // PUSH — tabs are navigation
   const applyChip = (key) => { const s = chipToState(key); setOnlyFlagged(s.of); setFilters((f) => ({ ...f, status: s.st })); onStaffUrl?.({ staffTab: tab, filter: key }, { replace: true }); }; // REPLACE — chips are refinement
 
@@ -357,7 +357,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
             { key: "all",       label: "All",             active: !onlyFlagged && !filters.status },
             { key: "active",    label: "Active",          active: !onlyFlagged && filters.status === "Active" },
             { key: "attention", label: "Needs attention", active: onlyFlagged },
-            { key: "suspended", label: "Suspended",       active: !onlyFlagged && filters.status === "Suspended" },
+            { key: "suspended", label: "Inactive",        active: !onlyFlagged && filters.status === "Inactive" },
           ].map((c) => (
             <button key={c.key} onClick={() => applyChip(c.key)}
               className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${c.active ? "bg-brand-50 border-brand-300 text-brand-800" : "border-stone-300 text-stone-600 hover:bg-stone-50"}`}>
@@ -373,7 +373,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           </button>
           {filterOpen && (
             <div className="absolute right-0 mt-1 w-64 bg-white border border-stone-200 rounded-xl shadow-lg p-3 z-20 space-y-2.5">
-              <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))} options={["Active", "Onboarding", "Invited", "Suspended", "Offboarded"]} />
+              <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))} options={["Active", "Onboarding", "Invited", "Inactive", "Offboarded"]} />
               <FilterSelect label="Right to Work" value={filters.rtw} onChange={(v) => setFilters((f) => ({ ...f, rtw: v }))} options={["Verified", "Not verified", "Expiring", "Expired", "Refused", "Not required"]} />
               <FilterSelect label="DBS" value={filters.dbs} onChange={(v) => setFilters((f) => ({ ...f, dbs: v }))} options={["Verified", "Pending", "Missing", "Wrong level", "Expiring", "Expired", "Not required"]} />
               <FilterSelect label="Department" value={filters.department} onChange={(v) => setFilters((f) => ({ ...f, department: v }))} options={departments} />

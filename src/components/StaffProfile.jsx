@@ -40,12 +40,53 @@ import {
   getStaffLeave, addLeave, approveLeave, declineLeave,
   getStaffPerformance, getStaffReviewNotes, addStaffReviewNote,
   getStaffDocuments, deleteStaffDocument, addStaffDocument,
+  deriveRtwState, deriveDbsState, computeComplianceIssues,
 } from "../lib/staffHelpers";
 import { uploadStaffDoc, getStaffDocUrl, deleteStaffDoc } from "../lib/staffStorage";
 import {
   requestPasswordReset, getMosqueEmployees, updateEmployeePermissions,
   updateMosqueStaff, upsertMosqueStaffEmployment, getMadrasaClasses,
+  getContractsForStaff,
 } from "../auth";
+
+// Platform-listing (marketplace) is deferred pre-launch — freeze, don't delete.
+// The section component still exists below; this flag just gates its render.
+const DEFERRED_MARKETPLACE = true;
+
+// Guard against leaked marketplace headlines in the free-text `role` field
+// (prod data: a linked scholar's "Qualified Quran Teacher for Children | Bradford"
+// landed in role). Display-only: cut at the first pipe, collapse whitespace,
+// length-cap. Root data cleanup of the offending rows is a separate follow-up
+// (logged in NOTES.md) — this only stops the leak reaching the UI.
+const cleanRole = (role) => {
+  if (!role) return null;
+  let r = String(role).split("|")[0].replace(/\s+/g, " ").trim();
+  if (r.length > 60) r = r.slice(0, 57).trimEnd() + "…";
+  return r || null;
+};
+
+const TONE_TEXT = { rose: "text-rose-700", amber: "text-amber-700", orange: "text-orange-700", success: "text-success-700", muted: "text-stone-500" };
+
+// One tile in the compliance strip under the header.
+function StripTile({ label, value, sub, tone = "muted" }) {
+  return (
+    <div className="flex-1 min-w-[130px] px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wide text-stone-400">{label}</div>
+      <div className={`text-sm font-semibold ${TONE_TEXT[tone] || "text-stone-800"}`}>{value}</div>
+      {sub && <div className="text-xs text-stone-500 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+// A group label above a set of related sections (the "grouped cards" layout).
+function GroupHeading({ title, badge }) {
+  return (
+    <div className="flex items-center gap-2 px-1 pt-5 pb-1.5">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-stone-500">{title}</h2>
+      {badge}
+    </div>
+  );
+}
 import { sendLeaveDecision } from "../lib/email";
 import { MODULES, detectPreset, ROLE_LABELS } from "../lib/employeePermissions";
 
@@ -104,6 +145,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   const [salary, setSalary] = useState(undefined); // undefined = not revealed
   const [salLoading, setSalLoading] = useState(false);
   const [employment, setEmployment] = useState(null); // §3 terms (get_staff_employment)
+  const [contract, setContract] = useState(undefined); // undefined=loading; [] on empty OR fetch error (getContractsForStaff catches) — degrade to type-only, never a false "Unsigned"
 
   const load = () => {
     setLoading(true);
@@ -114,6 +156,7 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
   };
   useEffect(() => { if (mosqueId && staffId) load(); /* eslint-disable-next-line */ }, [mosqueId, staffId]);
   useEffect(() => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); }, [mosqueId, staffId]);
+  useEffect(() => { if (staffId) getContractsForStaff(staffId).then(setContract).catch(() => setContract([])); }, [staffId]);
 
   const revealSensitive = async () => {
     if (sensitive || sensLoading) return;
@@ -132,7 +175,13 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
 
   const doSuspend = async (status) => {
     setBusy(true); await suspendStaff(staffId, status); setBusy(false); setActionsOpen(false); load();
-    setNote(status === "active" ? "Reactivated." : "Suspended.");
+    setNote(status === "active" ? "Reactivated." : "Deactivated.");
+  };
+  // Deactivate = the product action wired to suspend_staff('suspended'). Confirm
+  // dialog because it drops the member out of compliance gaps + the Ofsted score.
+  const doDeactivate = async () => {
+    if (!window.confirm(`Deactivate ${row?.name || "this staff member"}? Their record and history are kept, but they drop out of compliance gaps and the Ofsted score and can't be assigned work until reactivated.`)) return;
+    await doSuspend("suspended");
   };
   const doResetPassword = async () => {
     if (!row?.email) return;
@@ -165,6 +214,46 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
 
   const st = deriveStatus(row);
   const mo = monthsAt(row.startDate);
+  const role = cleanRole(row.jobTitle || row.role);
+
+  // Compliance strip derivations (RTW / DBS from the shared single-definition helpers).
+  const rtwSt = deriveRtwState(row);
+  const dbsSt = deriveDbsState(row);
+  const rtwDays = row.rtwExpiryDate ? Math.ceil((new Date(row.rtwExpiryDate) - Date.now()) / 86400000) : null;
+  const dbsDays = row.dbsExpiryDate ? Math.ceil((new Date(row.dbsExpiryDate) - Date.now()) / 86400000) : null;
+  const gapCount = computeComplianceIssues([row]).length;
+
+  // Contract tile: signed-state is the point. Failure-tolerant — getContractsForStaff
+  // catches and returns [] on error, so an empty/failed fetch degrades to type-only
+  // and NEVER shows a false "Unsigned".
+  const latestContract = Array.isArray(contract) ? contract[0] : null;
+  const contractType = ((latestContract?.contract_type || row.employmentType || "").replace(/_/g, " ")) || null;
+  let contractVal = "…", contractSub = null, contractTone = "muted";
+  if (contract !== undefined) {
+    if (latestContract?.status === "signed") { contractVal = "Signed"; contractSub = [contractType, latestContract.signed_at && fmtDate(latestContract.signed_at)].filter(Boolean).join(" · ") || null; contractTone = "success"; }
+    else if (latestContract?.status === "sent") { contractVal = "Awaiting signature"; contractSub = contractType; contractTone = "amber"; }
+    else if (latestContract) { contractVal = "Draft"; contractSub = contractType; contractTone = "muted"; }
+    else { contractVal = contractType || "—"; contractSub = null; contractTone = "muted"; } // empty OR fetch error → type only
+  }
+
+  // Leave tile: zero-hours accrues (12.07% of hours worked) — no entitlement number
+  // to show and no hours-worked feed to compute one, so show the accrual, not a fake
+  // "28 of 28". Salaried keeps the entitlement view.
+  const zeroHours = row.employmentType === "zero_hours";
+  const leaveVal = zeroHours ? "12.07% accrual" : (row.leaveBalanceDays != null ? `${row.leaveBalanceDays} / ${row.annualLeaveDays ?? "—"}` : "—");
+  const leaveSub = zeroHours ? "Accrues per hours worked" : (row.leaveBalanceDays != null ? "days remaining" : null);
+
+  const actionsMenu = (
+    <div className="absolute right-0 mt-1 w-52 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-20 text-sm">
+      {row.status === "suspended"
+        ? <MenuItem onClick={() => doSuspend("active")} disabled={busy}>Reactivate</MenuItem>
+        : <MenuItem onClick={doDeactivate} disabled={busy}>Deactivate</MenuItem>}
+      <MenuItem onClick={doResetPassword} disabled={busy}>Send password reset</MenuItem>
+      <div className="my-1 border-t border-stone-100" />
+      <MenuItem onClick={openOffboard} disabled={busy} danger>Offboard</MenuItem>
+      <MenuItem onClick={doAnonymise} disabled={busy} danger>Anonymise (GDPR)</MenuItem>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -173,43 +262,41 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
 
         {note && <div className="mb-4 text-sm bg-brand-50 text-brand-800 border border-brand-200 rounded-lg px-3 py-2">{note}</div>}
 
-        {/* §1 Header */}
-        <div className="bg-white border border-stone-200 rounded-xl p-5 mb-4">
-          <div className="flex items-start gap-4">
-            <Avatar name={row.name} photoUrl={row.photoUrl} size={80} />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{row.name}</h1>
-              <p className="text-stone-600">{row.jobTitle || row.role || "—"}</p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${st.cls}`}><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />{st.label}</span>
-                {row.department && <span className="px-2 py-0.5 rounded-full text-xs bg-stone-100 text-stone-600">{row.department}</span>}
-                {row.employmentType && <span className="px-2 py-0.5 rounded-full text-xs bg-stone-100 text-stone-600">{row.employmentType.replace(/_/g, " ")}</span>}
+        {/* Header + compliance strip */}
+        <div className="bg-white border border-stone-200 rounded-xl mb-4 overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <Avatar name={row.name} photoUrl={row.photoUrl} size={80} />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{row.name}</h1>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-sm text-stone-600">
+                  <span className="inline-flex items-center gap-1.5 font-medium"><span className={`w-2 h-2 rounded-full ${st.dot}`} />{st.label}</span>
+                  {role && <><span className="text-stone-300">·</span><span className="truncate">{role}</span></>}
+                  {row.department && <><span className="text-stone-300">·</span><span>{row.department}</span></>}
+                  {row.employmentType && <><span className="text-stone-300">·</span><span className="capitalize">{row.employmentType.replace(/_/g, " ")}</span></>}
+                </div>
+                {row.startDate && <p className="text-xs text-stone-500 mt-2">Joined {fmtDate(row.startDate)}{mo != null && ` · ${mo} month${mo === 1 ? "" : "s"} at ${mosque?.name || "the mosque"}`}</p>}
               </div>
-              <p className="text-xs text-stone-500 mt-2">Joined {fmtDate(row.startDate)}{mo != null && ` · ${mo} month${mo === 1 ? "" : "s"} at ${mosque?.name || "the mosque"}`}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => onMessage?.([row.id])} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><MessageCircle size={15} /> Message</button>
-              <div className="relative">
-                <button onClick={() => setActionsOpen((o) => !o)} className="inline-flex items-center gap-1 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><MoreHorizontal size={16} /> Actions</button>
-                {actionsOpen && (
-                  <div className="absolute right-0 mt-1 w-52 bg-white border border-stone-200 rounded-xl shadow-lg py-1 z-20 text-sm">
-                    {row.status === "suspended"
-                      ? <MenuItem onClick={() => doSuspend("active")} disabled={busy}>Reactivate</MenuItem>
-                      : <MenuItem onClick={() => doSuspend("suspended")} disabled={busy}>Suspend</MenuItem>}
-                    <MenuItem onClick={doResetPassword} disabled={busy}>Reset password</MenuItem>
-                    <div className="my-1 border-t border-stone-100" />
-                    <MenuItem onClick={openOffboard} disabled={busy} danger>Offboard</MenuItem>
-                    <MenuItem onClick={doAnonymise} disabled={busy} danger>Anonymise (GDPR)</MenuItem>
-                  </div>
-                )}
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => onMessage?.([row.id])} className="inline-flex items-center gap-1.5 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><MessageCircle size={15} /> Message</button>
+                <div className="relative">
+                  <button onClick={() => setActionsOpen((o) => !o)} className="inline-flex items-center gap-1 border border-stone-300 hover:bg-stone-50 text-stone-700 text-sm font-medium px-3 py-2 rounded-lg"><MoreHorizontal size={16} /> Actions</button>
+                  {actionsOpen && actionsMenu}
+                </div>
               </div>
             </div>
           </div>
+          <div className="flex flex-wrap border-t border-stone-100 bg-stone-50/60 divide-x divide-stone-100">
+            <StripTile label="Right to Work" value={rtwSt.label} sub={rtwDays != null ? (rtwDays < 0 ? `expired ${-rtwDays}d ago` : `${rtwDays}d left`) : undefined} tone={rtwSt.tone} />
+            <StripTile label="DBS" value={dbsSt.label} sub={[row.dbsLevel && row.dbsLevel !== "none" && row.dbsLevel.replace(/_/g, " "), dbsDays != null && (dbsDays < 0 ? `expired ${-dbsDays}d ago` : `${dbsDays}d left`)].filter(Boolean).join(" · ") || undefined} tone={dbsSt.tone} />
+            <StripTile label="Contract" value={contractVal} sub={contractSub || undefined} tone={contractTone} />
+            <StripTile label="Leave" value={leaveVal} sub={leaveSub || undefined} tone="muted" />
+          </div>
         </div>
 
-        {/* Sections */}
+        {/* ── Personal ── */}
+        <GroupHeading title="Personal" />
         <div className="space-y-3">
-          {/* §2 Personal */}
           <Section icon={UserCog} title="Personal" subtitle="Contact and identity details" defaultOpen>
             <Field label="Email" value={row.email} />
             {sensitive ? (
@@ -229,11 +316,14 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
               </div>
             )}
           </Section>
+        </div>
 
-          {/* §3 Employment */}
+        {/* ── Employment ── */}
+        <GroupHeading title="Employment" />
+        <div className="space-y-3">
           <Section icon={Lock} title="Employment" subtitle="Terms and pay">
             <Field label="Employment type" value={row.employmentType ? row.employmentType.replace(/_/g, " ") : "—"} />
-            <Field label="Job title" value={row.jobTitle || row.role} />
+            <Field label="Job title" value={row.jobTitle || cleanRole(row.role)} />
             <Field label="Department" value={row.department} />
             <Field label="Start date" value={fmtDate(row.startDate)} />
             <div className="flex items-start justify-between gap-3 py-1.5">
@@ -256,33 +346,38 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
             </div>
           </Section>
 
-          {/* §4 Permissions */}
           <PermissionsSection staffRow={row} mosqueId={mosqueId} />
+        </div>
 
-          {/* §5 Identity verification (RTW) */}
+        {/* ── Checks & documents ── */}
+        <GroupHeading title="Checks & documents" badge={gapCount > 0 ? <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">{gapCount} gap{gapCount === 1 ? "" : "s"}</span> : undefined} />
+        <div className="space-y-3">
           <RtwSection staffRow={row} mosqueId={mosqueId} authedUser={authedUser}
             sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
-
-          {/* §6 DBS check */}
           <DbsSection staffRow={row} mosqueId={mosqueId}
             sensitive={sensitive} revealSensitive={revealSensitive} sensLoading={sensLoading} onReload={load} />
-
-          {/* §7 Ijazah */}
           <IjazahSection staffId={staffId} mosqueId={mosqueId} />
-          {/* §8 Training & CPD */}
           <TrainingSection staffId={staffId} mosqueId={mosqueId} />
-          {/* §9 Leave & absence */}
-          <LeaveSection staffId={staffId} staffRow={row} authedUser={authedUser} />
-
-          {/* §10 Performance */}
-          <PerformanceSection staffId={staffId} authedUser={authedUser} mosqueId={mosqueId} />
-          {/* §11 Platform listing */}
-          <PlatformListingSection staffRow={row} onReload={load} />
-          {/* Documents */}
           <DocumentsSection staffId={staffId} mosqueId={mosqueId} />
+        </div>
 
-          {/* §12 Account */}
-          <Section icon={UserCog} title="Account" subtitle="Access and lifecycle">
+        {/* ── Leave & performance ── */}
+        <GroupHeading title="Leave & performance" />
+        <div className="space-y-3">
+          <LeaveSection staffId={staffId} staffRow={row} authedUser={authedUser} />
+          <PerformanceSection staffId={staffId} authedUser={authedUser} mosqueId={mosqueId} />
+        </div>
+
+        {/* Platform listing — FROZEN behind the deferred-marketplace flag (component
+            kept below, deliberately not rendered pre-launch — freeze, don't delete). */}
+        {!DEFERRED_MARKETPLACE && (
+          <div className="space-y-3 mt-3"><PlatformListingSection staffRow={row} onReload={load} /></div>
+        )}
+
+        {/* ── Account ── */}
+        <GroupHeading title="Account" />
+        <div className="space-y-3">
+          <Section icon={UserCog} title="Account" subtitle="Access and lifecycle" defaultOpen>
             <Field label="Last login" value={row.lastLoginAt ? fmtDate(row.lastLoginAt) : "—"} />
             <Field label="Account created" value={fmtDate(row.createdAt)} />
             <Field label="Onboarding completed" value={fmtDate(row.onboardingCompletedAt)} />
@@ -290,8 +385,8 @@ export default function StaffProfile({ staffId, mosque, authedUser, onBack, onMe
             <div className="mt-3 flex flex-wrap gap-2">
               {row.status === "suspended"
                 ? <button onClick={() => doSuspend("active")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reactivate</button>
-                : <button onClick={() => doSuspend("suspended")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate</button>}
-              <button onClick={doResetPassword} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Reset password</button>
+                : <button onClick={doDeactivate} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Deactivate</button>}
+              <button onClick={doResetPassword} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg">Send password reset</button>
               <button onClick={openOffboard} disabled={busy} className="text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard</button>
               <button onClick={doAnonymise} disabled={busy} className="text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise (GDPR)</button>
             </div>
@@ -829,8 +924,15 @@ function LeaveSection({ staffId, staffRow, authedUser }) {
     setBusy(false); load();
   };
   const bal = staffRow.leaveBalanceDays, ann = staffRow.annualLeaveDays;
+  // Zero-hours workers accrue holiday (12.07% of hours worked), they don't hold a
+  // fixed entitlement — so show the accrual rule, not a fake "N days remaining".
+  // No hours-worked feed exists to compute an accrued number, so none is invented.
+  const zeroHours = staffRow.employmentType === "zero_hours";
+  const leaveSubtitle = zeroHours
+    ? "Accrues at 12.07% of hours worked"
+    : (bal != null ? `${bal} days remaining of ${ann ?? "—"} annual leave` : undefined);
   return (
-    <Section icon={CalendarDays} title="Leave & absence" subtitle={bal != null ? `${bal} days remaining of ${ann ?? "—"} annual leave` : undefined}>
+    <Section icon={CalendarDays} title="Leave & absence" subtitle={leaveSubtitle}>
       {items === null ? <p className="text-sm text-stone-400 py-2">Loading…</p>
         : items.length === 0 && !adding ? <p className="text-sm text-stone-400 py-2">No leave recorded.</p>
         : (
@@ -900,7 +1002,7 @@ function PerformanceSection({ staffId, authedUser, mosqueId }) {
       <Field label="Student attendance (their classes)" value={pct(perf?.attendance_pct)} />
       <Field label="Homework completion (their classes)" value={pct(perf?.homework_pct)} />
       <Field label="Hifz progress (assigned students, avg)" value={pct(perf?.hifz_avg)} />
-      {!perf && <p className="text-xs text-stone-400 mt-1">Auto-metrics populate via get_staff_performance (migration 130).</p>}
+      {!perf && <p className="text-xs text-stone-400 mt-1">Metrics appear once this member's classes have attendance and homework recorded.</p>}
       <div className="mt-3 border-t border-stone-100 pt-3">
         <div className="text-sm font-medium text-stone-700 mb-1.5">Review notes</div>
         {notes === null ? <p className="text-sm text-stone-400">Loading…</p>
@@ -949,9 +1051,7 @@ function PlatformListingSection({ staffRow, onReload }) {
       <ToggleRow label="Show DBS-verified badge publicly" hint="Display a “DBS verified” badge on their public listing." on={badge} onClick={() => { setBadge(!badge); setSaved(false); }} />
       <div className="flex items-center justify-between gap-3 py-2">
         <div><div className="text-sm text-stone-800">Scholar profile</div><div className="text-xs text-stone-400">{staffRow.linkedScholarId ? "Linked to a scholar profile." : "Not linked."}</div></div>
-        {staffRow.linkedScholarId
-          ? <button onClick={unlinkScholar} className="text-xs text-rose-600 hover:underline">Unlink</button>
-          : <span className="text-xs text-stone-400">Linking flow in RBAC-C</span>}
+        {staffRow.linkedScholarId && <button onClick={unlinkScholar} className="text-xs text-rose-600 hover:underline">Unlink</button>}
       </div>
       <div className="pt-3 flex items-center gap-2">
         <button onClick={save} disabled={saving} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-3.5 py-1.5 rounded-lg disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>

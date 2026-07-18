@@ -351,6 +351,17 @@ function daysUntil(dateStr, now = new Date()) {
 }
 const SEV_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 
+// Inactive / deactivated staff are EXCLUDED from compliance gaps + the Ofsted
+// score — the score measures people CURRENTLY WORKING, not former or deactivated
+// staff. Product "Inactive" = stored mosque_staff.status 'suspended' (reserved
+// marker, no data migration), plus offboarded / archived + legacy revoked/expired.
+// Onboarding staff (pending_invite / pending_rtw) DO still count — Call-1 broad
+// compliance definition: checks verified BEFORE starting. See NOTES.md + CLAUDE.md
+// "Staff status model". Both computeComplianceIssues + computeOfstedScore use this,
+// so the four downstream displays can't disagree.
+const INACTIVE_STATUSES = ["suspended", "offboarded", "revoked", "expired"];
+export const isComplianceCountable = (s) => !s.archived && !INACTIVE_STATUSES.includes(s.status);
+
 // ── SINGLE COMPLIANCE-GAP DEFINITION (Job C, RBAC-E) ─────────────────────
 // A compliance gap = a not-archived/offboarded staff member whose required DBS
 // isn't verified (missing / pending / expired / wrong level), or whose Right to
@@ -404,7 +415,7 @@ const sevForWeight = (w) => (w >= 10 ? "urgent" : w >= 8 ? "high" : "medium");
 // definition (logged in NOTES.md). staff: shapeStaffListRow objects.
 export function computeComplianceIssues(staff, { now = new Date() } = {}) {
   const issues = [];
-  const active = (staff || []).filter((s) => !s.archived && s.status !== "offboarded");
+  const active = (staff || []).filter(isComplianceCountable);
   for (const s of active) {
     const nm = s.name || "Unnamed";
     for (const [category, st] of [["dbs", deriveDbsState(s, { now })], ["rtw", deriveRtwState(s, { now })]]) {
@@ -422,7 +433,7 @@ export function computeComplianceIssues(staff, { now = new Date() } = {}) {
 // scores drop on existing data, which is correct, not a regression).
 export function computeOfstedScore(staff, { now = new Date() } = {}) {
   let score = 100;
-  const active = (staff || []).filter((s) => !s.archived && s.status !== "offboarded");
+  const active = (staff || []).filter(isComplianceCountable);
   for (const s of active) {
     score -= deriveDbsState(s, { now }).weight;
     score -= deriveRtwState(s, { now }).weight;
