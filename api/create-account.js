@@ -5,29 +5,43 @@
 // service-role only. Called by the admin UI after an onboarding session is
 // approved.
 //
-// POST { session_id: uuid, employee_email: text, employee_name: text }
-//   → 200 { success: true, user_id, username }
-//   → 409 { error: 'email_exists' }
+// POST { session_id: uuid, employee_email?: text, employee_name?: text }
+//   → 200 { success: true, user_id, username, existed }
 //   → 4xx/5xx { error: <message> }
 //
-// Auth: the caller forwards their Supabase admin JWT (Authorization: Bearer
-// <jwt>). We resolve the user with the service-role client and require them to
-// be an Amanah admin.
+// Called by OnboardingReview.jsx immediately AFTER approve_onboarding_session
+// succeeds. That RPC promotes the stub into mosque_staff (status='active') +
+// employment, but it does NOT create an auth account and does NOT link the
+// directory row to one. This function closes both gaps:
+//   1. Provisions the Supabase auth user (email auto-confirmed).
+//   2. Links the promoted mosque_staff row: profile_id = new user id AND
+//      invite_status = 'active'. Without this the account exists but the
+//      employee's login never resolves as staff (getMyStaffMembership requires
+//      profile_id = auth.uid() AND invite_status = 'active'), so the staff
+//      portal never appears.
+//   3. Emails the new employee a set-password link (onboarding_welcome).
 //
-// SCHEMA NOTES (this function is scaffolding ahead of RBAC-D — three fields the
-// original spec referenced are not in the current schema, handled deliberately):
-//   * Admin flag: the spec said `profiles.is_admin = true`, but that column does
-//     NOT exist. Admin is modelled as `profiles.role = 'admin'` (migration 017),
-//     which is what api/send-transactional.js already checks. We use the real one.
-//   * Username uniqueness: checked against `profiles.username`, which does not yet
-//     exist. The check is GUARDED — if the column is absent the query errors and
-//     we treat the name as available (never block account creation). It becomes a
-//     real uniqueness guard automatically once RBAC-D adds the column. The
-//     username is always written to user_metadata regardless.
-//   * mosque_name (for the welcome email) has no onboarding_sessions table to join
-//     from session_id yet, so it is best-effort: passed through from the body if
-//     the caller supplies it, otherwise omitted. Wire the session→mosque lookup
-//     here when the RBAC-D onboarding schema lands.
+// Auth: the caller forwards their Supabase JWT (Authorization: Bearer <jwt>).
+// We resolve the onboarding session server-side (source of truth for the
+// employee identity + mosque + staff_id) and authorise the caller as the OWNER
+// of the session's mosque (the approval actor) OR an Amanah admin. The old
+// admin-only gate was wrong for this flow — the approver is the mosque owner,
+// not a platform admin, so it would 403 every real approval.
+//
+// The employee's email/name are taken from the session row; the body values are
+// an optional fallback. mosque_name is resolved from the mosque (its onboarding
+// table now exists), so the welcome email always names the mosque.
+//
+// Idempotent on the account: if the employee already has an Amanah account the
+// createUser call conflicts; we resolve the existing user id, still link the
+// staff row (so their portal appears), skip the set-password email (they already
+// have a password — the approval email tells them to sign in), and return
+// { existed: true }.
+//
+// Username uniqueness is checked against `profiles.username`. The check is
+// GUARDED — if the column is absent the query errors and we treat the name as
+// available (never block account creation). The username is always written to
+// user_metadata regardless.
 //
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PUBLIC_APP_URL, CRON_SECRET
 //   (CRON_SECRET authenticates the server-to-server onboarding_welcome email call).
@@ -110,6 +124,60 @@ async function sendWelcomeEmail({ to, employee_name, username, set_password_url,
   }
 }
 
+// Resolve the onboarding session (service role bypasses RLS). Source of truth
+// for the employee identity, the mosque, and the staff directory row to link.
+async function fetchSession(session_id) {
+  const { data, error } = await admin
+    .from('mosque_staff_onboarding_sessions')
+    .select('staff_id, mosque_id, employee_email, employee_name, status')
+    .eq('id', session_id)
+    .limit(1);
+  if (error) { console.warn('[create-account] session fetch failed:', error.message); return null; }
+  return Array.isArray(data) ? data[0] : null;
+}
+
+async function fetchMosque(mosque_id) {
+  const { data, error } = await admin
+    .from('mosques').select('user_id, name').eq('id', mosque_id).limit(1);
+  if (error) { console.warn('[create-account] mosque fetch failed:', error.message); return null; }
+  return Array.isArray(data) ? data[0] : null;
+}
+
+async function isAdmin(uid) {
+  const { data } = await admin.from('profiles').select('role').eq('id', uid).limit(1);
+  return Array.isArray(data) && data[0]?.role === 'admin';
+}
+
+// GoTrue admin has no server-side email filter in the JS SDK — paginate + match
+// (case-insensitive). Bounded; the platform is small. Used only on the rare
+// email_exists path to resolve an existing account so we can still link it.
+async function findUserIdByEmail(email) {
+  const target = String(email || '').toLowerCase();
+  if (!target) return null;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) { console.warn('[create-account] listUsers failed:', error.message); return null; }
+    const users = data?.users || [];
+    const hit = users.find((u) => (u.email || '').toLowerCase() === target);
+    if (hit) return hit.id;
+    if (users.length < 200) break; // last page
+  }
+  return null;
+}
+
+// Link the promoted directory row to the auth account so the employee's login
+// resolves as staff (getMyStaffMembership: profile_id = uid AND
+// invite_status = 'active'). Service role — bypasses RLS.
+async function linkStaffRow(staff_id, user_id) {
+  if (!staff_id || !user_id) return { ok: false, error: 'missing_link_args' };
+  const { error } = await admin
+    .from('mosque_staff')
+    .update({ profile_id: user_id, invite_status: 'active' })
+    .eq('id', staff_id);
+  if (error) { console.error('[create-account] staff link failed:', error.message); return { ok: false, error: error.message }; }
+  return { ok: true };
+}
+
 export default async function handler(req, res) {
   if (!admin) return res.status(500).json({ error: 'server_misconfigured' });
 
@@ -126,63 +194,84 @@ export default async function handler(req, res) {
   const employee_email = typeof body?.employee_email === 'string' ? body.employee_email.trim() : '';
   const employee_name = typeof body?.employee_name === 'string' ? body.employee_name.trim() : '';
 
+  // employee_email / employee_name are optional here — resolved from the session
+  // row server-side (source of truth); the body values are only a fallback.
   if (!isUuid(session_id)) return res.status(400).json({ error: 'invalid_session_id' });
-  if (!employee_email) return res.status(400).json({ error: 'missing_employee_email' });
-  if (!employee_name) return res.status(400).json({ error: 'missing_employee_name' });
 
-  // 1. Verify the caller is an Amanah admin (profiles.role = 'admin').
+  // 1. Verify the caller's JWT → resolve to a user.
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return res.status(401).json({ error: 'unauthorized' });
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
   if (userErr || !userData?.user?.id) return res.status(401).json({ error: 'unauthorized' });
-  const { data: profRows, error: profErr } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', userData.user.id)
-    .limit(1);
-  if (profErr || !Array.isArray(profRows) || profRows[0]?.role !== 'admin') {
+  const caller = userData.user;
+
+  // 2. Resolve the onboarding session (source of truth) + its mosque, then
+  //    authorise: the caller must OWN the session's mosque (the approval actor)
+  //    or be an Amanah admin.
+  const sess = await fetchSession(session_id);
+  if (!sess) return res.status(404).json({ error: 'session_not_found' });
+  if (sess.status !== 'approved') return res.status(409).json({ error: 'not_approved' });
+  const mosque = await fetchMosque(sess.mosque_id);
+  if (!mosque) return res.status(404).json({ error: 'mosque_not_found' });
+  if (mosque.user_id !== caller.id && !(await isAdmin(caller.id))) {
     return res.status(403).json({ error: 'forbidden' });
   }
 
-  try {
-    // 2. Generate a unique username (firstname.lastname, incrementing on conflict).
-    const username = await uniqueUsername(employee_name);
+  // Session values are the source of truth; body values are fallback.
+  const email = (sess.employee_email || employee_email || '').trim();
+  const name = (sess.employee_name || employee_name || '').trim();
+  const mosque_name = mosque.name || (typeof body?.mosque_name === 'string' ? body.mosque_name : null);
+  if (!email) return res.status(400).json({ error: 'missing_employee_email' });
+  if (!name) return res.status(400).json({ error: 'missing_employee_name' });
 
-    // 3. Create the auth user, email auto-confirmed.
+  try {
+    // 3. Provision (or resolve) the auth user, email auto-confirmed.
+    const username = await uniqueUsername(name);
+    let user_id = null;
+    let existed = false;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email: employee_email,
+      email,
       email_confirm: true,
-      user_metadata: {
-        full_name: employee_name,
-        username,
-        onboarding_session_id: session_id,
-      },
+      user_metadata: { full_name: name, username, onboarding_session_id: session_id },
     });
     if (createErr) {
       const msg = createErr.message || 'create_failed';
       if (createErr.code === 'email_exists' || /already.*(registered|exists)/i.test(msg)) {
-        return res.status(409).json({ error: 'email_exists' });
+        // Employee already has an Amanah account — resolve it so we can still
+        // link the staff row. They keep their existing password.
+        existed = true;
+        user_id = await findUserIdByEmail(email);
+        if (!user_id) return res.status(500).json({ error: 'account_exists_unresolved' });
+      } else {
+        return res.status(400).json({ error: msg });
       }
-      return res.status(400).json({ error: msg });
+    } else {
+      user_id = created?.user?.id || null;
+      if (!user_id) return res.status(500).json({ error: 'no_user_id' });
     }
-    const user_id = created?.user?.id;
 
-    // 4. Generate a recovery (set-password) link for the welcome email.
-    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email: employee_email,
-      options: { redirectTo: `${APP_URL}/set-password` },
-    });
-    if (linkErr) return res.status(400).json({ error: linkErr.message || 'link_failed' });
-    const set_password_url = linkData?.properties?.action_link || null;
+    // 4. Link the promoted directory row to this account (profile_id +
+    //    invite_status='active') so the employee's login resolves as staff.
+    //    Without this the account exists but the staff portal never appears.
+    const link = await linkStaffRow(sess.staff_id, user_id);
+    if (!link.ok) return res.status(500).json({ error: `link_failed:${link.error}` });
 
-    // 5. Welcome email via send-transactional (onboarding_welcome). Best-effort
-    //    mosque_name until the RBAC-D onboarding_sessions schema exists.
-    const mosque_name = typeof body?.mosque_name === 'string' ? body.mosque_name : null;
-    await sendWelcomeEmail({ to: employee_email, employee_name, username, set_password_url, mosque_name });
+    // 5. New account only: email the set-password (onboarding_welcome) link. An
+    //    existing account already has a password — the approval email tells them
+    //    to sign in with it, so a reset here would only confuse.
+    if (!existed) {
+      const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+        options: { redirectTo: `${APP_URL}/reset-password` },
+      });
+      if (linkErr) return res.status(400).json({ error: linkErr.message || 'link_failed' });
+      const set_password_url = linkData?.properties?.action_link || null;
+      await sendWelcomeEmail({ to: email, employee_name: name, username, set_password_url, mosque_name });
+    }
 
     // 6. Done.
-    return res.status(200).json({ success: true, user_id, username });
+    return res.status(200).json({ success: true, user_id, username, existed });
   } catch (err) {
     console.error('[create-account]', err?.message);
     return res.status(500).json({ error: err?.message || 'unexpected_error' });

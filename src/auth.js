@@ -1545,6 +1545,38 @@ export async function approveOnboardingSession(sessionId) {
   return data === true ? { ok: true } : { ok: false, error: 'failed' }
 }
 
+// Provision the Supabase auth account for an APPROVED onboarding session and
+// link the promoted mosque_staff row to it (profile_id + invite_status='active')
+// so the employee's login resolves as staff. Calls the owner/admin-gated
+// /api/create-account serverless function with the caller's JWT; that function
+// also emails the new employee a set-password link (onboarding_welcome). Call it
+// immediately AFTER approveOnboardingSession succeeds — the approval RPC creates
+// the staff row but neither the account nor the link. Returns
+// { ok, existed } / { ok:false, error }; `existed` is true when the employee
+// already had an Amanah account (no set-password email is sent in that case).
+export async function provisionOnboardingAccount(sessionId, { employeeEmail = '', employeeName = '' } = {}) {
+  if (!sessionId) return { ok: false, error: 'missing_sessionId' }
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return { ok: false, error: 'not_signed_in' }
+    const res = await fetch('/api/create-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ session_id: sessionId, employee_email: employeeEmail, employee_name: employeeName }),
+    })
+    const body = await res.json().catch(() => ({}))
+    // Defensive: an older create-account returned 409 email_exists; the current
+    // one folds that into 200 { existed:true }. Treat both as success.
+    if (res.status === 409 && body?.error === 'email_exists') return { ok: true, existed: true }
+    if (!res.ok || !body?.success) return { ok: false, error: body?.error || `http_${res.status}` }
+    return { ok: true, existed: !!body.existed, userId: body.user_id }
+  } catch (err) {
+    console.error('provisionOnboardingAccount failed:', err?.message)
+    return { ok: false, error: 'network_exception' }
+  }
+}
+
 // Owner-gated request changes (notes + refreshed expiry). { ok } / { ok:false, error }.
 export async function requestOnboardingChanges(sessionId, notes) {
   if (!sessionId) return { ok: false, error: 'missing_id' }

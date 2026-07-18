@@ -12,7 +12,7 @@ import { useState, useEffect } from "react";
 import { Loader2, ShieldCheck, Eye, Check, RotateCcw, X, AlertCircle, Clock } from "lucide-react";
 import {
   getOnboardingSessionsForMosque, getOnboardingSessionFull,
-  approveOnboardingSession, requestOnboardingChanges,
+  approveOnboardingSession, requestOnboardingChanges, provisionOnboardingAccount,
 } from "../auth";
 import { sendOnboardingChangesRequested, sendOnboardingApproved } from "../lib/email";
 import { getStaffDocUrl } from "../lib/staffStorage";
@@ -91,6 +91,22 @@ function DetailModal({ session, onClose, onChanged }) {
     setBusy(true); setErr(null); setWarn(null);
     const r = await approveOnboardingSession(session.id);
     if (!r.ok) { setBusy(false); setErr(r.error || "Approve failed"); return; }
+    // The approval RPC promotes the staff row but creates neither the login
+    // account nor the profile_id link. Provision + link now (also sends the
+    // set-password email). The staff promotion already committed, so a failure
+    // here must NOT revert it — surface it as an amber warning, and skip the
+    // "you're on the team, sign in" email (its link would be dead without an
+    // account). Same source-of-truth-stands pattern as a failed notification.
+    const acct = await provisionOnboardingAccount(session.id, {
+      employeeEmail: session.employee_email,
+      employeeName: session.employee_name,
+    });
+    if (!acct.ok) {
+      onChanged?.();
+      setBusy(false);
+      setWarn(`Approved and added to staff — but their login account couldn't be created (${acct.error || "unknown error"}), so no set-password email was sent and they can't sign in yet. Please retry, or contact them directly.`);
+      return;
+    }
     await notifyOrWarn(sendOnboardingApproved, "Approved");
   };
 
