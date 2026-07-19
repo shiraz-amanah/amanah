@@ -27,7 +27,8 @@ import AddStaffModal from "./AddStaffModal";
 import MessageModal from "./MessageModal";
 import OnboardingReview from "./OnboardingReview";
 import MosqueBulkImport from "./MosqueBulkImport";
-import { getOnboardingSessionsForMosque } from "../auth";
+import { getOnboardingSessionsForMosque, getStaffAvatarPaths } from "../auth";
+import { getStaffAvatarUrls } from "../lib/staffStorage";
 import { staffComplianceSummary } from "../lib/hrAssistant";
 
 // ── small helpers ────────────────────────────────────────────────────
@@ -154,6 +155,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [tick, setTick] = useState(0);
   const [pendingOnboarding, setPendingOnboarding] = useState(0); // submitted sessions awaiting review
   const [aiSummaries, setAiSummaries] = useState({}); // staffId → LLM summary (falls back to deterministic)
+  const [avatarMap, setAvatarMap] = useState({}); // staffId → signed avatar URL (private staff-avatars bucket)
 
   useEffect(() => {
     let alive = true;
@@ -162,6 +164,16 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       .then((rows) => { if (alive) setStaff(rows); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
+    // Private avatars: resolve avatar_path → signed URL in ONE batched call.
+    getStaffAvatarPaths(mosqueId)
+      .then(async (pathById) => {
+        const urlByPath = await getStaffAvatarUrls(Object.values(pathById));
+        if (!alive) return;
+        const byId = {};
+        for (const [id, path] of Object.entries(pathById)) if (urlByPath[path]) byId[id] = urlByPath[path];
+        setAvatarMap(byId);
+      })
+      .catch(() => {});
     return () => { alive = false; };
   }, [mosqueId, tick]);
 
@@ -435,7 +447,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={s.name} photoUrl={s.photoUrl} size={36} />
+                      <Avatar name={s.name} photoUrl={avatarMap[s.id] || s.photoUrl} size={36} />
                       <div className="min-w-0">
                         {s.name
                           ? <div className={`font-medium truncate ${muted ? "text-stone-500" : "text-stone-900"}`}>{s.name}</div>
@@ -473,7 +485,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
                 <button onClick={() => setOpenId(null)} className="text-stone-400 hover:text-stone-700"><X size={18} /></button>
               </div>
               <div className="flex flex-col items-center text-center -mt-2">
-                <Avatar name={openRow.name} photoUrl={openRow.photoUrl} size={96} />
+                <Avatar name={openRow.name} photoUrl={avatarMap[openRow.id] || openRow.photoUrl} size={96} />
                 <h3 className="mt-3 text-xl font-medium text-stone-900">{openRow.name}</h3>
                 <p className="text-sm text-stone-500">{openRow.jobTitle || openRow.role || "—"}</p>
                 <div className="flex items-center gap-2 mt-2">

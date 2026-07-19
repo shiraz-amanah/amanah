@@ -1370,6 +1370,28 @@ export async function getMosqueStaff(mosqueId) {
   return data || []
 }
 
+// Private-avatar paths for a mosque's staff → { [staffId]: avatar_path } (non-null
+// only). Direct RLS-safe select (owner/admin read own-mosque rows); avatar_path is
+// not PII so it's fine outside the safe-shape RPC. Feeds the batch signed-URL pass.
+export async function getStaffAvatarPaths(mosqueId) {
+  if (!mosqueId) return {}
+  const { data, error } = await supabase
+    .from('mosque_staff').select('id, avatar_path').eq('mosque_id', mosqueId)
+  if (error) { console.error('getStaffAvatarPaths:', error); return {} }
+  const map = {}
+  for (const r of (data || [])) if (r.avatar_path) map[r.id] = r.avatar_path
+  return map
+}
+
+// One staff member's avatar_path (or null) — for the profile header.
+export async function getStaffAvatarPath(staffId) {
+  if (!staffId) return null
+  const { data, error } = await supabase
+    .from('mosque_staff').select('avatar_path').eq('id', staffId).single()
+  if (error) { console.error('getStaffAvatarPath:', error); return null }
+  return data?.avatar_path || null
+}
+
 export async function createMosqueStaff({ mosqueId, ...fields }) {
   if (!mosqueId) return { error: { message: 'mosqueId required' } }
   const { data, error } = await supabase

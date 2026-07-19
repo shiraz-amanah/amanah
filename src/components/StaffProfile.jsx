@@ -26,7 +26,7 @@ import {
   ChevronDown, ChevronRight, ArrowLeft, MessageCircle, MoreHorizontal,
   Eye, Loader2, ShieldCheck, ShieldAlert, GraduationCap, BookOpen,
   CalendarDays, TrendingUp, Globe, FileText, UserCog, Lock,
-  Upload, AlertTriangle, Check, Plus, Trash2, X, Pencil, KeyRound,
+  Upload, AlertTriangle, Check, Plus, Trash2, X, Pencil, KeyRound, Camera,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
@@ -42,11 +42,14 @@ import {
   getStaffDocuments, deleteStaffDocument, addStaffDocument,
   deriveRtwState, deriveDbsState,
 } from "../lib/staffHelpers";
-import { uploadStaffDoc, getStaffDocUrl, deleteStaffDoc } from "../lib/staffStorage";
+import {
+  uploadStaffDoc, getStaffDocUrl, deleteStaffDoc,
+  uploadStaffAvatar, getStaffAvatarUrl,
+} from "../lib/staffStorage";
 import {
   requestPasswordReset, getMosqueEmployees, updateEmployeePermissions,
   updateMosqueStaff, upsertMosqueStaffEmployment, getMadrasaClasses,
-  getContractsForStaff,
+  getContractsForStaff, getStaffAvatarPath,
 } from "../auth";
 
 // Platform-listing (marketplace) is deferred pre-launch — freeze, don't delete.
@@ -270,6 +273,36 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   useEffect(() => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); }, [mosqueId, staffId]);
   useEffect(() => { if (staffId) getContractsForStaff(staffId).then(setContract).catch(() => setContract([])); }, [staffId]);
 
+  // Private avatar (staff-avatars bucket): resolve avatar_path → signed URL.
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setAvatarUrl(null);
+    if (staffId) {
+      getStaffAvatarPath(staffId)
+        .then((p) => getStaffAvatarUrl(p))
+        .then((u) => { if (alive) setAvatarUrl(u); })
+        .catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [staffId]);
+
+  // Owner/admin uploads or replaces the staff photo. Direct-to-storage (no
+  // serverless); avatar_path recorded on the row; re-signed so it renders at once.
+  const onAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !mosqueId || !staffId) return;
+    setAvatarBusy(true);
+    const { path, error } = await uploadStaffAvatar(file, mosqueId, staffId);
+    if (error) { setNote(error); setAvatarBusy(false); return; }
+    await updateMosqueStaff(staffId, { avatar_path: path });
+    setAvatarUrl(await getStaffAvatarUrl(path));
+    setAvatarBusy(false);
+    setNote("Photo updated");
+  };
+
   // Panels are URL-addressable (?section=<key>). Opening a card PUSHES a history
   // entry; Back / "Back to overview" returns to the grid, not out of the profile.
   const seededRef = useRef(false);
@@ -403,7 +436,16 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
         <div className="bg-white border border-stone-200 rounded-xl mb-4">
           <div className="p-5">
             <div className="flex items-start gap-4">
-              <Avatar name={row.name} photoUrl={row.photoUrl} size={80} />
+              <div className="relative shrink-0" style={{ width: 80, height: 80 }}>
+                <Avatar name={row.name} photoUrl={avatarUrl || row.photoUrl} size={80} />
+                <label
+                  className={`absolute inset-0 rounded-full flex items-center justify-center text-white cursor-pointer transition ${avatarBusy ? "bg-black/40 opacity-100" : "bg-black/40 opacity-0 hover:opacity-100"}`}
+                  title={avatarUrl || row.photoUrl ? "Change photo" : "Add photo"}>
+                  {avatarBusy ? <Loader2 className="animate-spin" size={20} /> : <Camera size={18} />}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                    onChange={onAvatarFile} disabled={avatarBusy} />
+                </label>
+              </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl font-semibold text-stone-900 tracking-tight" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>{row.name}</h1>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-sm text-stone-600">
