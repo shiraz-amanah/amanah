@@ -10,7 +10,10 @@
 // NOT relabel staff already assigned the old name (logged in NOTES).
 // ====================================================================
 import { useEffect, useState } from "react";
-import { GripVertical, Plus, Pencil, Check, X, Trash2, Lock, Loader2 } from "lucide-react";
+// Icon note: the spec named Tabler icons (ti-pencil / ti-adjustments-horizontal);
+// this project is on lucide-react throughout, so the equivalents are Pencil and
+// SlidersHorizontal. No new icon dependency added.
+import { GripVertical, Plus, Pencil, Check, X, Trash2, Lock, Loader2, SlidersHorizontal } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -24,8 +27,11 @@ const PRESET_OPTIONS = [
 ];
 const PRESET_NEEDS_CLASSES = (p) => p === "teacher" || p === "custom";
 
-// One role's permission-defaults editor (preset + conditional class multi-select).
-function RoleDefaultsRow({ role, classes, canEdit, onSaved }) {
+// One role's permission-defaults editor. Rendered INLINE beneath its own role row
+// (toggled by that row's sliders icon) — this replaces the old separate
+// "Permissions defaults" section, which repeated the whole role list a second
+// time further down the page.
+function RolePermissionsPanel({ role, classes, canEdit, onSaved }) {
   const [preset, setPreset] = useState(role.default_role_preset || "");
   const [picked, setPicked] = useState(new Set(role.default_assigned_classes || []));
   const [busy, setBusy] = useState(false);
@@ -57,36 +63,51 @@ function RoleDefaultsRow({ role, classes, canEdit, onSaved }) {
 
   const selCls = "border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
   return (
-    <div className="py-3 border-b border-stone-100 last:border-0">
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-stone-800 w-40 shrink-0">{role.name}</span>
+    <div className="mt-2 pt-3 border-t border-stone-100">
+      <p className="text-xs text-stone-500 mb-2">
+        Default dashboard access for anyone given this role. Applied automatically when the role is assigned. “None set” means permissions are only ever changed by hand.
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="text-xs font-medium text-stone-500">Access level</label>
         <select value={preset} onChange={(e) => setPreset(e.target.value)} disabled={!canEdit} className={selCls}>
           <option value="">None set</option>
           {PRESET_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        {canEdit && dirty && <button onClick={save} disabled={busy} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-2.5 py-1 rounded-lg">{busy ? "…" : "Save"}</button>}
-        {canEdit && role.default_role_preset && !dirty && <button onClick={clear} disabled={busy} className="text-xs text-stone-400 hover:text-rose-600">Clear</button>}
+        {canEdit && (
+          <button onClick={save} disabled={busy || !dirty}
+            className="text-sm bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-2.5 py-1 rounded-lg">
+            {busy ? "…" : "Save"}
+          </button>
+        )}
+        {canEdit && role.default_role_preset && (
+          <button onClick={clear} disabled={busy} className="text-xs text-stone-400 hover:text-rose-600 underline">Clear</button>
+        )}
       </div>
       {PRESET_NEEDS_CLASSES(preset) && (
-        <div className="mt-2 ml-40 pl-3 flex flex-wrap gap-x-4 gap-y-1">
-          {classes.length === 0 ? <span className="text-xs text-stone-400">No classes yet.</span> : classes.map((c) => (
-            <label key={c.id} className="inline-flex items-center gap-1.5 text-xs text-stone-600">
-              <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggleClass(c.id)} disabled={!canEdit} />
-              {c.name || c.class_name || "Class"}
-            </label>
-          ))}
+        <div className="mt-2.5">
+          <p className="text-xs font-medium text-stone-500 mb-1">Classes</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {classes.length === 0 ? <span className="text-xs text-stone-400">No classes yet.</span> : classes.map((c) => (
+              <label key={c.id} className="inline-flex items-center gap-1.5 text-xs text-stone-600">
+                <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggleClass(c.id)} disabled={!canEdit} />
+                {c.name || c.class_name || "Class"}
+              </label>
+            ))}
+          </div>
         </div>
       )}
-      {note && <p className="text-xs text-rose-600 mt-1 ml-40 pl-3">{note}</p>}
+      {note && <p className="text-xs text-rose-600 mt-1.5">{note}</p>}
     </div>
   );
 }
 
-function RoleRow({ role, usage, canEdit, editing, editName, setEditName, onEditStart, onEditSave, onEditCancel, onToggle, onDelete, rowBusy, note }) {
+function RoleRow({ role, usage, canEdit, editing, editName, setEditName, onEditStart, onEditSave, onEditCancel, onToggle, onDelete, rowBusy, note, permOpen, onTogglePerm, classes, onPermSaved }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: role.id, disabled: !canEdit });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  const hasPreset = !!role.default_role_preset;
   return (
-    <li ref={setNodeRef} style={style} className={`flex items-center gap-2 border rounded-xl px-3 py-2 bg-white ${role.is_active ? "border-stone-200" : "border-stone-200 bg-stone-50"}`}>
+    <li ref={setNodeRef} style={style} className={`border rounded-xl px-3 py-2 bg-white ${role.is_active ? "border-stone-200" : "border-stone-200 bg-stone-50"}`}>
+    <div className="flex items-center gap-2">
       {canEdit && (
         <button {...attributes} {...listeners} className="cursor-grab text-stone-300 hover:text-stone-500 touch-none" aria-label="Reorder"><GripVertical size={16} /></button>
       )}
@@ -115,11 +136,26 @@ function RoleRow({ role, usage, canEdit, editing, editName, setEditName, onEditS
             <input type="checkbox" checked={role.is_active} onChange={onToggle} disabled={rowBusy} /> Active
           </label>
           <button onClick={onEditStart} className="text-stone-400 hover:text-brand-700 p-1" aria-label="Rename"><Pencil size={14} /></button>
+          {/* Permissions defaults toggle. Accent when this row's panel is open,
+              muted when closed; an accent dot marks a role that already has a
+              preset saved, so configured roles are visible at a glance without
+              opening each one. */}
+          <button onClick={onTogglePerm}
+            className={`relative p-1 ${permOpen ? "text-brand-600" : "text-stone-400 hover:text-brand-700"}`}
+            aria-label="Permission defaults" aria-expanded={permOpen}
+            title={hasPreset ? "Permission defaults (set)" : "Permission defaults"}>
+            <SlidersHorizontal size={14} />
+            {hasPreset && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-brand-600" />}
+          </button>
           {role.is_default
             ? <span className="text-stone-300 p-1" title="Default role — can't be deleted"><Lock size={14} /></span>
             : <button onClick={onDelete} disabled={rowBusy} className="text-stone-400 hover:text-rose-600 p-1" aria-label="Delete"><Trash2 size={14} /></button>}
         </div>
       )}
+    </div>
+    {permOpen && canEdit && (
+      <RolePermissionsPanel role={role} classes={classes} canEdit={canEdit} onSaved={onPermSaved} />
+    )}
     </li>
   );
 }
@@ -135,7 +171,10 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [notes, setNotes] = useState({});      // roleId → transient inline note
-  const [classes, setClasses] = useState([]);  // madrasa_classes for the defaults section
+  const [classes, setClasses] = useState([]);  // madrasa_classes for the permissions panels
+  // Which row's inline permissions panel is open. Single id (not a Set) — that IS
+  // the "only one open at a time" rule; opening another row replaces it.
+  const [openPermId, setOpenPermId] = useState(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -213,7 +252,7 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
     <div>
       <div className="mb-6">
         <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff roles</h2>
-        <p className="text-sm text-stone-500">The roles available when adding or editing a staff member. Drag to reorder; deactivate a role to hide it from the dropdown without changing existing staff.</p>
+        <p className="text-sm text-stone-500">The roles available when adding or editing a staff member. Drag to reorder; deactivate a role to hide it from the dropdown without changing existing staff. Use the sliders icon on a role to set the dashboard permissions anyone with that role gets by default.</p>
       </div>
 
       <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 max-w-2xl">
@@ -230,7 +269,11 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
                       onEditStart={() => { setEditingId(role.id); setEditName(role.name); setNote(role.id, null); }}
                       onEditSave={() => doRenameSave(role.id)} onEditCancel={() => setEditingId(null)}
                       onToggle={() => doToggle(role)} onDelete={() => doDelete(role)}
-                      rowBusy={rowBusyId === role.id} note={notes[role.id]} />
+                      rowBusy={rowBusyId === role.id} note={notes[role.id]}
+                      permOpen={openPermId === role.id}
+                      onTogglePerm={() => setOpenPermId((id) => (id === role.id ? null : role.id))}
+                      classes={classes}
+                      onPermSaved={(id, patch) => setRoles((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))} />
                   ))}
                 </ul>
               </SortableContext>
@@ -255,21 +298,6 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
         )}
       </div>
 
-      {/* Permissions defaults — the "master key": a default access preset per role,
-          auto-applied to a staff member's dashboard permissions when the role is
-          assigned via the Employment editor (migration 165). */}
-      {roles !== null && roles.length > 0 && (
-        <div className="mt-6 bg-white border border-stone-200 rounded-2xl p-4 md:p-5 max-w-2xl">
-          <h3 className="text-sm font-semibold text-stone-800 mb-1">Permissions defaults</h3>
-          <p className="text-xs text-stone-500 mb-3">Set a default dashboard access level per role. When a staff member is given this role, these permissions are applied automatically. Leave as “None set” to change permissions manually only.</p>
-          <div>
-            {roles.map((role) => (
-              <RoleDefaultsRow key={role.id} role={role} classes={classes} canEdit={canEdit}
-                onSaved={(id, patch) => setRoles((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
