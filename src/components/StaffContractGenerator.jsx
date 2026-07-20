@@ -30,7 +30,7 @@ const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 
 // pre-filled edit-only flow that returns an UNSIGNED contract via onSaveDraft
 // and never signs/uploads. staffRow is optional in draft mode (no staff row
 // exists yet at invite time).
-export default function StaffContractGenerator({ staffRow, mosque, authedUser, onClose, mode = "sign", initialType = null, initialData = null, onSaveDraft }) { // eslint-disable-line no-unused-vars
+export default function StaffContractGenerator({ staffRow, mosque, authedUser, onClose, mode = "sign", initialType = null, initialData = null, onSaveDraft, onGenerated }) { // eslint-disable-line no-unused-vars
   const isDraft = mode === "draft";
   const staffId = staffRow?.id, mosqueId = mosque?.id;
   const [step, setStep] = useState(isDraft && initialType ? 3 : 1);
@@ -146,6 +146,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     await logContractSigned(staffId, type, empSig.name, path);
     sendContractSignedCopy(staffId, { contractType: type, signedDate: new Date().toISOString() }).catch(() => {});
     setBusy(false); setDone(true);
+    onGenerated?.(); // D1: a fresh signed contract reflects current terms → clears the contract-terms-changed flag
   };
 
   // Draft mode: hand the unsigned contract back to the caller (AddStaffModal),

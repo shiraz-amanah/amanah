@@ -64,11 +64,14 @@ export async function getMosqueStaffList(mosqueId) {
 
 // ── Sensitive reads (audited RPCs — every call writes mosque_staff_audit_log) ──
 // Salary in pence — owner OR the employee themselves. Returns { salaryPence, error }.
+// Migration 163: get_staff_salary now returns jsonb { salary_pence, hourly_rate_pence }
+// (was a bare integer). Audited ('salary_viewed'). Callers destructure salaryPence
+// as before; hourlyRatePence is additive (used by the D1 employment editor).
 export async function getStaffSalary(staffId) {
-  if (!staffId) return { salaryPence: null, error: { message: "staffId required" } };
+  if (!staffId) return { salaryPence: null, hourlyRatePence: null, error: { message: "staffId required" } };
   const { data, error } = await supabase.rpc("get_staff_salary", { p_staff_id: staffId });
-  if (error) { console.error("getStaffSalary:", error); return { salaryPence: null, error }; }
-  return { salaryPence: data ?? null, error: null };
+  if (error) { console.error("getStaffSalary:", error); return { salaryPence: null, hourlyRatePence: null, error }; }
+  return { salaryPence: data?.salary_pence ?? null, hourlyRatePence: data?.hourly_rate_pence ?? null, error: null };
 }
 
 // Employment TERMS (hours/contract/notice/probation/pension) — owner only, NOT
@@ -77,7 +80,53 @@ export async function getStaffEmployment(staffId) {
   if (!staffId) return null;
   const { data, error } = await supabase.rpc("get_staff_employment", { p_staff_id: staffId });
   if (error) return null; // RPC not yet created (pre-migration 130)
-  return data || null;
+  return data || null; // migration 163: also carries place_of_work / notice_period_*_weeks / contract_terms_changed_at
+}
+
+// D1 (migration 162): OWNER-ONLY writer — employment terms + append-only
+// salary_changed audit row in one txn. FULL-SET: send the complete current field
+// set. Returns { success, salary_changed } or { error } with the RPC's message.
+export async function updateStaffEmployment(staffId, {
+  salaryPence, hourlyRatePence, hoursPerWeek, contractType,
+  noticePeriodEmployerWeeks, noticePeriodEmployeeWeeks, probationEndDate,
+  placeOfWork, pensionEnrolled,
+} = {}) {
+  if (!staffId) return { error: "staffId required" };
+  const { data, error } = await supabase.rpc("update_staff_employment", {
+    p_staff_id: staffId,
+    p_salary_pence: salaryPence ?? null,
+    p_hourly_rate_pence: hourlyRatePence ?? null,
+    p_hours_per_week: hoursPerWeek ?? null,
+    p_contract_type: contractType ?? null,
+    p_notice_period_employer_weeks: noticePeriodEmployerWeeks ?? null,
+    p_notice_period_employee_weeks: noticePeriodEmployeeWeeks ?? null,
+    p_probation_end_date: probationEndDate || null,
+    p_place_of_work: placeOfWork ?? null,
+    p_pension_enrolled: pensionEnrolled ?? false,
+  });
+  if (error) { console.error("updateStaffEmployment:", error); return { error: error.message || "update_failed" }; }
+  return data || { error: "no_result" };
+}
+
+// D1 (migration 163): clear the durable contract-terms-changed flag + audit it.
+export async function dismissContractFlag(staffId) {
+  if (!staffId) return { error: "staffId required" };
+  const { error } = await supabase.rpc("dismiss_contract_flag", { p_staff_id: staffId });
+  if (error) { console.error("dismissContractFlag:", error); return { error: error.message || "dismiss_failed" }; }
+  return {};
+}
+
+// D1 (migration 162): active configurable roles for a mosque, ordered for the
+// role dropdown. Owner reads via RLS. Returns [] on error.
+export async function getMosqueRoles(mosqueId) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_roles")
+    .select("id, name, slug, is_active, display_order")
+    .eq("mosque_id", mosqueId).eq("is_active", true)
+    .order("display_order", { ascending: true });
+  if (error) { console.error("getMosqueRoles:", error); return []; }
+  return data || [];
 }
 
 // Stamp the caller's own mosque_staff row(s) with last_login_at=now() (mosque-
