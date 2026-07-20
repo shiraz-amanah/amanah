@@ -15,6 +15,72 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { getMosqueRolesAll, createMosqueRole, updateMosqueRole, reorderMosqueRoles, deleteMosqueRole, getMosqueStaffList } from "../lib/staffHelpers";
+import { getMadrasaClasses } from "../auth";
+
+// 165 preset set (matches update_employee_permissions). "" = None set (null).
+const PRESET_OPTIONS = [
+  ["coordinator", "Coordinator"], ["teacher", "Teacher"], ["treasurer", "Treasurer"],
+  ["receptionist", "Receptionist"], ["viewer", "Viewer"], ["custom", "Custom"],
+];
+const PRESET_NEEDS_CLASSES = (p) => p === "teacher" || p === "custom";
+
+// One role's permission-defaults editor (preset + conditional class multi-select).
+function RoleDefaultsRow({ role, classes, canEdit, onSaved }) {
+  const [preset, setPreset] = useState(role.default_role_preset || "");
+  const [picked, setPicked] = useState(new Set(role.default_assigned_classes || []));
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null);
+  const dirty = (preset || "") !== (role.default_role_preset || "")
+    || JSON.stringify([...picked].sort()) !== JSON.stringify([...(role.default_assigned_classes || [])].sort());
+
+  const toggleClass = (id) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const save = async () => {
+    setBusy(true); setNote(null);
+    const classesArr = PRESET_NEEDS_CLASSES(preset) ? [...picked] : [];
+    const { error } = await updateMosqueRole(role.id, {
+      default_role_preset: preset || null,
+      default_assigned_classes: preset ? classesArr : null,
+    });
+    setBusy(false);
+    if (error) { setNote("Couldn't save — try again."); return; }
+    onSaved(role.id, { default_role_preset: preset || null, default_assigned_classes: preset ? classesArr : null });
+  };
+  const clear = async () => {
+    setBusy(true); setNote(null);
+    const { error } = await updateMosqueRole(role.id, { default_role_preset: null, default_assigned_classes: null });
+    setBusy(false);
+    if (error) { setNote("Couldn't clear — try again."); return; }
+    setPreset(""); setPicked(new Set());
+    onSaved(role.id, { default_role_preset: null, default_assigned_classes: null });
+  };
+
+  const selCls = "border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
+  return (
+    <div className="py-3 border-b border-stone-100 last:border-0">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-stone-800 w-40 shrink-0">{role.name}</span>
+        <select value={preset} onChange={(e) => setPreset(e.target.value)} disabled={!canEdit} className={selCls}>
+          <option value="">None set</option>
+          {PRESET_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        {canEdit && dirty && <button onClick={save} disabled={busy} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-2.5 py-1 rounded-lg">{busy ? "…" : "Save"}</button>}
+        {canEdit && role.default_role_preset && !dirty && <button onClick={clear} disabled={busy} className="text-xs text-stone-400 hover:text-rose-600">Clear</button>}
+      </div>
+      {PRESET_NEEDS_CLASSES(preset) && (
+        <div className="mt-2 ml-40 pl-3 flex flex-wrap gap-x-4 gap-y-1">
+          {classes.length === 0 ? <span className="text-xs text-stone-400">No classes yet.</span> : classes.map((c) => (
+            <label key={c.id} className="inline-flex items-center gap-1.5 text-xs text-stone-600">
+              <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggleClass(c.id)} disabled={!canEdit} />
+              {c.name || c.class_name || "Class"}
+            </label>
+          ))}
+        </div>
+      )}
+      {note && <p className="text-xs text-rose-600 mt-1 ml-40 pl-3">{note}</p>}
+    </div>
+  );
+}
 
 function RoleRow({ role, usage, canEdit, editing, editName, setEditName, onEditStart, onEditSave, onEditCancel, onToggle, onDelete, rowBusy, note }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: role.id, disabled: !canEdit });
@@ -69,8 +135,11 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [notes, setNotes] = useState({});      // roleId → transient inline note
+  const [classes, setClasses] = useState([]);  // madrasa_classes for the defaults section
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  useEffect(() => { if (mosqueId) getMadrasaClasses(mosqueId).then(setClasses).catch(() => {}); }, [mosqueId]);
 
   const load = () => {
     Promise.all([getMosqueRolesAll(mosqueId), getMosqueStaffList(mosqueId)])
@@ -185,6 +254,22 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
           </>
         )}
       </div>
+
+      {/* Permissions defaults — the "master key": a default access preset per role,
+          auto-applied to a staff member's dashboard permissions when the role is
+          assigned via the Employment editor (migration 165). */}
+      {roles !== null && roles.length > 0 && (
+        <div className="mt-6 bg-white border border-stone-200 rounded-2xl p-4 md:p-5 max-w-2xl">
+          <h3 className="text-sm font-semibold text-stone-800 mb-1">Permissions defaults</h3>
+          <p className="text-xs text-stone-500 mb-3">Set a default dashboard access level per role. When a staff member is given this role, these permissions are applied automatically. Leave as “None set” to change permissions manually only.</p>
+          <div>
+            {roles.map((role) => (
+              <RoleDefaultsRow key={role.id} role={role} classes={classes} canEdit={canEdit}
+                onSaved={(id, patch) => setRoles((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

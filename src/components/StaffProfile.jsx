@@ -36,7 +36,7 @@ import StaffContractGenerator from "./StaffContractGenerator";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
   getStaffBankMasked, updateStaffBankDetails,
-  updateStaffEmployment, dismissContractFlag, getMosqueRoles,
+  updateStaffEmployment, dismissContractFlag, getMosqueRoles, applyRoleDefaults,
   anonymiseStaff, suspendStaff,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
@@ -439,8 +439,21 @@ function EmploymentEditForm({ staffId, mosque, row, employment, salaryPence, hou
     if (!zeroHours) ms.annual_leave_days = toIntOrNull(annualLeave);
     if (contractRelevant) ms.contract_terms_changed_at = new Date().toISOString();
     const msRes = await updateMosqueStaff(staffId, ms);
+    if (msRes?.error) { setBusy(false); setErr("Terms saved, but role/identity didn't save — please retry."); return; }
+
+    // D2/B — silent push: when the role CHANGED to one with a permission preset,
+    // apply it to the staff member's RBAC record (no confirmation; the main
+    // "Employment updated" toast covers the save; failures don't block it).
+    if (g1Changed && role && role !== (roleLeaked ? "" : (row.role || ""))) {
+      const roleObj = roles.find((r) => r.name === role);
+      if (roleObj?.default_role_preset) {
+        await applyRoleDefaults(staffId, mosque?.id, {
+          rolePreset: roleObj.default_role_preset,
+          assignedClasses: roleObj.default_assigned_classes ?? [],
+        }).catch(() => {});
+      }
+    }
     setBusy(false);
-    if (msRes?.error) { setErr("Terms saved, but role/identity didn't save — please retry."); return; }
     onSaved();
   };
 

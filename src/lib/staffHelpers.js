@@ -122,7 +122,7 @@ export async function getMosqueRoles(mosqueId) {
   if (!mosqueId) return [];
   const { data, error } = await supabase
     .from("mosque_roles")
-    .select("id, name, slug, is_active, display_order")
+    .select("id, name, slug, is_active, display_order, default_role_preset, default_assigned_classes")
     .eq("mosque_id", mosqueId).eq("is_active", true)
     .order("display_order", { ascending: true });
   if (error) { console.error("getMosqueRoles:", error); return []; }
@@ -130,11 +130,12 @@ export async function getMosqueRoles(mosqueId) {
 }
 
 // D2 (management panel): ALL roles incl. inactive, ordered. Owner/admin read via RLS.
+// Includes the 165 permission defaults (default_role_preset / default_assigned_classes).
 export async function getMosqueRolesAll(mosqueId) {
   if (!mosqueId) return [];
   const { data, error } = await supabase
     .from("mosque_roles")
-    .select("id, name, slug, is_active, is_default, display_order")
+    .select("id, name, slug, is_active, is_default, display_order, default_role_preset, default_assigned_classes")
     .eq("mosque_id", mosqueId)
     .order("display_order", { ascending: true });
   if (error) { console.error("getMosqueRolesAll:", error); return []; }
@@ -184,6 +185,37 @@ export async function deleteMosqueRole(id) {
   const { data, error } = await supabase.rpc("delete_mosque_role", { p_role_id: id });
   if (error) { console.error("deleteMosqueRole:", error); return { error: error.message || "delete_failed" }; }
   return data || { error: "no_result" };
+}
+
+// D2/B — push a role's permission defaults onto a staff member's mosque_employees
+// (RBAC) record when they're given that role. The staff↔employee link is the shared
+// profile_id (mosque_employees has NO staff_id). Silent; caller ignores the result.
+//   - No login account (profile_id null) → { skipped:'no_account' } (nothing to grant).
+//   - Existing employee row → update_employee_permissions RPC (validates classes).
+//   - No employee row → INSERT one (owner RLS), status='active' (upsert-on-first).
+export async function applyRoleDefaults(staffId, mosqueId, { rolePreset, assignedClasses } = {}) {
+  if (!staffId || !mosqueId) return { skipped: "missing_ids" };
+  if (!rolePreset) return { skipped: "no_preset" };
+  const { data: st, error: stErr } = await supabase
+    .from("mosque_staff").select("profile_id, email, name").eq("id", staffId).single();
+  if (stErr || !st) return { error: stErr?.message || "staff_not_found" };
+  if (!st.profile_id) return { skipped: "no_account" };
+  const classesArr = assignedClasses ?? [];
+  const { data: emp } = await supabase
+    .from("mosque_employees").select("id").eq("mosque_id", mosqueId).eq("profile_id", st.profile_id).limit(1);
+  if (emp?.[0]) {
+    const { error } = await supabase.rpc("update_employee_permissions", {
+      p_employee_id: emp[0].id, p_permissions: null, p_assigned_classes: classesArr, p_role_preset: rolePreset,
+    });
+    return error ? { error: error.message } : { applied: "updated" };
+  }
+  if (!st.email) return { skipped: "no_email" }; // invited_email is NOT NULL on mosque_employees
+  const { error } = await supabase.from("mosque_employees").insert({
+    mosque_id: mosqueId, profile_id: st.profile_id,
+    invited_email: st.email, invited_name: st.name || st.email,
+    role_preset: rolePreset, assigned_classes: classesArr, status: "active",
+  });
+  return error ? { error: error.message } : { applied: "created" };
 }
 
 // Stamp the caller's own mosque_staff row(s) with last_login_at=now() (mosque-
