@@ -91,10 +91,20 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
       const [{ salaryPence }, emp, sens] = await Promise.all([
         getStaffSalary(staffId), getStaffEmployment(staffId), getStaffSensitive(staffId),
       ]);
+      // D1: the notice contract fields are free-text ("4 weeks"). Prefer the new
+      // employer/employee week splits (migration 162); fall back to the legacy
+      // single notice_period_days (applied to both parties) for rows not yet edited
+      // via D1. Keeps the contract and the Employment editor in agreement on notice.
+      const fmtNotice = (weeks, daysFallback) =>
+        weeks != null ? `${weeks} week${weeks === 1 ? "" : "s"}`
+        : daysFallback != null ? `${daysFallback} day${daysFallback === 1 ? "" : "s"}`
+        : "";
       setD((x) => ({ ...x,
         salaryPence: salaryPence ?? null,
         hours: emp?.hours_per_week ?? null,
         noticePeriod: emp?.notice_period_days ?? null,
+        noticePeriodEmployer: x.noticePeriodEmployer || fmtNotice(emp?.notice_period_employer_weeks, emp?.notice_period_days),
+        noticePeriodEmployee: x.noticePeriodEmployee || fmtNotice(emp?.notice_period_employee_weeks, emp?.notice_period_days),
         probationEndDate: emp?.probation_end_date ?? "",
         employeeAddress: sens?.data?.address && sens.data.address !== "[REDACTED]" ? sens.data.address : "",
       }));
