@@ -35,6 +35,19 @@ const EMP_TYPES = [
 const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-200";
 const L = ({ label, children }) => (<label className="block"><span className="text-xs text-stone-500">{label}</span>{children}</label>);
 
+// mosque_staff carries a unique index on (mosque_id, lower(email)) — live on dev
+// as mosque_staff_mosque_email_unique — so re-adding the same email to the same
+// mosque raises Postgres 23505. Both create paths return the RAW supabase error
+// (code intact), so translate it to the product meaning here instead of dumping
+// "duplicate key value violates unique constraint …" into the UI. Keyed off the
+// constraint text as well as the code because 23505 is not email-specific.
+const staffCreateError = (error, fallback) => {
+  if (error?.code !== "23505") return error?.message || fallback;
+  return /email/i.test(`${error.message || ""} ${error.details || ""}`)
+    ? "A staff member with this email already exists"
+    : "This staff member already exists";
+};
+
 export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, defaultEmploymentType }) { // eslint-disable-line no-unused-vars
   const [step, setStep] = useState(1);
   const [path, setPath] = useState(null); // 'remote' | 'inhouse'
@@ -184,7 +197,7 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
             employment_type: f.employmentType, start_date: f.startDate || null,
           },
         });
-        if (error || !data?.staffId) throw new Error(error?.message || "Could not create staff record");
+        if (error || !data?.staffId) throw new Error(staffCreateError(error, "Could not create staff record"));
         await updateMosqueStaff(data.staffId, base);
         if (data.token) {
           // Record exists (HR-record-first). Invite email is best-effort — on
@@ -200,7 +213,7 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
           mosqueId, name: f.name.trim(), email: f.email.trim().toLowerCase(),
           status: "active", invite_status: "not_invited", ...base,
         });
-        if (error || !data?.id) throw new Error(error?.message || "Could not create staff record");
+        if (error || !data?.id) throw new Error(staffCreateError(error, "Could not create staff record"));
         const emp = {};
         // Guarded on isZeroHours both ways: the two pay models are mutually
         // exclusive, and switching type leaves the other side's value in state —

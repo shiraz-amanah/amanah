@@ -54,6 +54,22 @@ export function shapeStaffListRow(r) {
   };
 }
 
+// Guard against leaked marketplace headlines in the free-text `role` field
+// (prod data: a linked scholar's "Qualified Quran Teacher for Children | Bradford"
+// landed in role). Display-only: cut at the first pipe, collapse whitespace,
+// length-cap. Root data cleanup of the offending rows is a separate follow-up
+// (logged in NOTES.md) — this only stops the leak reaching the UI.
+// SINGLE DEFINITION — StaffProfile (header + Employment field) and StaffDirectory
+// (list column + drawer) both import this. Do NOT re-declare it per component.
+// Deliberately NOT applied to the directory's CSV export: the length-cap would
+// truncate exported data, and an export is a record, not a display.
+export const cleanRole = (role) => {
+  if (!role) return null;
+  let r = String(role).split("|")[0].replace(/\s+/g, " ").trim();
+  if (r.length > 60) r = r.slice(0, 57).trimEnd() + "…";
+  return r || null;
+};
+
 // ── Directory list (safe — no salary / dob / phone / doc numbers) ───
 export async function getMosqueStaffList(mosqueId) {
   if (!mosqueId) return [];

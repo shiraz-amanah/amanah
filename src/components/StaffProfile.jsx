@@ -34,6 +34,7 @@ import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
 import StaffContractGenerator from "./StaffContractGenerator";
 import {
+  cleanRole,
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffNi, getStaffEmployment,
   getStaffBankMasked, updateStaffBankDetails,
   updateStaffEmployment, dismissContractFlag, getMosqueRoles, applyRoleDefaults,
@@ -60,17 +61,8 @@ import { sendBankDetailsChanged } from "../lib/email";
 // The section component still exists below; this flag just gates its render.
 const DEFERRED_MARKETPLACE = true;
 
-// Guard against leaked marketplace headlines in the free-text `role` field
-// (prod data: a linked scholar's "Qualified Quran Teacher for Children | Bradford"
-// landed in role). Display-only: cut at the first pipe, collapse whitespace,
-// length-cap. Root data cleanup of the offending rows is a separate follow-up
-// (logged in NOTES.md) — this only stops the leak reaching the UI.
-const cleanRole = (role) => {
-  if (!role) return null;
-  let r = String(role).split("|")[0].replace(/\s+/g, " ").trim();
-  if (r.length > 60) r = r.slice(0, 57).trimEnd() + "…";
-  return r || null;
-};
+// cleanRole (leaked-marketplace-headline guard) now lives in staffHelpers as the
+// single definition — StaffDirectory needs the same guard on its list column.
 
 // Humanizers — never render a raw enum / snake_case / db value to the user.
 const INVITE_LABELS = { not_invited: "Not invited yet", invited: "Invited", active: "Active", expired: "Invite expired" };
@@ -168,7 +160,7 @@ function AnonymiseDialog({ name, busy, onCancel, onConfirm }) {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onCancel}>
       <div className="bg-white rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-rose-700 flex items-center gap-2"><AlertTriangle size={18} /> Anonymise this record</h3>
-        <p className="text-sm text-stone-600 mt-2">This permanently replaces {name || "this person"}'s personal data with <span className="font-medium">[REDACTED]</span>. It <span className="font-medium">cannot be undone</span> — only the compliance audit trail is kept.</p>
+        <p className="text-sm text-stone-600 mt-2">This permanently replaces {name || "this person"}'s personal data with <span className="font-medium">redaction markers</span>. It <span className="font-medium">cannot be undone</span> — only the compliance audit trail remains.</p>
         <p className="text-sm text-stone-600 mt-3">Type <span className="font-semibold text-stone-900">{name}</span> to confirm:</p>
         <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={name}
           className="mt-1.5 w-full border border-stone-300 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-200" />
@@ -1096,7 +1088,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                 <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-stone-800">Anonymise (GDPR)</div>
-                    <div className="text-xs text-stone-500">Permanently erases their personal data ([REDACTED]). This cannot be undone — only the compliance audit trail remains.</div>
+                    <div className="text-xs text-stone-500">Permanently replaces their personal data with redaction markers. This cannot be undone — only the compliance audit trail remains.</div>
                   </div>
                   <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
                 </div>

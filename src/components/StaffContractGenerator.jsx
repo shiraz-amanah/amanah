@@ -141,7 +141,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   const now = () => new Date().toLocaleString("en-GB");
   const signAdmin = () => { if (!adminName.trim()) return; setAdminSig({ name: adminName.trim(), role: "Mosque representative", at: now() }); };
   const signEmployee = () => { if (!empName.trim()) return; setEmpSig({ name: empName.trim(), role: m?.employee === false ? "Contractor/Volunteer" : "Employee", at: now() }); };
-  const sendRemote = async () => { await sendContractReadyToSign(staffId, { contractType: type }); setNote("Sign request emailed to the employee (remote signing lands in RBAC-D)."); };
+  const sendRemote = async () => { await sendContractReadyToSign(staffId, { contractType: type }); setNote("Sign request emailed to the employee."); };
 
   const finalise = async () => {
     if (!adminSig || !empSig) return;

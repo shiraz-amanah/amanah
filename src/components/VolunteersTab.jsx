@@ -74,7 +74,7 @@ export default function VolunteersTab({ mosqueId, mosque, authedUser, onOpenProf
             </table>
           </div>
         )}
-      <p className="text-xs text-stone-400 mt-3">Volunteer hours tracking and “Volunteer of the month” recognition land with migration 130 / Session RBAC-C.</p>
+      <p className="text-xs text-stone-400 mt-3">Volunteer hours tracking and “Volunteer of the month” recognition are coming soon.</p>
 
       {addOpen && (
         <AddStaffModal mosqueId={mosqueId} mosque={mosque} defaultEmploymentType="volunteer"
