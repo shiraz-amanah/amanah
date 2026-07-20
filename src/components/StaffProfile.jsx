@@ -687,6 +687,15 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   const openSection = (key) => navigate?.("staffProfile", {}, { staffId, section: key }, {});
   const backToOverview = () => (goBack ? goBack("staffProfile", { staffId }) : navigate?.("staffProfile", {}, { staffId }, {}));
 
+  // Panels are NOT separate mounts — navigating grid ↔ panel only changes the
+  // `section` prop, so StaffProfile (and every piece of its state) survives.
+  // Per-panel edit-mode flags therefore persisted: edit Personal once, go back to
+  // the grid, re-open the card, and it rendered the EDIT FORM instead of the
+  // read-only panel. Reset them on every section change so a panel always opens
+  // read-only and edit mode is only ever entered by clicking Edit.
+  // Applies to Employment too — empEditing (D1) had the identical bug.
+  useEffect(() => { setPersonalEditing(false); setEmpEditing(false); }, [section]);
+
   const revealSensitive = async () => {
     if (sensitive || sensLoading) return;
     setSensLoading(true);
