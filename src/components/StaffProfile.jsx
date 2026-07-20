@@ -80,10 +80,12 @@ const bankMaskName = (v) => { const t = (v || "").trim(); return t ? t[0] + "•
 const bankMaskSort = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••-••-••" : null; };
 const bankMaskAcct = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••••" + d.slice(-4) : null; };
 
-// D3 — NI mask. UK NI is 2 letters + 6 digits + 1 letter (QQ123456C), so show the
-// leading pair and the trailing suffix letter: QQ•••••••C. Fixed bullet count (the
-// format is fixed-width anyway, so this leaks nothing beyond "an NI is on file").
-// Masked purely client-side — get_staff_sensitive already hands us the plaintext.
+// NI mask. Since migration 168 the SERVER masks (mask_ni → ni_number_masked) and
+// no plaintext NI reaches the browser via get_staff_sensitive, so this is NO
+// LONGER the display path. It survives for exactly one case: after the owner
+// saves a NEW NI, we re-mask the value they just typed so the row stays accurate
+// without a refetch (a refetch would write a spurious 'sensitive_data_viewed'
+// audit row). Keep the two masks identical in shape — QQ123456C → QQ•••••••C.
 const maskNi = (v) => { const t = (v || "").replace(/\s/g, ""); return t ? t.slice(0, 2) + "•••••••" + (t.length > 2 ? t.slice(-1) : "") : null; };
 
 // Mirrors AddStaffModal's ROLES / EMP_TYPES — that file is the source of truth for
@@ -534,6 +536,14 @@ function PersonalEditForm({ staffId, mosqueId, row, sensitive, onCancel, onSaved
   const [ecName, setEcName] = useState(sensitive?.emergency_contact_name ?? "");
   const [ecPhone, setEcPhone] = useState(sensitive?.emergency_contact_phone ?? "");
   const [ni, setNi] = useState(""); // always blank — re-entry to change
+  // Item 2: the read path already carried these (get_staff_sensitive), but there
+  // was no way to SET them — the panel showed permanent dash rows. Columns exist
+  // on mosque_staff_employment (dob date / nationality text / next_of_kin text),
+  // so no migration. NOTE: next_of_kin is ONE free-text column — there is no
+  // next_of_kin_name / next_of_kin_phone pair (probed).
+  const [dob, setDob] = useState(sensitive?.date_of_birth ? String(sensitive.date_of_birth).slice(0, 10) : "");
+  const [nationality, setNationality] = useState(sensitive?.nationality ?? "");
+  const [nextOfKin, setNextOfKin] = useState(sensitive?.next_of_kin ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -551,11 +561,15 @@ function PersonalEditForm({ staffId, mosqueId, row, sensitive, onCancel, onSaved
       address: address.trim() || null,
       emergency_contact_name: ecName.trim() || null,
       emergency_contact_phone: ecPhone.trim() || null,
+      // dob is a DATE column — an empty input must become null, never "".
+      dob: dob || null,
+      nationality: nationality.trim() || null,
+      next_of_kin: nextOfKin.trim() || null,
     };
     const niNew = ni.trim();
     if (niNew) emp.ni_number = niNew;
     const { error: empErr } = await upsertMosqueStaffEmployment(staffId, mosqueId, emp);
-    if (empErr) { setErr("Couldn't save address / emergency contact — please try again."); setBusy(false); return; }
+    if (empErr) { setErr("Couldn't save personal details — please try again."); setBusy(false); return; }
 
     setBusy(false);
     onSaved({ phone: phoneNew, ...emp, niNew: niNew || null });
@@ -576,9 +590,20 @@ function PersonalEditForm({ staffId, mosqueId, row, sensitive, onCancel, onSaved
         <div><label className={lbl}>Emergency contact — phone</label>
           <input value={ecPhone} onChange={(e) => setEcPhone(e.target.value)} className={inputCls} inputMode="tel" /></div>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Date of birth</label>
+          <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>Nationality</label>
+          <input value={nationality} onChange={(e) => setNationality(e.target.value)} className={inputCls} placeholder="e.g. British" /></div>
+      </div>
+      <div><label className={lbl}>Next of kin</label>
+        <input value={nextOfKin} onChange={(e) => setNextOfKin(e.target.value)} className={inputCls}
+          placeholder="e.g. Ahmed Khan — 07700 900123" />
+        <p className="text-xs text-stone-400 mt-1">Name and contact number in one line.</p></div>
+
       <div><label className={lbl}>National Insurance number</label>
         <input value={ni} onChange={(e) => setNi(e.target.value)} className={inputCls}
-          placeholder={sensitive?.ni_number ? "•••••••• on file — re-enter to change" : "QQ123456C"} />
+          placeholder={sensitive?.ni_number_masked ? "•••••••• on file — re-enter to change" : "QQ123456C"} />
         <p className="text-xs text-stone-400 mt-1">Leave blank to keep the number on file.</p></div>
 
       {err && <p className="text-sm text-rose-600">{err}</p>}
@@ -724,10 +749,15 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   // D3: after a Personal save, merge the new values into the already-revealed
   // bundle rather than re-calling get_staff_sensitive — a refetch would write a
   // second 'sensitive_data_viewed' row the owner never asked for.
-  const onPersonalSaved = ({ phone, address, emergency_contact_name, emergency_contact_phone, niNew }) => {
+  const onPersonalSaved = ({ phone, address, emergency_contact_name, emergency_contact_phone, dob, nationality, next_of_kin, niNew }) => {
     setSensitive((s) => (s ? {
       ...s, phone, address, emergency_contact_name, emergency_contact_phone,
-      ...(niNew ? { ni_number: niNew } : {}), // keeps the mask honest after a change
+      date_of_birth: dob, nationality, next_of_kin,
+      // 168: the bundle now carries only the MASKED NI. The server can't re-mask
+      // without a refetch (which would write a spurious 'sensitive_data_viewed'
+      // row), so mask the value the owner just typed — locally, from input they
+      // already hold. This is the ONLY surviving use of maskNi.
+      ...(niNew ? { ni_number_masked: maskNi(niNew) } : {}),
     } : s));
     if (niNew) setNi(undefined); // revealed plaintext is stale — re-reveal (and re-audit)
     setPersonalEditing(false);
@@ -1005,7 +1035,11 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                     <>
                       <Field label="Phone" value={sensitive.phone} />
                       <Field label="Address" value={sensitive.address} />
-                      <Field label="Date of birth" value={fmtDate(sensitive.date_of_birth)} />
+                      {/* DOB is deliberately NOT rendered in plain text — the
+                          panel only confirms whether one is on file, which is
+                          all the read-only view needs. The exact date is still
+                          editable (and visible) inside the edit form. */}
+                      <Field label="Date of birth" value={sensitive.date_of_birth ? "On file" : "—"} />
                       <Field label="Nationality" value={sensitive.nationality} />
                       <Field label="Emergency contact" value={sensitive.emergency_contact_name ? `${sensitive.emergency_contact_name} · ${sensitive.emergency_contact_phone || "—"}` : "—"} />
                       <Field label="Next of kin" value={sensitive.next_of_kin} />
@@ -1015,10 +1049,10 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                         <span className="text-sm text-stone-500 shrink-0">NI number</span>
                         <span className="text-sm text-stone-800 font-medium text-right">
                           {ni !== undefined ? (ni || "—")
-                            : !sensitive.ni_number ? "—"
+                            : !sensitive.ni_number_masked ? "—"
                             : (
                               <span className="inline-flex items-center gap-2">
-                                <span className="tracking-wider">{maskNi(sensitive.ni_number)}</span>
+                                <span className="tracking-wider">{sensitive.ni_number_masked}</span>
                                 <button onClick={revealNi} disabled={niLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
                                   {niLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
                                 </button>
