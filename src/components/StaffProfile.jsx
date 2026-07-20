@@ -444,8 +444,12 @@ function EmploymentEditForm({ staffId, mosque, row, employment, salaryPence, hou
     // "Employment updated" toast covers the save; failures don't block it).
     if (g1Changed && role && role !== (roleLeaked ? "" : (row.role || ""))) {
       const roleObj = roles.find((r) => r.name === role);
-      if (roleObj?.default_role_preset) {
+      // 167 priority: granular default_permissions > default_role_preset >
+      // nothing. applyRoleDefaults stays UPDATE-ONLY either way — it never
+      // creates a mosque_employees row (the D2/B decision).
+      if (roleObj?.default_permissions || roleObj?.default_role_preset) {
         await applyRoleDefaults(staffId, mosque?.id, {
+          permissions: roleObj.default_permissions || null,
           rolePreset: roleObj.default_role_preset,
           assignedClasses: roleObj.default_assigned_classes ?? [],
         }).catch(() => {});

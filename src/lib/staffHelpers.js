@@ -13,6 +13,7 @@
 // one place per the RBAC-B plan.
 // ====================================================================
 import { supabase } from "../supabaseClient";
+import { detectPreset } from "./employeePermissions";
 
 // ── Shapers (snake_case row → camelCase) ────────────────────────────
 export function shapeStaffListRow(r) {
@@ -138,7 +139,7 @@ export async function getMosqueRoles(mosqueId) {
   if (!mosqueId) return [];
   const { data, error } = await supabase
     .from("mosque_roles")
-    .select("id, name, slug, is_active, display_order, default_role_preset, default_assigned_classes")
+    .select("id, name, slug, is_active, display_order, default_role_preset, default_assigned_classes, default_permissions")
     .eq("mosque_id", mosqueId).eq("is_active", true)
     .order("display_order", { ascending: true });
   if (error) { console.error("getMosqueRoles:", error); return []; }
@@ -151,7 +152,7 @@ export async function getMosqueRolesAll(mosqueId) {
   if (!mosqueId) return [];
   const { data, error } = await supabase
     .from("mosque_roles")
-    .select("id, name, slug, is_active, is_default, display_order, default_role_preset, default_assigned_classes")
+    .select("id, name, slug, is_active, is_default, display_order, default_role_preset, default_assigned_classes, default_permissions")
     .eq("mosque_id", mosqueId)
     .order("display_order", { ascending: true });
   if (error) { console.error("getMosqueRolesAll:", error); return []; }
@@ -212,9 +213,16 @@ export async function deleteMosqueRole(id) {
 //   - No login account (profile_id null)         → { skipped:'no_account' }
 //   - No existing RBAC record for that profile   → { skipped:'no_employee_record' }
 //   - Existing employee row → update_employee_permissions RPC (validates classes).
-export async function applyRoleDefaults(staffId, mosqueId, { rolePreset, assignedClasses } = {}) {
+// 167: `permissions` (granular jsonb from mosque_roles.default_permissions) now
+// takes PRIORITY over `rolePreset`. Priority chain: permissions > rolePreset >
+// nothing. When a blob is supplied we ALSO send a derived role_preset label —
+// the RPC does `role_preset = coalesce(p_role_preset, role_preset)`, so passing
+// null there would leave the employee row claiming (say) 'teacher' while its
+// permissions say something else. detectPreset returns one of the five presets
+// or 'custom', all valid against the RPC's CHECK.
+export async function applyRoleDefaults(staffId, mosqueId, { permissions, rolePreset, assignedClasses } = {}) {
   if (!staffId || !mosqueId) return { skipped: "missing_ids" };
-  if (!rolePreset) return { skipped: "no_preset" };
+  if (!permissions && !rolePreset) return { skipped: "no_preset" };
   const { data: st, error: stErr } = await supabase
     .from("mosque_staff").select("profile_id").eq("id", staffId).single();
   if (stErr || !st) return { error: stErr?.message || "staff_not_found" };
@@ -223,10 +231,12 @@ export async function applyRoleDefaults(staffId, mosqueId, { rolePreset, assigne
     .from("mosque_employees").select("id").eq("mosque_id", mosqueId).eq("profile_id", st.profile_id).limit(1);
   if (!emp?.[0]) return { skipped: "no_employee_record" }; // update-only — never INSERT
   const { error } = await supabase.rpc("update_employee_permissions", {
-    p_employee_id: emp[0].id, p_permissions: null,
-    p_assigned_classes: assignedClasses ?? [], p_role_preset: rolePreset,
+    p_employee_id: emp[0].id,
+    p_permissions: permissions ?? null,
+    p_assigned_classes: assignedClasses ?? [],
+    p_role_preset: permissions ? detectPreset(permissions) : rolePreset,
   });
-  return error ? { error: error.message } : { applied: "updated" };
+  return error ? { error: error.message } : { applied: permissions ? "updated_granular" : "updated_preset" };
 }
 
 // Stamp the caller's own mosque_staff row(s) with last_login_at=now() (mosque-

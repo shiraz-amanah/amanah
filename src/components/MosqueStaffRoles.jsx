@@ -19,73 +19,135 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from "@dnd-kit/utilities";
 import { getMosqueRolesAll, createMosqueRole, updateMosqueRole, reorderMosqueRoles, deleteMosqueRole, getMosqueStaffList } from "../lib/staffHelpers";
 import { getMadrasaClasses } from "../auth";
+// Permission model single source of truth (migration 125 shape). The editor is
+// driven off MODULES so adding a module never needs a change here.
+import { MODULES, EMPTY_PERMISSIONS, getDefaultPermissions, detectPreset } from "../lib/employeePermissions";
 
 // 165 preset set (matches update_employee_permissions). "" = None set (null).
 const PRESET_OPTIONS = [
   ["coordinator", "Coordinator"], ["teacher", "Teacher"], ["treasurer", "Treasurer"],
   ["receptionist", "Receptionist"], ["viewer", "Viewer"], ["custom", "Custom"],
 ];
-const PRESET_NEEDS_CLASSES = (p) => p === "teacher" || p === "custom";
+
+// Shared permission controls — same shapes as GrantAccessModal so the role-default
+// editor and the per-person editor read identically.
+const Toggle = ({ on, onClick, disabled }) => (
+  <button type="button" onClick={onClick} disabled={disabled}
+    className={`w-10 h-6 rounded-full transition-colors relative shrink-0 disabled:opacity-50 ${on ? "bg-brand-500" : "bg-stone-300"}`}>
+    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+  </button>
+);
+const ScopeControl = ({ value, onChange, disabled }) => (
+  <div className="inline-flex rounded-lg border border-stone-200 overflow-hidden shrink-0">
+    {[[false, "None"], ["own", "Own"], ["all", "All"]].map(([v, l]) => (
+      <button key={String(v)} type="button" disabled={disabled} onClick={() => onChange(v)}
+        className={`text-xs px-2.5 py-1 disabled:opacity-50 ${value === v ? "bg-brand-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`}>{l}</button>
+    ))}
+  </div>
+);
 
 // One role's permission-defaults editor. Rendered INLINE beneath its own role row
 // (toggled by that row's sliders icon) — this replaces the old separate
 // "Permissions defaults" section, which repeated the whole role list a second
 // time further down the page.
 function RolePermissionsPanel({ role, classes, canEdit, onSaved }) {
-  const [preset, setPreset] = useState(role.default_role_preset || "");
+  // Editor state seeds from the saved granular blob if there is one, else by
+  // expanding the saved preset, else an all-false slate. "Start from preset" only
+  // RE-SEEDS these controls — nothing is written until Save.
+  const [perms, setPerms] = useState(() =>
+    role.default_permissions
+      ? { ...EMPTY_PERMISSIONS, ...role.default_permissions }
+      : (role.default_role_preset ? getDefaultPermissions(role.default_role_preset) : { ...EMPTY_PERMISSIONS }));
+  const [preset, setPreset] = useState(() =>
+    role.default_permissions ? detectPreset(role.default_permissions) : (role.default_role_preset || ""));
   const [picked, setPicked] = useState(new Set(role.default_assigned_classes || []));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
-  const dirty = (preset || "") !== (role.default_role_preset || "")
+
+  // The class picker follows the SAME rule as GrantAccessModal: it appears when
+  // any scope module is set to "own" (not on a preset-name guess), because that
+  // is exactly when assigned_classes carries meaning.
+  const usesOwn = MODULES.some((m) => m.type === "scope" && perms[m.key] === "own");
+
+  const savedPerms = role.default_permissions || null;
+  const dirty = JSON.stringify(perms) !== JSON.stringify(savedPerms ? { ...EMPTY_PERMISSIONS, ...savedPerms } : null)
     || JSON.stringify([...picked].sort()) !== JSON.stringify([...(role.default_assigned_classes || [])].sort());
 
+  const setModule = (key, value) => { setPerms((p) => ({ ...p, [key]: value })); setNote(null); };
+  const seedFromPreset = (key) => {
+    setPreset(key);
+    // "" (None set) → clean slate; a named preset → its shape. Editor state only.
+    setPerms(key ? getDefaultPermissions(key) : { ...EMPTY_PERMISSIONS });
+    setNote(null);
+  };
   const toggleClass = (id) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const save = async () => {
     setBusy(true); setNote(null);
-    const classesArr = PRESET_NEEDS_CLASSES(preset) ? [...picked] : [];
-    const { error } = await updateMosqueRole(role.id, {
-      default_role_preset: preset || null,
-      default_assigned_classes: preset ? classesArr : null,
-    });
+    const classesArr = usesOwn ? [...picked] : [];
+    const patch = {
+      default_permissions: perms,
+      default_assigned_classes: classesArr,
+      // Keep the stored label coherent with the blob rather than leaving a stale
+      // preset name next to permissions that no longer match it.
+      default_role_preset: detectPreset(perms),
+    };
+    const { error } = await updateMosqueRole(role.id, patch);
     setBusy(false);
     if (error) { setNote("Couldn't save — try again."); return; }
-    onSaved(role.id, { default_role_preset: preset || null, default_assigned_classes: preset ? classesArr : null });
+    setPreset(patch.default_role_preset);
+    onSaved(role.id, patch);
   };
+
+  // Clear wipes ALL THREE default columns, not just default_permissions. Nulling
+  // the blob alone would silently fall back to default_role_preset (the 167
+  // priority chain), so a button labelled "Clear" would leave defaults active.
   const clear = async () => {
     setBusy(true); setNote(null);
-    const { error } = await updateMosqueRole(role.id, { default_role_preset: null, default_assigned_classes: null });
+    const patch = { default_permissions: null, default_assigned_classes: null, default_role_preset: null };
+    const { error } = await updateMosqueRole(role.id, patch);
     setBusy(false);
     if (error) { setNote("Couldn't clear — try again."); return; }
-    setPreset(""); setPicked(new Set());
-    onSaved(role.id, { default_role_preset: null, default_assigned_classes: null });
+    setPerms({ ...EMPTY_PERMISSIONS }); setPreset(""); setPicked(new Set());
+    onSaved(role.id, patch);
   };
 
   const selCls = "border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
+  const hasDefaults = !!(role.default_permissions || role.default_role_preset);
   return (
     <div className="mt-2 pt-3 border-t border-stone-100">
-      <p className="text-xs text-stone-500 mb-2">
-        Default dashboard access for anyone given this role. Applied automatically when the role is assigned. “None set” means permissions are only ever changed by hand.
+      <p className="text-xs text-stone-500 mb-2.5">
+        Default dashboard access for anyone given this role — applied automatically when the role is assigned. Individual staff can still be adjusted on their own profile.
       </p>
-      <div className="flex items-center gap-2 flex-wrap">
-        <label className="text-xs font-medium text-stone-500">Access level</label>
-        <select value={preset} onChange={(e) => setPreset(e.target.value)} disabled={!canEdit} className={selCls}>
+
+      <div className="flex items-center gap-2 flex-wrap mb-3">
+        <label className="text-xs font-medium text-stone-500">Start from preset</label>
+        <select value={preset} onChange={(e) => seedFromPreset(e.target.value)} disabled={!canEdit} className={selCls}>
           <option value="">None set</option>
           {PRESET_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        {canEdit && (
-          <button onClick={save} disabled={busy || !dirty}
-            className="text-sm bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-2.5 py-1 rounded-lg">
-            {busy ? "…" : "Save"}
-          </button>
-        )}
-        {canEdit && role.default_role_preset && (
-          <button onClick={clear} disabled={busy} className="text-xs text-stone-400 hover:text-rose-600 underline">Clear</button>
-        )}
+        <span className="text-xs text-stone-400">Seeds the toggles below — nothing saves until you press Save.</span>
       </div>
-      {PRESET_NEEDS_CLASSES(preset) && (
+
+      <div className="space-y-1 rounded-xl border border-stone-100 px-3 py-1.5">
+        {MODULES.map((m) => (
+          <div key={m.key} className="flex items-center justify-between gap-3 py-1.5 border-b border-stone-50 last:border-0">
+            <div className="min-w-0">
+              <div className="text-sm text-stone-800">{m.label}</div>
+              <div className="text-xs text-stone-400">{m.hint}</div>
+            </div>
+            {m.type === "scope"
+              ? <ScopeControl value={perms[m.key] ?? false} onChange={(v) => setModule(m.key, v)} disabled={!canEdit} />
+              : <Toggle on={!!perms[m.key]} onClick={() => setModule(m.key, !perms[m.key])} disabled={!canEdit} />}
+          </div>
+        ))}
+      </div>
+
+      {usesOwn && (
         <div className="mt-2.5">
-          <p className="text-xs font-medium text-stone-500 mb-1">Classes</p>
+          <p className="text-xs font-medium text-stone-500 mb-1">
+            Assigned classes <span className="text-stone-400">(for “own classes” scope)</span>
+          </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {classes.length === 0 ? <span className="text-xs text-stone-400">No classes yet.</span> : classes.map((c) => (
               <label key={c.id} className="inline-flex items-center gap-1.5 text-xs text-stone-600">
@@ -96,6 +158,18 @@ function RolePermissionsPanel({ role, classes, canEdit, onSaved }) {
           </div>
         </div>
       )}
+
+      {canEdit && (
+        <div className="flex items-center gap-3 mt-3">
+          <button onClick={save} disabled={busy || !dirty}
+            className="text-sm bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg">
+            {busy ? "…" : "Save"}
+          </button>
+          {hasDefaults && (
+            <button onClick={clear} disabled={busy} className="text-xs text-stone-400 hover:text-rose-600 underline">Clear defaults</button>
+          )}
+        </div>
+      )}
       {note && <p className="text-xs text-rose-600 mt-1.5">{note}</p>}
     </div>
   );
@@ -104,7 +178,9 @@ function RolePermissionsPanel({ role, classes, canEdit, onSaved }) {
 function RoleRow({ role, usage, canEdit, editing, editName, setEditName, onEditStart, onEditSave, onEditCancel, onToggle, onDelete, rowBusy, note, permOpen, onTogglePerm, classes, onPermSaved }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: role.id, disabled: !canEdit });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
-  const hasPreset = !!role.default_role_preset;
+  // 167: the dot marks "this role has defaults configured" — either the granular
+  // blob OR the older preset label counts, since either one drives the auto-apply.
+  const hasPreset = !!(role.default_permissions || role.default_role_preset);
   return (
     <li ref={setNodeRef} style={style} className={`border rounded-xl px-3 py-2 bg-white ${role.is_active ? "border-stone-200" : "border-stone-200 bg-stone-50"}`}>
     <div className="flex items-center gap-2">
@@ -255,7 +331,10 @@ export default function MosqueStaffRoles({ mosqueId, mosque, authedUser }) {
         <p className="text-sm text-stone-500">The roles available when adding or editing a staff member. Drag to reorder; deactivate a role to hide it from the dropdown without changing existing staff. Use the sliders icon on a role to set the dashboard permissions anyone with that role gets by default.</p>
       </div>
 
-      <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 max-w-2xl">
+      {/* Widened from max-w-2xl: the inline permissions editor carries 13 module
+          rows with label+hint on the left and a 3-way control on the right, which
+          cramped badly at the old width. */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 md:p-5 max-w-3xl">
         {roles === null ? (
           <div className="py-8 flex justify-center text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
         ) : (
