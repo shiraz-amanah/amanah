@@ -13,7 +13,7 @@
 // one place per the RBAC-B plan.
 // ====================================================================
 import { supabase } from "../supabaseClient";
-import { detectPreset } from "./employeePermissions";
+import { detectPreset, getDefaultPermissions, PRESET_ROLES } from "./employeePermissions";
 
 // ── Shapers (snake_case row → camelCase) ────────────────────────────
 export function shapeStaffListRow(r) {
@@ -230,13 +230,28 @@ export async function applyRoleDefaults(staffId, mosqueId, { permissions, rolePr
   const { data: emp } = await supabase
     .from("mosque_employees").select("id").eq("mosque_id", mosqueId).eq("profile_id", st.profile_id).limit(1);
   if (!emp?.[0]) return { skipped: "no_employee_record" }; // update-only — never INSERT
+  // FALLBACK FIX: with no granular blob, EXPAND the preset and send the full
+  // permissions object. Previously this passed p_permissions:null, and the RPC's
+  // `permissions = coalesce(p_permissions, permissions)` made that a no-op — only
+  // the role_preset LABEL moved, so the row claimed a preset it did not have and
+  // the person's actual access never changed.
+  //
+  // Guarded on PRESET_ROLES: getDefaultPermissions returns the all-false
+  // EMPTY_PERMISSIONS for any key it doesn't know — and 'custom' is exactly such
+  // a key (valid in the RPC CHECK, selectable in the roles UI). Expanding it
+  // would STRIP the person's access to nothing on a role change. 'custom' means
+  // "hand-configured", so it keeps today's label-only behaviour instead.
+  const expanded = (!permissions && rolePreset && PRESET_ROLES[rolePreset])
+    ? getDefaultPermissions(rolePreset)
+    : null;
   const { error } = await supabase.rpc("update_employee_permissions", {
     p_employee_id: emp[0].id,
-    p_permissions: permissions ?? null,
+    p_permissions: permissions ?? expanded,
     p_assigned_classes: assignedClasses ?? [],
     p_role_preset: permissions ? detectPreset(permissions) : rolePreset,
   });
-  return error ? { error: error.message } : { applied: permissions ? "updated_granular" : "updated_preset" };
+  if (error) return { error: error.message };
+  return { applied: permissions ? "updated_granular" : expanded ? "updated_preset_expanded" : "updated_label_only" };
 }
 
 // Stamp the caller's own mosque_staff row(s) with last_login_at=now() (mosque-
