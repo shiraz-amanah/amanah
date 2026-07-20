@@ -27,6 +27,7 @@ import {
   Eye, Loader2, ShieldCheck, ShieldAlert, GraduationCap, BookOpen,
   CalendarDays, TrendingUp, Globe, FileText, UserCog, Lock,
   Upload, AlertTriangle, Check, Plus, Trash2, X, Pencil, KeyRound, Camera,
+  Landmark,
 } from "lucide-react";
 import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
@@ -34,6 +35,7 @@ import GrantAccessModal from "./GrantAccessModal";
 import StaffContractGenerator from "./StaffContractGenerator";
 import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
+  getStaffBankMasked, updateStaffBankDetails,
   anonymiseStaff, suspendStaff,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
@@ -51,6 +53,7 @@ import {
   updateMosqueStaff, upsertMosqueStaffEmployment, getMadrasaClasses,
   getContractsForStaff, getStaffAvatarPath,
 } from "../auth";
+import { sendBankDetailsChanged } from "../lib/email";
 
 // Platform-listing (marketplace) is deferred pre-launch — freeze, don't delete.
 // The section component still exists below; this flag just gates its render.
@@ -76,6 +79,13 @@ const DOC_TYPE_LABELS = { rtw: "Right to Work", dbs: "DBS", training: "Training"
 const humanDocType = (t) => DOC_TYPE_LABELS[t] || humanEnum(t) || t;
 
 const TONE_TEXT = { rose: "text-rose-700", amber: "text-amber-700", orange: "text-orange-700", success: "text-success-700", muted: "text-stone-500" };
+
+// Bank masking — JS mirrors of the SQL mask_bank_* helpers (159). Operate on
+// STRIPPED digits for sort/account so the confirm-screen preview matches exactly
+// what the RPC normalises + stores. Fixed bullets (never length-leaking).
+const bankMaskName = (v) => { const t = (v || "").trim(); return t ? t[0] + "••••" : null; };
+const bankMaskSort = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••-••-••" : null; };
+const bankMaskAcct = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••••" + d.slice(-4) : null; };
 
 // Mirrors AddStaffModal's ROLES / EMP_TYPES — that file is the source of truth for
 // the mosque_staff_employment_type_check values; keep these in sync with it.
@@ -242,6 +252,121 @@ const Field = ({ label, value }) => (
   </div>
 );
 
+// ── Bank details modal (Commit C, item 2) ────────────────────────────
+// Two stages: full re-entry form → confirm (old masked → new masked) → submit.
+// On confirm: update_staff_bank_details RPC, then the bank_details_changed intent
+// (anti-fraud email + notified flip). Reports the outcome up via onSaved(banner).
+function BankDetailsModal({ staffId, staffName, oldMasked, onClose, onSaved }) {
+  const [stage, setStage] = useState("form"); // 'form' | 'confirm'
+  const [name, setName] = useState("");
+  const [sort, setSort] = useState("");
+  const [acct, setAcct] = useState("");
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+
+  const sortDigits = sort.replace(/\D/g, "");
+  const acctDigits = acct.replace(/\D/g, "");
+
+  const validate = () => {
+    const e = {};
+    if (!name.trim()) e.name = "Account name is required";
+    if (!/^\d{6}$/.test(sortDigits)) e.sort = "Sort code must be 6 digits";
+    if (!/^\d{8}$/.test(acctDigits)) e.acct = "Account number must be 8 digits";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const toConfirm = () => { if (validate()) setStage("confirm"); };
+
+  const submit = async () => {
+    setBusy(true);
+    setErrors({});
+    const res = await updateStaffBankDetails(staffId, { accountName: name, sortCode: sort, accountNumber: acct });
+    if (res?.error || !res?.success) {
+      // Map RPC validation codes back to inline field errors; else a generic form error.
+      const code = res?.error || "";
+      const e = {};
+      if (code.includes("account_name_required")) e.name = "Account name is required";
+      else if (code.includes("sort_code_invalid")) e.sort = "Sort code must be 6 digits";
+      else if (code.includes("account_number_invalid")) e.acct = "Account number must be 8 digits";
+      else e.form = code.includes("not_authorised") ? "Only the mosque owner can change bank details." : "Couldn't save — please try again.";
+      setErrors(e);
+      setBusy(false);
+      setStage("form");
+      return;
+    }
+    // Written. Fire the anti-fraud notification (email + notified flip).
+    const mail = await sendBankDetailsChanged(staffId, res.change_id);
+    setBusy(false);
+    const first = (staffName || "the staff member").split(" ")[0];
+    const banner = (res.staff_has_email && mail?.ok && mail?.notified && mail?.sent)
+      ? { text: `Bank details updated — notification sent to ${first}.`, tone: "brand" }
+      : { text: `Bank details updated — no email on file, notify ${first} directly.`, tone: "amber" };
+    onSaved(banner);
+    onClose();
+  };
+
+  const inputCls = "w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
+  const errCls = "text-xs text-rose-600 mt-1";
+  const newMasked = { name: bankMaskName(name), sort: bankMaskSort(sort), acct: bankMaskAcct(acct) };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+          <h3 className="text-base font-semibold text-stone-900 inline-flex items-center gap-2"><Landmark size={18} className="text-brand-700" /> {stage === "form" ? "Bank details" : "Confirm bank details"}</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X size={18} /></button>
+        </div>
+
+        {stage === "form" ? (
+          <div className="p-5 space-y-4">
+            <p className="text-xs text-stone-500">Enter the account details in full. For security, existing values aren't shown here — a masked confirmation follows.</p>
+            <div>
+              <label className="text-sm text-stone-600">Account name</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="e.g. Ahmed Khan" />
+              {errors.name && <p className={errCls}>{errors.name}</p>}
+            </div>
+            <div>
+              <label className="text-sm text-stone-600">Sort code</label>
+              <input value={sort} onChange={(e) => setSort(e.target.value)} className={inputCls} placeholder="12-34-56 or 123456" inputMode="numeric" />
+              {errors.sort && <p className={errCls}>{errors.sort}</p>}
+            </div>
+            <div>
+              <label className="text-sm text-stone-600">Account number</label>
+              <input value={acct} onChange={(e) => setAcct(e.target.value)} className={inputCls} placeholder="8 digits" inputMode="numeric" />
+              {errors.acct && <p className={errCls}>{errors.acct}</p>}
+            </div>
+            {errors.form && <p className={errCls}>{errors.form}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={onClose} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg">Cancel</button>
+              <button onClick={toConfirm} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg">Review change</button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-stone-700">Changing bank details for <strong>{staffName}</strong>. {staffName?.split(" ")[0] || "They"} will be emailed a security notification.</p>
+            <div className="rounded-lg border border-stone-200 divide-y divide-stone-100 text-sm">
+              {[["Account name", oldMasked?.account_name, newMasked.name],
+                ["Sort code", oldMasked?.sort_code, newMasked.sort],
+                ["Account number", oldMasked?.account_number, newMasked.acct]].map(([label, oldV, newV]) => (
+                <div key={label} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-stone-500 shrink-0">{label}</span>
+                  <span className="text-right"><span className="text-stone-400 line-through mr-2">{oldV || "—"}</span><span className="text-stone-900 font-medium">{newV}</span></span>
+                </div>
+              ))}
+            </div>
+            {errors.form && <p className={errCls}>{errors.form}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setStage("form")} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg">Back</button>
+              <button onClick={submit} disabled={busy} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy && <Loader2 size={14} className="animate-spin" />} Confirm</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function StaffProfile({ staffId, section = "", navigate, goBack, mosque, authedUser, onBack, onMessage }) {
   const mosqueId = mosque?.id;
   const [row, setRow] = useState(null);
@@ -252,7 +377,10 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   const [editOpen, setEditOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState(null);
+  const [note, setNote] = useState(null); // { text, tone: 'brand' | 'amber' }
+  // All existing callers default to the 'brand' tone (behaviour-preserving); the
+  // bank-details flow passes 'amber' for the no-email / send-failed case.
+  const flash = (text, tone = "brand") => setNote(text == null ? null : { text, tone });
 
   // sensitive reveal state
   const [sensitive, setSensitive] = useState(null);
@@ -261,6 +389,13 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   const [salLoading, setSalLoading] = useState(false);
   const [employment, setEmployment] = useState(null); // §3 terms (get_staff_employment)
   const [contract, setContract] = useState(undefined); // undefined=loading; [] on empty OR fetch error (getContractsForStaff catches) — degrade to type-only, never a false "Unsigned"
+
+  // Bank details (Commit C) — owner-only. bankMasked: null=loading/none, else
+  // { saved, account_name, sort_code, account_number } (masked, migration 161).
+  const isOwner = !!(authedUser?.id && mosque?.user_id && authedUser.id === mosque.user_id);
+  const [bankMasked, setBankMasked] = useState(null);
+  const [bankOpen, setBankOpen] = useState(false);
+  const loadBank = () => { if (isOwner && staffId) getStaffBankMasked(staffId).then(setBankMasked).catch(() => {}); };
 
   const load = () => {
     setLoading(true);
@@ -272,6 +407,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   useEffect(() => { if (mosqueId && staffId) load(); /* eslint-disable-next-line */ }, [mosqueId, staffId]);
   useEffect(() => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); }, [mosqueId, staffId]);
   useEffect(() => { if (staffId) getContractsForStaff(staffId).then(setContract).catch(() => setContract([])); }, [staffId]);
+  useEffect(() => { loadBank(); /* eslint-disable-next-line */ }, [staffId, isOwner]);
 
   // Private avatar (staff-avatars bucket): resolve avatar_path → signed URL.
   const [avatarUrl, setAvatarUrl] = useState(null);
@@ -296,11 +432,11 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
     if (!file || !mosqueId || !staffId) return;
     setAvatarBusy(true);
     const { path, error } = await uploadStaffAvatar(file, mosqueId, staffId);
-    if (error) { setNote(error); setAvatarBusy(false); return; }
+    if (error) { flash(error); setAvatarBusy(false); return; }
     await updateMosqueStaff(staffId, { avatar_path: path });
     setAvatarUrl(await getStaffAvatarUrl(path));
     setAvatarBusy(false);
-    setNote("Photo updated");
+    flash("Photo updated");
   };
 
   // Panels are URL-addressable (?section=<key>). Opening a card PUSHES a history
@@ -339,7 +475,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
 
   const doSuspend = async (status) => {
     setBusy(true); await suspendStaff(staffId, status); setBusy(false); setActionsOpen(false); load();
-    setNote(status === "active" ? "Reactivated." : "Deactivated.");
+    flash(status === "active" ? "Reactivated." : "Deactivated.");
   };
   // Deactivate = the product action wired to suspend_staff('suspended'). Confirm
   // dialog because it drops the member out of compliance gaps + the Ofsted score.
@@ -351,8 +487,8 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
     setBusy(true);
     const { error } = await updateMosqueStaff(staffId, fields);
     setBusy(false);
-    if (!error) { setEditOpen(false); setNote("Details updated."); load(); }
-    else { setNote("Couldn't save changes — please try again."); }
+    if (!error) { setEditOpen(false); flash("Details updated."); load(); }
+    else { flash("Couldn't save changes — please try again."); }
   };
   const doResetPassword = async () => {
     if (!row?.email) return;
@@ -360,7 +496,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
     // falls back to the project Site URL — a stale localhost Site URL is exactly
     // what dead-ended this action's reset email on prod.
     setBusy(true); await requestPasswordReset(row.email, window.location.origin); setBusy(false); setActionsOpen(false);
-    setNote("Password reset email sent.");
+    flash("Password reset email sent.");
   };
   const openOffboard = () => { setActionsOpen(false); setOffboardOpen(true); };
   const doAnonymise = () => { setActionsOpen(false); setAnonOpen(true); };
@@ -368,7 +504,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
     setBusy(true);
     const { error } = await anonymiseStaff(staffId);
     setBusy(false); setAnonOpen(false);
-    if (!error) { setNote("Record anonymised."); onBack?.(); }
+    if (!error) { flash("Record anonymised."); onBack?.(); }
   };
 
   if (loading) return (
@@ -430,7 +566,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
       <div className="max-w-3xl mx-auto px-4 py-6">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-stone-600 hover:text-stone-900 mb-5"><ArrowLeft size={16} /> Back to staff</button>
 
-        {note && <div className="mb-4 text-sm bg-brand-50 text-brand-800 border border-brand-200 rounded-lg px-3 py-2">{note}</div>}
+        {note && <div className={`mb-4 text-sm rounded-lg px-3 py-2 border ${note.tone === "amber" ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-brand-50 text-brand-800 border-brand-200"}`}>{note.text}</div>}
 
         {/* Header + compliance strip */}
         <div className="bg-white border border-stone-200 rounded-xl mb-4">
@@ -508,6 +644,30 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                   <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
                   <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
                   <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
+
+                  {/* Bank details (Commit C) — owner-only. Masked display; full re-entry to change. */}
+                  {isOwner && (
+                    <div className="mt-3 pt-3 border-t border-stone-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-stone-700 inline-flex items-center gap-1.5"><Landmark size={14} className="text-stone-400" /> Bank details</span>
+                        <button onClick={() => setBankOpen(true)} className="text-xs text-brand-700 hover:text-brand-900 font-medium">
+                          {bankMasked?.saved ? "Update bank details" : "Add bank details"}
+                        </button>
+                      </div>
+                      {bankMasked == null ? (
+                        <p className="text-sm text-stone-400 py-1.5">Loading…</p>
+                      ) : bankMasked.saved ? (
+                        <>
+                          <Field label="Account name" value={bankMasked.account_name} />
+                          <Field label="Sort code" value={bankMasked.sort_code} />
+                          <Field label="Account number" value={bankMasked.account_number} />
+                        </>
+                      ) : (
+                        <p className="text-sm text-stone-500 py-1.5">No bank details on file</p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="pt-2">
                     <button onClick={() => setContractOpen(true)} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Generate contract</button>
                   </div>
@@ -615,6 +775,11 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
       {contractOpen && (
         <StaffContractGenerator staffRow={row} mosque={mosque} authedUser={authedUser}
           onClose={() => setContractOpen(false)} />
+      )}
+      {bankOpen && (
+        <BankDetailsModal staffId={staffId} staffName={row.name} oldMasked={bankMasked}
+          onClose={() => setBankOpen(false)}
+          onSaved={(banner) => { loadBank(); flash(banner.text, banner.tone); }} />
       )}
       {anonOpen && (
         <AnonymiseDialog name={row.name} busy={busy}

@@ -254,7 +254,7 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
           )}
           {/* ---- Dashboard ---- */}
           {activeTab === "dashboard" && (
-            <MosqueOverview mosque={mosque} authedUser={authedUser} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} />
+            <MosqueOverview mosque={mosque} authedUser={authedUser} conversations={conversations || []} onNavigate={(t, s) => setTab(t, s)} onOpenProfile={onOpenProfile} />
           )}
 
           {/* ---- People (RBAC-B rebuild) ---- */}

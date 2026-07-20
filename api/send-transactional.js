@@ -1421,6 +1421,49 @@ async function handleContractSignedCopy(env, caller, staffId, contractType, sign
   return { status: 200, body: { ok: true, sent } };
 }
 
+// Commit C — anti-fraud notification after a bank-detail change
+// (update_staff_bank_details OR approve_onboarding_session first-set). Owner-OR-
+// admin authed; the staff email is resolved server-side; the body carries NO bank
+// values. change_id is validated to belong to THIS staff+mosque before anything
+// is sent, then on a successful send notified=true is flipped on that exact row
+// (service-role PATCH, scoped to id+mosque_id). No email on file → graceful no-op.
+async function handleBankDetailsChanged(env, caller, { changeId, staffId }) {
+  const srows = await sbGet(env, `mosque_staff?id=eq.${staffId}&select=name,email,mosque_id`);
+  const s = Array.isArray(srows) ? srows[0] : null;
+  if (!s) return { status: 404, body: { ok: false, error: 'staff_not_found' } };
+
+  const { mosque, ok } = await ownsMosque(env, caller, s.mosque_id);
+  if (!mosque) return { status: 404, body: { ok: false, error: 'mosque_not_found' } };
+  if (!ok)     return { status: 403, body: { ok: false, error: 'forbidden' } };
+
+  const crows = await sbGet(env,
+    `mosque_staff_bank_changes?id=eq.${changeId}&staff_id=eq.${staffId}&mosque_id=eq.${s.mosque_id}&select=id,changed_at`);
+  const change = Array.isArray(crows) ? crows[0] : null;
+  if (!change) return { status: 404, body: { ok: false, error: 'change_not_found' } };
+
+  // No email on file → graceful: nothing sent, notified stays false.
+  if (!s.email) return { status: 200, body: { ok: true, notified: false, sent: false, note: 'no_email' } };
+
+  const when = formatDate(change.changed_at || new Date().toISOString());
+  const inner = `${eGreeting(firstName(s.name))}${eHeading('Your bank details were updated')}`
+    + `${ePara(`Your bank details held by <strong>${escapeHtml(mosque.name)}</strong> were updated on <strong>${escapeHtml(when)}</strong>.`)}`
+    + `${ePara('<strong>If you did not request this</strong>, please contact your mosque immediately.')}${eSignoff}`;
+  await sendEmail(env, { to: s.email, subject: 'Your bank details on Amanah were updated',
+                         html: wrapEmail('Bank details updated', inner) });
+
+  // Flip notified=true — service-role PATCH, scoped to id + mosque_id. Safe-fail:
+  // if the flip fails the email still went out, so sent=true / notified=false.
+  const patch = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/mosque_staff_bank_changes?id=eq.${changeId}&mosque_id=eq.${s.mosque_id}`,
+    { method: 'PATCH',
+      headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+                 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ notified: true }) });
+  if (!patch.ok) console.error('[send-transactional] bank_details_changed notified-flip failed', patch.status);
+
+  return { status: 200, body: { ok: true, notified: patch.ok, sent: true } };
+}
+
 // Session W — confirmation to a staff member after they complete the REMOTE
 // onboarding wizard. UNAUTHENTICATED intent (the staffer has no session). The
 // recipient is constrained server-side to a just-SUBMITTED onboarding session
@@ -2707,6 +2750,11 @@ export default async function handler(req, res) {
     if (body.intent === 'contract_signed_copy') {
       if (!isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_staffId' });
       const out = await handleContractSignedCopy(env, caller, body.staffId, body.contractType, body.signedDate);
+      return res.status(out.status).json(out.body);
+    }
+    if (body.intent === 'bank_details_changed') {
+      if (!isUuid(body.changeId) || !isUuid(body.staffId)) return res.status(400).json({ ok: false, error: 'invalid_ids' });
+      const out = await handleBankDetailsChanged(env, caller, { changeId: body.changeId, staffId: body.staffId });
       return res.status(out.status).json(out.body);
     }
     return res.status(400).json({ ok: false, error: 'unknown_intent' });

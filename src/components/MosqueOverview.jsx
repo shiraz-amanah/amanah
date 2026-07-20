@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Users, Wallet, CalendarCheck, ShieldCheck, Clock, Calendar, BookOpen,
   Loader2, SlidersHorizontal, Check, X, ArrowRight, AlertTriangle, Sparkles,
-  GraduationCap, CheckCircle2, UserX, MessageCircle,
+  GraduationCap, CheckCircle2, UserX, MessageCircle, Landmark,
 } from "lucide-react";
 import {
   getProfile, updateProfile, getMosqueEnrollments, getFeeRecords,
   getMosqueAttendanceForDate, getMosqueEvents, getMosqueRecentHifz, getMadrasaClasses,
 } from "../auth";
-import { getMosqueStaffList, computeOfstedScore, computeComplianceIssues, ofstedColour } from "../lib/staffHelpers";
+import { getMosqueStaffList, computeOfstedScore, computeComplianceIssues, ofstedColour, getBankChangesForMosque, dismissBankChange } from "../lib/staffHelpers";
 import { money } from "../lib/format";
 
 // ====================================================================
@@ -71,14 +71,14 @@ const KpiCard = ({ icon: Icon, label, value, sub, tone = "stone", cta, onClick }
   </button>
 );
 
-const MosqueOverview = ({ mosque, authedUser, onNavigate }) => {
+const MosqueOverview = ({ mosque, authedUser, onNavigate, onOpenProfile }) => {
   const mosqueId = mosque?.id;
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [prefs, setPrefs] = useState({ keys: [...DEFAULT_KEYS], clean: false });
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [data, setData] = useState({ enrollments: [], fees: [], attToday: [], staff: [], events: [], hifz: [], classes: [] });
+  const [data, setData] = useState({ enrollments: [], fees: [], attToday: [], staff: [], events: [], hifz: [], classes: [], bankChanges: [] });
 
   // Greeting name + saved layout (dashboard_prefs). Null/malformed → defaults.
   useEffect(() => {
@@ -100,9 +100,9 @@ const MosqueOverview = ({ mosque, authedUser, onNavigate }) => {
       getMosqueEnrollments(mosqueId), getFeeRecords(mosqueId),
       getMosqueAttendanceForDate(mosqueId, todayStr()), getMosqueStaffList(mosqueId),
       getMosqueEvents(mosqueId).catch(() => []), getMosqueRecentHifz(mosqueId).catch(() => []),
-      getMadrasaClasses(mosqueId).catch(() => []),
-    ]).then(([enrollments, fees, attToday, staff, events, hifz, classes]) => {
-      if (alive) setData({ enrollments, fees, attToday, staff, events, hifz, classes });
+      getMadrasaClasses(mosqueId).catch(() => []), getBankChangesForMosque(mosqueId).catch(() => []),
+    ]).then(([enrollments, fees, attToday, staff, events, hifz, classes, bankChanges]) => {
+      if (alive) setData({ enrollments, fees, attToday, staff, events, hifz, classes, bankChanges });
     }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [mosqueId]);
@@ -208,9 +208,27 @@ const MosqueOverview = ({ mosque, authedUser, onNavigate }) => {
       .slice(0, 5);
   }, [data.fees, studentMaps]);
 
+  // Dismiss a bank-change insight — optimistic removal, revert on failure.
+  const doDismissBank = async (id) => {
+    const prev = data.bankChanges;
+    setData((d) => ({ ...d, bankChanges: d.bankChanges.filter((b) => b.id !== id) }));
+    const { error } = await dismissBankChange(id);
+    if (error) setData((d) => ({ ...d, bankChanges: prev }));
+  };
+
   // ---- Rules-based insights (client-side, from already-loaded data) ----
   const insights = useMemo(() => {
     const out = [];
+    // (0) Bank-detail changes in the last 35 days — anti-fraud / payroll check.
+    //     Prepended (most time-critical); each independently dismissible.
+    for (const b of (data.bankChanges || [])) {
+      const nm = data.staff.find((s) => s.id === b.staff_id)?.name || "A staff member";
+      const when = new Date(b.changed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      out.push({ key: `bankchange:${b.id}`, icon: Landmark, tone: "amber",
+        text: `${nm}'s bank details were updated on ${when} — confirm with your payroll before the next pay run.`,
+        go: () => (b.staff_id ? onOpenProfile?.(b.staff_id) : onNavigate?.("people", "staff")),
+        dismiss: () => doDismissBank(b.id) });
+    }
     // (1) A class today with no teacher assigned. Substitute suggestion (who's
     //     taught it before + is free) needs cover-history + a leave feed we don't
     //     have cleanly — shipped plain; substitute rule logged as a follow-up.
@@ -239,7 +257,7 @@ const MosqueOverview = ({ mosque, authedUser, onNavigate }) => {
     // Attendance-trend (3+ weeks down) deliberately NOT shipped — reliable trend
     // detection from the raw feed is error-prone; dropped, not approximated (follow-up).
     return out;
-  }, [todayClasses, data.fees, kpi.gaps, kpi.ofsted, studentMaps]);
+  }, [todayClasses, data.fees, data.bankChanges, data.staff, kpi.gaps, kpi.ofsted, studentMaps]);
 
   const feesNoStructure = !loading && data.fees.length === 0; // £0 because no fee set up (vs nothing owed)
 
@@ -436,12 +454,18 @@ const MosqueOverview = ({ mosque, authedUser, onNavigate }) => {
                 {insights.map((ins) => {
                   const Icon = ins.icon;
                   return (
-                    <li key={ins.key}>
-                      <button onClick={ins.go} className="w-full text-left flex items-start gap-2.5 p-2.5 rounded-xl border border-stone-100 hover:border-stone-300 hover:bg-stone-50 transition">
+                    <li key={ins.key} className="flex items-stretch gap-1">
+                      <button onClick={ins.go} className="flex-1 text-left flex items-start gap-2.5 p-2.5 rounded-xl border border-stone-100 hover:border-stone-300 hover:bg-stone-50 transition">
                         <span className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg ${toneCls[ins.tone]}`}><Icon size={14} /></span>
                         <span className="text-sm text-stone-700 flex-1">{ins.text}</span>
                         <ArrowRight size={14} className="text-stone-300 mt-0.5 shrink-0" />
                       </button>
+                      {ins.dismiss && (
+                        <button onClick={(e) => { e.stopPropagation(); ins.dismiss(); }} aria-label="Dismiss"
+                          className="shrink-0 px-2 rounded-xl border border-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-50 transition">
+                          <X size={14} />
+                        </button>
+                      )}
                     </li>
                   );
                 })}

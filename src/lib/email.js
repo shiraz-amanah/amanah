@@ -361,3 +361,11 @@ export function sendContractReadyToSign(staffId, { contractType, signUrl } = {})
 export function sendContractSignedCopy(staffId, { contractType, signedDate } = {}) {
   return postTransactional({ intent: 'contract_signed_copy', staffId, contractType, signedDate });
 }
+
+// ── Commit C — anti-fraud bank-details-changed notification. Owner-authed; the
+// staff email is resolved server-side; the body carries NO bank values. On a
+// successful send the server flips notified=true on the change row. Returns
+// { ok, notified, sent } (sent=false / notified=false when no email on file).
+export function sendBankDetailsChanged(staffId, changeId) {
+  return postTransactional({ intent: 'bank_details_changed', staffId, changeId });
+}

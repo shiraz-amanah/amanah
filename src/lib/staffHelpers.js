@@ -96,6 +96,58 @@ export async function getStaffSensitive(staffId) {
   return { data: data || null, error: null };
 }
 
+// ── Bank details (Commit C) ─────────────────────────────────────────
+// Owner-only MASKED read (migration 161) — server masks; NO plaintext to client;
+// NOT audit-logged (masked ≠ reveal). Returns { saved, account_name, sort_code,
+// account_number } (masked; nulls when unset), or null on error.
+export async function getStaffBankMasked(staffId) {
+  if (!staffId) return null;
+  const { data, error } = await supabase.rpc("get_staff_bank_masked", { p_staff_id: staffId });
+  if (error) { console.error("getStaffBankMasked:", error); return null; }
+  return data || null;
+}
+
+// Owner-only writer (migration 159). Validates + upserts NORMALISED plaintext,
+// logs a masked bank_changes row. Returns { success, change_id, staff_has_email }
+// on success, or { error } with the RPC's message (sort_code_invalid /
+// account_number_invalid / account_name_required / not_authorised / …).
+export async function updateStaffBankDetails(staffId, { accountName, sortCode, accountNumber } = {}) {
+  if (!staffId) return { error: "staffId required" };
+  const { data, error } = await supabase.rpc("update_staff_bank_details", {
+    p_staff_id: staffId,
+    p_account_name: accountName ?? "",
+    p_sort_code: sortCode ?? "",
+    p_account_number: accountNumber ?? "",
+  });
+  if (error) { console.error("updateStaffBankDetails:", error); return { error: error.message || "update_failed" }; }
+  return data || { error: "no_result" };
+}
+
+// Undismissed bank changes for the mosque within the last 35 days — powers the
+// dashboard-insight card (item 3). RLS (158) already scopes to owner/admin; names
+// are resolved client-side from the already-loaded staff list. Returns [] on error.
+export async function getBankChangesForMosque(mosqueId) {
+  if (!mosqueId) return [];
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("mosque_staff_bank_changes")
+    .select("id, staff_id, changed_at")
+    .eq("mosque_id", mosqueId).eq("dismissed", false)
+    .gte("changed_at", cutoff)
+    .order("changed_at", { ascending: false });
+  if (error) { console.error("getBankChangesForMosque:", error); return []; }
+  return data || [];
+}
+
+// Dismiss a bank-change insight (migration 160, owner-gated SECURITY DEFINER —
+// sets dismissed + dismissed_at + dismissed_by). Returns { error } or {}.
+export async function dismissBankChange(changeId) {
+  if (!changeId) return { error: "changeId required" };
+  const { error } = await supabase.rpc("dismiss_bank_change", { p_change_id: changeId });
+  if (error) { console.error("dismissBankChange:", error); return { error: error.message || "dismiss_failed" }; }
+  return {};
+}
+
 // ── Ijazahs ─────────────────────────────────────────────────────────
 export async function getStaffIjazahs(staffId) {
   if (!staffId) return [];
