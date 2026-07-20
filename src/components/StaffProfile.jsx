@@ -34,7 +34,7 @@ import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
 import StaffContractGenerator from "./StaffContractGenerator";
 import {
-  getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
+  getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffNi, getStaffEmployment,
   getStaffBankMasked, updateStaffBankDetails,
   updateStaffEmployment, dismissContractFlag, getMosqueRoles, applyRoleDefaults,
   anonymiseStaff, suspendStaff,
@@ -87,6 +87,12 @@ const TONE_TEXT = { rose: "text-rose-700", amber: "text-amber-700", orange: "tex
 const bankMaskName = (v) => { const t = (v || "").trim(); return t ? t[0] + "••••" : null; };
 const bankMaskSort = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••-••-••" : null; };
 const bankMaskAcct = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••••" + d.slice(-4) : null; };
+
+// D3 — NI mask. UK NI is 2 letters + 6 digits + 1 letter (QQ123456C), so show the
+// leading pair and the trailing suffix letter: QQ•••••••C. Fixed bullet count (the
+// format is fixed-width anyway, so this leaks nothing beyond "an NI is on file").
+// Masked purely client-side — get_staff_sensitive already hands us the plaintext.
+const maskNi = (v) => { const t = (v || "").replace(/\s/g, ""); return t ? t.slice(0, 2) + "•••••••" + (t.length > 2 ? t.slice(-1) : "") : null; };
 
 // Mirrors AddStaffModal's ROLES / EMP_TYPES — that file is the source of truth for
 // the mosque_staff_employment_type_check values; keep these in sync with it.
@@ -518,6 +524,76 @@ function EmploymentEditForm({ staffId, mosque, row, employment, salaryPence, hou
   );
 }
 
+// D3 — inline Personal editor (owner-only). Phone lives on mosque_staff (straight
+// through updateMosqueStaff); address + emergency contact live on
+// mosque_staff_employment (upsertMosqueStaffEmployment). NI follows the BANK
+// pattern: the field starts BLANK — never pre-filled with a revealed value — and
+// is only written when the owner types a new one, so an untouched save can't
+// silently rewrite (or clear) the stored NI.
+// Deliberately NOT here: contract_terms_changed_at (none of these are contract
+// terms) and any salary audit (the view audit is get_staff_ni's job).
+function PersonalEditForm({ staffId, mosqueId, row, sensitive, onCancel, onSaved }) {
+  const [phone, setPhone] = useState(sensitive?.phone ?? row.phone ?? "");
+  const [address, setAddress] = useState(sensitive?.address ?? "");
+  const [ecName, setEcName] = useState(sensitive?.emergency_contact_name ?? "");
+  const [ecPhone, setEcPhone] = useState(sensitive?.emergency_contact_phone ?? "");
+  const [ni, setNi] = useState(""); // always blank — re-entry to change
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const save = async () => {
+    setBusy(true); setErr(null);
+    const phoneNew = phone.trim() || null;
+    if (phoneNew !== (sensitive?.phone ?? row.phone ?? null)) {
+      const { error } = await updateMosqueStaff(staffId, { phone: phoneNew });
+      if (error) { setErr("Couldn't save the phone number — please try again."); setBusy(false); return; }
+    }
+
+    // Employment-side fields. NI is omitted entirely when the box is blank, so a
+    // blank box means "leave it alone", not "clear it".
+    const emp = {
+      address: address.trim() || null,
+      emergency_contact_name: ecName.trim() || null,
+      emergency_contact_phone: ecPhone.trim() || null,
+    };
+    const niNew = ni.trim();
+    if (niNew) emp.ni_number = niNew;
+    const { error: empErr } = await upsertMosqueStaffEmployment(staffId, mosqueId, emp);
+    if (empErr) { setErr("Couldn't save address / emergency contact — please try again."); setBusy(false); return; }
+
+    setBusy(false);
+    onSaved({ phone: phoneNew, ...emp, niNew: niNew || null });
+  };
+
+  const inputCls = "w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
+  const lbl = "text-xs font-medium text-stone-500";
+
+  return (
+    <div className="space-y-3">
+      <div><label className={lbl}>Phone</label>
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} inputMode="tel" /></div>
+      <div><label className={lbl}>Address</label>
+        <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className={inputCls} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Emergency contact — name</label>
+          <input value={ecName} onChange={(e) => setEcName(e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>Emergency contact — phone</label>
+          <input value={ecPhone} onChange={(e) => setEcPhone(e.target.value)} className={inputCls} inputMode="tel" /></div>
+      </div>
+      <div><label className={lbl}>National Insurance number</label>
+        <input value={ni} onChange={(e) => setNi(e.target.value)} className={inputCls}
+          placeholder={sensitive?.ni_number ? "•••••••• on file — re-enter to change" : "QQ123456C"} />
+        <p className="text-xs text-stone-400 mt-1">Leave blank to keep the number on file.</p></div>
+
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg">Cancel</button>
+        <button onClick={save} disabled={busy} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy && <Loader2 size={14} className="animate-spin" />} Save</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffProfile({ staffId, section = "", navigate, goBack, mosque, authedUser, onBack, onMessage }) {
   const mosqueId = mosque?.id;
   const [row, setRow] = useState(null);
@@ -539,6 +615,11 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   const [salary, setSalary] = useState(undefined); // undefined = not revealed (salary_pence)
   const [hourly, setHourly] = useState(undefined);  // undefined = not revealed (hourly_rate_pence)
   const [salLoading, setSalLoading] = useState(false);
+  // D3 — NI reveal is its own audited call (get_staff_ni → 'ni_number_viewed'),
+  // separate from the sensitive bundle. undefined = not revealed.
+  const [ni, setNi] = useState(undefined);
+  const [niLoading, setNiLoading] = useState(false);
+  const [personalEditing, setPersonalEditing] = useState(false);
   const [employment, setEmployment] = useState(null); // §3 terms (get_staff_employment)
   const [empEditing, setEmpEditing] = useState(false); // D1 Employment inline edit
   const [roles, setRoles] = useState([]);              // D1 mosque_roles for the role dropdown
@@ -627,6 +708,26 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
     const { salaryPence, hourlyRatePence } = await getStaffSalary(staffId);
     setSalary(salaryPence); setHourly(hourlyRatePence);
     setSalLoading(false);
+  };
+  const revealNi = async () => {
+    if (ni !== undefined || niLoading) return;
+    setNiLoading(true);
+    const { niNumber } = await getStaffNi(staffId);
+    setNi(niNumber);
+    setNiLoading(false);
+  };
+  // D3: after a Personal save, merge the new values into the already-revealed
+  // bundle rather than re-calling get_staff_sensitive — a refetch would write a
+  // second 'sensitive_data_viewed' row the owner never asked for.
+  const onPersonalSaved = ({ phone, address, emergency_contact_name, emergency_contact_phone, niNew }) => {
+    setSensitive((s) => (s ? {
+      ...s, phone, address, emergency_contact_name, emergency_contact_phone,
+      ...(niNew ? { ni_number: niNew } : {}), // keeps the mask honest after a change
+    } : s));
+    if (niNew) setNi(undefined); // revealed plaintext is stale — re-reveal (and re-audit)
+    setPersonalEditing(false);
+    load(); // row.phone lives on mosque_staff and feeds the header
+    flash("Personal details updated.");
   };
   // D1: enter Employment edit mode — ensure pay is revealed (audited) so the form
   // can prefill salary + hourly, then open the inline editor.
@@ -881,6 +982,19 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
               )}
               {section === "personal" && (
                 <Section icon={UserCog} title="Personal" subtitle="Contact and identity details" defaultOpen>
+                  {sensitive && isOwner && personalEditing ? (
+                    <PersonalEditForm
+                      staffId={staffId} mosqueId={mosqueId} row={row} sensitive={sensitive}
+                      onCancel={() => setPersonalEditing(false)} onSaved={onPersonalSaved} />
+                  ) : (
+                  <>
+                  {sensitive && isOwner && (
+                    <div className="flex justify-end -mt-1 mb-1">
+                      <button onClick={() => setPersonalEditing(true)} className="text-xs text-brand-700 hover:text-brand-900 font-medium inline-flex items-center gap-1">
+                        <Pencil size={12} /> Edit
+                      </button>
+                    </div>
+                  )}
                   <Field label="Email" value={row.email} />
                   {sensitive ? (
                     <>
@@ -890,6 +1004,23 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                       <Field label="Nationality" value={sensitive.nationality} />
                       <Field label="Emergency contact" value={sensitive.emergency_contact_name ? `${sensitive.emergency_contact_name} · ${sensitive.emergency_contact_phone || "—"}` : "—"} />
                       <Field label="Next of kin" value={sensitive.next_of_kin} />
+                      {/* NI — masked by default; the plaintext reveal is its own
+                          audited call (get_staff_ni → 'ni_number_viewed'). */}
+                      <div className="flex items-start justify-between gap-3 py-1.5">
+                        <span className="text-sm text-stone-500 shrink-0">NI number</span>
+                        <span className="text-sm text-stone-800 font-medium text-right">
+                          {ni !== undefined ? (ni || "—")
+                            : !sensitive.ni_number ? "—"
+                            : (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="tracking-wider">{maskNi(sensitive.ni_number)}</span>
+                                <button onClick={revealNi} disabled={niLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
+                                  {niLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
+                                </button>
+                              </span>
+                            )}
+                        </span>
+                      </div>
                     </>
                   ) : (
                     <div className="py-2">
@@ -897,6 +1028,8 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                         {sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal personal details — access is logged
                       </button>
                     </div>
+                  )}
+                  </>
                   )}
                 </Section>
               )}

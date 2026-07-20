@@ -229,6 +229,20 @@ export async function getStaffSensitive(staffId) {
   return { data: data || null, error: null };
 }
 
+// D3 (migration 166): NI number alone — OWNER ONLY, audited as its own action
+// ('ni_number_viewed'), so an NI reveal is distinguishable in the audit log from
+// the broad 'sensitive_data_viewed' bundle. Returns { niNumber, error }.
+// NOTE: get_staff_sensitive above ALSO carries plaintext ni_number, so the
+// masked NI display in the Personal panel is a UI control + a dedicated audit
+// line — not a transport barrier. Stripping NI out of get_staff_sensitive would
+// need its own migration.
+export async function getStaffNi(staffId) {
+  if (!staffId) return { niNumber: null, error: { message: "staffId required" } };
+  const { data, error } = await supabase.rpc("get_staff_ni", { p_staff_id: staffId });
+  if (error) { console.error("getStaffNi:", error); return { niNumber: null, error }; }
+  return { niNumber: data?.ni_number ?? null, error: null };
+}
+
 // ── Bank details (Commit C) ─────────────────────────────────────────
 // Owner-only MASKED read (migration 161) — server masks; NO plaintext to client;
 // NOT audit-logged (masked ≠ reveal). Returns { saved, account_name, sort_code,
