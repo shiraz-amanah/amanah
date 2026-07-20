@@ -30,7 +30,7 @@ const inputCls = "mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 
 // pre-filled edit-only flow that returns an UNSIGNED contract via onSaveDraft
 // and never signs/uploads. staffRow is optional in draft mode (no staff row
 // exists yet at invite time).
-export default function StaffContractGenerator({ staffRow, mosque, authedUser, onClose, mode = "sign", initialType = null, initialData = null, onSaveDraft }) { // eslint-disable-line no-unused-vars
+export default function StaffContractGenerator({ staffRow, mosque, authedUser, onClose, mode = "sign", initialType = null, initialData = null, onSaveDraft, onGenerated }) { // eslint-disable-line no-unused-vars
   const isDraft = mode === "draft";
   const staffId = staffRow?.id, mosqueId = mosque?.id;
   const [step, setStep] = useState(isDraft && initialType ? 3 : 1);
@@ -91,10 +91,20 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
       const [{ salaryPence }, emp, sens] = await Promise.all([
         getStaffSalary(staffId), getStaffEmployment(staffId), getStaffSensitive(staffId),
       ]);
+      // D1: the notice contract fields are free-text ("4 weeks"). Prefer the new
+      // employer/employee week splits (migration 162); fall back to the legacy
+      // single notice_period_days (applied to both parties) for rows not yet edited
+      // via D1. Keeps the contract and the Employment editor in agreement on notice.
+      const fmtNotice = (weeks, daysFallback) =>
+        weeks != null ? `${weeks} week${weeks === 1 ? "" : "s"}`
+        : daysFallback != null ? `${daysFallback} day${daysFallback === 1 ? "" : "s"}`
+        : "";
       setD((x) => ({ ...x,
         salaryPence: salaryPence ?? null,
         hours: emp?.hours_per_week ?? null,
         noticePeriod: emp?.notice_period_days ?? null,
+        noticePeriodEmployer: x.noticePeriodEmployer || fmtNotice(emp?.notice_period_employer_weeks, emp?.notice_period_days),
+        noticePeriodEmployee: x.noticePeriodEmployee || fmtNotice(emp?.notice_period_employee_weeks, emp?.notice_period_days),
         probationEndDate: emp?.probation_end_date ?? "",
         employeeAddress: sens?.data?.address && sens.data.address !== "[REDACTED]" ? sens.data.address : "",
       }));
@@ -131,7 +141,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   const now = () => new Date().toLocaleString("en-GB");
   const signAdmin = () => { if (!adminName.trim()) return; setAdminSig({ name: adminName.trim(), role: "Mosque representative", at: now() }); };
   const signEmployee = () => { if (!empName.trim()) return; setEmpSig({ name: empName.trim(), role: m?.employee === false ? "Contractor/Volunteer" : "Employee", at: now() }); };
-  const sendRemote = async () => { await sendContractReadyToSign(staffId, { contractType: type }); setNote("Sign request emailed to the employee (remote signing lands in RBAC-D)."); };
+  const sendRemote = async () => { await sendContractReadyToSign(staffId, { contractType: type }); setNote("Sign request emailed to the employee."); };
 
   const finalise = async () => {
     if (!adminSig || !empSig) return;
@@ -146,6 +156,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
     await logContractSigned(staffId, type, empSig.name, path);
     sendContractSignedCopy(staffId, { contractType: type, signedDate: new Date().toISOString() }).catch(() => {});
     setBusy(false); setDone(true);
+    onGenerated?.(); // D1: a fresh signed contract reflects current terms → clears the contract-terms-changed flag
   };
 
   // Draft mode: hand the unsigned contract back to the caller (AddStaffModal),

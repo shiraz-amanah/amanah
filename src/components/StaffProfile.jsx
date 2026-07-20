@@ -34,8 +34,10 @@ import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
 import StaffContractGenerator from "./StaffContractGenerator";
 import {
-  getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffEmployment,
+  cleanRole,
+  getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffNi, getStaffEmployment,
   getStaffBankMasked, updateStaffBankDetails,
+  updateStaffEmployment, dismissContractFlag, getMosqueRoles, applyRoleDefaults,
   anonymiseStaff, suspendStaff,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
@@ -59,17 +61,8 @@ import { sendBankDetailsChanged } from "../lib/email";
 // The section component still exists below; this flag just gates its render.
 const DEFERRED_MARKETPLACE = true;
 
-// Guard against leaked marketplace headlines in the free-text `role` field
-// (prod data: a linked scholar's "Qualified Quran Teacher for Children | Bradford"
-// landed in role). Display-only: cut at the first pipe, collapse whitespace,
-// length-cap. Root data cleanup of the offending rows is a separate follow-up
-// (logged in NOTES.md) — this only stops the leak reaching the UI.
-const cleanRole = (role) => {
-  if (!role) return null;
-  let r = String(role).split("|")[0].replace(/\s+/g, " ").trim();
-  if (r.length > 60) r = r.slice(0, 57).trimEnd() + "…";
-  return r || null;
-};
+// cleanRole (leaked-marketplace-headline guard) now lives in staffHelpers as the
+// single definition — StaffDirectory needs the same guard on its list column.
 
 // Humanizers — never render a raw enum / snake_case / db value to the user.
 const INVITE_LABELS = { not_invited: "Not invited yet", invited: "Invited", active: "Active", expired: "Invite expired" };
@@ -86,6 +79,12 @@ const TONE_TEXT = { rose: "text-rose-700", amber: "text-amber-700", orange: "tex
 const bankMaskName = (v) => { const t = (v || "").trim(); return t ? t[0] + "••••" : null; };
 const bankMaskSort = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••-••-••" : null; };
 const bankMaskAcct = (v) => { const d = (v || "").replace(/\D/g, ""); return d ? "••••" + d.slice(-4) : null; };
+
+// D3 — NI mask. UK NI is 2 letters + 6 digits + 1 letter (QQ123456C), so show the
+// leading pair and the trailing suffix letter: QQ•••••••C. Fixed bullet count (the
+// format is fixed-width anyway, so this leaks nothing beyond "an NI is on file").
+// Masked purely client-side — get_staff_sensitive already hands us the plaintext.
+const maskNi = (v) => { const t = (v || "").replace(/\s/g, ""); return t ? t.slice(0, 2) + "•••••••" + (t.length > 2 ? t.slice(-1) : "") : null; };
 
 // Mirrors AddStaffModal's ROLES / EMP_TYPES — that file is the source of truth for
 // the mosque_staff_employment_type_check values; keep these in sync with it.
@@ -161,7 +160,7 @@ function AnonymiseDialog({ name, busy, onCancel, onConfirm }) {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onCancel}>
       <div className="bg-white rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-rose-700 flex items-center gap-2"><AlertTriangle size={18} /> Anonymise this record</h3>
-        <p className="text-sm text-stone-600 mt-2">This permanently replaces {name || "this person"}'s personal data with <span className="font-medium">[REDACTED]</span>. It <span className="font-medium">cannot be undone</span> — only the compliance audit trail is kept.</p>
+        <p className="text-sm text-stone-600 mt-2">This permanently replaces {name || "this person"}'s personal data with <span className="font-medium">redaction markers</span>. It <span className="font-medium">cannot be undone</span> — only the compliance audit trail remains.</p>
         <p className="text-sm text-stone-600 mt-3">Type <span className="font-semibold text-stone-900">{name}</span> to confirm:</p>
         <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={name}
           className="mt-1.5 w-full border border-stone-300 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-200" />
@@ -367,6 +366,226 @@ function BankDetailsModal({ staffId, staffName, oldMasked, onClose, onSaved }) {
   );
 }
 
+// D1 — inline Employment editor. Group 1 (role/type/dept/start) → mosque_staff via
+// updateMosqueStaff; Groups 2/3 + pension → update_staff_employment RPC (salary
+// audit fires inside); annual leave → mosque_staff (salaried only). Any Group 1/2/3
+// change stamps contract_terms_changed_at (client-driven) → contract-flag banner.
+function EmploymentEditForm({ staffId, mosque, row, employment, salaryPence, hourlyRatePence, roles, onCancel, onSaved }) {
+  const roleNames = roles.map((r) => r.name);
+  const roleLeaked = row.role && !roleNames.includes(row.role);
+  const penceToStr = (p) => (p != null ? String(p / 100) : "");
+  const [role, setRole] = useState(roleLeaked ? "" : (row.role || ""));
+  const [empType, setEmpType] = useState(EMP_TYPE_OPTIONS.some(([v]) => v === row.employmentType) ? row.employmentType : "");
+  const [dept, setDept] = useState(row.department || "");
+  const [startDate, setStartDate] = useState(row.startDate || "");
+  const [salaryStr, setSalaryStr] = useState(penceToStr(salaryPence));
+  const [hourlyStr, setHourlyStr] = useState(penceToStr(hourlyRatePence)); // kept even when hidden
+  const [hours, setHours] = useState(employment?.hours_per_week != null ? String(employment.hours_per_week) : "");
+  const [contractType, setContractType] = useState(employment?.contract_type || "");
+  const [noticeEmp, setNoticeEmp] = useState(employment?.notice_period_employer_weeks != null ? String(employment.notice_period_employer_weeks) : "");
+  const [noticeEe, setNoticeEe] = useState(employment?.notice_period_employee_weeks != null ? String(employment.notice_period_employee_weeks) : "");
+  const [probation, setProbation] = useState(employment?.probation_end_date || "");
+  const [placeOfWork, setPlaceOfWork] = useState(employment?.place_of_work || "");
+  const [pension, setPension] = useState(!!employment?.pension_enrolled);
+  const [annualLeave, setAnnualLeave] = useState(row.annualLeaveDays != null ? String(row.annualLeaveDays) : "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const zeroHours = empType === "zero_hours";
+  const toPence = (str) => { const n = parseFloat(str); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null; };
+  const toIntOrNull = (str) => { if (str == null || String(str).trim() === "") return null; const n = parseInt(str, 10); return Number.isFinite(n) ? n : null; };
+  const toNumOrNull = (str) => { if (str == null || String(str).trim() === "") return null; const n = parseFloat(str); return Number.isFinite(n) ? n : null; };
+
+  const save = async () => {
+    setBusy(true); setErr(null);
+    const salaryPenceNew = salaryStr.trim() === "" ? null : toPence(salaryStr);
+    const hourlyPenceNew = hourlyStr.trim() === "" ? null : toPence(hourlyStr);
+    if (salaryStr.trim() !== "" && salaryPenceNew == null) { setErr("Salary must be a valid amount."); setBusy(false); return; }
+    if (hourlyStr.trim() !== "" && hourlyPenceNew == null) { setErr("Hourly rate must be a valid amount."); setBusy(false); return; }
+
+    const empRes = await updateStaffEmployment(staffId, {
+      salaryPence: salaryPenceNew, hourlyRatePence: hourlyPenceNew,
+      hoursPerWeek: toNumOrNull(hours), contractType: contractType.trim() || null,
+      noticePeriodEmployerWeeks: toIntOrNull(noticeEmp), noticePeriodEmployeeWeeks: toIntOrNull(noticeEe),
+      probationEndDate: probation || null, placeOfWork: placeOfWork.trim() || null, pensionEnrolled: pension,
+    });
+    if (empRes?.error || !empRes?.success) {
+      const c = empRes?.error || "";
+      setErr(c.includes("salary_invalid") ? "Salary must be a valid amount."
+        : c.includes("hourly_rate_invalid") ? "Hourly rate must be a valid amount."
+        : c.includes("hours_invalid") ? "Hours per week must be a valid number."
+        : c.includes("not_authorised") ? "Only the mosque owner can change employment terms."
+        : "Couldn't save employment terms — please try again.");
+      setBusy(false); return;
+    }
+
+    const g1Changed = role !== (roleLeaked ? "" : (row.role || "")) || empType !== (row.employmentType || "")
+      || (dept || null) !== (row.department || null) || (startDate || null) !== (row.startDate || null);
+    const g23Changed = salaryPenceNew !== (salaryPence ?? null) || hourlyPenceNew !== (hourlyRatePence ?? null)
+      || toNumOrNull(hours) !== (employment?.hours_per_week ?? null)
+      || (contractType.trim() || null) !== (employment?.contract_type ?? null)
+      || toIntOrNull(noticeEmp) !== (employment?.notice_period_employer_weeks ?? null)
+      || toIntOrNull(noticeEe) !== (employment?.notice_period_employee_weeks ?? null)
+      || (probation || null) !== (employment?.probation_end_date ?? null)
+      || (placeOfWork.trim() || null) !== (employment?.place_of_work ?? null);
+    const contractRelevant = g1Changed || g23Changed;
+
+    // role / employment_type omitted when blank (role NOT NULL, employment_type CHECK-constrained).
+    const ms = { department: dept || null, start_date: startDate || null };
+    if (role) ms.role = role;
+    if (empType) ms.employment_type = empType;
+    if (!zeroHours) ms.annual_leave_days = toIntOrNull(annualLeave);
+    if (contractRelevant) ms.contract_terms_changed_at = new Date().toISOString();
+    const msRes = await updateMosqueStaff(staffId, ms);
+    if (msRes?.error) { setBusy(false); setErr("Terms saved, but role/identity didn't save — please retry."); return; }
+
+    // D2/B — silent push: when the role CHANGED to one with a permission preset,
+    // apply it to the staff member's RBAC record (no confirmation; the main
+    // "Employment updated" toast covers the save; failures don't block it).
+    if (g1Changed && role && role !== (roleLeaked ? "" : (row.role || ""))) {
+      const roleObj = roles.find((r) => r.name === role);
+      if (roleObj?.default_role_preset) {
+        await applyRoleDefaults(staffId, mosque?.id, {
+          rolePreset: roleObj.default_role_preset,
+          assignedClasses: roleObj.default_assigned_classes ?? [],
+        }).catch(() => {});
+      }
+    }
+    setBusy(false);
+    onSaved();
+  };
+
+  const inputCls = "w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
+  const lbl = "text-xs font-medium text-stone-500";
+  const grp = "text-xs font-semibold text-stone-600 uppercase tracking-wide mt-4 mb-1";
+
+  return (
+    <div className="space-y-1">
+      <p className={grp} style={{ marginTop: 0 }}>Role &amp; type</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={lbl}>Role</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls}>
+            <option value="">Select…</option>
+            {roles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
+          </select>
+          {roleLeaked && <p className="text-xs text-amber-600 mt-1">Current value “{row.role}” isn’t a standard role — pick one.</p>}
+        </div>
+        <div>
+          <label className={lbl}>Employment type</label>
+          <select value={empType} onChange={(e) => setEmpType(e.target.value)} className={inputCls}>
+            <option value="">Select…</option>
+            {EMP_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <div><label className={lbl}>Department</label><input value={dept} onChange={(e) => setDept(e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>Start date</label><input type="date" value={startDate || ""} onChange={(e) => setStartDate(e.target.value)} className={inputCls} /></div>
+      </div>
+
+      <p className={grp}>Pay</p>
+      <div className="grid grid-cols-2 gap-3">
+        {zeroHours
+          ? <div><label className={lbl}>Hourly rate (£/hour)</label><input value={hourlyStr} onChange={(e) => setHourlyStr(e.target.value)} className={inputCls} inputMode="decimal" placeholder="e.g. 15.00" /></div>
+          : <div><label className={lbl}>Salary (£/year)</label><input value={salaryStr} onChange={(e) => setSalaryStr(e.target.value)} className={inputCls} inputMode="decimal" placeholder="e.g. 28000" /></div>}
+        <div><label className={lbl}>Hours / week{zeroHours ? " (optional)" : ""}</label><input value={hours} onChange={(e) => setHours(e.target.value)} className={inputCls} inputMode="decimal" /></div>
+        <div className="col-span-2"><label className={lbl}>Contract type</label><input value={contractType} onChange={(e) => setContractType(e.target.value)} className={inputCls} placeholder="e.g. permanent / fixed_term" /></div>
+      </div>
+
+      <p className={grp}>Terms</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Notice — employer (weeks)</label><input value={noticeEmp} onChange={(e) => setNoticeEmp(e.target.value)} className={inputCls} inputMode="numeric" /></div>
+        <div><label className={lbl}>Notice — employee (weeks)</label><input value={noticeEe} onChange={(e) => setNoticeEe(e.target.value)} className={inputCls} inputMode="numeric" /></div>
+        <div><label className={lbl}>Probation end</label><input type="date" value={probation || ""} onChange={(e) => setProbation(e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>Place of work</label><input value={placeOfWork} onChange={(e) => setPlaceOfWork(e.target.value)} className={inputCls} placeholder={mosque?.address ? "Blank → mosque address on the contract" : ""} /></div>
+      </div>
+
+      <p className={grp}>Benefits</p>
+      <div className="grid grid-cols-2 gap-3 items-center">
+        <label className="inline-flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" checked={pension} onChange={(e) => setPension(e.target.checked)} /> Pension enrolled</label>
+        {zeroHours
+          ? <div><label className={lbl}>Annual leave</label><p className="text-sm text-stone-500 py-2">Accrues at 12.07%</p></div>
+          : <div><label className={lbl}>Annual leave (days)</label><input value={annualLeave} onChange={(e) => setAnnualLeave(e.target.value)} className={inputCls} inputMode="numeric" /></div>}
+      </div>
+
+      {err && <p className="text-sm text-rose-600 mt-2">{err}</p>}
+      <div className="flex justify-end gap-2 pt-3">
+        <button onClick={onCancel} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg">Cancel</button>
+        <button onClick={save} disabled={busy} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy && <Loader2 size={14} className="animate-spin" />} Save</button>
+      </div>
+    </div>
+  );
+}
+
+// D3 — inline Personal editor (owner-only). Phone lives on mosque_staff (straight
+// through updateMosqueStaff); address + emergency contact live on
+// mosque_staff_employment (upsertMosqueStaffEmployment). NI follows the BANK
+// pattern: the field starts BLANK — never pre-filled with a revealed value — and
+// is only written when the owner types a new one, so an untouched save can't
+// silently rewrite (or clear) the stored NI.
+// Deliberately NOT here: contract_terms_changed_at (none of these are contract
+// terms) and any salary audit (the view audit is get_staff_ni's job).
+function PersonalEditForm({ staffId, mosqueId, row, sensitive, onCancel, onSaved }) {
+  const [phone, setPhone] = useState(sensitive?.phone ?? row.phone ?? "");
+  const [address, setAddress] = useState(sensitive?.address ?? "");
+  const [ecName, setEcName] = useState(sensitive?.emergency_contact_name ?? "");
+  const [ecPhone, setEcPhone] = useState(sensitive?.emergency_contact_phone ?? "");
+  const [ni, setNi] = useState(""); // always blank — re-entry to change
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const save = async () => {
+    setBusy(true); setErr(null);
+    const phoneNew = phone.trim() || null;
+    if (phoneNew !== (sensitive?.phone ?? row.phone ?? null)) {
+      const { error } = await updateMosqueStaff(staffId, { phone: phoneNew });
+      if (error) { setErr("Couldn't save the phone number — please try again."); setBusy(false); return; }
+    }
+
+    // Employment-side fields. NI is omitted entirely when the box is blank, so a
+    // blank box means "leave it alone", not "clear it".
+    const emp = {
+      address: address.trim() || null,
+      emergency_contact_name: ecName.trim() || null,
+      emergency_contact_phone: ecPhone.trim() || null,
+    };
+    const niNew = ni.trim();
+    if (niNew) emp.ni_number = niNew;
+    const { error: empErr } = await upsertMosqueStaffEmployment(staffId, mosqueId, emp);
+    if (empErr) { setErr("Couldn't save address / emergency contact — please try again."); setBusy(false); return; }
+
+    setBusy(false);
+    onSaved({ phone: phoneNew, ...emp, niNew: niNew || null });
+  };
+
+  const inputCls = "w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400";
+  const lbl = "text-xs font-medium text-stone-500";
+
+  return (
+    <div className="space-y-3">
+      <div><label className={lbl}>Phone</label>
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} inputMode="tel" /></div>
+      <div><label className={lbl}>Address</label>
+        <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className={inputCls} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Emergency contact — name</label>
+          <input value={ecName} onChange={(e) => setEcName(e.target.value)} className={inputCls} /></div>
+        <div><label className={lbl}>Emergency contact — phone</label>
+          <input value={ecPhone} onChange={(e) => setEcPhone(e.target.value)} className={inputCls} inputMode="tel" /></div>
+      </div>
+      <div><label className={lbl}>National Insurance number</label>
+        <input value={ni} onChange={(e) => setNi(e.target.value)} className={inputCls}
+          placeholder={sensitive?.ni_number ? "•••••••• on file — re-enter to change" : "QQ123456C"} />
+        <p className="text-xs text-stone-400 mt-1">Leave blank to keep the number on file.</p></div>
+
+      {err && <p className="text-sm text-rose-600">{err}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onCancel} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg">Cancel</button>
+        <button onClick={save} disabled={busy} className="text-sm bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy && <Loader2 size={14} className="animate-spin" />} Save</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffProfile({ staffId, section = "", navigate, goBack, mosque, authedUser, onBack, onMessage }) {
   const mosqueId = mosque?.id;
   const [row, setRow] = useState(null);
@@ -385,9 +604,17 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   // sensitive reveal state
   const [sensitive, setSensitive] = useState(null);
   const [sensLoading, setSensLoading] = useState(false);
-  const [salary, setSalary] = useState(undefined); // undefined = not revealed
+  const [salary, setSalary] = useState(undefined); // undefined = not revealed (salary_pence)
+  const [hourly, setHourly] = useState(undefined);  // undefined = not revealed (hourly_rate_pence)
   const [salLoading, setSalLoading] = useState(false);
+  // D3 — NI reveal is its own audited call (get_staff_ni → 'ni_number_viewed'),
+  // separate from the sensitive bundle. undefined = not revealed.
+  const [ni, setNi] = useState(undefined);
+  const [niLoading, setNiLoading] = useState(false);
+  const [personalEditing, setPersonalEditing] = useState(false);
   const [employment, setEmployment] = useState(null); // §3 terms (get_staff_employment)
+  const [empEditing, setEmpEditing] = useState(false); // D1 Employment inline edit
+  const [roles, setRoles] = useState([]);              // D1 mosque_roles for the role dropdown
   const [contract, setContract] = useState(undefined); // undefined=loading; [] on empty OR fetch error (getContractsForStaff catches) — degrade to type-only, never a false "Unsigned"
 
   // Bank details (Commit C) — owner-only. bankMasked: null=loading/none, else
@@ -404,10 +631,12 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
       .catch(() => {})
       .finally(() => setLoading(false));
   };
+  const loadEmployment = () => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); };
   useEffect(() => { if (mosqueId && staffId) load(); /* eslint-disable-next-line */ }, [mosqueId, staffId]);
-  useEffect(() => { if (mosqueId && staffId) getStaffEmployment(staffId).then(setEmployment).catch(() => {}); }, [mosqueId, staffId]);
+  useEffect(() => { loadEmployment(); /* eslint-disable-next-line */ }, [mosqueId, staffId]);
   useEffect(() => { if (staffId) getContractsForStaff(staffId).then(setContract).catch(() => setContract([])); }, [staffId]);
   useEffect(() => { loadBank(); /* eslint-disable-next-line */ }, [staffId, isOwner]);
+  useEffect(() => { if (isOwner && mosqueId) getMosqueRoles(mosqueId).then(setRoles).catch(() => {}); }, [mosqueId, isOwner]);
 
   // Private avatar (staff-avatars bucket): resolve avatar_path → signed URL.
   const [avatarUrl, setAvatarUrl] = useState(null);
@@ -468,9 +697,46 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   const revealSalary = async () => {
     if (salary !== undefined || salLoading) return;
     setSalLoading(true);
-    const { salaryPence } = await getStaffSalary(staffId);
-    setSalary(salaryPence);
+    const { salaryPence, hourlyRatePence } = await getStaffSalary(staffId);
+    setSalary(salaryPence); setHourly(hourlyRatePence);
     setSalLoading(false);
+  };
+  const revealNi = async () => {
+    if (ni !== undefined || niLoading) return;
+    setNiLoading(true);
+    const { niNumber } = await getStaffNi(staffId);
+    setNi(niNumber);
+    setNiLoading(false);
+  };
+  // D3: after a Personal save, merge the new values into the already-revealed
+  // bundle rather than re-calling get_staff_sensitive — a refetch would write a
+  // second 'sensitive_data_viewed' row the owner never asked for.
+  const onPersonalSaved = ({ phone, address, emergency_contact_name, emergency_contact_phone, niNew }) => {
+    setSensitive((s) => (s ? {
+      ...s, phone, address, emergency_contact_name, emergency_contact_phone,
+      ...(niNew ? { ni_number: niNew } : {}), // keeps the mask honest after a change
+    } : s));
+    if (niNew) setNi(undefined); // revealed plaintext is stale — re-reveal (and re-audit)
+    setPersonalEditing(false);
+    load(); // row.phone lives on mosque_staff and feeds the header
+    flash("Personal details updated.");
+  };
+  // D1: enter Employment edit mode — ensure pay is revealed (audited) so the form
+  // can prefill salary + hourly, then open the inline editor.
+  const enterEmpEdit = async () => {
+    if (salary === undefined) {
+      setSalLoading(true);
+      const { salaryPence, hourlyRatePence } = await getStaffSalary(staffId);
+      setSalary(salaryPence); setHourly(hourlyRatePence);
+      setSalLoading(false);
+    }
+    setEmpEditing(true);
+  };
+  const doDismissContractFlag = async () => {
+    setBusy(true);
+    await dismissContractFlag(staffId);
+    setBusy(false);
+    loadEmployment(); // refetch → contract_terms_changed_at now null → banner gone
   };
 
   const doSuspend = async (status) => {
@@ -625,14 +891,42 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
               )}
               {section === "employment" && (
                 <Section icon={Lock} title="Employment" subtitle="Terms and pay" defaultOpen>
+                  {/* D1 — contract-terms-changed flag (durable; survives reload). */}
+                  {isOwner && employment?.contract_terms_changed_at && !empEditing && (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                      <p className="text-sm text-amber-800">Contract terms changed — issue an updated contract to reflect these changes.</p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <button onClick={() => setContractOpen(true)} className="text-sm font-medium text-amber-900 hover:underline inline-flex items-center gap-1">Generate contract <ArrowLeft size={14} className="rotate-180" /></button>
+                        <button onClick={doDismissContractFlag} disabled={busy} className="text-sm text-amber-700 hover:text-amber-900">Dismiss</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isOwner && empEditing ? (
+                    <EmploymentEditForm
+                      staffId={staffId} mosque={mosque} row={row} employment={employment}
+                      salaryPence={salary} hourlyRatePence={hourly} roles={roles}
+                      onCancel={() => setEmpEditing(false)}
+                      onSaved={() => { setEmpEditing(false); load(); loadEmployment(); flash("Employment updated."); }} />
+                  ) : (
+                  <>
+                  {isOwner && (
+                    <div className="flex justify-end -mt-1 mb-1">
+                      <button onClick={enterEmpEdit} disabled={salLoading} className="text-xs text-brand-700 hover:text-brand-900 font-medium inline-flex items-center gap-1">
+                        {salLoading ? <Loader2 size={12} className="animate-spin" /> : <Pencil size={12} />} Edit
+                      </button>
+                    </div>
+                  )}
+                  <Field label="Role" value={cleanRole(row.role)} />
                   <Field label="Employment type" value={row.employmentType ? row.employmentType.replace(/_/g, " ") : "—"} />
-                  <Field label="Job title" value={row.jobTitle || cleanRole(row.role)} />
                   <Field label="Department" value={row.department} />
                   <Field label="Start date" value={fmtDate(row.startDate)} />
                   <div className="flex items-start justify-between gap-3 py-1.5">
-                    <span className="text-sm text-stone-500 shrink-0">Salary</span>
+                    <span className="text-sm text-stone-500 shrink-0">{row.employmentType === "zero_hours" ? "Hourly rate" : "Salary"}</span>
                     <span className="text-sm text-stone-800 font-medium text-right">
-                      {salary !== undefined ? money(salary) : (
+                      {salary !== undefined
+                        ? (row.employmentType === "zero_hours" ? (hourly != null ? `${money(hourly)} /hr` : "—") : (salary != null ? money(salary) : "—"))
+                        : (
                         <button onClick={revealSalary} disabled={salLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
                           {salLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
                         </button>
@@ -641,9 +935,12 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                   </div>
                   <Field label="Hours / week" value={employment?.hours_per_week ?? "—"} />
                   <Field label="Contract type" value={humanEnum(employment?.contract_type) || "—"} />
-                  <Field label="Notice period" value={employment?.notice_period_days != null ? `${employment.notice_period_days} days` : "—"} />
+                  <Field label="Notice — employer" value={employment?.notice_period_employer_weeks != null ? `${employment.notice_period_employer_weeks} weeks` : "—"} />
+                  <Field label="Notice — employee" value={employment?.notice_period_employee_weeks != null ? `${employment.notice_period_employee_weeks} weeks` : "—"} />
                   <Field label="Probation end" value={fmtDate(employment?.probation_end_date)} />
+                  <Field label="Place of work" value={employment?.place_of_work} />
                   <Field label="Pension enrolled" value={employment?.pension_enrolled == null ? "—" : (employment.pension_enrolled ? "Yes" : "No")} />
+                  <Field label="Annual leave" value={row.employmentType === "zero_hours" ? "Accrues at 12.07%" : (row.annualLeaveDays != null ? `${row.annualLeaveDays} days` : "—")} />
 
                   {/* Bank details (Commit C) — owner-only. Masked display; full re-entry to change. */}
                   {isOwner && (
@@ -671,10 +968,25 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                   <div className="pt-2">
                     <button onClick={() => setContractOpen(true)} className="text-sm border border-stone-300 hover:bg-stone-50 text-stone-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><FileText size={14} /> Generate contract</button>
                   </div>
+                  </>
+                  )}
                 </Section>
               )}
               {section === "personal" && (
                 <Section icon={UserCog} title="Personal" subtitle="Contact and identity details" defaultOpen>
+                  {sensitive && isOwner && personalEditing ? (
+                    <PersonalEditForm
+                      staffId={staffId} mosqueId={mosqueId} row={row} sensitive={sensitive}
+                      onCancel={() => setPersonalEditing(false)} onSaved={onPersonalSaved} />
+                  ) : (
+                  <>
+                  {sensitive && isOwner && (
+                    <div className="flex justify-end -mt-1 mb-1">
+                      <button onClick={() => setPersonalEditing(true)} className="text-xs text-brand-700 hover:text-brand-900 font-medium inline-flex items-center gap-1">
+                        <Pencil size={12} /> Edit
+                      </button>
+                    </div>
+                  )}
                   <Field label="Email" value={row.email} />
                   {sensitive ? (
                     <>
@@ -684,6 +996,23 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                       <Field label="Nationality" value={sensitive.nationality} />
                       <Field label="Emergency contact" value={sensitive.emergency_contact_name ? `${sensitive.emergency_contact_name} · ${sensitive.emergency_contact_phone || "—"}` : "—"} />
                       <Field label="Next of kin" value={sensitive.next_of_kin} />
+                      {/* NI — masked by default; the plaintext reveal is its own
+                          audited call (get_staff_ni → 'ni_number_viewed'). */}
+                      <div className="flex items-start justify-between gap-3 py-1.5">
+                        <span className="text-sm text-stone-500 shrink-0">NI number</span>
+                        <span className="text-sm text-stone-800 font-medium text-right">
+                          {ni !== undefined ? (ni || "—")
+                            : !sensitive.ni_number ? "—"
+                            : (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="tracking-wider">{maskNi(sensitive.ni_number)}</span>
+                                <button onClick={revealNi} disabled={niLoading} className="inline-flex items-center gap-1.5 text-brand-700 hover:text-brand-900 font-medium">
+                                  {niLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal — logged
+                                </button>
+                              </span>
+                            )}
+                        </span>
+                      </div>
                     </>
                   ) : (
                     <div className="py-2">
@@ -691,6 +1020,8 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                         {sensLoading ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />} Reveal personal details — access is logged
                       </button>
                     </div>
+                  )}
+                  </>
                   )}
                 </Section>
               )}
@@ -757,7 +1088,7 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                 <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-stone-800">Anonymise (GDPR)</div>
-                    <div className="text-xs text-stone-500">Permanently erases their personal data ([REDACTED]). This cannot be undone — only the compliance audit trail remains.</div>
+                    <div className="text-xs text-stone-500">Permanently replaces their personal data with redaction markers. This cannot be undone — only the compliance audit trail remains.</div>
                   </div>
                   <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
                 </div>
@@ -774,7 +1105,8 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
       )}
       {contractOpen && (
         <StaffContractGenerator staffRow={row} mosque={mosque} authedUser={authedUser}
-          onClose={() => setContractOpen(false)} />
+          onClose={() => setContractOpen(false)}
+          onGenerated={() => { updateMosqueStaff(staffId, { contract_terms_changed_at: null }).then(loadEmployment).catch(() => {}); }} />
       )}
       {bankOpen && (
         <BankDetailsModal staffId={staffId} staffName={row.name} oldMasked={bankMasked}

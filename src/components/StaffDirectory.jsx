@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import {
   getMosqueStaffList, computeComplianceIssues, computeOfstedScore,
-  ofstedColour, suspendStaff, deriveDbsState, deriveRtwState,
+  ofstedColour, suspendStaff, deriveDbsState, deriveRtwState, cleanRole,
 } from "../lib/staffHelpers";
 import OrgStructure from "./OrgStructure";
 import AddStaffModal from "./AddStaffModal";
@@ -458,7 +458,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
                   </td>
                   {/* Merged column: role primary + department muted second line. */}
                   <td className="px-3 py-2 hidden md:table-cell">
-                    <div className={`truncate ${muted ? "text-stone-400" : "text-stone-700"}`}>{s.jobTitle || s.role || "—"}</div>
+                    <div className={`truncate ${muted ? "text-stone-400" : "text-stone-700"}`}>{cleanRole(s.jobTitle || s.role) || "—"}</div>
                     {s.department && <div className="text-xs text-stone-400 truncate">{s.department}</div>}
                   </td>
                   <td className="px-3 py-2"><StatusDot label={st.label} dot={st.dot} /></td>
@@ -487,7 +487,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
               <div className="flex flex-col items-center text-center -mt-2">
                 <Avatar name={openRow.name} photoUrl={avatarMap[openRow.id] || openRow.photoUrl} size={96} />
                 <h3 className="mt-3 text-xl font-medium text-stone-900">{openRow.name}</h3>
-                <p className="text-sm text-stone-500">{openRow.jobTitle || openRow.role || "—"}</p>
+                <p className="text-sm text-stone-500">{cleanRole(openRow.jobTitle || openRow.role) || "—"}</p>
                 <div className="flex items-center gap-2 mt-2">
                   {openRow.department && <span className="px-2 py-0.5 rounded-full text-xs bg-stone-100 text-stone-600">{openRow.department}</span>}
                   <Pill {...deriveStatus(openRow)} />
@@ -496,7 +496,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
               <div className="mt-5 border-t border-stone-100 pt-4 space-y-2.5 text-sm">
                 <Row label="Department" value={openRow.department || "—"} />
-                <Row label="Designation" value={openRow.jobTitle || openRow.role || "—"} />
+                <Row label="Designation" value={cleanRole(openRow.jobTitle || openRow.role) || "—"} />
                 <Row label="Joining date" value={fmtDate(openRow.startDate)} />
                 <Row label="Last login" value={openRow.lastLoginAt ? fmtDate(openRow.lastLoginAt) : "—"} />
                 <Row label="Right to Work" value={<CellStatus {...deriveRtwState(openRow)} />} />

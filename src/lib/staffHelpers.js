@@ -54,6 +54,22 @@ export function shapeStaffListRow(r) {
   };
 }
 
+// Guard against leaked marketplace headlines in the free-text `role` field
+// (prod data: a linked scholar's "Qualified Quran Teacher for Children | Bradford"
+// landed in role). Display-only: cut at the first pipe, collapse whitespace,
+// length-cap. Root data cleanup of the offending rows is a separate follow-up
+// (logged in NOTES.md) — this only stops the leak reaching the UI.
+// SINGLE DEFINITION — StaffProfile (header + Employment field) and StaffDirectory
+// (list column + drawer) both import this. Do NOT re-declare it per component.
+// Deliberately NOT applied to the directory's CSV export: the length-cap would
+// truncate exported data, and an export is a record, not a display.
+export const cleanRole = (role) => {
+  if (!role) return null;
+  let r = String(role).split("|")[0].replace(/\s+/g, " ").trim();
+  if (r.length > 60) r = r.slice(0, 57).trimEnd() + "…";
+  return r || null;
+};
+
 // ── Directory list (safe — no salary / dob / phone / doc numbers) ───
 export async function getMosqueStaffList(mosqueId) {
   if (!mosqueId) return [];
@@ -64,11 +80,14 @@ export async function getMosqueStaffList(mosqueId) {
 
 // ── Sensitive reads (audited RPCs — every call writes mosque_staff_audit_log) ──
 // Salary in pence — owner OR the employee themselves. Returns { salaryPence, error }.
+// Migration 163: get_staff_salary now returns jsonb { salary_pence, hourly_rate_pence }
+// (was a bare integer). Audited ('salary_viewed'). Callers destructure salaryPence
+// as before; hourlyRatePence is additive (used by the D1 employment editor).
 export async function getStaffSalary(staffId) {
-  if (!staffId) return { salaryPence: null, error: { message: "staffId required" } };
+  if (!staffId) return { salaryPence: null, hourlyRatePence: null, error: { message: "staffId required" } };
   const { data, error } = await supabase.rpc("get_staff_salary", { p_staff_id: staffId });
-  if (error) { console.error("getStaffSalary:", error); return { salaryPence: null, error }; }
-  return { salaryPence: data ?? null, error: null };
+  if (error) { console.error("getStaffSalary:", error); return { salaryPence: null, hourlyRatePence: null, error }; }
+  return { salaryPence: data?.salary_pence ?? null, hourlyRatePence: data?.hourly_rate_pence ?? null, error: null };
 }
 
 // Employment TERMS (hours/contract/notice/probation/pension) — owner only, NOT
@@ -77,7 +96,137 @@ export async function getStaffEmployment(staffId) {
   if (!staffId) return null;
   const { data, error } = await supabase.rpc("get_staff_employment", { p_staff_id: staffId });
   if (error) return null; // RPC not yet created (pre-migration 130)
-  return data || null;
+  return data || null; // migration 163: also carries place_of_work / notice_period_*_weeks / contract_terms_changed_at
+}
+
+// D1 (migration 162): OWNER-ONLY writer — employment terms + append-only
+// salary_changed audit row in one txn. FULL-SET: send the complete current field
+// set. Returns { success, salary_changed } or { error } with the RPC's message.
+export async function updateStaffEmployment(staffId, {
+  salaryPence, hourlyRatePence, hoursPerWeek, contractType,
+  noticePeriodEmployerWeeks, noticePeriodEmployeeWeeks, probationEndDate,
+  placeOfWork, pensionEnrolled,
+} = {}) {
+  if (!staffId) return { error: "staffId required" };
+  const { data, error } = await supabase.rpc("update_staff_employment", {
+    p_staff_id: staffId,
+    p_salary_pence: salaryPence ?? null,
+    p_hourly_rate_pence: hourlyRatePence ?? null,
+    p_hours_per_week: hoursPerWeek ?? null,
+    p_contract_type: contractType ?? null,
+    p_notice_period_employer_weeks: noticePeriodEmployerWeeks ?? null,
+    p_notice_period_employee_weeks: noticePeriodEmployeeWeeks ?? null,
+    p_probation_end_date: probationEndDate || null,
+    p_place_of_work: placeOfWork ?? null,
+    p_pension_enrolled: pensionEnrolled ?? false,
+  });
+  if (error) { console.error("updateStaffEmployment:", error); return { error: error.message || "update_failed" }; }
+  return data || { error: "no_result" };
+}
+
+// D1 (migration 163): clear the durable contract-terms-changed flag + audit it.
+export async function dismissContractFlag(staffId) {
+  if (!staffId) return { error: "staffId required" };
+  const { error } = await supabase.rpc("dismiss_contract_flag", { p_staff_id: staffId });
+  if (error) { console.error("dismissContractFlag:", error); return { error: error.message || "dismiss_failed" }; }
+  return {};
+}
+
+// D1 (migration 162): active configurable roles for a mosque, ordered for the
+// role dropdown. Owner reads via RLS. Returns [] on error.
+export async function getMosqueRoles(mosqueId) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_roles")
+    .select("id, name, slug, is_active, display_order, default_role_preset, default_assigned_classes")
+    .eq("mosque_id", mosqueId).eq("is_active", true)
+    .order("display_order", { ascending: true });
+  if (error) { console.error("getMosqueRoles:", error); return []; }
+  return data || [];
+}
+
+// D2 (management panel): ALL roles incl. inactive, ordered. Owner/admin read via RLS.
+// Includes the 165 permission defaults (default_role_preset / default_assigned_classes).
+export async function getMosqueRolesAll(mosqueId) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_roles")
+    .select("id, name, slug, is_active, is_default, display_order, default_role_preset, default_assigned_classes")
+    .eq("mosque_id", mosqueId)
+    .order("display_order", { ascending: true });
+  if (error) { console.error("getMosqueRolesAll:", error); return []; }
+  return data || [];
+}
+
+const slugify = (name) => String(name || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// Add a role. Auto-slug; display_order = current max + 1. INSERT via RLS
+// (owner/admin). Returns { data } or { error } ('duplicate' on the unique slug clash).
+export async function createMosqueRole(mosqueId, name) {
+  if (!mosqueId || !String(name || "").trim()) return { error: "name required" };
+  const slug = slugify(name);
+  if (!slug) return { error: "invalid_name" };
+  const { data: last } = await supabase.from("mosque_roles")
+    .select("display_order").eq("mosque_id", mosqueId)
+    .order("display_order", { ascending: false }).limit(1);
+  const nextOrder = (last?.[0]?.display_order ?? 0) + 1;
+  const { data, error } = await supabase.from("mosque_roles")
+    .insert({ mosque_id: mosqueId, name: name.trim(), slug, display_order: nextOrder, is_default: false })
+    .select().single();
+  if (error) { console.error("createMosqueRole:", error); return { error: error.code === "23505" ? "duplicate" : (error.message || "create_failed") }; }
+  return { data };
+}
+
+// Rename / toggle active. Slug stays fixed on rename (internal unique key). RLS.
+export async function updateMosqueRole(id, fields) {
+  if (!id) return { error: "id required" };
+  const { data, error } = await supabase.from("mosque_roles").update(fields).eq("id", id).select().single();
+  if (error) { console.error("updateMosqueRole:", error); return { error: error.code === "23505" ? "duplicate" : (error.message || "update_failed") }; }
+  return { data };
+}
+
+// Persist a new order (display_order = position). Few rows — sequential is fine. RLS.
+export async function reorderMosqueRoles(orderedIds) {
+  if (!Array.isArray(orderedIds) || !orderedIds.length) return { error: "no ids" };
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase.from("mosque_roles").update({ display_order: i + 1 }).eq("id", orderedIds[i]);
+    if (error) { console.error("reorderMosqueRoles:", error); return { error: error.message || "reorder_failed" }; }
+  }
+  return {};
+}
+
+// Guarded delete (migration 164). Returns { deleted, reason?, used_by } or { error }.
+export async function deleteMosqueRole(id) {
+  if (!id) return { error: "id required" };
+  const { data, error } = await supabase.rpc("delete_mosque_role", { p_role_id: id });
+  if (error) { console.error("deleteMosqueRole:", error); return { error: error.message || "delete_failed" }; }
+  return data || { error: "no_result" };
+}
+
+// D2/B — push a role's permission defaults onto a staff member's EXISTING
+// mosque_employees (RBAC) record when they're given that role. UPDATE-ONLY by
+// design: role assignment ≠ granting dashboard access, so we never auto-create a
+// mosque_employees row (granting access is the onboarding-wizard path or a future
+// explicit action). The staff↔employee link is the shared profile_id (mosque_employees
+// has NO staff_id). Silent; caller ignores the result.
+//   - No login account (profile_id null)         → { skipped:'no_account' }
+//   - No existing RBAC record for that profile   → { skipped:'no_employee_record' }
+//   - Existing employee row → update_employee_permissions RPC (validates classes).
+export async function applyRoleDefaults(staffId, mosqueId, { rolePreset, assignedClasses } = {}) {
+  if (!staffId || !mosqueId) return { skipped: "missing_ids" };
+  if (!rolePreset) return { skipped: "no_preset" };
+  const { data: st, error: stErr } = await supabase
+    .from("mosque_staff").select("profile_id").eq("id", staffId).single();
+  if (stErr || !st) return { error: stErr?.message || "staff_not_found" };
+  if (!st.profile_id) return { skipped: "no_account" };
+  const { data: emp } = await supabase
+    .from("mosque_employees").select("id").eq("mosque_id", mosqueId).eq("profile_id", st.profile_id).limit(1);
+  if (!emp?.[0]) return { skipped: "no_employee_record" }; // update-only — never INSERT
+  const { error } = await supabase.rpc("update_employee_permissions", {
+    p_employee_id: emp[0].id, p_permissions: null,
+    p_assigned_classes: assignedClasses ?? [], p_role_preset: rolePreset,
+  });
+  return error ? { error: error.message } : { applied: "updated" };
 }
 
 // Stamp the caller's own mosque_staff row(s) with last_login_at=now() (mosque-
@@ -94,6 +243,20 @@ export async function getStaffSensitive(staffId) {
   const { data, error } = await supabase.rpc("get_staff_sensitive", { p_staff_id: staffId });
   if (error) { console.error("getStaffSensitive:", error); return { data: null, error }; }
   return { data: data || null, error: null };
+}
+
+// D3 (migration 166): NI number alone — OWNER ONLY, audited as its own action
+// ('ni_number_viewed'), so an NI reveal is distinguishable in the audit log from
+// the broad 'sensitive_data_viewed' bundle. Returns { niNumber, error }.
+// NOTE: get_staff_sensitive above ALSO carries plaintext ni_number, so the
+// masked NI display in the Personal panel is a UI control + a dedicated audit
+// line — not a transport barrier. Stripping NI out of get_staff_sensitive would
+// need its own migration.
+export async function getStaffNi(staffId) {
+  if (!staffId) return { niNumber: null, error: { message: "staffId required" } };
+  const { data, error } = await supabase.rpc("get_staff_ni", { p_staff_id: staffId });
+  if (error) { console.error("getStaffNi:", error); return { niNumber: null, error }; }
+  return { niNumber: data?.ni_number ?? null, error: null };
 }
 
 // ── Bank details (Commit C) ─────────────────────────────────────────

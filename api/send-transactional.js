@@ -116,7 +116,7 @@ const SHARED_HEAD_LOGO = `
                   </tr>
                 </table>`;
 
-const FOOTER = `© 2026 Amanah · <a href="https://youramanah.co.uk" style="color:#9ca3af; text-decoration:none;">youramanah.co.uk</a> · Trusted Muslim Scholars &amp; Teachers`;
+const FOOTER = `© 2026 Amanah · <a href="https://youramanah.co.uk" style="color:#9ca3af; text-decoration:none;">youramanah.co.uk</a> · The Operating System for UK Mosques`;
 
 const TEMPLATE_BOOKING_CONFIRMED = `<!DOCTYPE html>
 <html lang="en">
@@ -2130,7 +2130,7 @@ function buildStaffInviteHtml({ mosqueName, role, inviteeName, acceptUrl, expire
       </p>
       ${expiryLine}
       <hr style="border:none;border-top:1px solid #e7e5e4;margin:28px 0 16px;">
-      <p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.<br>If you weren't expecting this invite, you can ignore this email.</p>
+      <p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — The Operating System for UK Mosques.<br>If you weren't expecting this invite, you can ignore this email.</p>
     </div>
   </div>
 </body></html>`;
@@ -2216,7 +2216,7 @@ async function handleOnboardingReminder(env, token) {
 <p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;"><strong>${escapeHtml(wiz.mosque_name)}</strong> has asked you to complete your staff onboarding on Amanah — personal, right-to-work, DBS, employment and payroll details. It takes a few minutes and your information is held securely.</p>
 <p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Complete onboarding</a></p>
 <p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">This secure link expires in 7 days.</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — mosque management, simplified.<br>If you weren't expecting this, you can ignore this email.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — The Operating System for UK Mosques.<br>If you weren't expecting this, you can ignore this email.</p>
 </div></body></html>`;
   const text = `Assalamu alaikum${wiz.staff_name ? ' ' + wiz.staff_name : ''},\n\n${wiz.mosque_name} has asked you to complete your staff onboarding on Amanah.\n\nComplete it here: ${onboardUrl}\n\nThis secure link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
 
@@ -2276,7 +2276,7 @@ async function handleOnboardingChangesRequested(env, caller, sessionId) {
 ${sess.review_notes ? `<p style="margin:0 0 20px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;color:#78350f;font-size:14px;line-height:1.5;">${escapeHtml(sess.review_notes)}</p>` : ''}
 <p style="margin:0 0 24px;"><a href="${escapeHtml(onboardUrl)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">Return to your onboarding</a></p>
 <p style="margin:0 0 8px;color:#78716c;font-size:13px;line-height:1.5;">Open the link, make the changes, and submit again — your secure link is still valid.</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — trusted Muslim scholars and mosques.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">Amanah — The Operating System for UK Mosques.</p>
 </div></body></html>`;
   const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\n${mosque.name} has reviewed your onboarding and asked for a few changes before it can be approved:\n\n${sess.review_notes || '(see your mosque for details)'}\n\nReturn to your onboarding: ${onboardUrl}\n\nOpen the link, make the changes, and submit again.`;
   const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });
@@ -2341,7 +2341,7 @@ async function handleOnboardingApproved(env, caller, sessionId) {
 <p style="margin:0 0 24px;color:#44403c;font-size:15px;line-height:1.5;">Good news — <strong>${escapeHtml(mosque.name)}</strong> has approved your onboarding. You're now part of the team.</p>
 <p style="margin:0 0 16px;"><a href="${escapeHtml(cta.url)}" style="display:inline-block;background:#065f46;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:12px;font-weight:500;font-size:15px;">${cta.label}</a></p>
 <p style="margin:0 0 24px;color:#44403c;font-size:14px;line-height:1.5;">${helpHtml}</p>
-<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — mosque management, simplified.</p>
+<p style="margin:0;color:#a8a29e;font-size:12px;line-height:1.5;">JazakAllah khair.<br>Amanah — The Operating System for UK Mosques.</p>
 </div></body></html>`;
   const text = `Assalamu alaikum${sess.employee_name ? ' ' + sess.employee_name : ''},\n\nGood news — ${mosque.name} has approved your onboarding. You're now part of the team.\n\n${helpText}\n\nJazakAllah khair.`;
   const id = await sendEmail(env, { to: sess.employee_email, subject, html, text });

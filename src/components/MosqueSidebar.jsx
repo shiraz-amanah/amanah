@@ -21,7 +21,7 @@ export const MOSQUE_NAV = [
   { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard, items: [] },
   { tab: "people", label: "People", icon: Users, items: [
     ["staff", "Staff", Users], ["workforce", "Workforce", CalendarDays],
-    ["volunteers", "Volunteers", HeartHandshake],
+    ["volunteers", "Volunteers", HeartHandshake], ["roles", "Staff roles", UserCog],
   ] },
   { tab: "mosque", label: "Mosque", icon: Building2, items: [
     ["profile", "Profile", Building2], ["prayer", "Prayer times", Clock],

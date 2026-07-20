@@ -36,6 +36,7 @@ import GlobalSearch, { GlobalSearchTrigger } from "./GlobalSearch";
 import MosqueSidebar, { MOSQUE_NAV } from "./MosqueSidebar";
 import MosquePayments from "./MosquePayments";
 import ParentPermissionsSettings from "./ParentPermissionsSettings";
+import MosqueStaffRoles from "./MosqueStaffRoles";
 import { useEmployeePermissions } from "../lib/useEmployeePermissions";
 
 // Mosque dashboard shell. Session AX (Phase 1 of the platform-wide sidebar) turned
@@ -86,7 +87,7 @@ const OWNER_ONLY = "__owner_only__";
 const LEAFLESS_MODULE = { dashboard: null, payments: "finance", messages: "messages", account: null };
 const LEAF_MODULE = {
   "people/team": OWNER_ONLY, "people/hr": OWNER_ONLY, "people/rotas": OWNER_ONLY,
-  "people/timesheets": OWNER_ONLY, "people/payroll": OWNER_ONLY,
+  "people/timesheets": OWNER_ONLY, "people/payroll": OWNER_ONLY, "people/roles": OWNER_ONLY,
   "people/publiclisting": "mosque_settings", "people/employees": "employee_management",
   "mosque/profile": "mosque_settings", "mosque/prayer": "mosque_settings", "mosque/ramadan": "mosque_settings",
   "mosque/events": "mosque_settings", "mosque/bookings": "mosque_settings",
@@ -266,6 +267,9 @@ const MosqueDashboard = ({ mosque, isEmployee = false, authedUser, onLogout, onP
           )}
           {activeTab === "people" && activeSub === "volunteers" && (
             <VolunteersTab mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} onOpenProfile={onOpenProfile} />
+          )}
+          {activeTab === "people" && activeSub === "roles" && (
+            <MosqueStaffRoles mosqueId={mosque.id} mosque={mosque} authedUser={authedUser} />
           )}
 
           {/* ---- Mosque ---- */}
