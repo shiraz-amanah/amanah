@@ -129,6 +129,63 @@ export async function getMosqueRoles(mosqueId) {
   return data || [];
 }
 
+// D2 (management panel): ALL roles incl. inactive, ordered. Owner/admin read via RLS.
+export async function getMosqueRolesAll(mosqueId) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_roles")
+    .select("id, name, slug, is_active, is_default, display_order")
+    .eq("mosque_id", mosqueId)
+    .order("display_order", { ascending: true });
+  if (error) { console.error("getMosqueRolesAll:", error); return []; }
+  return data || [];
+}
+
+const slugify = (name) => String(name || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// Add a role. Auto-slug; display_order = current max + 1. INSERT via RLS
+// (owner/admin). Returns { data } or { error } ('duplicate' on the unique slug clash).
+export async function createMosqueRole(mosqueId, name) {
+  if (!mosqueId || !String(name || "").trim()) return { error: "name required" };
+  const slug = slugify(name);
+  if (!slug) return { error: "invalid_name" };
+  const { data: last } = await supabase.from("mosque_roles")
+    .select("display_order").eq("mosque_id", mosqueId)
+    .order("display_order", { ascending: false }).limit(1);
+  const nextOrder = (last?.[0]?.display_order ?? 0) + 1;
+  const { data, error } = await supabase.from("mosque_roles")
+    .insert({ mosque_id: mosqueId, name: name.trim(), slug, display_order: nextOrder, is_default: false })
+    .select().single();
+  if (error) { console.error("createMosqueRole:", error); return { error: error.code === "23505" ? "duplicate" : (error.message || "create_failed") }; }
+  return { data };
+}
+
+// Rename / toggle active. Slug stays fixed on rename (internal unique key). RLS.
+export async function updateMosqueRole(id, fields) {
+  if (!id) return { error: "id required" };
+  const { data, error } = await supabase.from("mosque_roles").update(fields).eq("id", id).select().single();
+  if (error) { console.error("updateMosqueRole:", error); return { error: error.code === "23505" ? "duplicate" : (error.message || "update_failed") }; }
+  return { data };
+}
+
+// Persist a new order (display_order = position). Few rows — sequential is fine. RLS.
+export async function reorderMosqueRoles(orderedIds) {
+  if (!Array.isArray(orderedIds) || !orderedIds.length) return { error: "no ids" };
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase.from("mosque_roles").update({ display_order: i + 1 }).eq("id", orderedIds[i]);
+    if (error) { console.error("reorderMosqueRoles:", error); return { error: error.message || "reorder_failed" }; }
+  }
+  return {};
+}
+
+// Guarded delete (migration 164). Returns { deleted, reason?, used_by } or { error }.
+export async function deleteMosqueRole(id) {
+  if (!id) return { error: "id required" };
+  const { data, error } = await supabase.rpc("delete_mosque_role", { p_role_id: id });
+  if (error) { console.error("deleteMosqueRole:", error); return { error: error.message || "delete_failed" }; }
+  return data || { error: "no_result" };
+}
+
 // Stamp the caller's own mosque_staff row(s) with last_login_at=now() (mosque-
 // agnostic). Called on sign-in; no-op if the caller isn't staff (migration 130).
 export async function stampStaffLogin() {
