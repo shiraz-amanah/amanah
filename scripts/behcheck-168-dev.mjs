@@ -19,7 +19,9 @@ const claims = (uid) => JSON.stringify({ sub: uid, role: 'authenticated' });
 const NI = 'QQ123456C';
 const EXPECT_MASK = 'QQ•••••••C';
 const EXPECTED_KEYS = [
-  'date_of_birth', 'phone', 'address', 'nationality', 'next_of_kin',
+  // next_of_kin deliberately absent — migration 171 drops the column and removes
+  // it from get_staff_sensitive (redundant with emergency_contact_name/_phone).
+  'date_of_birth', 'phone', 'address', 'nationality',
   'emergency_contact_name', 'emergency_contact_phone', 'ni_number_masked',
   'rtw_document_number', 'dbs_certificate_number',
 ];
@@ -34,9 +36,12 @@ try {
       where n.nspname='public' and p.proname='get_staff_sensitive'`)).rows[0]?.def || '';
   console.log("  contains \"'ni_number', e.ni_number\":", before.includes("'ni_number', e.ni_number"));
 
-  console.log('\n=== APPLY migration 168 ===');
-  await db.query(readFileSync('migrations/168_strip_ni_from_sensitive.sql', 'utf8'));
-  console.log('applied OK');
+  // DO NOT re-apply migration 168 here. It was applied long ago, and migration
+  // 171 SUPERSEDES its get_staff_sensitive (dropping next_of_kin). Re-applying
+  // 168 silently reverts 171 and leaves a live function selecting a column that
+  // no longer exists — every call then fails with "column e.next_of_kin does not
+  // exist". This script now probes the LIVE function instead of installing one.
+  console.log('\n=== (migration 168 already applied; 171 supersedes it — probing live) ===');
 
   console.log('\n=== P1: pg_get_functiondef — plaintext gone, masked present ===');
   const def = (await db.query(
@@ -69,9 +74,9 @@ try {
      returning id`, [mosque])).rows[0].id;
   await db.query(
     `insert into mosque_staff_employment
-       (staff_id, mosque_id, ni_number, dob, nationality, next_of_kin, address,
+       (staff_id, mosque_id, ni_number, dob, nationality, address,
         emergency_contact_name, emergency_contact_phone, rtw_document_number, dbs_certificate_number)
-     values ($1, $2, $3, '1990-04-01', 'British', 'Fatima Khan — 07700 900123', '5 Old Road',
+     values ($1, $2, $3, '1990-04-01', 'British', '5 Old Road',
              'Aisha Khan', '07700 900333', 'RTW-123', 'DBS-456')`, [staff, mosque, NI]);
 
   await db.query(`select set_config('request.jwt.claims', $1, true)`, [claims(owner)]);
@@ -96,9 +101,17 @@ try {
   (!String(sens.ni_number_masked || '').includes('123456'))
     ? ok('mask does not leak the middle digits')
     : bad(`mask leaks digits: ${sens.ni_number_masked}`);
-  (sens.date_of_birth && sens.nationality === 'British' && sens.next_of_kin)
-    ? ok('date_of_birth / nationality / next_of_kin still returned (item-2 read path intact)')
-    : bad(`item-2 fields missing: ${JSON.stringify({ d: sens.date_of_birth, n: sens.nationality, k: sens.next_of_kin })}`);
+  (sens.date_of_birth && sens.nationality === 'British')
+    ? ok('date_of_birth / nationality still returned (item-2 read path intact)')
+    : bad(`item-2 fields missing: ${JSON.stringify({ d: sens.date_of_birth, n: sens.nationality })}`);
+  // 171: next_of_kin is GONE — redundant with the structured emergency contact
+  // pair, which must still be returned.
+  (!('next_of_kin' in sens))
+    ? ok('next_of_kin key absent from get_staff_sensitive (171)')
+    : bad(`next_of_kin STILL RETURNED: ${JSON.stringify(sens.next_of_kin)}`);
+  (sens.emergency_contact_name === 'Aisha Khan' && sens.emergency_contact_phone === '07700 900333')
+    ? ok('emergency contact name + phone intact (the replacement for next_of_kin)')
+    : bad(`emergency contact wrong: ${JSON.stringify({ n: sens.emergency_contact_name, p: sens.emergency_contact_phone })}`);
 
   console.log('\n  --- P3 REGRESSION: get_staff_ni untouched ---');
   await db.query(`select set_config('request.jwt.claims', $1, true)`, [claims(owner)]);

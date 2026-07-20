@@ -192,9 +192,18 @@ export default function AddStaffModal({ mosqueId, mosque, onClose, onCreated, de
           mosqueId, name: f.name.trim(), email: f.email.trim(),
           contract: contractPayload ? { ...contractPayload, employment_type: f.employmentType } : null,
           // Seed the read-only Employment step of the remote wizard (RBAC-E C3).
+          // Pay travels here too: approve_onboarding_session reads it back out of
+          // employment_details and writes it to mosque_staff_employment. Blank must
+          // arrive as null (NOT 0) — the RPC nullifs before casting to integer.
+          // Same zero-hours guard as the in-house branch below (see :218-222): the
+          // two pay models are mutually exclusive and stale state survives a type
+          // switch, so send only the side that applies.
           employment: {
             role: f.role, job_title: f.jobTitle || null, department: f.department || null,
             employment_type: f.employmentType, start_date: f.startDate || null,
+            hours_per_week: !isZeroHours && f.hoursPerWeek !== "" ? Number(f.hoursPerWeek) : null,
+            salary_pence: !isZeroHours && f.salaryGbp !== "" ? Math.round(Number(f.salaryGbp) * 100) : null,
+            hourly_rate_pence: isZeroHours && f.hourlyRateGbp !== "" ? Math.round(Number(f.hourlyRateGbp) * 100) : null,
           },
         });
         if (error || !data?.staffId) throw new Error(staffCreateError(error, "Could not create staff record"));

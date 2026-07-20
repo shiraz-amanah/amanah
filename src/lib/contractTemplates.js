@@ -8,13 +8,19 @@
 // ====================================================================
 import { jsPDF } from "jspdf";
 
+// `party` is the noun this type's signatory is called — clause 1 and the
+// signature block BOTH read it, so they can no longer disagree. It replaces the
+// old `employee: true` flag, whose only consumer tested `=== false` against a
+// key that was omitted (never false) on exactly the types that needed it, so a
+// zero-hours contract read "the Worker" in clause 1 and "Employee" on its own
+// signature line.
 export const TYPES = [
-  { key: "full_time", label: "Full-time employment", desc: "Permanent, guaranteed hours. Employment Rights Act 1996 compliant.", employee: true },
-  { key: "part_time", label: "Part-time employment", desc: "Permanent, reduced hours. Part-time Workers Regulations 2000 compliant.", employee: true, proRata: true },
-  { key: "zero_hours", label: "Zero hours (casual worker)", desc: "No guaranteed hours. Worker status, not employee. Flexible engagement.", proRata: true },
-  { key: "sessional", label: "Sessional", desc: "Fixed sessions (e.g. Saturday 9am–1pm). Defined schedule, limited commitment.", employee: true, proRata: true },
-  { key: "volunteer", label: "Volunteer agreement", desc: "Not an employment contract. No pay, expenses only. Charity law compliant." },
-  { key: "contractor", label: "Self-employed contractor", desc: "Services agreement. IR35 aware. Not an employment relationship." },
+  { key: "full_time", label: "Full-time employment", desc: "Permanent, guaranteed hours. Employment Rights Act 1996 compliant.", party: "Employee" },
+  { key: "part_time", label: "Part-time employment", desc: "Permanent, reduced hours. Part-time Workers Regulations 2000 compliant.", party: "Employee", proRata: true },
+  { key: "zero_hours", label: "Zero hours (casual worker)", desc: "No guaranteed hours. Worker status, not employee. Flexible engagement.", party: "Worker", proRata: true },
+  { key: "sessional", label: "Sessional", desc: "Fixed sessions (e.g. Saturday 9am–1pm). Defined schedule, limited commitment.", party: "Employee", proRata: true },
+  { key: "volunteer", label: "Volunteer agreement", desc: "Not an employment contract. No pay, expenses only. Charity law compliant.", party: "Volunteer" },
+  { key: "contractor", label: "Self-employed contractor", desc: "Services agreement. IR35 aware. Not an employment relationship.", party: "Contractor" },
 ];
 export const typeMeta = (k) => TYPES.find((t) => t.key === k) || TYPES[0];
 
@@ -53,7 +59,7 @@ export function buildSections(type, d) {
   const isContractor = type === "contractor";
   const isZero = type === "zero_hours";
   const s = [];
-  s.push({ h: "1. Parties", b: `This agreement is between ${d.mosqueName || "the mosque"} ("the Organisation"), of ${[d.mosqueAddress, d.mosqueCity, d.mosquePostcode].filter(Boolean).join(", ") || "—"}${d.charityNumber ? ` (registered charity ${d.charityNumber})` : ""}, and ${d.employeeName || "the individual"}${d.employeeAddress ? `, of ${d.employeeAddress}` : ""}${isVol ? ' ("the Volunteer")' : isContractor ? ' ("the Contractor")' : isZero ? ' ("the Worker")' : ' ("the Employee")'}.` });
+  s.push({ h: "1. Parties", b: `This agreement is between ${d.mosqueName || "the mosque"} ("the Organisation"), of ${[d.mosqueAddress, d.mosqueCity, d.mosquePostcode].filter(Boolean).join(", ") || "—"}${d.charityNumber ? ` (registered charity ${d.charityNumber})` : ""}, and ${d.employeeName || "the individual"}${d.employeeAddress ? `, of ${d.employeeAddress}` : ""} ("the ${m.party}").` });
   s.push({ h: "2. Role", b: `${isVol ? "Volunteer role" : "Job title"}: ${d.jobTitle || "—"}.${d.duties ? ` Duties and responsibilities: ${d.duties}` : ""}${d.placeOfWork ? ` Place of work: ${d.placeOfWork}.` : ""}` });
   // "Employment begins" would contradict the Worker status asserted in clause 1
   // for zero-hours. The ERA 1996 written-statement line stays for both: since

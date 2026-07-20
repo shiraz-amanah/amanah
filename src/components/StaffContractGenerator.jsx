@@ -140,7 +140,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
   };
   const now = () => new Date().toLocaleString("en-GB");
   const signAdmin = () => { if (!adminName.trim()) return; setAdminSig({ name: adminName.trim(), role: "Mosque representative", at: now() }); };
-  const signEmployee = () => { if (!empName.trim()) return; setEmpSig({ name: empName.trim(), role: m?.employee === false ? "Contractor/Volunteer" : "Employee", at: now() }); };
+  const signEmployee = () => { if (!empName.trim()) return; setEmpSig({ name: empName.trim(), role: m?.party || "Employee", at: now() }); };
   const sendRemote = async () => { await sendContractReadyToSign(staffId, { contractType: type }); setNote("Sign request emailed to the employee."); };
 
   const finalise = async () => {
@@ -275,7 +275,7 @@ export default function StaffContractGenerator({ staffRow, mosque, authedUser, o
                         <div className="flex items-center gap-2">
                           {empSig ? <span className="text-sm text-emerald-700 inline-flex items-center gap-1"><Check size={14} /> Signed by {empSig.name} · {empSig.at}</span> : <>
                             <input value={empName} onChange={(e) => setEmpName(e.target.value)} placeholder={`${d.employeeName} — full name (sign on this device)`} className={inputCls + " mt-0 flex-1"} />
-                            <button onClick={signEmployee} disabled={!empName.trim()} className="text-sm bg-stone-900 text-white px-3 py-2 rounded-lg disabled:opacity-50 whitespace-nowrap">Employee signs</button>
+                            <button onClick={signEmployee} disabled={!empName.trim()} className="text-sm bg-stone-900 text-white px-3 py-2 rounded-lg disabled:opacity-50 whitespace-nowrap">{m?.party || "Employee"} signs</button>
                           </>}
                         </div>
                       )}

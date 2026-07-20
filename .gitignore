@@ -3,6 +3,10 @@ dist
 .DS_Store
 .env
 .env.local
+# `vercel env pull` writes REAL decrypted secrets to whatever file you name, and
+# with --cwd it lands in the repo root. .env/.env.local alone did not cover
+# .env.preview, which sat untracked-but-committable until it was noticed.
+.env*
 .vscode
 .idea
 *.log
