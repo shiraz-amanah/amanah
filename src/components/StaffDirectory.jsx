@@ -160,6 +160,9 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const moreRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  // StaffDirectory had no banner of its own, which is why bulk outcomes had
+  // nowhere to be reported. Required, not decorative — see bulkSuspend.
+  const [notice, setNotice] = useState(null);
   const [pendingOnboarding, setPendingOnboarding] = useState(0); // submitted sessions awaiting review
   const [aiSummaries, setAiSummaries] = useState({}); // staffId → LLM summary (falls back to deterministic)
   const [avatarMap, setAvatarMap] = useState({}); // staffId → signed avatar URL (private staff-avatars bucket)
@@ -316,11 +319,33 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
     a.click(); URL.revokeObjectURL(url);
   };
 
+  // Bulk deactivate. Previously every outcome was discarded: suspendStaff
+  // RESOLVES with { error } rather than throwing, so the per-row
+  // `.catch(() => {})` guarded a rejection that essentially never happens while
+  // the actual error channel was never read. A partial failure — one row denied
+  // by RLS, a dropped request — cleared the selection and looked exactly like
+  // total success. Same class as the pre-172 silent erasure failure: an action
+  // that did not happen, reported as if it had.
+  // Sequential on purpose, matching the previous behaviour; only the outcome
+  // handling changes.
   const bulkSuspend = async () => {
     if (!selected.size || busy) return;
     setBusy(true);
-    for (const id of selected) await suspendStaff(id, "suspended").catch(() => {});
-    setBusy(false); setSelected(new Set()); setTick((t) => t + 1);
+    const ids = [...selected];
+    const failed = [];
+    for (const id of ids) {
+      const { error } = await suspendStaff(id, "suspended").catch((e) => ({ error: e }));
+      if (error) { console.error("suspend_staff failed:", id, error); failed.push(id); }
+    }
+    setBusy(false);
+    const okCount = ids.length - failed.length;
+    // Keep the FAILED rows selected so the action can be retried without
+    // re-finding them; clear the rest.
+    setSelected(new Set(failed));
+    setNotice(failed.length
+      ? { tone: "amber", text: `${okCount} of ${ids.length} deactivated — ${failed.length} failed and ${failed.length === 1 ? "is" : "are"} still selected. Please try again.` }
+      : { tone: "success", text: `${okCount} ${okCount === 1 ? "person" : "people"} deactivated.` });
+    setTick((t) => t + 1);
   };
 
   const oColour = ofstedColour(ofsted);
@@ -472,6 +497,16 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       )}
 
       {/* Bulk actions bar */}
+      {notice && (
+        <div className={`mb-3 flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-sm ${
+          notice.tone === "amber"
+            ? "border-amber-200 bg-amber-50 text-amber-900"
+            : "border-success-200 bg-success-50 text-success-900"}`}>
+          <div className="min-w-0 flex-1">{notice.text}</div>
+          <button onClick={() => setNotice(null)} className="shrink-0 text-xs underline opacity-70 hover:opacity-100">Dismiss</button>
+        </div>
+      )}
+
       {selected.size > 0 && (
         <div className="flex items-center gap-2 mb-3 bg-stone-900 text-white rounded-lg px-3 py-2 text-sm">
           <span className="font-medium">{selected.size} selected</span>
