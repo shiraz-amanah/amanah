@@ -16,7 +16,7 @@
 // ====================================================================
 import { useState } from "react";
 import { X, Check, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
-import { offboardStaff } from "../lib/staffHelpers";
+import { offboardStaff, computeRetentionEligibleAt } from "../lib/staffHelpers";
 import { sendOffboardingConfirmation } from "../lib/email";
 
 const REASONS = ["Resigned", "Dismissed", "Contract ended", "Redundancy", "Voluntary", "Other"];
@@ -35,8 +35,20 @@ const CHECKLIST = [
   ["notified", "Parents/students notified of the change"],
   ["equipment", "Equipment returned"],
   ["pay", "Final pay calculated"],
-  ["docs", "Documents archived (retained 2 years)"],
+  ["docs", "Documents archived"],
 ];
+
+// The retention period is computed from the end date entered at step 1, using
+// the same formula migration 175 stores at offboard (greatest of end+2y and the
+// first 5 April on/after end date +3y). The old copy said a flat "retained 2
+// years", which understated it — the HMRC leg almost always dominates. Wording
+// is kept consistent with the danger-zone lock copy on StaffProfile.
+const fmtRetention = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const checklistLabel = ([k, l], endDate) => {
+  if (k !== "docs") return l;
+  const until = computeRetentionEligibleAt(endDate);
+  return until ? `${l} (retained until ${fmtRetention(until)})` : l;
+};
 
 export default function OffboardingFlow({ staffId, staffName, onClose, onDone }) {
   const [step, setStep] = useState(1);
@@ -102,10 +114,10 @@ export default function OffboardingFlow({ staffId, staffName, onClose, onDone })
             <>
               <p className="text-sm text-stone-600">Work through the checklist. Ticking <strong>Access revoked</strong> immediately revokes their dashboard access.</p>
               <div className="space-y-1.5">
-                {CHECKLIST.map(([k, l]) => (
-                  <label key={k} className="flex items-center gap-2.5 text-sm text-stone-700 py-1">
-                    <input type="checkbox" checked={!!checks[k]} onChange={() => toggleCheck(k)} disabled={busy && k === "access"} className="accent-emerald-600" />
-                    {l}{k === "access" && offboarded && <Check size={14} className="text-emerald-600" />}
+                {CHECKLIST.map((item) => (
+                  <label key={item[0]} className="flex items-center gap-2.5 text-sm text-stone-700 py-1">
+                    <input type="checkbox" checked={!!checks[item[0]]} onChange={() => toggleCheck(item[0])} disabled={busy && item[0] === "access"} className="accent-emerald-600" />
+                    {checklistLabel(item, endDate)}{item[0] === "access" && offboarded && <Check size={14} className="text-emerald-600" />}
                   </label>
                 ))}
               </div>
