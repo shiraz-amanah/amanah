@@ -4,6 +4,7 @@
   ],
   "crons": [
     { "path": "/api/send-transactional?intent=reminder_sweep", "schedule": "0 * * * *" },
-    { "path": "/api/send-transactional?intent=waitlist_position_sweep", "schedule": "0 9 1 * *" }
+    { "path": "/api/send-transactional?intent=waitlist_position_sweep", "schedule": "0 9 1 * *" },
+    { "path": "/api/send-transactional?intent=retention_eligible_sweep", "schedule": "0 9 * * *" }
   ]
 }

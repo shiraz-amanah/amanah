@@ -5,6 +5,12 @@
 //   - scholar_approved  : to the scholar, when their profile is published (active)
 //   - reminder_sweep    : hourly Vercel Cron; emails BOTH parties 24h before a
 //                         session, then stamps bookings.reminder_sent_at
+//   - retention_eligible_sweep : daily Vercel Cron; sends NO EMAIL — it creates
+//                         an IN-APP notification for mosque owners whose former
+//                         staff records have crossed their statutory retention
+//                         date. It lives in this function because Vercel's
+//                         12-function cap is reached and this is the file cron
+//                         already targets, not because it sends mail.
 //
 // TRUST MODEL (see migration 046):
 //   The client NEVER supplies recipient addresses or email content. It passes
@@ -1120,6 +1126,32 @@ ${eSignoff}`;
     sent += 1;
   }
   return { status: 200, body: { ok: true, waiting: list.length, sent } };
+}
+
+// Retention eligibility nudge (migration 179). Daily cron.
+//
+// Deliberately THIN: the RPC claims the newly-eligible rows and creates the
+// in-app notifications in ONE transaction, so this handler neither decides who
+// to notify nor writes anything. That is not laziness — splitting claim from
+// notify would let a crash between them stamp retention_notified_at with no
+// notification sent, and the marker means the nudge can then NEVER fire again.
+// Silent, permanent loss of the one signal the feature exists to give.
+//
+// Sends no email in v1. It returns the per-mosque summary so a cron log shows
+// what happened; an empty array is the normal, healthy result on most days.
+async function handleRetentionEligibleSweep(env) {
+  const rows = await callRpc(env, 'sweep_retention_eligible', {});
+  const list = Array.isArray(rows) ? rows : [];
+  const notified = list.reduce((n, r) => n + (r.newly_eligible || 0), 0);
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      mosques_notified: list.length,
+      records_newly_eligible: notified,
+      results: list,
+    },
+  };
 }
 
 async function handleReminderSweep(env) {
@@ -2438,14 +2470,17 @@ export default async function handler(req, res) {
   // auto-injects `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is set.
   if (req.method === 'GET') {
     const sweep = req.query?.intent;
-    if (sweep !== 'reminder_sweep' && sweep !== 'waitlist_position_sweep') {
+    const SWEEPS = ['reminder_sweep', 'waitlist_position_sweep', 'retention_eligible_sweep'];
+    if (!SWEEPS.includes(sweep)) {
       return res.status(400).json({ ok: false, error: 'unknown_intent' });
     }
     if ((req.headers.authorization || '') !== `Bearer ${env.CRON_SECRET}`) {
       return res.status(401).json({ ok: false, error: 'unauthorized' });
     }
     try {
-      const out = sweep === 'reminder_sweep' ? await handleReminderSweep(env) : await handleWaitlistPositionSweep(env);
+      const out = sweep === 'reminder_sweep' ? await handleReminderSweep(env)
+        : sweep === 'retention_eligible_sweep' ? await handleRetentionEligibleSweep(env)
+        : await handleWaitlistPositionSweep(env);
       return res.status(out.status).json(out.body);
     } catch (err) {
       console.error('[send-transactional]', sweep, err?.message);
