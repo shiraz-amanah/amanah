@@ -15,9 +15,10 @@
 // so this is presentation over a real control, not the control itself.
 // ====================================================================
 import { useMemo, useState } from "react";
-import { Search, Lock, ShieldCheck, ArrowRight, Users } from "lucide-react";
+import { Search, Lock, ShieldCheck, ArrowRight, Users, Clock } from "lucide-react";
 import { retentionState } from "../lib/staffHelpers";
 import { Avatar } from "./StaffDirectory";
+import StaffDangerZone from "./StaffDangerZone";
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -66,8 +67,18 @@ const bucketOf = (s) => {
   return st.locked || st.unknown ? "locked" : "eligible";
 };
 
-export default function FormerStaffTab({ rows, onOpen, avatarMap = {} }) {
+export default function FormerStaffTab({ rows, onOpen, avatarMap = {}, onChanged, onNotify }) {
   const [search, setSearch] = useState("");
+  // Which row's danger zone is expanded inline. Opened by the Review button
+  // only — a click on the row BODY still opens the directory drawer, so nothing
+  // that worked before this restyle stopped working.
+  const [reviewId, setReviewId] = useState(null);
+  // The tab owns its own notice because StaffDirectory has no banner to borrow.
+  // This is NOT optional polish: StaffDangerZone reports a refused erasure
+  // through onNotify, and a no-op handler would put us back where migration 172
+  // found us — an irreversible action failing silently and reading as success.
+  const [notice, setNotice] = useState(null);
+  const notify = (text, tone = "success") => { setNotice({ text, tone }); onNotify?.(text, tone); };
   // Local state, so it resets when the tab unmounts — a retention filter would
   // be meaningless carried over to Employees or the register.
   const [bucket, setBucket] = useState("all");
@@ -100,20 +111,34 @@ export default function FormerStaffTab({ rows, onOpen, avatarMap = {} }) {
 
   return (
     <>
+      {notice && (
+        <div className={`mb-3 flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-sm ${
+          notice.tone === "amber"
+            ? "border-amber-200 bg-amber-50 text-amber-900"
+            : "border-success-200 bg-success-50 text-success-900"}`}>
+          <div className="min-w-0 flex-1">{notice.text}</div>
+          <button onClick={() => setNotice(null)} className="shrink-0 text-xs underline opacity-70 hover:opacity-100">Dismiss</button>
+        </div>
+      )}
+
       {/* Eligibility banner — only when at least one record has cleared its
           retention period. This is the ONLY prompt the system gives: erasure
           stays human-triggered, so this says "you may", never "we will". */}
       {eligible.length > 0 && (
-        <div className="mb-4 border-y border-success-200 bg-success-50/60">
-          <div className="flex items-center gap-3 px-3.5 py-2.5">
-            <ShieldCheck size={16} className="shrink-0 text-success-600" />
+        <div className="mb-4 rounded-xl border border-success-200 bg-success-50/60">
+          <div className="flex items-center gap-3 px-3.5 py-3">
+            <Clock size={16} className="shrink-0 text-success-600" />
             <div className="text-sm text-success-900 min-w-0">
-              <span className="font-semibold">{eligible.length} record{eligible.length === 1 ? "" : "s"} past retention</span>
-              <span className="text-success-700">{" — "}now eligible for anonymisation, if you choose to erase {eligible.length === 1 ? "it" : "them"}.</span>
+              <span className="font-semibold">
+                {eligible.length} record{eligible.length === 1 ? "" : "s"}
+              </span>
+              <span className="text-success-700">
+                {eligible.length === 1 ? " has" : " have"} cleared their retention period and can now be anonymised.
+              </span>
             </div>
             <div className="flex-1" />
             {eligible.length === 1 && (
-              <button onClick={() => onOpen?.(eligible[0].id)}
+              <button onClick={() => setReviewId(eligible[0].id)}
                 className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-success-900 border border-success-300 hover:bg-success-100 rounded-lg px-3 py-1.5">
                 Review <ArrowRight size={12} />
               </button>
@@ -157,39 +182,68 @@ export default function FormerStaffTab({ rows, onOpen, avatarMap = {} }) {
         <span className="text-xs text-stone-500">{filtered.length} of {rows.length}</span>
       </div>
 
-      <div className="border border-stone-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-stone-50 text-stone-500">
-            <tr>
-              <th className="text-left font-medium px-3 py-2.5">Name</th>
-              <th className="text-left font-medium px-3 py-2.5">Role</th>
-              <th className="text-left font-medium px-3 py-2.5">Left</th>
-              <th className="text-left font-medium px-3 py-2.5">Retention</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => (
-              <tr key={s.id} onClick={() => onOpen?.(s.id)}
-                className="border-t border-stone-100 hover:bg-stone-50/70 cursor-pointer">
-                <td className="px-3 py-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Avatar name={s.name} photoUrl={avatarMap[s.id]} size={28} />
-                    <div className="min-w-0">
-                      <div className="text-stone-800 truncate">{s.name}</div>
-                      {s.email && <div className="text-xs text-stone-400 truncate">{s.email}</div>}
-                    </div>
+      {/* Card rows. The Name/Role/Left/Retention columns collapse into a
+          two-line identity block — the subtitle carries what the Role and Left
+          columns used to, so nothing is lost, and the retention state moves to
+          the right where it reads as the row's status rather than a fourth
+          equal-weight field. */}
+      <div className="space-y-2">
+        {filtered.map((s) => {
+          const st = retentionState(s);
+          const eligibleRow = !st.locked && !st.unknown;
+          const subtitle = [s.jobTitle || s.role, `left ${fmtDate(s.endDate || s.offboardedAt)}`]
+            .filter(Boolean).join(" · ");
+          return (
+            <div key={s.id}
+              className={`border rounded-xl transition-colors ${reviewId === s.id ? "border-rose-200 bg-rose-50/20" : "border-stone-200 hover:bg-stone-50/70"}`}>
+              <div className="flex items-center gap-3 px-3.5 py-3">
+                {/* Row body keeps the drawer — the Review button below stops
+                    propagation so it can open the inline panel instead. */}
+                <div onClick={() => onOpen?.(s.id)} className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
+                  <Avatar name={s.name} photoUrl={avatarMap[s.id]} size={36} />
+                  <div className="min-w-0">
+                    <div className="font-semibold text-stone-800 truncate">{s.name}</div>
+                    <div className="text-xs text-stone-500 truncate">{subtitle || "—"}</div>
                   </div>
-                </td>
-                <td className="px-3 py-2.5 text-stone-600">{s.jobTitle || s.role || "—"}</td>
-                <td className="px-3 py-2.5 text-stone-600">{fmtDate(s.endDate || s.offboardedAt)}</td>
-                <td className="px-3 py-2.5"><RetentionPill row={s} /></td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={4} className="px-3 py-8 text-center text-sm text-stone-400">No matches.</td></tr>
-            )}
-          </tbody>
-        </table>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <RetentionPill row={s} />
+                  {eligibleRow && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setReviewId(reviewId === s.id ? null : s.id); }}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-stone-700 border border-stone-300 hover:bg-stone-100 rounded-lg px-3 py-1.5">
+                      {reviewId === s.id ? "Close" : "Review"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* The danger zone inline — the SAME component the profile page
+                  renders, so the lock state, the copy and the confirm dialog
+                  cannot drift from it. Offboard is hidden: everyone on this tab
+                  is already offboarded, so that row would be a no-op. */}
+              {reviewId === s.id && (
+                <div className="px-3.5 pb-3 -mt-1">
+                  <StaffDangerZone
+                    row={s} staffId={s.id} showOffboard={false}
+                    heading={`Danger zone — ${s.name}`}
+                    onNotify={notify}
+                    onAnonymised={() => {
+                      setReviewId(null);
+                      notify("Record anonymised.");
+                      // The row leaves this tab for the Erasure register, so the
+                      // list must come from the server again rather than be
+                      // patched locally.
+                      onChanged?.();
+                    }} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="border border-stone-200 rounded-xl px-3 py-8 text-center text-sm text-stone-400">No matches.</div>
+        )}
       </div>
     </>
   );

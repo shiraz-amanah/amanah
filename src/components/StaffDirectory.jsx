@@ -362,7 +362,8 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         ))}
       </div>
 
-      {tab === "former" && <FormerStaffTab rows={formerStaff} avatarMap={avatarMap} onOpen={setOpenId} />}
+      {tab === "former" && <FormerStaffTab rows={formerStaff} avatarMap={avatarMap} onOpen={setOpenId}
+        onChanged={() => setTick((t) => t + 1)} />}
 
       {tab === "erasure" && <ErasureRegister mosqueId={mosqueId} rows={erasedStaff} />}
 
