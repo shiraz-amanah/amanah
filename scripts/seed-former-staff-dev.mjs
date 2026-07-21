@@ -1,6 +1,11 @@
 // Seed / clean up a self-contained fixture for verifying the Former staff tab
 // by usage in a browser. DEV ONLY.
 //
+// ⚠️ CLOBBERS seed-erased-staff-dev.mjs: both build slug 'former-tab-verify'
+// for the same owner and both start by deleting that mosque, so whichever runs
+// last is the only population left. Fine when you want ONLY this fixture; if
+// you need current + former + erased together, use seed-staff-views-dev.mjs.
+//
 // Dev holds zero offboarded and zero anonymised rows, so the tab renders its
 // empty state and none of the restyle is reachable. This builds its OWN mosque
 // with a known-password owner (rather than seeding into a real dev mosque whose

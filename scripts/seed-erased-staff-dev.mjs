@@ -1,6 +1,11 @@
 // Seed an ERASED staff fixture on dev: real offboard + real anonymise, so the
 // erasure register has rows. Names/emails are distinctive so the export's
 // negative assertion (no personal data) is meaningful. DEV ONLY.
+//
+// ⚠️ CLOBBERS seed-former-staff-dev.mjs: both build slug 'former-tab-verify'
+// for the same owner and both start by deleting that mosque, so whichever runs
+// last is the only population left. Fine when you want ONLY this fixture; if
+// you need current + former + erased together, use seed-staff-views-dev.mjs.
 import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
 process.loadEnvFile('.env');
