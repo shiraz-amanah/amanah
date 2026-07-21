@@ -158,6 +158,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [onlyFlagged, setOnlyFlagged] = useState(() => chipToState(filter).of);
   const [moreOpen, setMoreOpen] = useState(false); // header "More" menu (Bulk import / Message all)
   const moreRef = useRef(null);
+  const filterRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   // StaffDirectory had no banner of its own, which is why bulk outcomes had
@@ -221,6 +222,18 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [moreOpen]);
+
+  // Same dismissal contract for the Filter panel. It DOES hold data entry, so
+  // outside-click/Escape only close the panel — the chosen filters persist
+  // (they are applied live as you pick them; there is no Apply step to lose).
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onDoc = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setFilterOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [filterOpen]);
 
   // Commit 5 — keep tab + chip in sync with the URL props (Back/Forward + refresh).
   useEffect(() => { setTab(STAFF_TABS.includes(staffTab) ? staffTab : "employees"); }, [staffTab]);
@@ -307,6 +320,18 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const toggle = (id) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(allChecked ? new Set() : new Set(filtered.map((s) => s.id)));
   const clearFilters = () => { setFilters({ status: "", rtw: "", dbs: "", department: "", employmentType: "" }); setOnlyFlagged(false); };
+
+  // The filter fields, shared verbatim by the phone sheet and the desktop
+  // dropdown so the two presentations can never drift apart.
+  const filterFields = (
+    <>
+      <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))} options={["Active", "Onboarding", "Invited", "Inactive", "Offboarded"]} />
+      <FilterSelect label="Right to Work" value={filters.rtw} onChange={(v) => setFilters((f) => ({ ...f, rtw: v }))} options={["Verified", "Not verified", "Expiring", "Expired", "Refused", "Not required"]} />
+      <FilterSelect label="DBS" value={filters.dbs} onChange={(v) => setFilters((f) => ({ ...f, dbs: v }))} options={["Verified", "Pending", "Missing", "Wrong level", "Expiring", "Expired", "Not required"]} />
+      <FilterSelect label="Department" value={filters.department} onChange={(v) => setFilters((f) => ({ ...f, department: v }))} options={departments} />
+      <FilterSelect label="Employment" value={filters.employmentType} onChange={(v) => setFilters((f) => ({ ...f, employmentType: v }))} options={["employed_full_time", "employed_part_time", "self_employed", "volunteer", "contractor"]} />
+    </>
+  );
 
   const exportCsv = () => {
     const cols = ["Name", "Email", "Department", "Role", "Status", "Right to Work", "DBS", "Start date"];
@@ -472,19 +497,37 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           ))}
         </div>
         {/* Granular filter dropdown (RtW / DBS / dept / employment / status). */}
-        <div className="relative">
+        <div className="relative" ref={filterRef}>
           <button onClick={() => setFilterOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3 py-2 rounded-lg ${anyFilter ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
             <Filter size={15} /> Filter {anyFilter && <span className="text-xs">•</span>} <ChevronDown size={13} />
           </button>
           {filterOpen && (
-            <div className="absolute right-0 mt-1 w-64 bg-white border border-stone-200 rounded-xl shadow-lg p-3 z-20 space-y-2.5">
-              <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))} options={["Active", "Onboarding", "Invited", "Inactive", "Offboarded"]} />
-              <FilterSelect label="Right to Work" value={filters.rtw} onChange={(v) => setFilters((f) => ({ ...f, rtw: v }))} options={["Verified", "Not verified", "Expiring", "Expired", "Refused", "Not required"]} />
-              <FilterSelect label="DBS" value={filters.dbs} onChange={(v) => setFilters((f) => ({ ...f, dbs: v }))} options={["Verified", "Pending", "Missing", "Wrong level", "Expiring", "Expired", "Not required"]} />
-              <FilterSelect label="Department" value={filters.department} onChange={(v) => setFilters((f) => ({ ...f, department: v }))} options={departments} />
-              <FilterSelect label="Employment" value={filters.employmentType} onChange={(v) => setFilters((f) => ({ ...f, employmentType: v }))} options={["employed_full_time", "employed_part_time", "self_employed", "volunteer", "contractor"]} />
-              <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
-            </div>
+            <>
+              {/* Phone: a bottom sheet. The old `absolute right-0 w-64` anchored
+                  the panel's RIGHT edge to the button's right edge — once this
+                  flex row wraps at ~390px the button sits near the left margin,
+                  so a 256px panel grew leftward to x=-140 and every control was
+                  off-screen. A sheet is width-independent, so no anchor maths
+                  can put it out of reach. Scrim + Done give it the exit the
+                  anchored panel never had. */}
+              <div className="sm:hidden fixed inset-0 bg-stone-900/20 z-30" onClick={() => setFilterOpen(false)} />
+              <div data-filter-panel
+                className="sm:hidden fixed inset-x-0 bottom-0 z-40 bg-white border-t border-stone-200 rounded-t-2xl shadow-xl p-4 space-y-2.5 max-h-[80vh] overflow-y-auto"
+                style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-sm font-semibold text-stone-800">Filter</span>
+                  <button onClick={() => setFilterOpen(false)} className="text-sm font-medium text-brand-700 px-2 py-1 -mr-2">Done</button>
+                </div>
+                {filterFields}
+                <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
+              </div>
+              {/* Tablet and up: the original anchored dropdown, now clamped so a
+                  narrow-but-not-phone viewport can't reintroduce the spill. */}
+              <div data-filter-panel className="hidden sm:block absolute right-0 mt-1 w-64 max-w-[92vw] bg-white border border-stone-200 rounded-xl shadow-lg p-3 z-20 space-y-2.5">
+                {filterFields}
+                <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
+              </div>
+            </>
           )}
         </div>
       </div>
