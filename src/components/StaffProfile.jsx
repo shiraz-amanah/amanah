@@ -39,7 +39,7 @@ import {
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffNi, getStaffEmployment,
   getStaffBankMasked, updateStaffBankDetails,
   updateStaffEmployment, dismissContractFlag, getMosqueRoles, applyRoleDefaults,
-  anonymiseStaff, suspendStaff,
+  retentionState, suspendStaff,
   getStaffIjazahs, addIjazah, deleteIjazah,
   getStaffTrainingFor, addTraining, deleteTraining,
   getStaffLeave, addLeave, approveLeave, declineLeave,
@@ -808,7 +808,11 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   // retention date at all (never offboarded — nothing to erase yet) or the date
   // is still in the future. anonymise_staff enforces the same rule server-side
   // and raises 'retention_active', so this is presentation, not the control.
-  const retentionLocked = !row.retentionEligibleAt || Date.now() < new Date(row.retentionEligibleAt).getTime();
+  // Uses the SHARED helper rather than restating the comparison: the Actions
+  // menu and the danger zone must mean the same thing by "locked", and a
+  // restated predicate agrees only until it doesn't (an unparseable stored date
+  // read as UNLOCKED here while retentionState read it as locked).
+  const retentionLocked = retentionState(row).locked;
 
   const st = deriveStatus(row);
   const mo = monthsAt(row.startDate);
