@@ -655,6 +655,19 @@ export function computeRetentionEligibleAt(endDate) {
   return new Date(Math.max(rtw.getTime(), hmrc.getTime()));
 }
 
+// Records that the erasure register was exported. WRITES need an RPC even
+// though READS do not: mosque_staff_audit_log carries SELECT policies only, and
+// opening an INSERT policy would let a client forge any action on this table —
+// including 'staff_anonymised', the row the register itself is built from.
+// Migration 177. Records format + row count, never the exported content.
+export async function logErasureRegisterExport(mosqueId, format, rowCount) {
+  if (!mosqueId) return { error: { message: "mosqueId required" } };
+  const { error } = await supabase.rpc("log_erasure_register_export", {
+    p_mosque_id: mosqueId, p_format: format, p_row_count: rowCount ?? 0,
+  });
+  return { error };
+}
+
 // Anonymised records for the erasure register: the audit trail is the ONLY
 // source of who erased what and when — the row itself is a skeleton by design.
 // Owners can read mosque_staff_audit_log directly (RLS, migration 129), so no

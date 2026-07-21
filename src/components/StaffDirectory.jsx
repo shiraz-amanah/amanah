@@ -409,7 +409,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       {tab === "former" && <FormerStaffTab rows={formerStaff} avatarMap={avatarMap} onOpen={setOpenId}
         onChanged={() => setTick((t) => t + 1)} />}
 
-      {tab === "erasure" && <ErasureRegister mosqueId={mosqueId} rows={erasedStaff} />}
+      {tab === "erasure" && <ErasureRegister mosqueId={mosqueId} mosque={mosque} rows={erasedStaff} />}
 
       {/* Org structure shows the CURRENT organisation — former and erased rows
           have no place on a live org chart. */}
