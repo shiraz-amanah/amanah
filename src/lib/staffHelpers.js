@@ -607,6 +607,76 @@ const SEV_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 const INACTIVE_STATUSES = ["suspended", "offboarded", "revoked", "expired"];
 export const isComplianceCountable = (s) => !s.archived && !INACTIVE_STATUSES.includes(s.status);
 
+// ── LIFECYCLE PARTITION (migration 175) ──────────────────────────────────
+// Three mutually exclusive states, in priority order. Anonymised wins over
+// offboarded: an erased record is a skeleton and must never surface as a named
+// former employee. The offboarded test tolerates LEGACY rows that predate 175
+// and so carry no offboarded_at — status/archived still identify them.
+export const isAnonymised = (s) => !!s?.anonymisedAt;
+export const isFormer = (s) =>
+  !isAnonymised(s) && (!!s?.offboardedAt || s?.status === "offboarded" || !!s?.archived);
+export const isCurrentStaff = (s) => !isAnonymised(s) && !isFormer(s);
+
+// Retention state for a row that already carries a STORED retention_eligible_at
+// (written at offboard). Never recomputed here — the stored date is the
+// auditable one, and recomputing would silently rewrite history if the rules
+// change. anonymise_staff enforces the same rule server-side.
+export function retentionState(s) {
+  const at = s?.retentionEligibleAt;
+  if (!at) return { locked: true, unknown: true, date: null };
+  const t = new Date(at).getTime();
+  if (isNaN(t)) return { locked: true, unknown: true, date: null };
+  return { locked: Date.now() < t, unknown: false, date: at };
+}
+
+// ── THE RETENTION FORMULA, CLIENT-SIDE ───────────────────────────────────
+// Mirrors public.staff_retention_eligible_at (migration 175) exactly:
+//   greatest(end_date + 2 years,
+//            (first 5 April on or after end_date) + 3 years)
+// Two years covers right-to-work evidence; three years past the relevant tax
+// year end covers payroll/HMRC. Used ONLY where no stored date exists yet —
+// i.e. the offboarding checklist, which must state the retention period from
+// the end date the admin has just typed, BEFORE offboard_staff has run.
+// Everything with a stored date must read that instead (see retentionState).
+// UTC throughout so a local timezone can't shift the 5 April boundary.
+export function computeRetentionEligibleAt(endDate) {
+  if (!endDate) return null;
+  const [y, m, d] = String(endDate).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const end = new Date(Date.UTC(y, m - 1, d));
+  if (isNaN(end)) return null;
+  const addYears = (dt, n) => new Date(Date.UTC(dt.getUTCFullYear() + n, dt.getUTCMonth(), dt.getUTCDate()));
+  // "First 5 April ON OR AFTER end_date" — an end date of exactly 5 April
+  // resolves to itself (the end of the tax year containing it), matching the SQL.
+  const aprThis = new Date(Date.UTC(y, 3, 5));
+  const taxYearEnd = end.getTime() <= aprThis.getTime() ? aprThis : new Date(Date.UTC(y + 1, 3, 5));
+  const rtw = addYears(end, 2);
+  const hmrc = addYears(taxYearEnd, 3);
+  return new Date(Math.max(rtw.getTime(), hmrc.getTime()));
+}
+
+// Anonymised records for the erasure register: the audit trail is the ONLY
+// source of who erased what and when — the row itself is a skeleton by design.
+// Owners can read mosque_staff_audit_log directly (RLS, migration 129), so no
+// RPC is needed. Actor name comes from the FK to profiles; it degrades to null
+// rather than failing if that read is not permitted.
+export async function getErasureRegister(mosqueId) {
+  if (!mosqueId) return [];
+  const { data, error } = await supabase
+    .from("mosque_staff_audit_log")
+    .select("staff_id, created_at, actor_id, actor:profiles!actor_id(name)")
+    .eq("mosque_id", mosqueId)
+    .eq("action", "staff_anonymised")
+    .order("created_at", { ascending: false });
+  if (error) { console.error("getErasureRegister:", error); return []; }
+  return (data || []).map((r) => ({
+    staffId: r.staff_id,
+    erasedAt: r.created_at,
+    actorId: r.actor_id,
+    actorName: r.actor?.name || null,
+  }));
+}
+
 // ── SINGLE COMPLIANCE-GAP DEFINITION (Job C, RBAC-E) ─────────────────────
 // A compliance gap = a not-archived/offboarded staff member whose required DBS
 // isn't verified (missing / pending / expired / wrong level), or whose Right to

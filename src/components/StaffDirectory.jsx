@@ -21,7 +21,10 @@ import {
 import {
   getMosqueStaffList, computeComplianceIssues, computeOfstedScore,
   ofstedColour, suspendStaff, deriveDbsState, deriveRtwState, cleanRole,
+  isCurrentStaff, isFormer, isAnonymised,
 } from "../lib/staffHelpers";
+import FormerStaffTab from "./FormerStaffTab";
+import ErasureRegister from "./ErasureRegister";
 import OrgStructure from "./OrgStructure";
 import AddStaffModal from "./AddStaffModal";
 import MessageModal from "./MessageModal";
@@ -127,7 +130,12 @@ function aiSummaryFor(staffId, issues) {
 // Commit 5 — the staff-page tab + Needs-attention chip persist to the URL
 // (?staffTab= / ?filter=). These map the chip key ↔ the existing onlyFlagged +
 // filters.status state (no new state model).
-const STAFF_TABS = ["employees", "org", "onboarding"];
+// "former" and "erasure" are the Phase 2 lifecycle tabs. The erasure register
+// lives HERE rather than under Compliance because it is the terminal state of
+// the same lifecycle the other tabs walk (Employees -> Former staff -> Erased),
+// and its data source is mosque_staff_audit_log, not the DBS/RTW/Ofsted model
+// Compliance is built on. Flagged as a judgement call.
+const STAFF_TABS = ["employees", "former", "erasure", "org", "onboarding"];
 const chipToState = (k) => k === "attention" ? { of: true, st: "" }
   : k === "active" ? { of: false, st: "Active" }
   : k === "suspended" ? { of: false, st: "Inactive" }  // URL key stays "suspended" (link stability); product label is "Inactive"
@@ -220,8 +228,27 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const changeTab = (v) => { setTab(v); onStaffUrl?.({ staffTab: v, filter: filterKey }, { replace: false }); };   // PUSH — tabs are navigation
   const applyChip = (key) => { const s = chipToState(key); setOnlyFlagged(s.of); setFilters((f) => ({ ...f, status: s.st })); onStaffUrl?.({ staffTab: tab, filter: key }, { replace: true }); }; // REPLACE — chips are refinement
 
-  const issues = useMemo(() => computeComplianceIssues(staff), [staff]);
-  const ofsted = useMemo(() => computeOfstedScore(staff), [staff]);
+  // ── Lifecycle partition (migration 175) ────────────────────────────
+  // `staff` holds every row the RPC returns. Employees must show CURRENT people
+  // only — the header count follows the tab so "N people" is honest. Former and
+  // erased rows get their own tabs rather than being silently mixed in.
+  // Escape hatch: explicitly selecting Status = "Offboarded" in the granular
+  // filter re-admits former rows to the Employees tab, which is what makes that
+  // filter option reachable again (it matched nothing while offboarded rows were
+  // hidden by deleted_at). Default view is unaffected.
+  const currentStaff = useMemo(() => staff.filter(isCurrentStaff), [staff]);
+  const formerStaff = useMemo(() => staff.filter(isFormer), [staff]);
+  const erasedStaff = useMemo(() => staff.filter(isAnonymised), [staff]);
+  const showingOffboarded = filters.status === "Offboarded";
+  const employeesPool = useMemo(
+    () => (showingOffboarded ? [...currentStaff, ...formerStaff] : currentStaff),
+    [currentStaff, formerStaff, showingOffboarded]);
+
+  // Compliance is computed over CURRENT staff only. Former/erased rows were
+  // already excluded by isComplianceCountable (status 'offboarded' / archived),
+  // so this narrows the input without changing any count.
+  const issues = useMemo(() => computeComplianceIssues(currentStaff), [currentStaff]);
+  const ofsted = useMemo(() => computeOfstedScore(currentStaff), [currentStaff]);
   const flaggedIds = useMemo(() => new Set(issues.map((i) => i.staffId)), [issues]);
   // Compact-banner breakdown — counts by the category the issues already carry.
   // Distinct FLAGGED STAFF per category (a row has ≤1 DBS gap + ≤1 RTW gap). The
@@ -232,11 +259,11 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
     dbs: new Set(issues.filter((i) => i.category === "dbs").map((i) => i.staffId)).size,
     rtw: new Set(issues.filter((i) => i.category === "rtw").map((i) => i.staffId)).size,
   }), [issues]);
-  const departments = useMemo(() => [...new Set(staff.map((s) => s.department).filter(Boolean))].sort(), [staff]);
+  const departments = useMemo(() => [...new Set(currentStaff.map((s) => s.department).filter(Boolean))].sort(), [currentStaff]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return staff.filter((s) => {
+    return employeesPool.filter((s) => {
       if (onlyFlagged && !flaggedIds.has(s.id)) return false;
       if (q && ![s.name, s.email, s.department, s.role, s.jobTitle].some((v) => (v || "").toLowerCase().includes(q))) return false;
       if (filters.status && deriveStatus(s).label !== filters.status) return false;
@@ -246,7 +273,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       if (filters.employmentType && s.employmentType !== filters.employmentType) return false;
       return true;
     });
-  }, [staff, search, onlyFlagged, flaggedIds, filters]);
+  }, [employeesPool, search, onlyFlagged, flaggedIds, filters]);
 
   const openRow = staff.find((s) => s.id === openId) || null;
   const allChecked = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
@@ -309,7 +336,13 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
       {/* Tab switcher: Employees | Org Structure | Onboarding review */}
       <div className="flex items-center gap-1 mb-4 border-b border-stone-200">
-        {[["employees", `Employees (${staff.length})`], ["org", "Org Structure"], ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`]].map(([v, l]) => (
+        {[
+          ["employees", `Employees (${currentStaff.length})`],
+          ["former", `Former staff${formerStaff.length ? ` (${formerStaff.length})` : ""}`],
+          ["erasure", `Erasure register${erasedStaff.length ? ` (${erasedStaff.length})` : ""}`],
+          ["org", "Org Structure"],
+          ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`],
+        ].map(([v, l]) => (
           <button key={v} onClick={() => changeTab(v)}
             className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-brand-600 text-brand-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             {l}{v === "onboarding" && pendingOnboarding > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
@@ -317,7 +350,13 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         ))}
       </div>
 
-      {tab === "org" && <OrgStructure mosque={mosque} staff={staff} onOpenNode={setOpenId} />}
+      {tab === "former" && <FormerStaffTab rows={formerStaff} avatarMap={avatarMap} onOpen={setOpenId} />}
+
+      {tab === "erasure" && <ErasureRegister mosqueId={mosqueId} rows={erasedStaff} />}
+
+      {/* Org structure shows the CURRENT organisation — former and erased rows
+          have no place on a live org chart. */}
+      {tab === "org" && <OrgStructure mosque={mosque} staff={currentStaff} onOpenNode={setOpenId} />}
 
       {tab === "onboarding" && <OnboardingReview mosqueId={mosqueId} onChanged={() => setTick((t) => t + 1)} />}
 
