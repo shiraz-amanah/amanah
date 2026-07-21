@@ -11,7 +11,7 @@
 //
 // Buttons that depend on not-yet-built components (Message*, +Add staff, View
 // full profile) call optional props and are inert until those land (steps 8–9).
-// Export CSV and bulk Suspend are fully wired here.
+// Export CSV and bulk Deactivate are fully wired here.
 // ====================================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -513,7 +513,13 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           <div className="flex-1" />
           <button onClick={() => openMsg(staff.filter((s) => selected.has(s.id)))} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded"><MessageCircle size={14} /> Message</button>
           <button onClick={exportCsv} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded"><Download size={14} /> Export CSV</button>
-          <button onClick={bulkSuspend} disabled={busy} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded disabled:opacity-50"><UserX size={14} /> Suspend</button>
+          {/* "Deactivate", not "Suspend" — the stored value stays 'suspended'
+              (a reserved internal marker) but the product concept is Inactive.
+              This was the last surface still saying Suspend: deriveStatus
+              already returns "Inactive" and StaffProfile already offers
+              "Deactivate…"/"Reactivate", so the bulk bar was contradicting both
+              its own result message and every other staff surface. */}
+          <button onClick={bulkSuspend} disabled={busy} className="inline-flex items-center gap-1.5 hover:bg-white/10 px-2.5 py-1 rounded disabled:opacity-50"><UserX size={14} /> Deactivate</button>
           <button onClick={() => setSelected(new Set())} className="inline-flex items-center gap-1 hover:bg-white/10 px-2 py-1 rounded"><X size={14} /></button>
         </div>
       )}

@@ -20,7 +20,7 @@ await p.evaluate(()=>{const rows=[...document.querySelectorAll('tbody tr')].slic
 await new Promise(r=>setTimeout(r,600));
 let t=await txt();
 /2 selected/.test(t)?ok('2 rows selected'):bad(`selection: ${(t.match(/\d+ selected/)||[])[0]}`);
-await click('button','Suspend'); await new Promise(r=>setTimeout(r,3500));
+await click('button','Deactivate'); await new Promise(r=>setTimeout(r,3500));
 t=await txt();
 /2 people deactivated/.test(t)?ok('reports "2 people deactivated" (previously reported NOTHING)'):bad(`no success notice: ${(t.match(/deactivated[^\n]*/)||['none'])[0]}`);
 !/\d+ selected/.test(t)?ok('selection cleared on full success'):bad('selection not cleared');
@@ -40,7 +40,7 @@ await goStaff();
 await p.evaluate(()=>{const rows=[...document.querySelectorAll('tbody tr')].slice(0,1);
   rows.forEach(r=>r.querySelector('input[type=checkbox]')?.click())});
 await new Promise(r=>setTimeout(r,600));
-await click('button','Suspend'); await new Promise(r=>setTimeout(r,4000));
+await click('button','Deactivate'); await new Promise(r=>setTimeout(r,4000));
 t=await txt();
 /0 of 1 deactivated/.test(t)?ok('reports the FAILURE ("0 of 1 deactivated")'):bad(`failure not reported: ${(t.match(/deactivated[^\n]*/)||['NOTHING'])[0]}`);
 /still selected/.test(t)?ok('failed row stays selected for retry'):bad('failed row not retained');
