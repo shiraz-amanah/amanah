@@ -818,10 +818,18 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
     // action can be retried without re-navigating) and do NOT call onBack.
     if (error) {
       console.error("anonymise_staff failed:", error);
-      flash("Couldn't anonymise this record — please try again.", "amber");
+      flash(/retention_active/.test(error.message || "")
+        ? "Blocked — this record is still within its statutory retention period."
+        : "Couldn't anonymise this record — please try again.", "amber");
       return;
     }
     setAnonOpen(false);
+    // Reflect the erasure locally BEFORE navigating, then reconcile from the
+    // server. Without this the header kept rendering the erased person's name
+    // (defect found in prod verification, 21 July 2026) — onBack doesn't always
+    // unmount this view, and the row in state was pre-erasure.
+    setRow((r) => (r ? { ...r, name: "[REDACTED]", email: null, anonymisedAt: new Date().toISOString() } : r));
+    load();
     flash("Record anonymised."); onBack?.();
   };
 
@@ -836,6 +844,12 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
       </div>
     </div>
   );
+
+  // Statutory retention gate (migration 175). Locked when the record has no
+  // retention date at all (never offboarded — nothing to erase yet) or the date
+  // is still in the future. anonymise_staff enforces the same rule server-side
+  // and raises 'retention_active', so this is presentation, not the control.
+  const retentionLocked = !row.retentionEligibleAt || Date.now() < new Date(row.retentionEligibleAt).getTime();
 
   const st = deriveStatus(row);
   const mo = monthsAt(row.startDate);
@@ -1142,10 +1156,28 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
                 </div>
                 <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-stone-800">Anonymise (GDPR)</div>
-                    <div className="text-xs text-stone-500">Permanently replaces their personal data with redaction markers. This cannot be undone — only the compliance audit trail remains.</div>
+                    <div className="text-sm font-medium text-stone-800 flex items-center gap-1.5">
+                      {retentionLocked && <Lock size={13} className="text-stone-400 shrink-0" />}Anonymise (GDPR)
+                    </div>
+                    {retentionLocked ? (
+                      <div className="text-xs text-stone-500">
+                        {row.retentionEligibleAt ? (
+                          <>Locked until <span className="font-medium text-stone-700">{fmtDate(row.retentionEligibleAt)}</span>. Employment records must be kept for two years after the last working day (right-to-work evidence) and three years after the end of the relevant tax year (payroll/HMRC) — whichever is later.</>
+                        ) : (
+                          <>Locked. A retention period is set when someone is offboarded, so this record can't be erased until they've been offboarded with a last working day.</>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-stone-500">Retention expired {fmtDate(row.retentionEligibleAt)} — this record is now eligible for erasure. Permanently replaces their personal data with redaction markers. This cannot be undone; only the compliance audit trail remains.</div>
+                    )}
                   </div>
-                  <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
+                  {retentionLocked ? (
+                    <span className="shrink-0 text-sm inline-flex items-center gap-1.5 border border-stone-200 bg-stone-50 text-stone-400 px-3 py-1.5 rounded-lg cursor-not-allowed" title="Blocked by statutory retention">
+                      <Lock size={13} /> Anonymise…
+                    </span>
+                  ) : (
+                    <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
+                  )}
                 </div>
               </div>
             </div>

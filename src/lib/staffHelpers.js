@@ -52,6 +52,11 @@ export function shapeStaffListRow(r) {
     showDbsBadgePublicly: r.show_dbs_badge_publicly, // migration 130
     lastLoginAt: r.last_login_at,        // migration 130
     createdAt: r.created_at,
+    // Retention lifecycle (migration 175). retentionEligibleAt gates erasure in
+    // both layers; anonymisedAt is the erasure flag — never sniff "[REDACTED]".
+    offboardedAt: r.offboarded_at,
+    anonymisedAt: r.anonymised_at,
+    retentionEligibleAt: r.retention_eligible_at,
   };
 }
 
