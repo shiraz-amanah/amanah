@@ -321,6 +321,37 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const toggleAll = () => setSelected(allChecked ? new Set() : new Set(filtered.map((s) => s.id)));
   const clearFilters = () => { setFilters({ status: "", rtw: "", dbs: "", department: "", employmentType: "" }); setOnlyFlagged(false); };
 
+  // The three staff-list views, formerly the first three tabs. Counts come from
+  // the same useMemo partitions the tabs used, so the numbers cannot drift.
+  const VIEWS = [
+    ["employees", "Employees", currentStaff.length],
+    ["former", "Former staff", formerStaff.length],
+    ["erasure", "Erasure register", erasedStaff.length],
+  ];
+  // null while Org Structure / Onboarding is active — those are still tabs, and
+  // the tab row shows which of THEM is selected.
+  const activeView = VIEWS.find(([v]) => v === tab) || null;
+
+  // Selecting a view swaps the whole content below (the three have different
+  // shapes — table / cards / no-actions register), so this is navigation, not
+  // row filtering: it goes through changeTab, which pushes history exactly as
+  // the tabs did, keeping deep links and the back button working.
+  const viewSection = (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-stone-400 px-1 pb-1">View</div>
+      {VIEWS.map(([v, label, count]) => (
+        <button key={v} data-view={v} onClick={() => { changeTab(v); setFilterOpen(false); }}
+          className={`w-full flex items-center justify-between gap-2 text-left text-sm px-2 py-2 rounded-lg ${tab === v ? "bg-brand-50 text-brand-800 font-medium" : "text-stone-700 hover:bg-stone-50"}`}>
+          <span className="inline-flex items-center gap-2 min-w-0">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tab === v ? "bg-brand-600" : "bg-transparent"}`} />
+            <span className="truncate">{label}</span>
+          </span>
+          <span className="text-xs text-stone-500 tabular-nums shrink-0">{count}</span>
+        </button>
+      ))}
+    </div>
+  );
+
   // The filter fields, shared verbatim by the phone sheet and the desktop
   // dropdown so the two presentations can never drift apart.
   const filterFields = (
@@ -406,21 +437,19 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         </div>
       </div>
 
-      {/* Tab switcher: Employees | Org Structure | Onboarding review
-          Scrolls horizontally rather than wrapping. At 390px these five labels
-          are far wider than the viewport, and a plain flex row let the buttons
-          shrink until their labels wrapped mid-phrase AND still overflowed the
-          right edge. Horizontal scroll is this codebase's existing answer for
-          tab rows (MosqueSafeguarding, and two in App.jsx).
+      {/* Tab switcher: Org Structure | Onboarding review.
+          The three STAFF-LIST views (Employees / Former staff / Erasure
+          register) moved into the Filter dropdown's View section — see
+          `viewSection`. These two stay as tabs because Onboarding carries a
+          pending-review badge that has to be visible without opening a menu.
+          Scrolls horizontally rather than wrapping, the codebase's existing
+          answer for tab rows (MosqueSafeguarding, and two in App.jsx).
           NOT using `scrollbar-hide` — despite six usages in App.jsx that class
           is defined NOWHERE (no plugin, no CSS), so it is inert. Adding the
           utility would silently change those six surfaces, which is a separate
           decision from this fix. */}
       <div ref={tabsRef} className="flex items-center gap-1 mb-4 border-b border-stone-200 overflow-x-auto">
         {[
-          ["employees", `Employees (${currentStaff.length})`],
-          ["former", `Former staff${formerStaff.length ? ` (${formerStaff.length})` : ""}`],
-          ["erasure", `Erasure register${erasedStaff.length ? ` (${erasedStaff.length})` : ""}`],
           ["org", "Org Structure"],
           ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`],
         ].map(([v, l]) => (
@@ -431,18 +460,6 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         ))}
       </div>
 
-      {tab === "former" && <FormerStaffTab rows={formerStaff} avatarMap={avatarMap} onOpen={setOpenId}
-        onChanged={() => setTick((t) => t + 1)} />}
-
-      {tab === "erasure" && <ErasureRegister mosqueId={mosqueId} mosque={mosque} rows={erasedStaff} />}
-
-      {/* Org structure shows the CURRENT organisation — former and erased rows
-          have no place on a live org chart. */}
-      {tab === "org" && <OrgStructure mosque={mosque} staff={currentStaff} onOpenNode={setOpenId} />}
-
-      {tab === "onboarding" && <OnboardingReview mosqueId={mosqueId} onChanged={() => setTick((t) => t + 1)} />}
-
-      {tab === "employees" && (<>
       {/* Compliance banner — ONE line. The Staff page stacked four full-height
           rows before any data (tabs, this banner, search+filters, table header),
           so this carries the least weight it can while still stating the gap.
@@ -453,7 +470,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           The breakdown hides below `sm` rather than wrapping or ellipsising
           mid-phrase — on a narrow screen the headline plus the action is the
           part that has to survive. */}
-      {flaggedIds.size > 0 && (
+      {tab === "employees" && flaggedIds.size > 0 && (
         <div className="mb-4 border-y border-amber-200 bg-amber-50/60">
           <div className="flex items-center gap-3 px-3.5 py-2">
             <AlertTriangle size={16} className="shrink-0 text-amber-600" />
@@ -473,15 +490,24 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         </div>
       )}
 
-      {/* Row 4 — search (left, capped) + filter chips & granular filter (right) on one row */}
+      {/* Row 4 — search (left, capped) + status chips & the view/filter control
+          (right) on one row. This row renders on EVERY view, because with the
+          first three tabs gone the Filter control is the only way back to
+          Employees — gating it on `tab === "employees"`, as it was when it sat
+          inside that block, would make switching to Former staff a one-way
+          trip. Search and the chips stay Employees-only: both drive `filtered`,
+          which only ever narrowed the employees table. */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, department, role…"
-            className="pl-9 pr-3 py-2 w-full max-w-[320px] border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200" />
-        </div>
+        {tab === "employees" && (
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, department, role…"
+              className="pl-9 pr-3 py-2 w-full max-w-[320px] border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200" />
+          </div>
+        )}
         <div className="flex-1" />
         {/* Chips — driven by the existing filters.status + onlyFlagged state (no new state). */}
+        {tab === "employees" && (
         <div className="flex flex-wrap items-center gap-1.5">
           {[
             { key: "all",       label: "All",             active: !onlyFlagged && !filters.status },
@@ -496,10 +522,16 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
             </button>
           ))}
         </div>
+        )}
         {/* Granular filter dropdown (RtW / DBS / dept / employment / status). */}
         <div className="relative" ref={filterRef}>
-          <button onClick={() => setFilterOpen((v) => !v)} className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3 py-2 rounded-lg ${anyFilter ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
-            <Filter size={15} /> Filter {anyFilter && <span className="text-xs">•</span>} <ChevronDown size={13} />
+          {/* The button carries the active view, because with the tab row gone
+              this is the only place the current view is named. */}
+          <button onClick={() => setFilterOpen((v) => !v)} aria-label="Change view or filter"
+            className={`inline-flex items-center gap-1.5 border text-sm font-medium px-3 py-2 rounded-lg ${anyFilter ? "border-brand-400 bg-brand-50 text-brand-800" : "border-stone-300 hover:bg-stone-50 text-stone-700"}`}>
+            <Filter size={15} /> Filter
+            {activeView && <span data-active-view className="text-xs font-semibold bg-brand-100 text-brand-800 rounded px-1.5 py-0.5 max-w-[9rem] truncate">{activeView[1]}</span>}
+            {anyFilter && <span className="text-xs">•</span>} <ChevronDown size={13} />
           </button>
           {filterOpen && (
             <>
@@ -515,22 +547,53 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
                 className="sm:hidden fixed inset-x-0 bottom-0 z-40 bg-white border-t border-stone-200 rounded-t-2xl shadow-xl p-4 space-y-2.5 max-h-[80vh] overflow-y-auto"
                 style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
                 <div className="flex items-center justify-between pb-1">
-                  <span className="text-sm font-semibold text-stone-800">Filter</span>
+                  <span className="text-sm font-semibold text-stone-800">View &amp; filter</span>
                   <button onClick={() => setFilterOpen(false)} className="text-sm font-medium text-brand-700 px-2 py-1 -mr-2">Done</button>
                 </div>
-                {filterFields}
-                <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
+                {viewSection}
+                {/* The filter fields only ever narrowed the EMPLOYEES table —
+                    FormerStaffTab and ErasureRegister take their rows straight
+                    from the partitions, unfiltered. Rendering them on those
+                    views would be five live-looking controls that silently do
+                    nothing, so they are hidden rather than shown inert. */}
+                {tab === "employees" && (<>
+                  <div className="border-t border-stone-200 pt-2.5 space-y-2.5">
+                    {filterFields}
+                    <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
+                  </div>
+                </>)}
               </div>
               {/* Tablet and up: the original anchored dropdown, now clamped so a
                   narrow-but-not-phone viewport can't reintroduce the spill. */}
               <div data-filter-panel className="hidden sm:block absolute right-0 mt-1 w-64 max-w-[92vw] bg-white border border-stone-200 rounded-xl shadow-lg p-3 z-20 space-y-2.5">
-                {filterFields}
-                <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
+                {viewSection}
+                {tab === "employees" && (
+                  <div className="border-t border-stone-200 pt-2.5 space-y-2.5">
+                    {filterFields}
+                    <button onClick={clearFilters} className="w-full text-xs text-stone-500 hover:text-stone-800 pt-1">Clear all</button>
+                  </div>
+                )}
               </div>
             </>
           )}
         </div>
       </div>
+
+      {/* Content swap. The three staff-list views have genuinely different
+          shapes — table / cards / register-with-no-actions — which is why this
+          is a navigation swap and not row filtering on one shared table. */}
+      {tab === "former" && <FormerStaffTab rows={formerStaff} avatarMap={avatarMap} onOpen={setOpenId}
+        onChanged={() => setTick((t) => t + 1)} />}
+
+      {tab === "erasure" && <ErasureRegister mosqueId={mosqueId} mosque={mosque} rows={erasedStaff} />}
+
+      {/* Org structure shows the CURRENT organisation — former and erased rows
+          have no place on a live org chart. */}
+      {tab === "org" && <OrgStructure mosque={mosque} staff={currentStaff} onOpenNode={setOpenId} />}
+
+      {tab === "onboarding" && <OnboardingReview mosqueId={mosqueId} onChanged={() => setTick((t) => t + 1)} />}
+
+      {tab === "employees" && (<>
 
       {/* Bulk import panel (session-model onboarding invites + email guard) */}
       {bulkOpen && (
