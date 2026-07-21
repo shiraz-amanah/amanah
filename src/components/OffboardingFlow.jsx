@@ -2,10 +2,14 @@
 // ====================================================================
 // Session RBAC-B — multi-step offboarding, opened from StaffProfile (Actions →
 // Offboard / §12). Replaces the quick prompt.
-//   Step 1 Confirm details (end date · reason · notes)
+//   Step 1 Confirm details (end date · reason · notes). End date is REQUIRED
+//          as of migration 175 — the statutory retention date is computed from
+//          it, and without it the record could never become erasable.
 //   Step 2 Checklist — ticking "Access revoked" fires the offboard_staff RPC
-//          (SECURITY DEFINER: status=offboarded, clears profile_id, soft-delete
-//          with 2-year retention, audit log). The other items are acknowledgements.
+//          (SECURITY DEFINER: status=offboarded, clears profile_id, stamps
+//          offboarded_at + retention_eligible_at, audit log). The other items
+//          are acknowledgements. NB: 175 stopped writing deleted_at — retention
+//          is now the single retention_eligible_at concept.
 //   Step 3 Exit notes
 //   Step 4 Complete → offboard_staff (if not already) → offboarding_confirmation
 //          email → done (parent navigates back).
@@ -16,6 +20,14 @@ import { offboardStaff } from "../lib/staffHelpers";
 import { sendOffboardingConfirmation } from "../lib/email";
 
 const REASONS = ["Resigned", "Dismissed", "Contract ended", "Redundancy", "Voluntary", "Other"];
+
+// offboard_staff (175) raises 'end_date_required' when p_end_date is null. The
+// UI already blocks Continue without a date, so this is the backstop path —
+// translate it rather than showing the raw Postgres message.
+const offboardErr = (error) =>
+  /end_date_required/.test(error?.message || "")
+    ? "A last working day is required — it sets the record's retention period."
+    : "Offboarding failed — please try again.";
 const CHECKLIST = [
   ["access", "Access revoked"],
   ["rotas", "Removed from all rotas"],
@@ -44,7 +56,7 @@ export default function OffboardingFlow({ staffId, staffName, onClose, onDone })
       setBusy(true); setErr(null);
       const { error } = await offboardStaff(staffId, reason, endDate || null);
       setBusy(false);
-      if (error) { setErr("Couldn't revoke access — please try again."); setChecks((c) => ({ ...c, access: false })); }
+      if (error) { setErr(offboardErr(error)); setChecks((c) => ({ ...c, access: false })); }
       else setOffboarded(true);
     }
   };
@@ -53,7 +65,7 @@ export default function OffboardingFlow({ staffId, staffName, onClose, onDone })
     setBusy(true); setErr(null);
     if (!offboarded) {
       const { error } = await offboardStaff(staffId, reason, endDate || null);
-      if (error) { setErr("Offboarding failed — please try again."); setBusy(false); return; }
+      if (error) { setErr(offboardErr(error)); setBusy(false); return; }
       setOffboarded(true);
     }
     sendOffboardingConfirmation(staffId).catch(() => {});
@@ -73,8 +85,13 @@ export default function OffboardingFlow({ staffId, staffName, onClose, onDone })
         <div className="p-5 space-y-3">
           {step === 1 && (
             <>
-              <label className="block"><span className="text-xs text-stone-500">End date (last working day)</span>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2" /></label>
+              <label className="block"><span className="text-xs text-stone-500">End date (last working day) <span className="text-rose-600">*</span></span>
+                <input type="date" required value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2" /></label>
+              {/* Required since migration 175: the statutory retention date is
+                  computed FROM this date, so without it the record could never
+                  become eligible for erasure. offboard_staff raises
+                  'end_date_required' if it is somehow omitted anyway. */}
+              {!endDate && <p className="text-xs text-stone-400 -mt-1.5">Needed to calculate the record's data-retention period.</p>}
               <label className="block"><span className="text-xs text-stone-500">Reason</span>
                 <select value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2.5 py-2">{REASONS.map((r) => <option key={r} value={r}>{r}</option>)}</select></label>
               <label className="block"><span className="text-xs text-stone-500">Notes (optional)</span>
@@ -117,7 +134,8 @@ export default function OffboardingFlow({ staffId, staffName, onClose, onDone })
             {step === 1 ? "Cancel" : <><ArrowLeft size={15} /> Back</>}
           </button>
           {step < 4 ? (
-            <button onClick={() => setStep((s) => s + 1)} className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5">Continue <ArrowRight size={15} /></button>
+            <button onClick={() => setStep((s) => s + 1)} disabled={step === 1 && !endDate}
+              className="text-sm bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">Continue <ArrowRight size={15} /></button>
           ) : (
             <button onClick={complete} disabled={busy} className="text-sm bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-50">
               {busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Complete offboarding
