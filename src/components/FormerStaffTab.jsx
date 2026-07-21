@@ -51,17 +51,42 @@ function RetentionPill({ row }) {
   );
 }
 
+// The one distinction that matters on this tab. "Retention active" holds the
+// rows that CANNOT be erased yet — which includes the unknown-date rows, since
+// those are refused by the guard's null branch too. Both states are derived from
+// retention_eligible_at with the same comparison the row pills use, so a chip and
+// the badge next to it can never disagree.
+const RETENTION_CHIPS = [
+  { key: "all", label: "All" },
+  { key: "locked", label: "Retention active", Icon: Lock },
+  { key: "eligible", label: "Eligible to anonymise", Icon: ShieldCheck },
+];
+const bucketOf = (s) => {
+  const st = retentionState(s);
+  return st.locked || st.unknown ? "locked" : "eligible";
+};
+
 export default function FormerStaffTab({ rows, onOpen, avatarMap = {} }) {
   const [search, setSearch] = useState("");
+  // Local state, so it resets when the tab unmounts — a retention filter would
+  // be meaningless carried over to Employees or the register.
+  const [bucket, setBucket] = useState("all");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((s) =>
-      [s.name, s.email, s.department, s.role, s.jobTitle].some((v) => (v || "").toLowerCase().includes(q)));
-  }, [rows, search]);
+    return rows.filter((s) => {
+      if (bucket !== "all" && bucketOf(s) !== bucket) return false;
+      if (q && ![s.name, s.email, s.department, s.role, s.jobTitle].some((v) => (v || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [rows, search, bucket]);
 
-  const eligible = useMemo(() => rows.filter((s) => !retentionState(s).locked && !retentionState(s).unknown), [rows]);
+  const eligible = useMemo(() => rows.filter((s) => bucketOf(s) === "eligible"), [rows]);
+  const counts = useMemo(() => ({
+    all: rows.length,
+    locked: rows.length - eligible.length,
+    eligible: eligible.length,
+  }), [rows, eligible]);
 
   if (!rows.length) {
     return (
@@ -97,12 +122,37 @@ export default function FormerStaffTab({ rows, onOpen, avatarMap = {} }) {
         </div>
       )}
 
+      {/* Contextual filter row: retention state, not employment status. Chip
+          styling follows the Employees pills; the ACTIVE colour follows the
+          row-level retention badge, so the chip and the badges it selects read
+          as the same thing. */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search former staff…"
             className="pl-9 pr-3 py-2 w-full max-w-[320px] border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200" />
         </div>
+        <div className="flex-1" />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {RETENTION_CHIPS.map(({ key, label, Icon }) => {
+            const active = bucket === key;
+            const tone = !active
+              ? "border-stone-300 text-stone-600 hover:bg-stone-50"
+              : key === "eligible"
+                ? "bg-success-50 border-success-300 text-success-800"
+                : key === "locked"
+                  ? "bg-stone-100 border-stone-400 text-stone-700"
+                  : "bg-brand-50 border-brand-300 text-brand-800";
+            return (
+              <button key={key} onClick={() => setBucket(key)}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${tone}`}>
+                {Icon && <Icon size={11} />}{label}{key !== "all" && counts[key] > 0 ? ` (${counts[key]})` : ""}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex items-center mb-2">
         <div className="flex-1" />
         <span className="text-xs text-stone-500">{filtered.length} of {rows.length}</span>
       </div>
