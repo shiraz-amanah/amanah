@@ -1997,8 +1997,6 @@ function shapeEmployee(row) {
     inviteExpiresAt: row.invite_expires_at,
     inviteAcceptedAt: row.invite_accepted_at,
     profileId: row.profile_id,
-    profileName: row.profile_name,
-    profileAvatar: row.profile_avatar,
     createdAt: row.created_at,
   }
 }
