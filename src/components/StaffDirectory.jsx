@@ -221,6 +221,17 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
 
   // Commit 5 — keep tab + chip in sync with the URL props (Back/Forward + refresh).
   useEffect(() => { setTab(STAFF_TABS.includes(staffTab) ? staffTab : "employees"); }, [staffTab]);
+  // Keep the ACTIVE tab visible in the scrolling row. Without this, landing on
+  // or restoring a right-hand tab (Onboarding, Org Structure) at phone width
+  // leaves the selected tab scrolled off-screen — the row would be fixed but
+  // you still could not see which tab you were on. block:'nearest' so this
+  // never scrolls the page vertically; a no-op on desktop, where nothing
+  // overflows.
+  const tabsRef = useRef(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector(`[data-tab="${tab}"]`)
+      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [tab]);
   useEffect(() => { const s = chipToState(filter); setOnlyFlagged(s.of); setFilters((f) => ({ ...f, status: s.st })); }, [filter]);
   // The current chip key (derived from the existing state) + the URL-writers.
   const filterKey = onlyFlagged ? "attention" : filters.status === "Active" ? "active" : filters.status === "Inactive" ? "suspended" : "all";
@@ -345,8 +356,17 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
         </div>
       </div>
 
-      {/* Tab switcher: Employees | Org Structure | Onboarding review */}
-      <div className="flex items-center gap-1 mb-4 border-b border-stone-200">
+      {/* Tab switcher: Employees | Org Structure | Onboarding review
+          Scrolls horizontally rather than wrapping. At 390px these five labels
+          are far wider than the viewport, and a plain flex row let the buttons
+          shrink until their labels wrapped mid-phrase AND still overflowed the
+          right edge. Horizontal scroll is this codebase's existing answer for
+          tab rows (MosqueSafeguarding, and two in App.jsx).
+          NOT using `scrollbar-hide` — despite six usages in App.jsx that class
+          is defined NOWHERE (no plugin, no CSS), so it is inert. Adding the
+          utility would silently change those six surfaces, which is a separate
+          decision from this fix. */}
+      <div ref={tabsRef} className="flex items-center gap-1 mb-4 border-b border-stone-200 overflow-x-auto">
         {[
           ["employees", `Employees (${currentStaff.length})`],
           ["former", `Former staff${formerStaff.length ? ` (${formerStaff.length})` : ""}`],
@@ -354,8 +374,8 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
           ["org", "Org Structure"],
           ["onboarding", `Onboarding${pendingOnboarding ? ` (${pendingOnboarding})` : ""}`],
         ].map(([v, l]) => (
-          <button key={v} onClick={() => changeTab(v)}
-            className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-brand-600 text-brand-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
+          <button key={v} onClick={() => changeTab(v)} data-tab={v}
+            className={`shrink-0 whitespace-nowrap px-3 py-2 text-sm font-medium -mb-px border-b-2 inline-flex items-center gap-1.5 ${tab === v ? "border-brand-600 text-brand-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>
             {l}{v === "onboarding" && pendingOnboarding > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
           </button>
         ))}
