@@ -156,7 +156,6 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState(() => ({ status: chipToState(filter).st, rtw: "", dbs: "", department: "", employmentType: "" }));
   const [onlyFlagged, setOnlyFlagged] = useState(() => chipToState(filter).of);
-  const [detailsOpen, setDetailsOpen] = useState(false); // compact banner's expandable issue list
   const [moreOpen, setMoreOpen] = useState(false); // header "More" menu (Bulk import / Message all)
   const moreRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -374,36 +373,33 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       {tab === "onboarding" && <OnboardingReview mosqueId={mosqueId} onChanged={() => setTick((t) => t + 1)} />}
 
       {tab === "employees" && (<>
-      {/* Compliance banner — single compact row. "Review gaps" filters the table
-          to the flagged rows (the existing Resolve-all handler); "Details" expands
-          the per-name list beneath. */}
+      {/* Compliance banner — ONE line. The Staff page stacked four full-height
+          rows before any data (tabs, this banner, search+filters, table header),
+          so this carries the least weight it can while still stating the gap.
+          "Review" filters the table to the flagged rows.
+          The "Details" toggle and its per-name list are GONE: Review already
+          shows exactly those rows, with each row's own gap visible in context,
+          so the list was a second rendering of the same information.
+          The breakdown hides below `sm` rather than wrapping or ellipsising
+          mid-phrase — on a narrow screen the headline plus the action is the
+          part that has to survive. */}
       {flaggedIds.size > 0 && (
         <div className="mb-4 border-y border-amber-200 bg-amber-50/60">
-          <div className="flex items-center gap-3 px-3.5 py-2.5">
+          <div className="flex items-center gap-3 px-3.5 py-2">
             <AlertTriangle size={16} className="shrink-0 text-amber-600" />
-            <div className="text-sm text-amber-900 min-w-0">
+            <div className="text-sm text-amber-900 min-w-0 truncate">
               <span className="font-semibold">{flaggedIds.size} compliance gap{flaggedIds.size === 1 ? "" : "s"}</span>
-              <span className="text-amber-700">
-                {" — "}{issueBreakdown.dbs} DBS · {issueBreakdown.rtw} right to work
+              <span className="text-amber-700 hidden sm:inline">
+                {" — "}{issueBreakdown.dbs} DBS, {issueBreakdown.rtw} right to work
               </span>
             </div>
             <div className="flex-1" />
-            <button onClick={() => setDetailsOpen((v) => !v)} className="shrink-0 text-xs font-medium text-amber-800 hover:text-amber-950">
-              {detailsOpen ? "Hide" : "Details"}
-            </button>
+            {/* Still a toggle: without the "Show all staff" label the filtered
+                state would have no visible way back. */}
             <button onClick={() => setOnlyFlagged((v) => !v)} className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-amber-900 border border-amber-300 hover:bg-amber-100 rounded-lg px-3 py-1.5">
-              {onlyFlagged ? "Show all staff" : <>Review gaps <ArrowRight size={12} /></>}
+              {onlyFlagged ? "Show all staff" : <>Review <ArrowRight size={12} /></>}
             </button>
           </div>
-          {detailsOpen && (
-            <ul className="border-t border-amber-200/70 px-3.5 py-2 space-y-1">
-              {issues.map((i, n) => (
-                <li key={n} className="flex items-center gap-2 text-sm text-amber-900">
-                  <AlertTriangle size={12} className="shrink-0 text-amber-500" /> {i.message}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 
