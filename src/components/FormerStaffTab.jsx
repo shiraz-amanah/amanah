@@ -194,8 +194,29 @@ export default function FormerStaffTab({ rows, onOpen, avatarMap = {}, onChanged
           const subtitle = [s.jobTitle || s.role, `left ${fmtDate(s.endDate || s.offboardedAt)}`]
             .filter(Boolean).join(" · ");
           return (
+            // Cards need their OWN surface, not just a hairline. The page is
+            // bg-stone-50 (250,250,249) and these rows were transparent, so a
+            // 1px stone-200 border was the only thing distinguishing a card —
+            // which reads as a card when several repeat with gaps between them,
+            // and as a plain list line when there is only one (the prod case:
+            // one former staff row, and it did not read as a card at all).
+            // bg-white + shadow-sm gives a single row the same card affordance
+            // as a stack of them.
+            //
+            // HOVER ELEVATES RATHER THAN TINTS. hover:bg-stone-100 would be
+            // exactly the locked pill's own fill (245,245,244), so the pill's
+            // background would disappear into the row on hover; and the previous
+            // hover:bg-stone-50/70 computes to ~(252,252,251) over white, which
+            // is invisible. Raising the shadow and darkening the border avoids
+            // both and cannot collide with any pill colour.
+            //
+            // Hover classes live ONLY in the unselected branch: border-stone-300
+            // and border-rose-200 have equal specificity, so which one won would
+            // depend on generated CSS order, not on the order written here.
             <div key={s.id}
-              className={`border rounded-xl transition-colors ${reviewId === s.id ? "border-rose-200 bg-rose-50/20" : "border-stone-200 hover:bg-stone-50/70"}`}>
+              className={`border rounded-xl shadow-sm transition-all ${reviewId === s.id
+                ? "border-rose-200 bg-rose-50"
+                : "border-stone-200 bg-white hover:shadow-md hover:border-stone-300"}`}>
               <div className="flex items-center gap-3 px-3.5 py-3">
                 {/* Row body keeps the drawer — the Review button below stops
                     propagation so it can open the inline panel instead. */}
@@ -242,7 +263,7 @@ export default function FormerStaffTab({ rows, onOpen, avatarMap = {}, onChanged
           );
         })}
         {filtered.length === 0 && (
-          <div className="border border-stone-200 rounded-xl px-3 py-8 text-center text-sm text-stone-400">No matches.</div>
+          <div className="border border-stone-200 bg-white shadow-sm rounded-xl px-3 py-8 text-center text-sm text-stone-400">No matches.</div>
         )}
       </div>
     </>
