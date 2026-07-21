@@ -33,6 +33,7 @@ import { Avatar, deriveStatus } from "./StaffDirectory";
 import OffboardingFlow from "./OffboardingFlow";
 import GrantAccessModal from "./GrantAccessModal";
 import StaffContractGenerator from "./StaffContractGenerator";
+import StaffDangerZone from "./StaffDangerZone";
 import {
   cleanRole,
   getMosqueStaffList, getStaffSalary, getStaffSensitive, getStaffNi, getStaffEmployment,
@@ -154,26 +155,8 @@ function EditIdentityDialog({ row, busy, onCancel, onSave }) {
   );
 }
 
-// GDPR anonymise is irreversible — gate the confirm behind typing the exact name.
-function AnonymiseDialog({ name, busy, onCancel, onConfirm }) {
-  const [typed, setTyped] = useState("");
-  const match = typed.trim() === (name || "").trim() && !!name;
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onCancel}>
-      <div className="bg-white rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-rose-700 flex items-center gap-2"><AlertTriangle size={18} /> Anonymise this record</h3>
-        <p className="text-sm text-stone-600 mt-2">This permanently replaces {name || "this person"}'s personal data with <span className="font-medium">redaction markers</span>. It <span className="font-medium">cannot be undone</span> — only the compliance audit trail remains.</p>
-        <p className="text-sm text-stone-600 mt-3">Type <span className="font-semibold text-stone-900">{name}</span> to confirm:</p>
-        <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={name}
-          className="mt-1.5 w-full border border-stone-300 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-200" />
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onCancel} className="text-sm px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50">Cancel</button>
-          <button onClick={onConfirm} disabled={!match || busy} className="text-sm px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed">{busy ? "Anonymising…" : "Anonymise permanently"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// AnonymiseDialog moved to StaffDangerZone.jsx — the Former staff tab surfaces
+// the same irreversible action inline, and it gets one implementation.
 
 // One tile in the compliance strip under the header.
 function StripTile({ label, value, sub, tone = "muted" }) {
@@ -806,32 +789,8 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   };
   const openOffboard = () => { setActionsOpen(false); setOffboardOpen(true); };
   const doAnonymise = () => { setActionsOpen(false); setAnonOpen(true); };
-  const confirmAnonymise = async () => {
-    setBusy(true);
-    const { error } = await anonymiseStaff(staffId);
-    setBusy(false);
-    // Erasure is irreversible and legally load-bearing, so a failure must never
-    // read as a success. Pre-172 this branch was absent AND the modal closed
-    // unconditionally, so the 23514 the CHECK raised (see migration 172) closed
-    // the dialog silently with no banner — the operator had no signal that
-    // nothing had been redacted. On error we now keep the modal open (so the
-    // action can be retried without re-navigating) and do NOT call onBack.
-    if (error) {
-      console.error("anonymise_staff failed:", error);
-      flash(/retention_active/.test(error.message || "")
-        ? "Blocked — this record is still within its statutory retention period."
-        : "Couldn't anonymise this record — please try again.", "amber");
-      return;
-    }
-    setAnonOpen(false);
-    // Reflect the erasure locally BEFORE navigating, then reconcile from the
-    // server. Without this the header kept rendering the erased person's name
-    // (defect found in prod verification, 21 July 2026) — onBack doesn't always
-    // unmount this view, and the row in state was pre-erasure.
-    setRow((r) => (r ? { ...r, name: "[REDACTED]", email: null, anonymisedAt: new Date().toISOString() } : r));
-    load();
-    flash("Record anonymised."); onBack?.();
-  };
+  // confirmAnonymise moved into StaffDangerZone (it owns the dialog and the
+  // RPC); the post-erasure reconcile stays here, passed as onAnonymised.
 
   if (loading) return (
     <div className="min-h-screen bg-stone-50 flex items-center justify-center"><Loader2 className="animate-spin text-brand-700" size={26} /></div>
@@ -1145,44 +1104,26 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
               <SummaryCard icon={KeyRound} title="Account & access" statusText={row.lastLoginAt ? `Last login ${fmtDate(row.lastLoginAt)}` : "Never signed in"} detail={`${humanInvite(row.inviteStatus)} · dashboard access`} onClick={() => openSection("account")} />
             </div>
 
-            {/* Danger zone — stays separate below the grid */}
-            <div className="border border-rose-200 bg-rose-50/50 rounded-xl p-4 mt-4">
-              <div className="text-sm font-semibold text-rose-800">Danger zone</div>
-              <div className="mt-3 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-stone-800">Offboard</div>
-                    <div className="text-xs text-stone-500">Archives the record and ends their access. They stop counting toward compliance; the history is kept.</div>
-                  </div>
-                  <button onClick={openOffboard} disabled={busy} className="shrink-0 text-sm border border-amber-300 text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg">Offboard…</button>
-                </div>
-                <div className="flex items-start justify-between gap-3 border-t border-rose-100 pt-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-stone-800 flex items-center gap-1.5">
-                      {retentionLocked && <Lock size={13} className="text-stone-400 shrink-0" />}Anonymise (GDPR)
-                    </div>
-                    {retentionLocked ? (
-                      <div className="text-xs text-stone-500">
-                        {row.retentionEligibleAt ? (
-                          <>Locked until <span className="font-medium text-stone-700">{fmtDate(row.retentionEligibleAt)}</span>. Employment records must be kept for two years after the last working day (right-to-work evidence) and three years after the end of the relevant tax year (payroll/HMRC) — whichever is later.</>
-                        ) : (
-                          <>Locked. A retention period is set when someone is offboarded, so this record can't be erased until they've been offboarded with a last working day.</>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-stone-500">Retention expired {fmtDate(row.retentionEligibleAt)} — this record is now eligible for erasure. Permanently replaces their personal data with redaction markers. This cannot be undone; only the compliance audit trail remains.</div>
-                    )}
-                  </div>
-                  {retentionLocked ? (
-                    <span className="shrink-0 text-sm inline-flex items-center gap-1.5 border border-stone-200 bg-stone-50 text-stone-400 px-3 py-1.5 rounded-lg cursor-not-allowed" title="Blocked by statutory retention">
-                      <Lock size={13} /> Anonymise…
-                    </span>
-                  ) : (
-                    <button onClick={doAnonymise} disabled={busy} className="shrink-0 text-sm border border-rose-300 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg">Anonymise…</button>
-                  )}
-                </div>
-              </div>
-            </div>
+            {/* Danger zone — stays separate below the grid. The card, the
+                confirm dialog and the erasure RPC now live in
+                StaffDangerZone so the Former staff tab shares ONE
+                implementation of an irreversible action. */}
+            <StaffDangerZone
+              row={row} staffId={staffId} busy={busy}
+              onBusyChange={setBusy}
+              onOffboard={openOffboard}
+              anonOpen={anonOpen} onAnonOpenChange={setAnonOpen}
+              onNotify={flash}
+              onAnonymised={() => {
+                // Reflect the erasure locally BEFORE navigating, then reconcile
+                // from the server. Without this the header kept rendering the
+                // erased person's name (defect found in prod verification,
+                // 21 July 2026) — onBack doesn't always unmount this view, and
+                // the row in state was pre-erasure.
+                setRow((r) => (r ? { ...r, name: "[REDACTED]", email: null, anonymisedAt: new Date().toISOString() } : r));
+                load();
+                flash("Record anonymised."); onBack?.();
+              }} />
           </>
         )}
       </div>
@@ -1202,10 +1143,8 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
           onClose={() => setBankOpen(false)}
           onSaved={(banner) => { loadBank(); flash(banner.text, banner.tone); }} />
       )}
-      {anonOpen && (
-        <AnonymiseDialog name={row.name} busy={busy}
-          onCancel={() => setAnonOpen(false)} onConfirm={confirmAnonymise} />
-      )}
+      {/* The dialog renders inside StaffDangerZone now; anonOpen/setAnonOpen are
+          passed to it so the Actions menu still opens the same dialog. */}
       {editOpen && (
         <EditIdentityDialog row={row} busy={busy}
           onCancel={() => setEditOpen(false)} onSave={doSaveIdentity} />
