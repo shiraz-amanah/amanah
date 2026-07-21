@@ -809,8 +809,20 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
   const confirmAnonymise = async () => {
     setBusy(true);
     const { error } = await anonymiseStaff(staffId);
-    setBusy(false); setAnonOpen(false);
-    if (!error) { flash("Record anonymised."); onBack?.(); }
+    setBusy(false);
+    // Erasure is irreversible and legally load-bearing, so a failure must never
+    // read as a success. Pre-172 this branch was absent AND the modal closed
+    // unconditionally, so the 23514 the CHECK raised (see migration 172) closed
+    // the dialog silently with no banner — the operator had no signal that
+    // nothing had been redacted. On error we now keep the modal open (so the
+    // action can be retried without re-navigating) and do NOT call onBack.
+    if (error) {
+      console.error("anonymise_staff failed:", error);
+      flash("Couldn't anonymise this record — please try again.", "amber");
+      return;
+    }
+    setAnonOpen(false);
+    flash("Record anonymised."); onBack?.();
   };
 
   if (loading) return (
