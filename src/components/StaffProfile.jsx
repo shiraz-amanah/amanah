@@ -889,7 +889,9 @@ export default function StaffProfile({ staffId, section = "", navigate, goBack, 
       <MenuItem onClick={doResetPassword} disabled={busy}>Send password reset</MenuItem>
       <div className="my-1 border-t border-stone-100" />
       <MenuItem onClick={openOffboard} disabled={busy} danger>Offboard…</MenuItem>
-      <MenuItem onClick={doAnonymise} disabled={busy} danger>Anonymise (GDPR)…</MenuItem>
+      {/* Same retention gate as the danger zone — this menu is the other way in,
+          and leaving it live would open a dialog that can only ever fail. */}
+      <MenuItem onClick={doAnonymise} disabled={busy || retentionLocked} danger>Anonymise (GDPR)…</MenuItem>
     </div>
   );
 
