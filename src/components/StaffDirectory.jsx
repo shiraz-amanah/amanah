@@ -239,6 +239,18 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
   const currentStaff = useMemo(() => staff.filter(isCurrentStaff), [staff]);
   const formerStaff = useMemo(() => staff.filter(isFormer), [staff]);
   const erasedStaff = useMemo(() => staff.filter(isAnonymised), [staff]);
+  // The page header ("N people") reads from the SAME source as the active tab's
+  // label, so the two can never disagree — it previously used the raw `staff`
+  // total and so read "3 people" above an "Employees (1)" tab. Unfiltered on
+  // purpose: it mirrors the tab label, so typing in search must not move it.
+  // Org Structure draws the current organisation, so it shares the Employees
+  // count. Onboarding's rows are review sessions rather than staff records, so
+  // it keeps the current headcount rather than relabelling "people" to mean
+  // something else.
+  const headcount = tab === "former" ? formerStaff.length
+    : tab === "erasure" ? erasedStaff.length
+    : currentStaff.length;
+
   const showingOffboarded = filters.status === "Offboarded";
   const employeesPool = useMemo(
     () => (showingOffboarded ? [...currentStaff, ...formerStaff] : currentStaff),
@@ -310,7 +322,7 @@ export default function StaffDirectory({ mosqueId, mosque, staffId, onSelectStaf
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-baseline gap-2 min-w-0">
           <h2 className="text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight shrink-0" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Staff</h2>
-          <span className="text-sm text-stone-500 truncate">{staff.length} {staff.length === 1 ? "person" : "people"}{mosque?.name ? ` · ${mosque.name}` : ""}</span>
+          <span className="text-sm text-stone-500 truncate">{headcount} {headcount === 1 ? "person" : "people"}{mosque?.name ? ` · ${mosque.name}` : ""}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${oCls}`} title="Ofsted-readiness score">
