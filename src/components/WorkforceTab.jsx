@@ -10,9 +10,9 @@
 // payroll £ amounts land in RBAC-C.
 // ====================================================================
 import { useState, useEffect, useMemo } from "react";
-import { AlertTriangle, Download, Copy, Loader2, Lock, X, Trash2 } from "lucide-react";
+import { Download, Copy, Loader2, Lock, X, Trash2 } from "lucide-react";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
-import { getMadrasaClasses, getMosqueRota, upsertMosqueRota } from "../auth";
+import { getMosqueShifts, createShift, updateShift, deleteShift } from "../auth";
 import {
   getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary,
   getMosqueTimesheets, upsertTimesheet, deleteTimesheet, approveTimesheetWeek,
@@ -20,7 +20,6 @@ import {
 import { sendLeaveDecision } from "../lib/email";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DAY_FULL = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
 const CLASS_TONES = ["bg-emerald-100 text-emerald-800", "bg-sky-100 text-sky-800", "bg-amber-100 text-amber-800", "bg-violet-100 text-violet-800", "bg-rose-100 text-rose-800", "bg-teal-100 text-teal-800"];
 const toneFor = (s) => { let h = 0; for (const c of (s || "")) h = (h + c.charCodeAt(0)) % CLASS_TONES.length; return CLASS_TONES[h]; };
 const H2 = "text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1";
@@ -34,20 +33,21 @@ function downloadCsv(name, rows) {
 }
 
 export default function WorkforceTab({ mosqueId, mosque, authedUser }) {
-  const [sub, setSub] = useState("timetable");
-  const TABS = [["timetable", "Timetable"], ["rotas", "Rotas"], ["leave", "Leave calendar"], ["timesheets", "Timesheets & Payroll"]];
+  const [sub, setSub] = useState("rotas");
+  // Timetable sub-tab removed: the class timetable lives once, in the Madrasah
+  // tab (single source). Workforce owns staff scheduling — rota, leave, hours.
+  const TABS = [["rotas", "Rotas"], ["leave", "Leave calendar"], ["timesheets", "Timesheets & Payroll"]];
   return (
     <div>
       <div className="mb-4">
         <h2 className={H2} style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Workforce</h2>
-        <p className="text-sm text-stone-600">Timetable, rotas, leave and timesheets.</p>
+        <p className="text-sm text-stone-600">Staff rotas, leave and timesheets.</p>
       </div>
       <div className="flex items-center gap-1 mb-4 border-b border-stone-200 overflow-x-auto">
         {TABS.map(([v, l]) => (
           <button key={v} onClick={() => setSub(v)} className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 whitespace-nowrap ${sub === v ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-800"}`}>{l}</button>
         ))}
       </div>
-      {sub === "timetable" && <Timetable mosqueId={mosqueId} mosque={mosque} />}
       {sub === "rotas" && <Rotas mosqueId={mosqueId} mosque={mosque} />}
       {sub === "leave" && <LeaveCalendar mosqueId={mosqueId} />}
       {sub === "timesheets" && <Timesheets mosqueId={mosqueId} mosque={mosque} authedUser={authedUser} />}
@@ -55,103 +55,17 @@ export default function WorkforceTab({ mosqueId, mosque, authedUser }) {
   );
 }
 
-// ── Timetable ────────────────────────────────────────────────────────
-function Timetable({ mosqueId, mosque }) {
-  const [classes, setClasses] = useState(null);
-  useEffect(() => { getMadrasaClasses(mosqueId).then(setClasses).catch(() => setClasses([])); }, [mosqueId]);
-  const active = (classes || []).filter((c) => c.status !== "archived");
-  // Place a class in a day column from its jsonb schedule (array of {day,start,end}).
-  const byDay = useMemo(() => {
-    const map = Object.fromEntries(DAYS.map((d) => [d, []]));
-    const unscheduled = [];
-    for (const c of active) {
-      const scheduleDays = Array.isArray(c.schedule)
-        ? c.schedule.map((s) => s.day).filter(Boolean)
-        : [];
-      const days = DAYS.filter((d) =>
-        scheduleDays.some(
-          (sd) => sd.toLowerCase() === d.toLowerCase() ||
-                  sd.toLowerCase() === DAY_FULL[d].toLowerCase()
-        )
-      );
-      if (days.length) days.forEach((d) => map[d].push(c));
-      else unscheduled.push(c);
-    }
-    return { map, unscheduled };
-  }, [active]);
-  // Conflict: a teacher assigned to more than one class.
-  const conflicts = useMemo(() => {
-    const t = {};
-    for (const c of active) if (c.teacher_staff_id) (t[c.teacher_staff_id] ||= []).push(c);
-    return Object.values(t).filter((cs) => cs.length > 1);
-  }, [active]);
-  const teacherName = (c) => c.teacher?.name || "Unassigned";
-
-  if (classes === null) return <Loading />;
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-stone-500">Class timetable. Manage classes and teachers in the Madrasah tab.</p>
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-timetable.csv`, [["Class", "Subject", "Schedule", "Room", "Teacher"], ...active.map((c) => [c.name, c.subject, Array.isArray(c.schedule) ? c.schedule.map((s) => `${s.day} ${s.start}–${s.end}`).join("; ") : "", c.room, teacherName(c)])])}
-          className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export</button>
-      </div>
-      {conflicts.length > 0 && (
-        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 inline-flex items-center gap-2">
-          <AlertTriangle size={14} /> {conflicts.length} teacher{conflicts.length === 1 ? "" : "s"} assigned to multiple classes — check for clashes.
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <div className="min-w-max grid gap-2" style={{ gridTemplateColumns: `repeat(${DAYS.length}, minmax(150px, 1fr))` }}>
-          {DAYS.map((d) => (
-            <div key={d} className="border border-stone-200 rounded-lg bg-white">
-              <div className="px-2 py-1.5 text-xs font-semibold text-stone-500 border-b border-stone-100">{d}</div>
-              <div className="p-2 space-y-1.5 min-h-[80px]">
-                {byDay.map[d].length === 0 ? <div className="text-xs text-stone-300 text-center py-3">—</div>
-                  : byDay.map[d].map((c) => {
-                    const clash = conflicts.some((cs) => cs.some((x) => x.id === c.id));
-                    return (
-                      <div key={c.id} className={`rounded-md px-2 py-1.5 text-xs ${toneFor(c.name)} ${clash ? "ring-2 ring-rose-400" : ""}`}>
-                        <div className="font-medium truncate">{c.name}</div>
-                        <div className="opacity-80 truncate">{teacherName(c)}</div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      {byDay.unscheduled.length > 0 && (
-        <div className="mt-3">
-          <div className="text-xs text-stone-400 mb-1">Not day-scheduled ({byDay.unscheduled.length})</div>
-          <div className="flex flex-wrap gap-1.5">
-            {byDay.unscheduled.map((c) => <span key={c.id} className={`text-xs rounded-md px-2 py-1 ${toneFor(c.name)}`}>{c.name} · {teacherName(c)}</span>)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Rotas (drag-drop, @dnd-kit) ──────────────────────────────────────
-// Shift model: { [staffId]: { [dayKey]: [ {id, start, end, notes} ] } }. Persisted
-// to the existing mosque_rotas.slots (DB, survives reloads/devices) — chosen over
-// the plan's localStorage since the table already exists; a dedicated normalized
-// rota-shifts table is Session RBAC-D.
-const parseMin = (t) => { const [h, m] = (t || "").split(":").map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
-const shiftLabel = (sh) => (sh.start && sh.end ? `${sh.start}–${sh.end}` : (sh.notes || "Shift"));
-const shiftHours = (sh) => { const a = parseMin(sh.start), b = parseMin(sh.end); return a != null && b != null && b > a ? (b - a) / 60 : 0; };
-const normalizeShifts = (raw) => {
-  const out = {};
-  for (const [sid, days] of Object.entries(raw || {})) {
-    out[sid] = {};
-    for (const [day, val] of Object.entries(days || {})) {
-      out[sid][day] = Array.isArray(val) ? val : (typeof val === "string" && val.trim() ? [{ id: `${sid}-${day}`, notes: val }] : []);
-    }
-  }
-  return out;
-};
-const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.round(Math.random() * 1e6)}`);
+// Normalized on mosque_shifts (migrations 180/181): one dated row per shift.
+// The DB EXCLUDE constraint (181) blocks a staff member from being in two
+// overlapping shifts and raises 23P01 — surfaced here with the conflicting
+// shift named; never swallowed. (Replaces the old mosque_rotas.slots jsonb
+// shift-model that the staff-facing "My Rota" could never read.)
+const hhmm = (t) => (t || "").slice(0, 5);           // '09:00:00' → '09:00'
+const parseMin = (t) => { const [h, m] = hhmm(t).split(":").map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
+const shiftLabel = (sh) => (sh.start_time && sh.end_time ? `${hhmm(sh.start_time)}–${hhmm(sh.end_time)}` : (sh.notes || "Shift"));
+const shiftHours = (sh) => { const a = parseMin(sh.start_time), b = parseMin(sh.end_time); return a != null && b != null && b > a ? (b - a) / 60 : 0; };
+const overlaps = (a, b) => parseMin(a.start_time) < parseMin(b.end_time) && parseMin(b.start_time) < parseMin(a.end_time);
 
 function ShiftPill({ dragId, sh, tone, onRemove }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId });
@@ -178,55 +92,82 @@ function DayCell({ dropId, onLeave, onAdd, children }) {
 function Rotas({ mosqueId, mosque }) {
   const [staff, setStaff] = useState(null);
   const [week, setWeek] = useState(() => mondayOf(new Date()));
-  const [shifts, setShifts] = useState({}); // { staffId: { dayKey: [shift] } }
+  const [shifts, setShifts] = useState([]); // flat mosque_shifts rows for the week
   const [leave, setLeave] = useState([]);
   const [toast, setToast] = useState(null);
-  const [addAt, setAddAt] = useState(null); // { sid, day } | null
+  const [busy, setBusy] = useState(false);
+  const [addAt, setAddAt] = useState(null); // { sid, dateISO, dayLabel } | null
   const [af, setAf] = useState({ start: "09:00", end: "13:00", notes: "" });
+  const dateFor = (di) => iso(addDays(week, di));
+  const weekEnd = dateFor(6);
   const load = () => {
     getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded")));
-    getMosqueRota(mosqueId, iso(week)).then((r) => setShifts(normalizeShifts(r?.slots))).catch(() => setShifts({}));
+    getMosqueShifts(mosqueId, { from: iso(week), to: weekEnd }).then(setShifts).catch(() => setShifts([]));
     getMosqueLeave(mosqueId).then(setLeave).catch(() => setLeave([]));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId, week]);
 
-  const persist = (next) => { setShifts(next); upsertMosqueRota(mosqueId, iso(week), next).catch(() => {}); };
-  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-  const onLeave = (sid, dayIdx) => {
-    const dt = iso(addDays(week, dayIdx));
-    return leave.some((l) => l.status === "approved" && (l.mosque_staff?.id === sid || l.staff_id === sid) && l.start_date <= dt && l.end_date >= dt);
-  };
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4000); };
   const staffName = (sid) => staff?.find((x) => x.id === sid)?.name || "Staff";
+  const cellShifts = (sid, dateISO) => shifts.filter((x) => x.staff_id === sid && x.shift_date === dateISO);
+  const onLeave = (sid, dateISO) =>
+    leave.some((l) => l.status === "approved" && (l.mosque_staff?.id === sid || l.staff_id === sid) && l.start_date <= dateISO && l.end_date >= dateISO);
+  // Find an already-scheduled shift the DB EXCLUDE would clash with, to NAME it.
+  const findClash = (sid, dateISO, start, end, excludeId) =>
+    shifts.find((x) => x.staff_id === sid && x.shift_date === dateISO && x.id !== excludeId
+      && overlaps({ start_time: start, end_time: end }, x));
+  // Turn a write result into a clear message; a 23P01 names the conflict.
+  const reportError = (error, sid, dateISO, start, end, excludeId) => {
+    if (!error) return false;
+    if (error.code === "23P01") {
+      const c = findClash(sid, dateISO, start, end, excludeId);
+      flash(c ? `Clash — ${staffName(sid)} already has ${shiftLabel(c)} that day` : `Clash — ${staffName(sid)} is already on an overlapping shift that day`);
+    } else flash(error.message || "Could not save the shift");
+    return true;
+  };
 
-  const onDragEnd = (e) => {
+  const onDragEnd = async (e) => {
     const { active, over } = e;
     if (!over) return;
-    const [sSid, sDay, shId] = String(active.id).split("::");
-    const [tSid, tDay] = String(over.id).split("::");
-    if (sSid === tSid && sDay === tDay) return;
-    const tDayIdx = DAYS.indexOf(tDay);
-    if (onLeave(tSid, tDayIdx)) { flash(`${staffName(tSid)} is on leave that day`); return; }
-    const sh = (shifts[sSid]?.[sDay] || []).find((x) => x.id === shId);
-    if (!sh) return;
-    const next = { ...shifts };
-    next[sSid] = { ...next[sSid], [sDay]: (next[sSid]?.[sDay] || []).filter((x) => x.id !== shId) };
-    next[tSid] = { ...next[tSid], [tDay]: [...(next[tSid]?.[tDay] || []), sh] };
-    persist(next);
+    const [sSid, sDate, shId] = String(active.id).split("::");
+    const [tSid, tDate] = String(over.id).split("::");
+    if (sSid === tSid && sDate === tDate) return;
+    if (onLeave(tSid, tDate)) { flash(`${staffName(tSid)} is on leave that day`); return; }
+    const sh = shifts.find((x) => x.id === shId);
+    if (!sh || busy) return;
+    setBusy(true);
+    const { error } = await updateShift(shId, { staffId: tSid, shiftDate: tDate });
+    reportError(error, tSid, tDate, sh.start_time, sh.end_time, shId);
+    load(); setBusy(false);
   };
-  const removeShift = (sid, day, shId) => {
-    const next = { ...shifts, [sid]: { ...shifts[sid], [day]: (shifts[sid]?.[day] || []).filter((x) => x.id !== shId) } };
-    persist(next);
-  };
-  const addShift = () => {
-    if (!addAt) return;
-    const sh = { id: newId(), start: af.start, end: af.end, notes: af.notes.trim() };
-    const { sid, day } = addAt;
-    persist({ ...shifts, [sid]: { ...shifts[sid], [day]: [...(shifts[sid]?.[day] || []), sh] } });
+  const removeShift = async (id) => { setBusy(true); const { error } = await deleteShift(id); if (error) flash(error.message || "Could not remove the shift"); load(); setBusy(false); };
+  const addShift = async () => {
+    if (!addAt || busy) return;
+    setBusy(true);
+    const { sid, dateISO } = addAt;
+    const { error } = await createShift({ mosqueId, staffId: sid, shiftDate: dateISO, startTime: af.start, endTime: af.end, notes: af.notes.trim() || null });
+    if (reportError(error, sid, dateISO, af.start, af.end)) { setBusy(false); return; } // keep modal open on clash
     setAddAt(null); setAf({ start: "09:00", end: "13:00", notes: "" });
+    load(); setBusy(false);
   };
-  const copyLast = async () => { const r = await getMosqueRota(mosqueId, iso(addDays(week, -7))); persist(normalizeShifts(r?.slots)); };
-  const clearWeek = () => { if (window.confirm("Remove all shifts for this week?")) persist({}); };
-  const rowHours = (sid) => DAYS.reduce((sum, d) => sum + (shifts[sid]?.[d] || []).reduce((a, sh) => a + shiftHours(sh), 0), 0);
+  const copyLast = async () => {
+    if (busy) return; setBusy(true);
+    const prev = await getMosqueShifts(mosqueId, { from: iso(addDays(week, -7)), to: iso(addDays(week, -1)) });
+    let clashes = 0;
+    for (const sh of prev) {
+      const { error } = await createShift({ mosqueId, staffId: sh.staff_id, shiftDate: iso(addDays(new Date(sh.shift_date), 7)), startTime: hhmm(sh.start_time), endTime: hhmm(sh.end_time), role: sh.role, notes: sh.notes });
+      if (error?.code === "23P01") clashes++;
+    }
+    flash(clashes ? `Copied last week — ${clashes} shift${clashes === 1 ? "" : "s"} skipped as clashes` : "Copied last week");
+    load(); setBusy(false);
+  };
+  const clearWeek = async () => {
+    if (busy || !window.confirm("Remove all shifts for this week?")) return;
+    setBusy(true);
+    for (const sh of shifts) await deleteShift(sh.id);
+    load(); setBusy(false);
+  };
+  const rowHours = (sid) => shifts.filter((x) => x.staff_id === sid).reduce((a, sh) => a + shiftHours(sh), 0);
 
   if (staff === null) return <Loading />;
   return (
@@ -236,28 +177,31 @@ function Rotas({ mosqueId, mosque }) {
         <span className="text-sm font-medium text-stone-700">Week of {iso(week)}</span>
         <button onClick={() => setWeek(addDays(week, 7))} className="text-sm border border-stone-300 px-2 py-1 rounded-lg">→</button>
         <div className="flex-1" />
-        <button onClick={copyLast} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Copy size={14} /> Copy last week</button>
-        <button onClick={clearWeek} className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Trash2 size={14} /> Clear</button>
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-rota-${iso(week)}.csv`, [["Staff", ...DAYS, "Total hours"], ...staff.map((s) => [s.name, ...DAYS.map((d) => (shifts[s.id]?.[d] || []).map(shiftLabel).join("; ")), rowHours(s.id)])])}
+        <button onClick={copyLast} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 disabled:opacity-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Copy size={14} /> Copy last week</button>
+        <button onClick={clearWeek} disabled={busy} className="text-sm border border-stone-300 hover:bg-stone-50 disabled:opacity-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Trash2 size={14} /> Clear</button>
+        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-rota-${iso(week)}.csv`, [["Staff", ...DAYS, "Total hours"], ...staff.map((s) => [s.name, ...DAYS.map((d, di) => cellShifts(s.id, dateFor(di)).map(shiftLabel).join("; ")), rowHours(s.id)])])}
           className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export</button>
       </div>
-      <p className="text-xs text-stone-400 mb-2">Drag a shift to move it to another day/person. Dropping on a day the person is on leave is rejected. Saved automatically.</p>
+      <p className="text-xs text-stone-400 mb-2">Drag a shift to move it to another day/person. Overlapping shifts and days the person is on leave are rejected. Saved automatically.</p>
       {staff.length === 0 ? <Empty text="No staff to schedule." /> : (
         <DndContext onDragEnd={onDragEnd}>
           <div className="overflow-x-auto">
             <table className="min-w-max text-sm border border-stone-200 rounded-lg bg-white">
-              <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{DAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Hrs</th></tr></thead>
+              <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{DAYS.map((d, di) => <th key={d} className="px-2 py-2 font-medium">{d}<div className="text-[10px] font-normal text-stone-400">{dateFor(di).slice(5)}</div></th>)}<th className="px-3 py-2 font-medium">Hrs</th></tr></thead>
               <tbody className="divide-y divide-stone-100">
                 {staff.map((s) => (
                   <tr key={s.id}>
                     <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap align-top">{s.name}</td>
-                    {DAYS.map((d, di) => (
-                      <DayCell key={d} dropId={`${s.id}::${d}`} onLeave={onLeave(s.id, di)} onAdd={() => setAddAt({ sid: s.id, day: d })}>
-                        {(shifts[s.id]?.[d] || []).map((sh) => (
-                          <ShiftPill key={sh.id} dragId={`${s.id}::${d}::${sh.id}`} sh={sh} tone={toneFor(s.name)} onRemove={() => removeShift(s.id, d, sh.id)} />
-                        ))}
-                      </DayCell>
-                    ))}
+                    {DAYS.map((d, di) => {
+                      const dateISO = dateFor(di);
+                      return (
+                        <DayCell key={d} dropId={`${s.id}::${dateISO}`} onLeave={onLeave(s.id, dateISO)} onAdd={() => setAddAt({ sid: s.id, dateISO, dayLabel: d })}>
+                          {cellShifts(s.id, dateISO).map((sh) => (
+                            <ShiftPill key={sh.id} dragId={`${s.id}::${dateISO}::${sh.id}`} sh={sh} tone={toneFor(s.name)} onRemove={() => removeShift(sh.id)} />
+                          ))}
+                        </DayCell>
+                      );
+                    })}
                     <td className="px-3 py-1.5 text-center font-semibold align-top">{rowHours(s.id) || ""}</td>
                   </tr>
                 ))}
@@ -267,12 +211,12 @@ function Rotas({ mosqueId, mosque }) {
         </DndContext>
       )}
 
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">{toast}</div>}
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 max-w-[92vw] text-center">{toast}</div>}
 
       {addAt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4" onClick={() => setAddAt(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="text-sm font-semibold text-stone-900 mb-3">Add shift · {staffName(addAt.sid)} · {addAt.day}</div>
+            <div className="text-sm font-semibold text-stone-900 mb-3">Add shift · {staffName(addAt.sid)} · {addAt.dayLabel} {addAt.dateISO.slice(5)}</div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <label className="block"><span className="text-xs text-stone-500">Start</span><input type="time" value={af.start} onChange={(e) => setAf({ ...af, start: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5" /></label>
               <label className="block"><span className="text-xs text-stone-500">End</span><input type="time" value={af.end} onChange={(e) => setAf({ ...af, end: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5" /></label>
@@ -280,7 +224,7 @@ function Rotas({ mosqueId, mosque }) {
             <label className="block mb-3"><span className="text-xs text-stone-500">Notes (optional)</span><input value={af.notes} onChange={(e) => setAf({ ...af, notes: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg text-sm px-2 py-1.5" /></label>
             <div className="flex items-center justify-end gap-2">
               <button onClick={() => setAddAt(null)} className="text-sm text-stone-500 px-2">Cancel</button>
-              <button onClick={addShift} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg">Add shift</button>
+              <button onClick={addShift} disabled={busy} className="text-sm bg-stone-900 text-white px-3 py-1.5 rounded-lg disabled:opacity-50">Add shift</button>
             </div>
           </div>
         </div>

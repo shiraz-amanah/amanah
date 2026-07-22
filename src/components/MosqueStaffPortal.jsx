@@ -3,7 +3,7 @@ import {
   ShieldCheck, LogOut, LayoutDashboard, CalendarDays, Clock, User,
   MessageCircle, Loader2, CheckCircle2, AlertCircle, GraduationCap, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { getMosqueRota, getMosqueTimesheets, getMyTeacherClasses } from "../auth";
+import { getMyShifts, getMosqueTimesheets, getMyTeacherClasses } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 
 // Session W — personalised staff portal. Rendered (opt-in) when a signed-in
@@ -15,14 +15,6 @@ import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 // Dashboard tab is a scaffold; the personalised AI greeting + computed
 // next-shift/DBS summary land in the Session W Dashboard commit.
 
-const DAYS = [
-  ["monday", "Monday"], ["tuesday", "Tuesday"], ["wednesday", "Wednesday"],
-  ["thursday", "Thursday"], ["friday", "Friday"], ["saturday", "Saturday"], ["sunday", "Sunday"],
-];
-const SLOTS = [
-  ["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"],
-  ["isha", "Isha"], ["jumuah", "Jumu'ah"], ["classes", "Classes"],
-];
 const DBS_STATUS_LABEL = { not_checked: "Not checked", pending: "Pending", verified: "Verified", expired: "Expired", expiring_soon: "Expiring soon", not_required: "Not required" };
 const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x.toISOString().slice(0, 10); };
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -68,23 +60,28 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access, showClasses]);
 
-  // --- My Rota: current-week slots assigned to me -------------------
+  // --- My Rota: my shifts this week, straight from mosque_shifts ----
+  // Reads the SAME table (mosque_shifts, 180) the admin rota editor writes,
+  // RLS-scoped to me. This ends the old dual-shape bug where the staff portal
+  // read a prayer-slot jsonb shape the admin editor never produced, so "My
+  // Rota" was always empty against real data.
   const [rotaLoading, setRotaLoading] = useState(false);
-  const [myShifts, setMyShifts] = useState([]); // [{ day, dayLabel, slotLabel }]
+  const [myShifts, setMyShifts] = useState([]); // [{ dayLabel, dateISO, timeLabel, role, notes }]
   useEffect(() => {
     if (!mosque?.id || !staffId) return;
     let alive = true; setRotaLoading(true);
-    getMosqueRota(mosque.id, mondayOf(new Date()))
-      .then((r) => {
+    const from = mondayOf(new Date());
+    const to = new Date(new Date(from + "T00:00:00").getTime() + 6 * 864e5).toISOString().slice(0, 10);
+    getMyShifts({ from, to })
+      .then((rows) => {
         if (!alive) return;
-        const slots = r?.slots || {};
-        const mine = [];
-        DAYS.forEach(([day, dayLabel]) => {
-          SLOTS.forEach(([slot, slotLabel]) => {
-            if (slots[day]?.[slot] === staffId) mine.push({ day, dayLabel, slotLabel });
-          });
-        });
-        setMyShifts(mine);
+        const hm = (t) => (t || "").slice(0, 5);
+        setMyShifts((rows || []).map((r) => ({
+          dateISO: r.shift_date,
+          dayLabel: new Date(r.shift_date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long" }),
+          timeLabel: `${hm(r.start_time)}–${hm(r.end_time)}`,
+          role: r.role, notes: r.notes,
+        })));
       })
       .catch((e) => console.error("staff rota load failed:", e))
       .finally(() => { if (alive) setRotaLoading(false); });
@@ -170,7 +167,7 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
               <h3 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-1.5"><CalendarDays size={15} /> This week's shifts</h3>
               {rotaLoading ? <div className="flex justify-center py-4 text-stone-400"><Loader2 size={18} className="animate-spin" /></div>
                 : myShifts.length === 0 ? <p className="text-sm text-stone-500">No shifts assigned to you this week.</p>
-                : <ul className="text-sm text-stone-700 space-y-1">{myShifts.map((s, i) => <li key={i} className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-brand-600" /> {s.dayLabel} — {s.slotLabel}</li>)}</ul>}
+                : <ul className="text-sm text-stone-700 space-y-1">{myShifts.map((s, i) => <li key={i} className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-brand-600" /> {s.dayLabel} — {s.timeLabel}{s.role ? ` · ${s.role}` : ""}</li>)}</ul>}
             </div>
             <p className="text-xs text-stone-400">A personalised daily briefing arrives here soon.</p>
           </div>
@@ -187,8 +184,8 @@ const MosqueStaffPortal = ({ membership, authedUser, MessagesInbox, conversation
                 : myShifts.length === 0 ? <p className="text-sm text-stone-500">You have no shifts assigned this week. Check back after your admin publishes the rota.</p>
                 : <ul className="divide-y divide-stone-100">{myShifts.map((s, i) => (
                     <li key={i} className="py-2.5 flex items-center justify-between text-sm">
-                      <span className="font-medium text-stone-800">{s.dayLabel}</span>
-                      <span className="text-stone-600">{s.slotLabel}</span>
+                      <span className="font-medium text-stone-800">{s.dayLabel} <span className="text-stone-400 font-normal">{s.dateISO.slice(5)}</span></span>
+                      <span className="text-stone-600">{s.timeLabel}{s.role ? ` · ${s.role}` : ""}</span>
                     </li>
                   ))}</ul>}
             </div>

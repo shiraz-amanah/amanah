@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 
 // Weekly timetable grid (094). Renders class sessions (madrasa_classes.schedule
@@ -16,11 +16,24 @@ const PX_PER_MIN = 0.9;
 const toMin = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : null; };
 const toHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
-const MadrasaTimetable = ({ classes = [] }) => {
-  // Flatten every class's schedule into placed sessions.
+const MadrasaTimetable = ({ classes = [], terms = [] }) => {
+  // Optional term filter (mosque-wide view only — `terms` is passed there).
+  const [termFilter, setTermFilter] = useState("");
+  const shown = useMemo(() => (termFilter ? classes.filter((c) => c.term_id === termFilter) : classes), [classes, termFilter]);
+  const FilterBar = terms.length > 0 ? (
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-xs text-stone-500">Term</span>
+      <select value={termFilter} onChange={(e) => setTermFilter(e.target.value)} className="border border-stone-300 rounded-lg text-sm px-2 py-1">
+        <option value="">All terms</option>
+        {terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+    </div>
+  ) : null;
+
+  // Flatten every (shown) class's schedule into placed sessions.
   const sessions = useMemo(() => {
     const out = [];
-    for (const c of classes) {
+    for (const c of shown) {
       for (const s of (Array.isArray(c.schedule) ? c.schedule : [])) {
         const start = toMin(s.start), end = toMin(s.end);
         if (start == null) continue;
@@ -62,15 +75,20 @@ const MadrasaTimetable = ({ classes = [] }) => {
 
   if (!sessions.length) {
     return (
-      <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
-        <CalendarClock className="mx-auto text-stone-300 mb-3" size={32} />
-        <p className="text-stone-500 text-sm">No scheduled sessions yet. Add days &amp; times to a class in its settings.</p>
+      <div>
+        {FilterBar}
+        <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+          <CalendarClock className="mx-auto text-stone-300 mb-3" size={32} />
+          <p className="text-stone-500 text-sm">{termFilter ? "No scheduled sessions in this term." : "No scheduled sessions yet. Add days & times to a class in its settings."}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-3 md:p-4 overflow-x-auto">
+    <div>
+      {FilterBar}
+      <div className="bg-white border border-stone-200 rounded-2xl p-3 md:p-4 overflow-x-auto">
       <div className="min-w-[640px]">
         {/* Day headers */}
         <div className="grid" style={{ gridTemplateColumns: "44px repeat(7, 1fr)" }}>
@@ -113,6 +131,7 @@ const MadrasaTimetable = ({ classes = [] }) => {
             );
           })}
         </div>
+      </div>
       </div>
     </div>
   );

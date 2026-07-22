@@ -6,6 +6,7 @@ import {
 } from "../auth";
 import { computeStarsAndRisk } from "../lib/madrasaScoring";
 import MadrasaAcademicCalendar from "./MadrasaAcademicCalendar";
+import MadrasaTerms from "./MadrasaTerms";
 
 // Madrasah → Analytics section (Session AL restructure). Admin-only overview:
 // attendance trends, Hifz summary + top performers, homework completion. The AI
@@ -112,6 +113,7 @@ const MadrasaAnalytics = ({ mosqueId, classes = [], onOpenClass, mosque, onMosqu
   return (
     <div className="space-y-5">
       {mosque && <MadrasaAcademicCalendar mosque={mosque} onSaved={onMosqueUpdate} />}
+      {mosque?.id && <MadrasaTerms mosqueId={mosque.id} />}
 
       <div>
         <h3 className="text-lg font-semibold text-stone-900" style={{ fontFamily: "'Fraunces', Georgia, serif" }}>Analytics</h3>

@@ -3234,6 +3234,125 @@ export async function upsertMosqueRota(mosqueId, weekStart, slots) {
   return { data, error }
 }
 
+// --- Shifts (mosque_shifts, migrations 180/181) — normalized rota ----------
+// One dated row per shift. The EXCLUDE constraint (181) raises Postgres 23P01
+// (exclusion_violation) on an overlapping shift for the same staff member; the
+// caller checks { error } and names the clash from its already-loaded week —
+// nothing is swallowed.
+export async function getMosqueShifts(mosqueId, { from, to } = {}) {
+  if (!mosqueId) return []
+  let query = supabase.from('mosque_shifts').select('*').eq('mosque_id', mosqueId)
+  if (from) query = query.gte('shift_date', from)
+  if (to) query = query.lte('shift_date', to)
+  const { data, error } = await query.order('shift_date').order('start_time')
+  if (error) { console.error('Error fetching shifts:', error); return [] }
+  return data || []
+}
+export async function createShift({ mosqueId, staffId, shiftDate, startTime, endTime, role, notes }) {
+  if (!mosqueId || !staffId || !shiftDate || !startTime || !endTime) return { error: { message: 'missing shift fields' } }
+  const { data, error } = await supabase.from('mosque_shifts')
+    .insert({ mosque_id: mosqueId, staff_id: staffId, shift_date: shiftDate, start_time: startTime, end_time: endTime, role: role || null, notes: notes || null })
+    .select().single()
+  return { data, error }
+}
+export async function updateShift(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const patch = {}
+  if ('staffId' in updates) patch.staff_id = updates.staffId
+  if ('shiftDate' in updates) patch.shift_date = updates.shiftDate
+  if ('startTime' in updates) patch.start_time = updates.startTime
+  if ('endTime' in updates) patch.end_time = updates.endTime
+  if ('role' in updates) patch.role = updates.role
+  if ('notes' in updates) patch.notes = updates.notes
+  const { data, error } = await supabase.from('mosque_shifts').update(patch).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteShift(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('mosque_shifts').delete().eq('id', id)
+  return { error }
+}
+// Staff-facing "My Rota": RLS ("Employee reads own shifts", 180) scopes this to
+// the caller's own shifts — no staffId argument, no way to read another's.
+export async function getMyShifts({ from, to } = {}) {
+  let query = supabase.from('mosque_shifts').select('*')
+  if (from) query = query.gte('shift_date', from)
+  if (to) query = query.lte('shift_date', to)
+  const { data, error } = await query.order('shift_date').order('start_time')
+  if (error) { console.error('Error fetching my shifts:', error); return [] }
+  return data || []
+}
+
+// --- Academic terms (academic_terms, migration 180) — single source of truth
+export async function getAcademicTerms(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.from('academic_terms')
+    .select('*').eq('mosque_id', mosqueId).order('start_date', { ascending: false })
+  if (error) { console.error('Error fetching terms:', error); return [] }
+  return data || []
+}
+export async function createAcademicTerm({ mosqueId, name, startDate, endDate }) {
+  if (!mosqueId || !name || !startDate || !endDate) return { error: { message: 'missing term fields' } }
+  const { data, error } = await supabase.from('academic_terms')
+    .insert({ mosque_id: mosqueId, name, start_date: startDate, end_date: endDate }).select().single()
+  return { data, error }
+}
+export async function updateAcademicTerm(id, updates) {
+  if (!id) return { error: { message: 'id required' } }
+  const patch = {}
+  if ('name' in updates) patch.name = updates.name
+  if ('startDate' in updates) patch.start_date = updates.startDate
+  if ('endDate' in updates) patch.end_date = updates.endDate
+  const { data, error } = await supabase.from('academic_terms').update(patch).eq('id', id).select().single()
+  return { data, error }
+}
+export async function deleteAcademicTerm(id) {
+  if (!id) return { error: { message: 'id required' } }
+  const { error } = await supabase.from('academic_terms').delete().eq('id', id)
+  return { error }
+}
+
+// --- Class schedule (madrasa_class_schedule, migrations 180/181/185) --------
+// setClassSchedule replaces a class's weekly sessions transactionally via the
+// 185 RPC (delete+insert+jsonb-mirror in one txn). p_sessions maps day NAME →
+// 0..6 here so the RPC takes typed ints. A cross-class teacher clash surfaces
+// as 23P01 in { error }; the caller resolves the conflicting class via
+// getTeacherClashInfo. DO NOT write madrasa_classes.schedule directly — it is a
+// derived mirror the RPC regenerates (migration 184 marks the column).
+// Day NAME → 0..6 on the first three letters (tolerates "Monday" and "Mon"),
+// matching migration 180's backfill mapping.
+const DOW3 = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 }
+const dayToDow = (d) => DOW3[String(d || '').trim().toLowerCase().slice(0, 3)]
+export async function setClassSchedule(classId, sessions) {
+  if (!classId) return { error: { message: 'classId required' } }
+  const p_sessions = (sessions || [])
+    .filter((s) => s && s.day && s.start && s.end)
+    .map((s) => ({ day_of_week: dayToDow(s.day), start_time: s.start, end_time: s.end }))
+    .filter((s) => Number.isInteger(s.day_of_week))
+  const { error } = await supabase.rpc('madrasa_set_class_schedule', { p_class_id: classId, p_sessions })
+  return { error }
+}
+export async function getClassSchedule(mosqueId) {
+  if (!mosqueId) return []
+  const { data, error } = await supabase.from('madrasa_class_schedule')
+    .select('*').eq('mosque_id', mosqueId).order('day_of_week').order('start_time')
+  if (error) { console.error('Error fetching class schedule:', error); return [] }
+  return data || []
+}
+// Name the class a teacher already occupies on a given day/time — used to make
+// a 23P01 clash message concrete ("… already teaches ‹class› …").
+export async function getTeacherClashInfo(teacherStaffId, dayOfWeek, startTime, endTime, excludeClassId) {
+  if (!teacherStaffId && teacherStaffId !== 0) return null
+  let query = supabase.from('madrasa_class_schedule')
+    .select('start_time, end_time, class:madrasa_classes(name)')
+    .eq('teacher_staff_id', teacherStaffId).eq('day_of_week', dayOfWeek)
+    .lt('start_time', endTime).gt('end_time', startTime)
+  if (excludeClassId) query = query.neq('class_id', excludeClassId)
+  const { data, error } = await query.limit(1)
+  if (error || !data?.length) return null
+  return { className: data[0].class?.name || 'another class', start: data[0].start_time, end: data[0].end_time }
+}
+
 // --- Timesheets (migration 058) ---
 export async function getMosqueTimesheets(mosqueId) {
   if (!mosqueId) return []

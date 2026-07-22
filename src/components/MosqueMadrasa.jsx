@@ -3,7 +3,7 @@ import {
   Loader2, Plus, Pencil, Archive, Check, X, AlertCircle, GraduationCap,
   Users, Clock, MapPin, ChevronRight, ChevronLeft, Trash2, CalendarClock, List,
 } from "lucide-react";
-import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff } from "../auth";
+import { getMadrasaClasses, createMadrasaClass, updateMadrasaClass, getMadrasaEnrollmentCounts, getMosqueStaff, getAcademicTerms, setClassSchedule, getTeacherClashInfo } from "../auth";
 import MadrasaClassWorkspace from "./MadrasaClassWorkspace";
 import MadrasaStudents from "./MadrasaStudents";
 import MadrasaAnalytics from "./MadrasaAnalytics";
@@ -34,7 +34,9 @@ const labelCls = "text-[10px] uppercase tracking-wider text-stone-500 font-mediu
 const inputCls = "w-full px-3 py-2 rounded-lg border border-stone-300 focus:border-brand-700 focus:ring-2 focus:ring-brand-100 outline-none text-sm";
 const Field = ({ label, children }) => (<div><label className={labelCls}>{label}</label>{children}</div>);
 
-const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term: "", capacity: "", room: "", has_hifz: false, delivery_mode: "in_person" };
+const blank = { name: "", subject: "quran", teacher_staff_id: "", schedule: [], term_id: "", capacity: "", room: "", has_hifz: false, delivery_mode: "in_person" };
+// Full weekday names; index IS the day_of_week (0=Monday) used by migration 180.
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DELIVERY_MODES = [
   ["in_person", "In-person only", "No live lesson — register is marked in person."],
   ["remote", "Remote only", "Live video lesson is the primary way this class runs."],
@@ -71,6 +73,9 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
   // student's enrolment class (resolved by MadrasaStudents from its classes list).
   const openStudent = (enrollment, classObj) => setProfileCtx({ enrollment, classObj });
 
+  const [terms, setTerms] = useState([]);
+  useEffect(() => { getAcademicTerms(mosqueId).then(setTerms).catch(() => setTerms([])); }, [mosqueId, studentsKey]);
+
   const reload = () => {
     setLoading(true);
     Promise.all([getMadrasaClasses(mosqueId), getMadrasaEnrollmentCounts(mosqueId), getMosqueStaff(mosqueId)])
@@ -86,29 +91,63 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
   };
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [mosqueId, JSON.stringify(restrictClassIds)]);
 
-  const openAdd = () => { setForm(blank); setEditingId(null); setError(null); setShowForm(true); };
+  const refreshTerms = () => getAcademicTerms(mosqueId).then(setTerms).catch(() => {});
+  const openAdd = () => { refreshTerms(); setForm(blank); setEditingId(null); setError(null); setShowForm(true); };
   const openEdit = (c) => {
-    setForm({ name: c.name || "", subject: c.subject || "quran", teacher_staff_id: c.teacher_staff_id || "", schedule: Array.isArray(c.schedule) ? c.schedule : [], term: c.term || "", capacity: c.capacity ?? "", room: c.room || "", has_hifz: c.has_hifz ?? false, delivery_mode: c.delivery_mode || "in_person" });
+    refreshTerms();
+    setForm({ name: c.name || "", subject: c.subject || "quran", teacher_staff_id: c.teacher_staff_id || "", schedule: Array.isArray(c.schedule) ? c.schedule : [], term_id: c.term_id || "", capacity: c.capacity ?? "", room: c.room || "", has_hifz: c.has_hifz ?? false, delivery_mode: c.delivery_mode || "in_person" });
     setEditingId(c.id); setError(null); setShowForm(true);
   };
 
   const save = async () => {
     if (!form.name.trim()) { setError("Class name is required."); return; }
     setBusy(true); setError(null);
-    const payload = {
+    // Class fields WITHOUT schedule — madrasa_classes.schedule is a derived
+    // mirror (migration 184); the 185 RPC regenerates it. `term` (free-text) is
+    // set from the chosen term for legacy readers until Phase 4 drops it.
+    const chosenTerm = terms.find((t) => t.id === form.term_id);
+    const fields = {
       name: form.name.trim(), subject: form.subject,
       teacher_staff_id: form.teacher_staff_id || null,
-      schedule: form.schedule.filter((s) => s.day),
-      term: form.term.trim() || null,
+      term_id: form.term_id || null,
+      term: chosenTerm?.name || null,
       capacity: form.capacity === "" ? null : Number(form.capacity),
       room: form.room.trim() || null,
       has_hifz: !!form.has_hifz,
       delivery_mode: form.delivery_mode || "in_person",
     };
-    const r = editingId ? await updateMadrasaClass(editingId, payload) : await createMadrasaClass({ mosqueId, ...payload });
+    let classId = editingId;
+    if (classId) {
+      const r = await updateMadrasaClass(classId, fields);
+      if (r.error) { setBusy(false); setError(r.error.message || "Couldn't save the class."); return; }
+    } else {
+      const r = await createMadrasaClass({ mosqueId, ...fields });
+      if (r.error || !r.data) { setBusy(false); setError(r.error?.message || "Couldn't create the class."); return; }
+      classId = r.data.id; setEditingId(classId); // now editing the created class, so a schedule retry targets it
+    }
+    // Schedule via the 185 RPC: writes madrasa_class_schedule rows (clash-checked)
+    // + regenerates the jsonb mirror, transactionally. A cross-class teacher
+    // clash comes back as 23P01 — named here, never swallowed.
+    const sched = form.schedule.filter((s) => s.day && s.start && s.end);
+    const { error: schedErr } = await setClassSchedule(classId, sched);
     setBusy(false);
-    if (r.error) { setError(r.error.message || "Couldn't save the class."); return; }
+    if (schedErr) {
+      if (schedErr.code === "23P01") { setError(await clashMessage(sched, classId)); return; } // keep form open
+      setError(schedErr.message || "Couldn't save the schedule."); return;
+    }
     setShowForm(false); reload();
+  };
+  // Name the clashing class for a 23P01 from setClassSchedule.
+  const clashMessage = async (sched, classId) => {
+    const fallback = "Schedule clash — this teacher is already booked for another class at one of these times. Adjust the times.";
+    if (!form.teacher_staff_id) return fallback;
+    for (const s of sched) {
+      const dow = WEEKDAYS.indexOf(s.day);
+      if (dow < 0) continue;
+      const info = await getTeacherClashInfo(form.teacher_staff_id, dow, s.start, s.end, classId);
+      if (info) return `Clash — this teacher already teaches ${info.className} on ${s.day} (${(info.start || "").slice(0, 5)}–${(info.end || "").slice(0, 5)}). Adjust the time.`;
+    }
+    return fallback;
   };
 
   const archive = async (c) => {
@@ -164,7 +203,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
             <Field label="Class name"><input className={inputCls} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Beginners Qur'an" /></Field>
             <Field label="Subject"><select className={inputCls} value={form.subject} onChange={(e) => set("subject", e.target.value)}>{SUBJECTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
             <Field label="Teacher"><select className={inputCls} value={form.teacher_staff_id} onChange={(e) => set("teacher_staff_id", e.target.value)}><option value="">Unassigned</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-            <Field label="Term"><input className={inputCls} value={form.term} onChange={(e) => set("term", e.target.value)} placeholder="e.g. Autumn 2026" /></Field>
+            <Field label="Term"><select className={inputCls} value={form.term_id} onChange={(e) => set("term_id", e.target.value)}><option value="">No term</option>{terms.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
             <Field label="Capacity"><input type="number" min="0" className={inputCls} value={form.capacity} onChange={(e) => set("capacity", e.target.value)} /></Field>
             <Field label="Room"><input className={inputCls} value={form.room} onChange={(e) => set("room", e.target.value)} /></Field>
           </div>
@@ -201,7 +240,7 @@ const MosqueMadrasa = ({ mosqueId, mosque, onMosqueUpdate, sub, onSubChange, res
       )}
 
       {classView === "timetable" && classes.length > 0 && (
-        <MadrasaTimetable classes={classes.filter((c) => c.status !== "archived")} />
+        <MadrasaTimetable classes={classes.filter((c) => c.status !== "archived")} terms={terms} />
       )}
 
       {classView === "list" && (loading ? <div className="flex justify-center py-10 text-stone-400"><Loader2 size={20} className="animate-spin" /></div>
