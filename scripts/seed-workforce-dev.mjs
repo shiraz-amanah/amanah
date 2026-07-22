@@ -39,6 +39,14 @@ try{
   await db.query(`insert into madrasa_class_schedule (mosque_id,class_id,teacher_staff_id,day_of_week,start_time,end_time,room) values ($1,$2,$3,0,'10:00','11:00','Room 1')`,[m,cA,kStaff]);
   // A shift for Kareem THIS week (Monday 09:00-11:00) so My Rota shows it
   await db.query(`insert into mosque_shifts (mosque_id,staff_id,shift_date,start_time,end_time,role) values ($1,$2,$3::date,'09:00','11:00','Front desk')`,[m,kStaff,mondayISO()]);
-  console.log(`mosque=${m} classA=${cA} classB=${cB} kareemStaff=${kStaff} weekMonday=${mondayISO()}`);
+  // Lifecycle rows the rota grid must NEVER offer: one offboarded, one erased.
+  // Through the REAL RPCs (offboard_staff / anonymise_staff), impersonating the owner.
+  const asOwner=async(sql,pp)=>{await db.query('begin');try{await db.query(`select set_config('request.jwt.claims',$1,true)`,[JSON.stringify({sub:owner.id,role:'authenticated'})]);await db.query('set local role authenticated');const r=await db.query(sql,pp);await db.query('commit');return r;}catch(e){await db.query('rollback').catch(()=>{});throw e;}};
+  const offId=(await db.query(`insert into mosque_staff (mosque_id,name,email,role,job_title,status,invite_status) values ($1,'Bilal Former','bilal.former@probe.test','Teacher','Teacher','active','not_invited') returning id`,[m])).rows[0].id;
+  await asOwner(`select offboard_staff($1,'seed: workforce verify',$2::date)`,[offId,new Date(Date.now()-30*864e5).toISOString().slice(0,10)]); // recent leave → former (retention active)
+  const anonId=(await db.query(`insert into mosque_staff (mosque_id,name,email,role,job_title,status,invite_status) values ($1,'Erased Person','erased.person@probe.test','Teacher','Teacher','active','not_invited') returning id`,[m])).rows[0].id;
+  await asOwner(`select offboard_staff($1,'seed: workforce verify',$2::date)`,[anonId,'2018-06-30']); // old → retention elapsed
+  await asOwner(`select anonymise_staff($1)`,[anonId]); // → [REDACTED]
+  console.log(`mosque=${m} classA=${cA} classB=${cB} kareemStaff=${kStaff} offboarded=${offId} anonymised=${anonId} weekMonday=${mondayISO()}`);
   console.log(`Owner: ${OWNER} / ${OPW}`); console.log(`Kareem: ${KAREEM} / ${KPW}`);
 }catch(e){console.error('FAILED:',e.message);process.exitCode=1;}finally{await db.end();}

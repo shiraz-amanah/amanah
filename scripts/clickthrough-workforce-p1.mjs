@@ -24,6 +24,12 @@ await clickText('button,a','Workforce');await wait(2500);
 const hasRotas=await bodyHas('Rotas'), hasTimetableTab=await p.evaluate(()=>[...document.querySelectorAll('button')].some(b=>b.innerText.trim()==='Timetable'));
 hasRotas?ok('Workforce shows Rotas'):bad('no Rotas');
 !hasTimetableTab?ok('Timetable sub-tab is GONE from Workforce'):bad('Timetable sub-tab still present');
+// Grid must list CURRENT staff only — never anonymised or offboarded rows.
+const kareemRow=await bodyHas('Ustadh Kareem'), aminahRow=await bodyHas('Sister Aminah');
+const redacted=await bodyHas('[REDACTED]'), erased=await bodyHas('Erased Person'), former=await bodyHas('Bilal Former');
+(kareemRow&&aminahRow)?ok('rota grid lists the current staff (Kareem, Aminah)'):bad('current staff missing from grid');
+(!redacted&&!erased)?ok('anonymised [REDACTED] row is NOT in the rota grid'):bad('anonymised row leaked into the rota grid');
+!former?ok('offboarded (Bilal Former) row is NOT in the rota grid'):bad('offboarded row leaked into the rota grid');
 await p.screenshot({path:`${DIR}/wf-rota.png`});
 
 console.log('\n=== Rota: add shift, then an overlapping one → named clash ===');
