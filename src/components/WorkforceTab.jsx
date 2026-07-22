@@ -16,6 +16,7 @@ import { getMosqueShifts, createShift, updateShift, deleteShift } from "../auth"
 import {
   getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary,
   getMosqueTimesheets, upsertTimesheet, deleteTimesheet, approveTimesheetWeek,
+  isCurrentStaff,
 } from "../lib/staffHelpers";
 import { sendLeaveDecision } from "../lib/email";
 
@@ -25,7 +26,11 @@ const toneFor = (s) => { let h = 0; for (const c of (s || "")) h = (h + c.charCo
 const H2 = "text-2xl md:text-3xl font-semibold text-stone-900 tracking-tight mb-1";
 
 function mondayOf(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; }
-const iso = (d) => new Date(d).toISOString().slice(0, 10);
+// LOCAL date, not UTC: new Date(d).toISOString() converts a local-midnight
+// Monday to UTC, which in BST (UK summer, UTC+1) rolls back to Sunday — so the
+// grid columns and the stored shift_date landed a day early. Format the local
+// date directly to stay correct year-round.
+const iso = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 function downloadCsv(name, rows) {
   const blob = new Blob([rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" });
@@ -101,7 +106,9 @@ function Rotas({ mosqueId, mosque }) {
   const dateFor = (di) => iso(addDays(week, di));
   const weekEnd = dateFor(6);
   const load = () => {
-    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded")));
+    // Shared shipped partition (staffHelpers): only CURRENT staff are
+    // schedulable — never anonymised ([REDACTED]) or former/offboarded rows.
+    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter(isCurrentStaff)));
     getMosqueShifts(mosqueId, { from: iso(week), to: weekEnd }).then(setShifts).catch(() => setShifts([]));
     getMosqueLeave(mosqueId).then(setLeave).catch(() => setLeave([]));
   };
@@ -243,7 +250,7 @@ function LeaveCalendar({ mosqueId }) {
   const [busy, setBusy] = useState(false);
   const load = () => {
     getMosqueLeave(mosqueId).then(setLeave).catch(() => setLeave([]));
-    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived))).catch(() => {});
+    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter(isCurrentStaff))).catch(() => {});
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId]);
 
@@ -330,7 +337,7 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
   const from = dates[0], to = dates[dates.length - 1];
 
   const load = () => {
-    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter((x) => !x.archived && x.status !== "offboarded"))).catch(() => setStaff([]));
+    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter(isCurrentStaff))).catch(() => setStaff([]));
     getMosqueTimesheets(mosqueId, from, to).then((rows) => {
       const map = {};
       for (const r of rows) (map[r.staff_id] ||= {})[r.work_date] = { id: r.id, hours: r.hours_worked, approved: r.approved };
