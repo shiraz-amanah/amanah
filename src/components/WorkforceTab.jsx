@@ -18,7 +18,7 @@ import {
 } from "../auth";
 import {
   getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary,
-  isCurrentStaff,
+  isCurrentStaff, isFormer, isAnonymised,
 } from "../lib/staffHelpers";
 import { sendLeaveDecision } from "../lib/email";
 
@@ -345,7 +345,8 @@ const STATUS_STYLES = {
 
 function Timesheets({ mosqueId, mosque, authedUser }) {
   const [week, setWeek] = useState(() => mondayOf(new Date()));
-  const [staff, setStaff] = useState(null);        // current staff (add-log picker + salary)
+  const [staff, setStaff] = useState(null);          // CURRENT staff — salary/payroll panel
+  const [pickerStaff, setPickerStaff] = useState([]); // non-anonymised (current + former) — add-log picker
   const [logs, setLogs] = useState([]);
   const [salaries, setSalaries] = useState(null);
   const [revealing, setRevealing] = useState(false);
@@ -356,7 +357,10 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
   const from = iso(week), to = iso(addDays(week, 6));
 
   const load = () => {
-    getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter(isCurrentStaff))).catch(() => setStaff([]));
+    getMosqueStaffList(mosqueId).then((all) => {
+      setStaff(all.filter(isCurrentStaff));                 // payroll estimate is for current staff
+      setPickerStaff(all.filter((s) => !isAnonymised(s)));  // 187 permits a log against anyone not erased
+    }).catch(() => { setStaff([]); setPickerStaff([]); });
     getMosqueTimeLogs(mosqueId, { from: `${from}T00:00:00`, to: `${to}T23:59:59.999` }).then(setLogs).catch(() => setLogs([]));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId, from]);
@@ -376,10 +380,10 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
   };
   const gbp = (n) => `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  // Add / edit a log. The add-log picker lists CURRENT staff only; an offboarded
-  // member's existing logs can still be edited/approved below (187 allows it), but
-  // a brand-new log for an already-offboarded person is not offered here.
-  const openAdd = () => { setErr(""); setForm({ staffId: staff?.[0]?.id || "", date: from, clockIn: "09:00", clockOut: "", breakMinutes: 0, note: "" }); };
+  // Add / edit a log. The picker offers exactly whom 187 permits a log against —
+  // everyone NOT anonymised, i.e. current AND former staff (former grouped +
+  // marked, for final-week back-pay). Only GDPR-erased records are excluded.
+  const openAdd = () => { setErr(""); setForm({ staffId: pickerStaff[0]?.id || "", date: from, clockIn: "09:00", clockOut: "", breakMinutes: 0, note: "" }); };
   const openEdit = (l) => { setErr(""); setForm({ id: l.id, staffId: l.staff_id, date: tsDate(l.clock_in), clockIn: tsTime(l.clock_in), clockOut: l.clock_out ? tsTime(l.clock_out) : "", breakMinutes: l.break_minutes || 0, note: l.note || "" }); };
   const save = async () => {
     if (!form.staffId || !form.date || !form.clockIn) { setErr("Staff, date and clock-in are required."); return; }
@@ -405,7 +409,7 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
         <span className="text-sm font-medium text-stone-700">Week of {from}</span>
         <button onClick={() => setWeek(addDays(week, 7))} className="text-sm border border-stone-300 px-2 py-1 rounded-lg">→</button>
         <div className="flex-1" />
-        <button onClick={openAdd} disabled={staff.length === 0} className="text-sm bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add log</button>
+        <button onClick={openAdd} disabled={pickerStaff.length === 0} className="text-sm bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add log</button>
         <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-timesheets-${from}.csv`, [
           ["Staff", "Date", "Clock in", "Clock out", "Break (min)", "Hours", "Status"],
           ...logs.map((l) => [l.staff?.name ?? "", tsDate(l.clock_in), tsTime(l.clock_in), l.clock_out ? tsTime(l.clock_out) : "", l.break_minutes ?? 0, l.worked_hours ?? "", l.status])])}
@@ -416,7 +420,10 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
         <div className="mb-4 border border-stone-200 rounded-lg bg-white p-4">
           <div className="flex items-center justify-between mb-3"><h4 className="text-sm font-semibold text-stone-800">{form.id ? "Edit time log" : "Add time log"}</h4><button onClick={() => setForm(null)} className="text-stone-400 hover:text-stone-700"><X size={16} /></button></div>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
-            <label className="col-span-2 md:col-span-2">Staff<select value={form.staffId} onChange={(e) => setForm({ ...form, staffId: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5">{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label className="col-span-2 md:col-span-2">Staff<select value={form.staffId} onChange={(e) => setForm({ ...form, staffId: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5">
+              {pickerStaff.filter(isCurrentStaff).length > 0 && <optgroup label="Current">{pickerStaff.filter(isCurrentStaff).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</optgroup>}
+              {pickerStaff.filter(isFormer).length > 0 && <optgroup label="Former (back-pay)">{pickerStaff.filter(isFormer).map((s) => <option key={s.id} value={s.id}>{s.name} (former)</option>)}</optgroup>}
+            </select></label>
             <label>Date<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /></label>
             <label>Clock in<input type="time" value={form.clockIn} onChange={(e) => setForm({ ...form, clockIn: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /></label>
             <label>Clock out<input type="time" value={form.clockOut} onChange={(e) => setForm({ ...form, clockOut: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /><span className="block text-[11px] text-stone-400">blank = open shift</span></label>
