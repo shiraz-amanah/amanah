@@ -10,12 +10,14 @@
 // payroll £ amounts land in RBAC-C.
 // ====================================================================
 import { useState, useEffect, useMemo } from "react";
-import { Download, Copy, Loader2, Lock, X, Trash2 } from "lucide-react";
+import { Download, Copy, Loader2, Lock, X, Trash2, Plus, Check, RotateCcw, Clock } from "lucide-react";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
-import { getMosqueShifts, createShift, updateShift, deleteShift } from "../auth";
+import {
+  getMosqueShifts, createShift, updateShift, deleteShift,
+  getMosqueTimeLogs, createTimeLog, updateTimeLog, deleteTimeLog, setTimeLogStatus,
+} from "../auth";
 import {
   getMosqueStaffList, getMosqueLeave, approveLeave, declineLeave, getStaffSalary,
-  getMosqueTimesheets, upsertTimesheet, deleteTimesheet, approveTimesheetWeek,
   isCurrentStaff,
 } from "../lib/staffHelpers";
 import { sendLeaveDecision } from "../lib/email";
@@ -326,41 +328,42 @@ function LeaveCalendar({ mosqueId }) {
 }
 
 // ── Timesheets & Payroll ─────────────────────────────────────────────
+// Timesheets & Payroll — clock-in/out LOGS (mosque_time_logs, migration 085),
+// NOT the old manual hours grid (mosque_staff_timesheets/131, now frozen). One
+// row per shift: real clock_in/clock_out, break, a DB-generated worked_hours, and
+// a pending→approved/rejected lifecycle. Admin-first: the owner adds/edits/deletes
+// logs and approves them; staff self-clock (Phase 2b, /clock NFC page) writes the
+// same table. Payroll CSV reads real worked_hours. Migration 187 blocks any log
+// against an ANONYMISED staff record (offboarded stays allowed — back-pay).
+const tsDate = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const tsTime = (ts) => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const STATUS_STYLES = {
+  pending:  "bg-amber-50 text-amber-700",
+  approved: "bg-emerald-50 text-emerald-800",
+  rejected: "bg-rose-50 text-rose-700",
+};
+
 function Timesheets({ mosqueId, mosque, authedUser }) {
   const [week, setWeek] = useState(() => mondayOf(new Date()));
-  const [staff, setStaff] = useState(null);
-  const [entries, setEntries] = useState({}); // { staffId: { dateISO: { id, hours, approved } } }
+  const [staff, setStaff] = useState(null);        // current staff (add-log picker + salary)
+  const [logs, setLogs] = useState([]);
   const [salaries, setSalaries] = useState(null);
   const [revealing, setRevealing] = useState(false);
-  const TDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const dates = TDAYS.map((_, i) => iso(addDays(week, i)));
-  const from = dates[0], to = dates[dates.length - 1];
+  const [form, setForm] = useState(null);          // null=closed; else the add/edit draft
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const from = iso(week), to = iso(addDays(week, 6));
 
   const load = () => {
     getMosqueStaffList(mosqueId).then((s) => setStaff(s.filter(isCurrentStaff))).catch(() => setStaff([]));
-    getMosqueTimesheets(mosqueId, from, to).then((rows) => {
-      const map = {};
-      for (const r of rows) (map[r.staff_id] ||= {})[r.work_date] = { id: r.id, hours: r.hours_worked, approved: r.approved };
-      setEntries(map);
-    }).catch(() => setEntries({}));
+    getMosqueTimeLogs(mosqueId, { from: `${from}T00:00:00`, to: `${to}T23:59:59.999` }).then(setLogs).catch(() => setLogs([]));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [mosqueId, from]);
 
-  const cell = (sid, date) => entries[sid]?.[date];
-  const setLocal = (sid, date, hours) => setEntries((m) => ({ ...m, [sid]: { ...(m[sid] || {}), [date]: { ...(m[sid]?.[date] || {}), hours } } }));
-  const rowTotal = (sid) => dates.reduce((sum, dt) => sum + (Number(entries[sid]?.[dt]?.hours) || 0), 0);
-  const grandTotal = (staff || []).reduce((s, st) => s + rowTotal(st.id), 0);
+  const totalHours = logs.reduce((s, l) => s + (Number(l.worked_hours) || 0), 0);
 
-  const persist = async (sid, date, raw) => {
-    const existing = cell(sid, date);
-    if (existing?.approved) return;
-    if (raw === "" || raw == null) { if (existing?.id) await deleteTimesheet(sid, date); load(); return; }
-    const hours = Math.max(0, Math.min(24, Number(raw)));
-    await upsertTimesheet(sid, mosqueId, date, hours); load();
-  };
-  const approveWeek = async (sid) => { await approveTimesheetWeek(mosqueId, sid, from, to, authedUser?.id); load(); };
-  const rowApproved = (sid) => dates.some((dt) => entries[sid]?.[dt]) && dates.every((dt) => !entries[sid]?.[dt] || entries[sid][dt].approved);
-
+  // Salary reveal (audited via getStaffSalary) — screen-only weekly payroll estimate.
   const weeklyPay = (sid) => { const p = salaries?.[sid]; return p == null ? null : p / 100 / 52; };
   const totalWeekly = (staff || []).reduce((s, st) => s + (weeklyPay(st.id) || 0), 0);
   const revealed = salaries !== null;
@@ -373,6 +376,27 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
   };
   const gbp = (n) => `£${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  // Add / edit a log. The add-log picker lists CURRENT staff only; an offboarded
+  // member's existing logs can still be edited/approved below (187 allows it), but
+  // a brand-new log for an already-offboarded person is not offered here.
+  const openAdd = () => { setErr(""); setForm({ staffId: staff?.[0]?.id || "", date: from, clockIn: "09:00", clockOut: "", breakMinutes: 0, note: "" }); };
+  const openEdit = (l) => { setErr(""); setForm({ id: l.id, staffId: l.staff_id, date: tsDate(l.clock_in), clockIn: tsTime(l.clock_in), clockOut: l.clock_out ? tsTime(l.clock_out) : "", breakMinutes: l.break_minutes || 0, note: l.note || "" }); };
+  const save = async () => {
+    if (!form.staffId || !form.date || !form.clockIn) { setErr("Staff, date and clock-in are required."); return; }
+    setBusy(true); setErr("");
+    const clockIn = new Date(`${form.date}T${form.clockIn}:00`).toISOString();
+    const clockOut = form.clockOut ? new Date(`${form.date}T${form.clockOut}:00`).toISOString() : null;
+    const breakMinutes = Math.max(0, Number(form.breakMinutes) || 0);
+    const { error } = form.id
+      ? await updateTimeLog(form.id, { staff_id: form.staffId, clock_in: clockIn, clock_out: clockOut, break_minutes: breakMinutes, note: form.note || null })
+      : await createTimeLog({ mosqueId, staffId: form.staffId, clockIn, clockOut, breakMinutes, note: form.note || null });
+    setBusy(false);
+    if (error) { setErr(error.message || "Save failed"); return; }
+    setForm(null); load();
+  };
+  const remove = async (l) => { if (!window.confirm(`Delete this time log for ${l.staff?.name || "this staff member"}?`)) return; await deleteTimeLog(l.id); load(); };
+  const setStatus = async (l, status) => { await setTimeLogStatus(l.id, status); load(); };
+
   if (staff === null) return <Loading />;
   return (
     <div>
@@ -381,34 +405,54 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
         <span className="text-sm font-medium text-stone-700">Week of {from}</span>
         <button onClick={() => setWeek(addDays(week, 7))} className="text-sm border border-stone-300 px-2 py-1 rounded-lg">→</button>
         <div className="flex-1" />
-        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-payroll-${from}.csv`, [["Staff", ...TDAYS, "Total hours", ...(revealed ? ["Annual salary (£)", "Est. weekly pay (£)"] : []), "Approved"],
-          ...staff.map((s) => [s.name, ...dates.map((dt) => entries[s.id]?.[dt]?.hours ?? ""), rowTotal(s.id), ...(revealed ? [salaries[s.id] != null ? (salaries[s.id] / 100).toFixed(2) : "", weeklyPay(s.id) != null ? weeklyPay(s.id).toFixed(2) : ""] : []), rowApproved(s.id) ? "yes" : "no"])])}
+        <button onClick={openAdd} disabled={staff.length === 0} className="text-sm bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Plus size={14} /> Add log</button>
+        <button onClick={() => downloadCsv(`${(mosque?.name || "mosque")}-timesheets-${from}.csv`, [
+          ["Staff", "Date", "Clock in", "Clock out", "Break (min)", "Hours", "Status"],
+          ...logs.map((l) => [l.staff?.name ?? "", tsDate(l.clock_in), tsTime(l.clock_in), l.clock_out ? tsTime(l.clock_out) : "", l.break_minutes ?? 0, l.worked_hours ?? "", l.status])])}
           className="text-sm border border-stone-300 hover:bg-stone-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"><Download size={14} /> Export CSV</button>
       </div>
-      {staff.length === 0 ? <Empty text="No staff to record." /> : (
+
+      {form && (
+        <div className="mb-4 border border-stone-200 rounded-lg bg-white p-4">
+          <div className="flex items-center justify-between mb-3"><h4 className="text-sm font-semibold text-stone-800">{form.id ? "Edit time log" : "Add time log"}</h4><button onClick={() => setForm(null)} className="text-stone-400 hover:text-stone-700"><X size={16} /></button></div>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+            <label className="col-span-2 md:col-span-2">Staff<select value={form.staffId} onChange={(e) => setForm({ ...form, staffId: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5">{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label>Date<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /></label>
+            <label>Clock in<input type="time" value={form.clockIn} onChange={(e) => setForm({ ...form, clockIn: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /></label>
+            <label>Clock out<input type="time" value={form.clockOut} onChange={(e) => setForm({ ...form, clockOut: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /><span className="block text-[11px] text-stone-400">blank = open shift</span></label>
+            <label>Break (min)<input type="number" min="0" value={form.breakMinutes} onChange={(e) => setForm({ ...form, breakMinutes: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" /></label>
+            <label className="col-span-2 md:col-span-6">Note<input type="text" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} className="mt-1 w-full border border-stone-300 rounded-lg px-2 py-1.5" placeholder="optional" /></label>
+          </div>
+          {err && <p className="text-xs text-rose-600 mt-2">{err}</p>}
+          <div className="flex items-center gap-2 mt-3">
+            <button onClick={save} disabled={busy} className="text-sm bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save</button>
+            <button onClick={() => setForm(null)} className="text-sm text-stone-500 hover:text-stone-800 px-2 py-1.5">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {logs.length === 0 ? <Empty text="No time logs this week." /> : (
         <div className="overflow-x-auto">
           <table className="min-w-max text-sm border border-stone-200 rounded-lg bg-white">
-            <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="px-3 py-2 text-left font-medium">Staff</th>{TDAYS.map((d) => <th key={d} className="px-2 py-2 font-medium">{d}</th>)}<th className="px-3 py-2 font-medium">Total</th>{revealed && <th className="px-3 py-2 font-medium">Pay (wk est.)</th>}<th className="px-3 py-2 font-medium">Approve</th></tr></thead>
+            <thead className="bg-stone-50 text-xs text-stone-500"><tr>{["Staff", "Date", "In", "Out", "Break", "Hours", "Status", ""].map((h, i) => <th key={i} className={`px-3 py-2 font-medium ${i === 0 ? "text-left" : ""}`}>{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-stone-100">
-              {staff.map((s) => (
-                <tr key={s.id}>
-                  <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap">{s.name}</td>
-                  {dates.map((dt) => {
-                    const c = cell(s.id, dt);
-                    return (
-                      <td key={dt} className="px-1 py-1">
-                        {c?.approved
-                          ? <div className="w-14 text-xs bg-emerald-50 text-emerald-800 rounded px-1.5 py-1 text-center inline-flex items-center justify-center gap-1"><Lock size={10} />{c.hours}</div>
-                          : <input type="number" value={c?.hours ?? ""} onChange={(e) => setLocal(s.id, dt, e.target.value)} onBlur={(e) => persist(s.id, dt, e.target.value)}
-                              className="w-14 text-xs border border-stone-200 rounded px-1.5 py-1 text-center focus:outline-none focus:ring-1 focus:ring-emerald-300" />}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-1.5 text-center font-semibold">{rowTotal(s.id)}</td>
-                  {revealed && <td className="px-3 py-1.5 text-center text-stone-700">{weeklyPay(s.id) != null ? gbp(weeklyPay(s.id)) : "—"}</td>}
-                  <td className="px-3 py-1.5 text-center">
-                    {rowApproved(s.id) ? <span className="text-xs text-emerald-700 inline-flex items-center gap-1"><Lock size={11} /> Approved</span>
-                      : <button onClick={() => approveWeek(s.id)} className="text-xs text-emerald-700 hover:underline">Approve week</button>}
+              {logs.map((l) => (
+                <tr key={l.id}>
+                  <td className="px-3 py-1.5 font-medium text-stone-800 whitespace-nowrap">{l.staff?.name ?? "—"}</td>
+                  <td className="px-3 py-1.5 whitespace-nowrap text-stone-600">{tsDate(l.clock_in)}</td>
+                  <td className="px-3 py-1.5 text-center text-stone-600">{tsTime(l.clock_in)}</td>
+                  <td className="px-3 py-1.5 text-center text-stone-600">{l.clock_out ? tsTime(l.clock_out) : <span className="text-amber-600 inline-flex items-center gap-1"><Clock size={11} /> open</span>}</td>
+                  <td className="px-3 py-1.5 text-center text-stone-500">{l.break_minutes || 0}m</td>
+                  <td className="px-3 py-1.5 text-center font-semibold">{l.worked_hours ?? "—"}</td>
+                  <td className="px-3 py-1.5 text-center"><span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[l.status] || ""}`}>{l.status}</span></td>
+                  <td className="px-3 py-1.5">
+                    <div className="flex items-center gap-2 justify-end text-xs whitespace-nowrap">
+                      {l.status === "pending" && <button onClick={() => setStatus(l, "approved")} className="text-emerald-700 hover:underline inline-flex items-center gap-1"><Check size={12} /> Approve</button>}
+                      {l.status === "pending" && <button onClick={() => setStatus(l, "rejected")} className="text-rose-600 hover:underline inline-flex items-center gap-1"><X size={12} /> Reject</button>}
+                      {l.status !== "pending" && <button onClick={() => setStatus(l, "pending")} className="text-stone-500 hover:underline inline-flex items-center gap-1"><RotateCcw size={12} /> Reset</button>}
+                      <button onClick={() => openEdit(l)} className="text-stone-500 hover:text-stone-800">Edit</button>
+                      <button onClick={() => remove(l)} className="text-stone-400 hover:text-rose-600"><Trash2 size={13} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -416,8 +460,9 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
           </table>
         </div>
       )}
+
       <div className="mt-4 border border-stone-200 rounded-lg bg-stone-50 p-4 text-sm space-y-1 max-w-md">
-        <div className="flex justify-between"><span className="text-stone-500">Total hours this week</span><span className="font-semibold">{grandTotal}</span></div>
+        <div className="flex justify-between"><span className="text-stone-500">Total hours this week</span><span className="font-semibold">{totalHours.toFixed(2)}</span></div>
         {!revealed ? (
           <button onClick={revealSalaries} disabled={revealing} className="text-sm text-emerald-700 inline-flex items-center gap-1.5 disabled:opacity-50">
             {revealing ? <Loader2 size={13} className="animate-spin" /> : null} Reveal salaries &amp; payroll — access is logged
@@ -425,7 +470,7 @@ function Timesheets({ mosqueId, mosque, authedUser }) {
         ) : (
           <div className="flex justify-between"><span className="text-stone-500">Est. weekly payroll</span><span className="font-semibold">{gbp(totalWeekly)}</span></div>
         )}
-        <p className="text-xs text-stone-400 pt-1">Weekly pay is an estimate (annual salary ÷ 52). UK auto-enrolment: a workplace pension is required for employees earning over £10,000/year.</p>
+        <p className="text-xs text-stone-400 pt-1">Hours come from clock-in/out logs. Weekly pay is an estimate (annual salary ÷ 52). UK auto-enrolment: a workplace pension is required for employees earning over £10,000/year.</p>
       </div>
     </div>
   );

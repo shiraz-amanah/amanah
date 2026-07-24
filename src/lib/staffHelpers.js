@@ -415,7 +415,14 @@ export async function getMosqueLeave(mosqueId) {
   if (error) { console.error("getMosqueLeave:", error); return []; }
   return data || [];
 }
-// ── Timesheets (mosque_staff_timesheets, migration 131) ─────────────
+// ── Timesheets (mosque_staff_timesheets, migration 131) — DEPRECATED ──────────
+// ⚠️ FROZEN (Workforce Phase 2a, 24 July 2026). The Timesheets & Payroll tab moved
+// to the clock-in/out LOG model (mosque_time_logs / migration 085; data layer in
+// auth.js — getMosqueTimeLogs/createTimeLog/updateTimeLog/deleteTimeLog/
+// setTimeLogStatus). The manual per-day hours grid these four functions back is
+// retired from the UI (no caller remains); the table + these helpers are left in
+// place per freeze-don't-delete (prod row count was 0). DO NOT wire these into new
+// UI — use the 085 time-log functions. A later migration may drop 058 + 131.
 export async function getMosqueTimesheets(mosqueId, from, to) {
   if (!mosqueId) return [];
   const { data, error } = await supabase
